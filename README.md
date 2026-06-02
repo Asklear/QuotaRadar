@@ -14,6 +14,8 @@ QuotaBar 是一个 macOS 状态栏应用，用来观察搜索 API 与 LLM coding
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+下一阶段计划见 [TODO / Roadmap](./TODO.md)。
+
 ## 功能
 
 - 状态栏磨砂玻璃弹窗，按 `AI Search` 和 `LLM` 分组展示额度。

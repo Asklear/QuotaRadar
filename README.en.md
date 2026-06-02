@@ -14,6 +14,8 @@ QuotaBar currently supports macOS, with macOS 14.0 as the minimum supported vers
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+See [TODO / Roadmap](./TODO.en.md) for the next development plan.
+
 ## Features
 
 - Frosted-glass menu bar popover grouped by `AI Search` and `LLM`.
