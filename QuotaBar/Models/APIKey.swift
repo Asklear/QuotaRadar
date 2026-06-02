@@ -218,9 +218,9 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
     /// 是否支持主动查询 quota（通过 API endpoint）
     var supportsQuotaQuery: Bool {
         switch self {
-        case .tavily, .brave, .serpapi, .serper, .bocha, .anysearch, .wxmp, .querit, .deepseek, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo:
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .deepseek, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo:
             return true
-        case .exa, .anthropic:
+        case .anthropic:
             return false // 只能通过 response header、dashboard，或未公开 quota API
         }
     }
@@ -230,7 +230,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         case .querit, .anthropic:
             return dashboardURL == nil ? L10n.t(.quotaUnavailable, language: language) : L10n.t(.openDashboard, language: language)
         case .exa:
-            return L10n.t(.quotaUnavailable, language: language)
+            return L10n.t(.adminCredentialRequired, language: language)
         case .tavily, .brave, .serpapi, .serper, .bocha, .anysearch, .wxmp, .deepseek, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo:
             return L10n.t(.quotaUnavailable, language: language)
         }
@@ -376,10 +376,14 @@ struct APIKey: Identifiable, Codable, Equatable {
         if quotaLabel == "Search OK · monthly quota not exposed" {
             return true
         }
-        return provider == .brave
-            && lastHTTPStatus == 200
-            && remaining == Int.max
-            && limit == Int.max
+        if provider == .brave,
+           lastHTTPStatus == 200,
+           remaining == Int.max,
+           limit == Int.max {
+            return true
+        }
+        return provider == .exa
+            && quotaLabel?.range(of: #"^[A-Z]{3} [0-9]+(?:\.[0-9]+)? used$"#, options: .regularExpression) != nil
     }
 
     var isUsageLimitExceeded: Bool {
@@ -394,11 +398,12 @@ struct APIKey: Identifiable, Codable, Equatable {
         guard isActive else { return L10n.t(.disabled) }
         if isUnlimitedQuota { return L10n.t(.unlimited) }
         if isUsageLimitExceeded { return L10n.t(.usageLimitExceeded) }
-        if isUsableWithUnknownQuota { return L10n.t(.usableUnknownQuota) }
 
         if let quotaLabel, !quotaLabel.isEmpty {
             return L10n.localizedQuotaLabel(quotaLabel)
         }
+
+        if isUsableWithUnknownQuota { return L10n.t(.usableUnknownQuota) }
 
         if let remaining, let limit, limit > 0 {
             return "\(remaining) / \(limit)"

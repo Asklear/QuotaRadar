@@ -791,6 +791,15 @@ assert_match 'X-API-KEY' \
 assert_no_match 'api.exa.ai/(usage|account|user)' \
   "QuotaBar/Services/QuotaService.swift" \
   "Exa must not use removed/nonexistent plain search-key account endpoints"
+assert_match 'https://admin-api\.exa\.ai/team-management/api-keys' \
+  "QuotaBar/Services/QuotaService.swift" \
+  "Exa quota should use the official Team Management usage endpoint"
+assert_match 'request\.setValue\(credential\.serviceKey, forHTTPHeaderField: "x-api-key"\)' \
+  "QuotaBar/Services/QuotaService.swift" \
+  "Exa quota checks should authenticate with the Admin API service key"
+assert_match 'parseExaUsage' \
+  "QuotaBar/Services/QuotaService.swift" \
+  "Exa usage responses should be parsed from Team Management billing data"
 assert_match 'Exa Admin API requires a service key' \
   "QuotaBar/Services/QuotaService.swift" \
   "Exa search API keys should explain that usage requires the Admin API service key"
@@ -1006,6 +1015,8 @@ require(Provider.xfyunCodingPlan.supportsQuotaQuery, "XFYun Coding Plan should s
 require(Provider.volcengineCodingPlan.supportsQuotaQuery, "Volcengine Coding Plan should support dashboard quota checks")
 require(Provider.opencodeGo.supportsQuotaQuery, "OpenCode Go should support dashboard quota checks")
 require(Provider.querit.supportsQuotaQuery, "Querit should support dashboard-cookie quota checks through the user account endpoint")
+require(Provider.exa.supportsQuotaQuery, "Exa should support usage checks when an Admin API service key and API key id are configured")
+require(Provider.exa.localizedUnsupportedQuotaLabel(language: .simplifiedChinese) == "需要 Admin 凭据", "Exa plain search keys should explain that Admin credentials are required instead of showing a generic unavailable label")
 require(Provider.deepseek.homeVisibleWithoutKeys, "DeepSeek should appear on the home view before a key is configured")
 require(Provider.xfyunCodingPlan.homeVisibleWithoutKeys, "XFYun Coding Plan should appear on the home view before a key is configured")
 require(Provider.volcengineCodingPlan.homeVisibleWithoutKeys, "Volcengine Coding Plan should appear on the home view before a key is configured")
@@ -1073,6 +1084,9 @@ let localizedDeepSeekMoney = APIKey(name: "DEEPSEEK_API_KEY", key: "deepseek", p
 require(localizedDeepSeekMoney.quotaDisplayText == "可用 CNY 12.50", "Money available labels should be localized in Simplified Chinese")
 let localizedBochaBalance = APIKey(name: "BOCHA_API_KEY", key: "bocha", provider: .bocha, remaining: 1400, limit: 1400, quotaLabel: "CNY 14.00 balance")
 require(localizedBochaBalance.quotaDisplayText == "余额 CNY 14.00", "Money balance labels should be localized in Simplified Chinese")
+let localizedExaUsage = APIKey(name: "EXA_ADMIN", key: "exa", provider: .exa, remaining: Int.max, limit: Int.max, quotaLabel: "USD 45.67 used")
+require(localizedExaUsage.quotaDisplayText == "已用 USD 45.67", "Exa usage cost labels should be localized in Simplified Chinese")
+require(localizedExaUsage.remainingBadgeText == "正常", "Exa usage-only checks should show a localized OK badge instead of a fake percentage")
 let localizedQuotaKey = APIKey(
     name: "XFYUN_CODING_PLAN_COOKIE",
     key: "cookie",
@@ -1441,6 +1455,13 @@ let exhaustedSerper = try! QuotaParsers.parseSerperAccount(Data("""
 require(exhaustedSerper.remaining == 0, "Serper negative balance should be displayed as exhausted")
 require(exhaustedSerper.limit == 0, "Serper exhausted balance should not look like an available limit")
 require(exhaustedSerper.quotaLabel == "No Serper credits available", "Serper negative balance should explain the exhausted state")
+
+let exaUsage = try! QuotaParsers.parseExaUsage(Data("""
+{"api_key_id":"550e8400-e29b-41d4-a716-446655440000","api_key_name":"Production API Key","total_cost_usd":45.67,"cost_breakdown":[]}
+""".utf8))
+require(exaUsage.remaining == Int.max, "Exa usage is billing cost only and should not invent a remaining quota")
+require(exaUsage.limit == Int.max, "Exa usage is billing cost only and should not invent a quota limit")
+require(exaUsage.quotaLabel == "USD 45.67 used", "Exa usage should display total billed cost for the period")
 
 let deepSeek = try! QuotaParsers.parseDeepSeekBalance(Data("""
 {"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"12.50","granted_balance":"0","topped_up_balance":"12.50"}]}

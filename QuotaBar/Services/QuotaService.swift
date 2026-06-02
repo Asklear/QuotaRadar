@@ -173,6 +173,29 @@ enum QuotaParsers {
         )
     }
 
+    static func parseExaUsage(_ data: Data) throws -> QuotaResult {
+        struct UsageResponse: Decodable {
+            let total_cost_usd: Double?
+            let totalCostUsd: Double?
+
+            var totalCost: Double? {
+                total_cost_usd ?? totalCostUsd
+            }
+        }
+
+        let usage = try JSONDecoder().decode(UsageResponse.self, from: data)
+        guard let totalCost = usage.totalCost, totalCost >= 0 else {
+            throw QuotaError.invalidResponse
+        }
+
+        return QuotaResult(
+            remaining: Int.max,
+            limit: Int.max,
+            resetAt: nil,
+            quotaLabel: "USD \(String(format: "%.2f", totalCost)) used"
+        )
+    }
+
     static func parseQueritAccount(_ data: Data) throws -> QuotaResult {
         struct FlexibleInt: Decodable {
             let value: Int
@@ -722,6 +745,30 @@ private struct DashboardCredential {
     }
 }
 
+private struct ExaAdminCredential {
+    let serviceKey: String
+    let apiKeyID: String
+    let days: Int
+
+    init?(_ raw: String) {
+        let credential = DashboardCredential(raw)
+        guard let serviceKey = credential.value(for: ["serviceKey", "service_key", "adminApiKey", "admin_api_key", "adminKey"]),
+              let apiKeyID = credential.value(for: ["apiKeyID", "apiKeyId", "api_key_id", "keyID", "keyId", "id"]) else {
+            return nil
+        }
+
+        self.serviceKey = serviceKey
+        self.apiKeyID = apiKeyID
+        if let rawDays = credential.value(for: ["days", "numDays", "num_days"]),
+           let parsedDays = Int(rawDays),
+           parsedDays > 0 {
+            self.days = parsedDays
+        } else {
+            self.days = 30
+        }
+    }
+}
+
 actor QuotaService {
     private let session: URLSession
     private var lastCheck: [String: Date] = [:]
@@ -883,7 +930,40 @@ actor QuotaService {
     /// Exa Admin API requires a service key and the target API key id.
     /// A plain Exa search API key cannot call the Team Management usage endpoint.
     private func checkExaQuota(key: APIKey) async throws -> QuotaResult {
-        throw QuotaError.notSupported
+        guard let credential = ExaAdminCredential(key.key),
+              let encodedKeyID = credential.apiKeyID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              var components = URLComponents(string: "https://admin-api.exa.ai/team-management/api-keys/\(encodedKeyID)/usage") else {
+            throw QuotaError.notSupported
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "numDays", value: String(credential.days))
+        ]
+        guard let url = components.url else {
+            throw QuotaError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(credential.serviceKey, forHTTPHeaderField: "x-api-key")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        var result = try QuotaParsers.parseExaUsage(data)
+        result.httpStatus = httpResponse.statusCode
+        result.diagnosticMessage = "Exa Team Management usage endpoint returned billing usage."
+        return result
     }
 
     /// Bocha: 查询账户资源包 / 余额。

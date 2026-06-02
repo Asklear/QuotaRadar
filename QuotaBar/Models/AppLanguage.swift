@@ -128,6 +128,7 @@ enum L10n {
         case close
         case unlimited
         case noKeyValue
+        case adminCredentialRequired
         case off
         case ok
         case expired
@@ -162,6 +163,7 @@ enum L10n {
         case noProviderCreditsAvailableFormat
         case moneyAvailableFormat
         case moneyBalanceFormat
+        case moneyUsedFormat
         case manualRefreshOnly
         case zeroRemainingBadge
         case notAvailableShort
@@ -304,6 +306,9 @@ enum L10n {
         if let match = regexCapture(label, pattern: #"^([A-Z]{3}) ([0-9]+(?:\.[0-9]+)?) balance$"#) {
             return format(.moneyBalanceFormat, match[0], match[1], language: language)
         }
+        if let match = regexCapture(label, pattern: #"^([A-Z]{3}) ([0-9]+(?:\.[0-9]+)?) used$"#) {
+            return format(.moneyUsedFormat, match[0], match[1], language: language)
+        }
         return nil
     }
 
@@ -407,6 +412,7 @@ enum L10n {
         .close: "Close",
         .unlimited: "Unlimited",
         .noKeyValue: "No key value",
+        .adminCredentialRequired: "Admin credential required",
         .off: "Off",
         .ok: "OK",
         .expired: "Expired",
@@ -441,6 +447,7 @@ enum L10n {
         .noProviderCreditsAvailableFormat: "No %@ credits available",
         .moneyAvailableFormat: "%@ %@ available",
         .moneyBalanceFormat: "%@ %@ balance",
+        .moneyUsedFormat: "%@ %@ used",
         .manualRefreshOnly: "Manual refresh only",
         .zeroRemainingBadge: "0 left",
         .notAvailableShort: "N/A",
@@ -531,6 +538,7 @@ enum L10n {
         .close: "关闭",
         .unlimited: "无限",
         .noKeyValue: "没有密钥值",
+        .adminCredentialRequired: "需要 Admin 凭据",
         .off: "关闭",
         .ok: "正常",
         .expired: "过期",
@@ -565,6 +573,7 @@ enum L10n {
         .noProviderCreditsAvailableFormat: "没有可用的 %@ 积分",
         .moneyAvailableFormat: "可用 %@ %@",
         .moneyBalanceFormat: "余额 %@ %@",
+        .moneyUsedFormat: "已用 %@ %@",
         .manualRefreshOnly: "仅支持手动刷新",
         .zeroRemainingBadge: "剩余 0",
         .notAvailableShort: "未知",
