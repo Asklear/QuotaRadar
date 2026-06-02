@@ -21,6 +21,8 @@ struct APIKeyStore {
         var limit: Int?
         var resetAt: Date?
         var lastUpdated: Date?
+        var lastHTTPStatus: Int?
+        var lastDiagnosticMessage: String?
         var quotaLabel: String?
         var usageCount: Int
         var lastUsed: Date?
@@ -35,6 +37,8 @@ struct APIKeyStore {
             limit = key.limit
             resetAt = key.resetAt
             lastUpdated = key.lastUpdated
+            lastHTTPStatus = key.lastHTTPStatus
+            lastDiagnosticMessage = key.lastDiagnosticMessage
             quotaLabel = key.quotaLabel
             usageCount = key.usageCount
             lastUsed = key.lastUsed
@@ -75,6 +79,8 @@ struct APIKeyStore {
                 limit: normalizedLimit,
                 resetAt: resetAt,
                 lastUpdated: lastUpdated,
+                lastHTTPStatus: lastHTTPStatus,
+                lastDiagnosticMessage: lastDiagnosticMessage,
                 quotaLabel: normalizedQuotaLabel,
                 usageCount: usageCount,
                 lastUsed: lastUsed

@@ -532,36 +532,11 @@ struct KeyRow: View {
     }
 
     private var quotaSummary: String {
-        guard key.isActive else {
-            return L10n.t(.disabled)
-        }
-
-        if key.isUnlimitedQuota {
-            return key.quotaDisplayText
-        }
-
-        if let quotaLabel = key.quotaLabel, !quotaLabel.isEmpty {
-            return L10n.localizedQuotaLabel(quotaLabel)
-        }
-
-        if let remaining = key.remaining, let limit = key.limit, limit > 0 {
-            return L10n.format(.remainingValue, remaining) + " / \(limit)"
-        }
-
-        if let remaining = key.remaining {
-            return L10n.format(.remainingValue, remaining)
-        }
-
-        return L10n.t(.quotaUnavailable)
+        key.quotaDisplayText
     }
 
     private var statusColor: Color {
-        guard key.isActive else { return .gray }
-        if key.isUnlimitedQuota { return .green }
-        guard let remaining = key.remaining else { return .gray }
-        if remaining <= 0 { return .red }
-        if remaining < 100 { return .orange }
-        return .green
+        key.status.color
     }
 
     private func timeAgo(from date: Date) -> String {

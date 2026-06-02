@@ -106,6 +106,7 @@ class QuotaMonitor: ObservableObject {
                     if key.lastUpdated == nil, key.quotaLabel == nil {
                         key.quotaLabel = "Manual refresh only"
                     }
+                    key.lastDiagnosticMessage = L10n.t(.quotaConsumingRefreshWarning)
                     updatedKeys.append(key)
                     continue
                 }
@@ -116,6 +117,8 @@ class QuotaMonitor: ObservableObject {
                     key.limit = result.limit
                     key.resetAt = result.resetAt
                     key.quotaLabel = result.quotaLabel
+                    key.lastHTTPStatus = result.httpStatus
+                    key.lastDiagnosticMessage = result.diagnosticMessage
                     key.lastUpdated = Date()
                     updatedKeys.append(key)
                 } catch {
@@ -128,19 +131,26 @@ class QuotaMonitor: ObservableObject {
                         key.limit = nil
                         key.resetAt = nil
                         key.quotaLabel = key.provider.unsupportedQuotaLabel
+                        key.lastHTTPStatus = nil
+                        key.lastDiagnosticMessage = error.localizedDescription
                         key.lastUpdated = Date()
                     } else if case QuotaError.unauthorized = error {
                         key.remaining = nil
                         key.limit = nil
                         key.resetAt = nil
+                        key.lastHTTPStatus = 401
                         if key.provider.supportsDashboardReauthentication {
                             key.quotaLabel = L10n.t(.credentialExpired)
                         } else {
                             key.quotaLabel = error.localizedDescription
                         }
+                        key.lastDiagnosticMessage = error.localizedDescription
                         key.lastUpdated = Date()
                         failedKeys.append(key.name)
                     } else {
+                        key.lastHTTPStatus = (error as? QuotaError)?.httpStatus
+                        key.lastDiagnosticMessage = error.localizedDescription
+                        key.lastUpdated = Date()
                         failedKeys.append(key.name)
                     }
                     updatedKeys.append(key)
@@ -268,6 +278,8 @@ class QuotaMonitor: ObservableObject {
                 replacement.limit = existingKey.limit
                 replacement.resetAt = existingKey.resetAt
                 replacement.lastUpdated = existingKey.lastUpdated
+                replacement.lastHTTPStatus = existingKey.lastHTTPStatus
+                replacement.lastDiagnosticMessage = existingKey.lastDiagnosticMessage
                 replacement.quotaLabel = existingKey.quotaLabel
                 replacement.usageCount = existingKey.usageCount
                 replacement.lastUsed = existingKey.lastUsed

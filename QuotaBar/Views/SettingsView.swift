@@ -52,6 +52,8 @@ struct SettingsView: View {
             KeysManagementView(monitor: monitor)
         case .providers:
             ProvidersView(monitor: monitor)
+        case .diagnostics:
+            DiagnosticsView(monitor: monitor)
         case .settings:
             AppSettingsView()
         case .about:
@@ -63,12 +65,13 @@ struct SettingsView: View {
 enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
     case providers
     case apiKeys
+    case diagnostics
     case settings
     case about
 
     var id: String { rawValue }
 
-    static let navigationOrder: [SettingsDestination] = [.providers, .apiKeys, .settings]
+    static let navigationOrder: [SettingsDestination] = [.providers, .apiKeys, .diagnostics, .settings]
 
     var title: String {
         switch self {
@@ -76,6 +79,8 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
             return L10n.t(.apiKeysTab)
         case .providers:
             return L10n.t(.providersTab)
+        case .diagnostics:
+            return L10n.t(.diagnosticsTab)
         case .settings:
             return L10n.t(.settingsTab)
         case .about:
@@ -89,6 +94,8 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
             return "key.fill"
         case .providers:
             return "server.rack"
+        case .diagnostics:
+            return "stethoscope"
         case .settings:
             return "slider.horizontal.3"
         case .about:
@@ -738,13 +745,7 @@ struct APIKeyManagementRow: View {
     }
 
     private var statusText: String {
-        if !key.isActive {
-            return L10n.t(.disabled)
-        }
-        if key.isCredentialExpired {
-            return L10n.t(.expired)
-        }
-        return L10n.t(.active)
+        key.healthDisplayText
     }
 }
 
@@ -1218,6 +1219,156 @@ struct StatBadge: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(12)
         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+// MARK: - Diagnostics View
+
+struct DiagnosticsView: View {
+    @ObservedObject var monitor: QuotaMonitor
+
+    private var stats: [ProviderStats] {
+        Provider.allCases.compactMap { provider in
+            let keys = APIKey.sortedByCurrentQuota(monitor.apiKeys.filter { $0.provider == provider })
+            guard !keys.isEmpty else { return nil }
+            return ProviderStats(provider: provider, keys: keys)
+        }
+    }
+
+    var body: some View {
+        ModernPage(
+            title: L10n.t(.diagnosticsTab),
+            subtitle: L10n.t(.diagnosticsDescription),
+            systemImage: "stethoscope"
+        ) {
+            if stats.isEmpty {
+                EmptyContentPanel(
+                    title: L10n.t(.noApiKeys),
+                    systemImage: "stethoscope",
+                    actionTitle: nil,
+                    action: nil
+                )
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(stats) { stat in
+                        CredentialDiagnosticProviderSection(stat: stat)
+                    }
+                }
+            }
+        }
+        .navigationTitle(L10n.t(.diagnosticsTab))
+    }
+}
+
+struct CredentialDiagnosticProviderSection: View {
+    let stat: ProviderStats
+
+    var body: some View {
+        MaterialPanel {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    ProviderIcon(provider: stat.provider, size: 28)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(stat.provider.rawValue)
+                            .font(.system(size: 14, weight: .semibold))
+                        Text(L10n.categoryTitle(stat.provider.statusBarCategoryTitle))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Text(L10n.format(.providerKeyCount, stat.keys.count))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.secondary.opacity(0.10), in: Capsule())
+                }
+
+                if stat.provider.quotaCheckConsumesSearchQuota {
+                    InlineStatusMessage(text: L10n.t(.quotaConsumingRefreshWarning))
+                }
+
+                VStack(spacing: 6) {
+                    ForEach(stat.sortedKeysByCurrentQuota) { key in
+                        CredentialDiagnosticRow(key: key)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct CredentialDiagnosticRow: View {
+    let key: APIKey
+
+    private var httpStatusText: String {
+        key.lastHTTPStatus.map(String.init) ?? "N/A"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(key.status.color)
+                    .frame(width: 7, height: 7)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(key.name)
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(key.maskedKey)
+                        .font(.caption)
+                        .fontDesign(.monospaced)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                DiagnosticPill(title: L10n.t(.healthStatus), value: key.healthDisplayText, tint: key.status.color)
+                DiagnosticPill(title: L10n.t(.lastHTTPStatus), value: httpStatusText, tint: .secondary)
+            }
+
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "text.bubble")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+
+                Text(key.diagnosticSummary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Spacer()
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 9)
+        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+    }
+}
+
+struct DiagnosticPill: View {
+    let title: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            Text(value)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(tint.opacity(0.10), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }
 

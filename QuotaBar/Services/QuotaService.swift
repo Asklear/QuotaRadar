@@ -5,6 +5,8 @@ struct QuotaResult {
     let limit: Int
     let resetAt: Date?
     var quotaLabel: String? = nil
+    var httpStatus: Int? = nil
+    var diagnosticMessage: String? = nil
 }
 
 enum QuotaParsers {
@@ -590,6 +592,17 @@ enum QuotaError: Error, LocalizedError {
             return "Quota was checked recently"
         }
     }
+
+    var httpStatus: Int? {
+        switch self {
+        case .unauthorized:
+            return 401
+        case .rateLimited:
+            return 429
+        case .invalidResponse, .networkError, .notSupported, .cooldown:
+            return nil
+        }
+    }
 }
 
 private struct DashboardCredential {
@@ -753,13 +766,21 @@ actor QuotaService {
             policyHeader: httpResponse.value(forHTTPHeaderField: "X-RateLimit-Policy")
         )
         if httpResponse.statusCode == 402 {
+            result.httpStatus = httpResponse.statusCode
             result.quotaLabel = "Usage limit exceeded"
+            result.diagnosticMessage = "Brave returned HTTP 402 usage limit exceeded."
         } else {
             result = QuotaParsers.applyKnownBraveMonthlyQuotaIfNeeded(
                 result,
                 knownRemaining: key.remaining,
                 knownLimit: key.limit
             )
+            result.httpStatus = httpResponse.statusCode
+            if result.quotaLabel == "Search OK · monthly quota not exposed" {
+                result.diagnosticMessage = "Search works, but Brave did not expose monthly quota for this key."
+            } else {
+                result.diagnosticMessage = "Search works and Brave returned quota headers."
+            }
         }
         return result
     }

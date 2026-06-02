@@ -257,6 +257,8 @@ struct APIKey: Identifiable, Codable, Equatable {
     var limit: Int?
     var resetAt: Date?
     var lastUpdated: Date?
+    var lastHTTPStatus: Int?
+    var lastDiagnosticMessage: String?
     var quotaLabel: String?
 
     // 使用量统计（本地记录）
@@ -271,12 +273,16 @@ struct APIKey: Identifiable, Codable, Equatable {
 
     var isLow: Bool {
         guard !isUnlimitedQuota else { return false }
+        guard !isUsableWithUnknownQuota else { return false }
+        guard !isUsageLimitExceeded else { return false }
         guard let remaining = remaining else { return false }
         return remaining < 100
     }
 
     var isExhausted: Bool {
         guard !isUnlimitedQuota else { return false }
+        if isUsageLimitExceeded { return true }
+        guard !isUsableWithUnknownQuota else { return false }
         guard let remaining = remaining else { return false }
         return remaining <= 0
     }
@@ -295,9 +301,29 @@ struct APIKey: Identifiable, Codable, Equatable {
             || quotaLabel.contains("凭据已过期")
     }
 
+    var isUsableWithUnknownQuota: Bool {
+        if quotaLabel == "Search OK · monthly quota not exposed" {
+            return true
+        }
+        return provider == .brave
+            && lastHTTPStatus == 200
+            && remaining == Int.max
+            && limit == Int.max
+    }
+
+    var isUsageLimitExceeded: Bool {
+        if lastHTTPStatus == 402 {
+            return true
+        }
+        return quotaLabel?.localizedCaseInsensitiveContains("usage limit exceeded") == true
+            || quotaLabel?.contains("额度已用尽") == true
+    }
+
     var quotaDisplayText: String {
         guard isActive else { return L10n.t(.disabled) }
         if isUnlimitedQuota { return L10n.t(.unlimited) }
+        if isUsageLimitExceeded { return L10n.t(.usageLimitExceeded) }
+        if isUsableWithUnknownQuota { return L10n.t(.usableUnknownQuota) }
 
         if let quotaLabel, !quotaLabel.isEmpty {
             return L10n.localizedQuotaLabel(quotaLabel)
@@ -346,7 +372,11 @@ struct APIKey: Identifiable, Codable, Equatable {
             return L10n.t(.expired)
         }
 
-        if quotaLabel == "Search OK · monthly quota not exposed" {
+        if isUsageLimitExceeded {
+            return "0 left"
+        }
+
+        if isUsableWithUnknownQuota {
             return L10n.t(.ok)
         }
 
@@ -371,6 +401,8 @@ struct APIKey: Identifiable, Codable, Equatable {
     private var currentQuotaSortValue: Int {
         guard isActive, let remaining else { return Int.min }
         if isUnlimitedQuota { return Int.max }
+        if isUsableWithUnknownQuota { return 1 }
+        if isUsageLimitExceeded { return -1 }
         return remaining
     }
 
@@ -391,11 +423,51 @@ struct APIKey: Identifiable, Codable, Equatable {
     }
 
     var status: KeyStatus {
+        guard isActive else { return .disabled }
         if isCredentialExpired { return .expired }
         if isExhausted { return .exhausted }
+        if isUsableWithUnknownQuota { return .usableUnknown }
         if isLow { return .low }
-        if remaining != nil { return .healthy }
+        if remaining != nil || lastHTTPStatus == 200 { return .healthy }
+        if lastHTTPStatus != nil || lastDiagnosticMessage != nil { return .failed }
         return .unknown
+    }
+
+    var healthDisplayText: String {
+        switch status {
+        case .healthy:
+            return L10n.t(.healthHealthy)
+        case .low:
+            return L10n.t(.healthLow)
+        case .exhausted:
+            return isUsageLimitExceeded ? L10n.t(.usageLimitExceeded) : L10n.t(.healthExhausted)
+        case .expired:
+            return L10n.t(.expired)
+        case .usableUnknown:
+            return L10n.t(.usableUnknownQuota)
+        case .failed:
+            return L10n.t(.healthFailed)
+        case .disabled:
+            return L10n.t(.disabled)
+        case .unknown:
+            return L10n.t(.healthUnknown)
+        }
+    }
+
+    var diagnosticSummary: String {
+        if isUsageLimitExceeded {
+            return L10n.t(.usageLimitExceeded)
+        }
+        if isUsableWithUnknownQuota {
+            return L10n.t(.braveQuotaUnknownDiagnostic)
+        }
+        if let lastDiagnosticMessage, !lastDiagnosticMessage.isEmpty {
+            return L10n.localizedQuotaLabel(lastDiagnosticMessage)
+        }
+        if let quotaLabel, !quotaLabel.isEmpty {
+            return L10n.localizedQuotaLabel(quotaLabel)
+        }
+        return L10n.t(.notChecked)
     }
 }
 
@@ -404,6 +476,9 @@ enum KeyStatus: String {
     case low = "不足"
     case exhausted = "耗尽"
     case expired = "过期"
+    case usableUnknown = "可用但额度未知"
+    case failed = "异常"
+    case disabled = "停用"
     case unknown = "未知"
 
     var color: Color {
@@ -412,6 +487,9 @@ enum KeyStatus: String {
         case .low: return .orange
         case .exhausted: return .red
         case .expired: return .orange
+        case .usableUnknown: return .blue
+        case .failed: return .red
+        case .disabled: return .gray
         case .unknown: return .gray
         }
     }

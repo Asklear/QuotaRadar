@@ -49,6 +49,7 @@ enum L10n {
     enum Key {
         case apiKeysTab
         case providersTab
+        case diagnosticsTab
         case aboutTab
         case settingsTab
         case apiKeysCount
@@ -133,6 +134,20 @@ enum L10n {
         case importedFromEnv
         case importedFromClaude
         case dashboardSession
+        case diagnosticsDescription
+        case healthStatus
+        case lastHTTPStatus
+        case diagnosticMessage
+        case notChecked
+        case usableUnknownQuota
+        case usageLimitExceeded
+        case healthHealthy
+        case healthLow
+        case healthExhausted
+        case healthFailed
+        case healthUnknown
+        case braveQuotaUnknownDiagnostic
+        case quotaConsumingRefreshWarning
     }
 
     static func t(_ key: Key, language: AppLanguage = AppLanguageStore.shared.language) -> String {
@@ -214,6 +229,7 @@ enum L10n {
     private static let english: [Key: String] = [
         .apiKeysTab: "Credentials",
         .providersTab: "Quota Overview",
+        .diagnosticsTab: "Diagnostics",
         .aboutTab: "About",
         .settingsTab: "Language & Appearance",
         .apiKeysCount: "%d credentials",
@@ -298,11 +314,26 @@ enum L10n {
         .importedFromEnv: "Imported from .env",
         .importedFromClaude: "Imported from ~/.claude/settings.json",
         .dashboardSession: "Dashboard session cookie",
+        .diagnosticsDescription: "Review each credential's latest check result, HTTP status, and provider-specific diagnostic note.",
+        .healthStatus: "Health",
+        .lastHTTPStatus: "HTTP",
+        .diagnosticMessage: "Diagnostic",
+        .notChecked: "Not checked",
+        .usableUnknownQuota: "Usable · quota unknown",
+        .usageLimitExceeded: "Usage limit exceeded",
+        .healthHealthy: "Healthy",
+        .healthLow: "Low quota",
+        .healthExhausted: "Exhausted",
+        .healthFailed: "Check failed",
+        .healthUnknown: "Unknown",
+        .braveQuotaUnknownDiagnostic: "Search works, but Brave did not expose monthly quota for this key.",
+        .quotaConsumingRefreshWarning: "Manual refresh for this provider consumes one real search request.",
     ]
 
     private static let simplifiedChinese: [Key: String] = [
         .apiKeysTab: "配置凭据",
         .providersTab: "观察额度",
+        .diagnosticsTab: "诊断",
         .aboutTab: "关于",
         .settingsTab: "语言与外观",
         .apiKeysCount: "%d 个凭据",
@@ -387,5 +418,19 @@ enum L10n {
         .importedFromEnv: "从 .env 导入",
         .importedFromClaude: "从 ~/.claude/settings.json 导入",
         .dashboardSession: "控制台会话 Cookie",
+        .diagnosticsDescription: "查看每个凭据最近一次检查结果、HTTP 状态和服务商诊断信息。",
+        .healthStatus: "健康状态",
+        .lastHTTPStatus: "HTTP",
+        .diagnosticMessage: "诊断信息",
+        .notChecked: "尚未检查",
+        .usableUnknownQuota: "可用 · 额度未知",
+        .usageLimitExceeded: "额度已用尽",
+        .healthHealthy: "正常",
+        .healthLow: "额度偏低",
+        .healthExhausted: "已耗尽",
+        .healthFailed: "检查失败",
+        .healthUnknown: "未知",
+        .braveQuotaUnknownDiagnostic: "搜索可用，但 Brave 没有公开这个 key 的月度额度。",
+        .quotaConsumingRefreshWarning: "手动刷新该服务商会消耗 1 次真实搜索请求。",
     ]
 }

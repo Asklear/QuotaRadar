@@ -116,12 +116,21 @@ assert_match 'SettingsNavigationStore' \
 assert_match '\$navigationStore\.selection' \
   "QuotaBar/Views/SettingsView.swift" \
   "The sidebar selection should be driven by shared navigation state"
-assert_match 'navigationOrder: \[SettingsDestination\] = \[\.providers, \.apiKeys, \.settings\]' \
+assert_match 'navigationOrder: \[SettingsDestination\] = \[\.providers, \.apiKeys, \.diagnostics, \.settings\]' \
   "QuotaBar/Views/SettingsView.swift" \
-  "Main navigation should prioritize quota observation, then API key configuration, then language/appearance"
+  "Main navigation should prioritize quota observation, credential configuration, diagnostics, then language/appearance"
 assert_match '@Published var selection: SettingsDestination\? = \.providers' \
   "QuotaBar/Views/SettingsView.swift" \
   "The main window should open on quota observation by default"
+assert_match 'case diagnostics' \
+  "QuotaBar/Views/SettingsView.swift" \
+  "The main navigation should include a diagnostics page"
+assert_match 'DiagnosticsView\(monitor: monitor\)' \
+  "QuotaBar/Views/SettingsView.swift" \
+  "Selecting diagnostics should show the diagnostics page"
+assert_match 'CredentialDiagnosticRow' \
+  "QuotaBar/Views/SettingsView.swift" \
+  "Diagnostics should render credential-level rows"
 assert_match 'startPopoverMouseExitMonitor' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar popover should start a mouse-exit monitor when shown"
@@ -161,12 +170,30 @@ assert_match 'bypassCooldown: mode == \.manual' \
 assert_match 'func checkQuota\(for key: APIKey, bypassCooldown: Bool = false\)' \
   "QuotaBar/Services/QuotaService.swift" \
   "QuotaService should let manual refreshes bypass its duplicate-check cooldown"
+assert_match 'httpStatus' \
+  "QuotaBar/Services/QuotaService.swift" \
+  "Quota results should carry HTTP status for diagnostics"
+assert_match 'diagnosticMessage' \
+  "QuotaBar/Services/QuotaService.swift" \
+  "Quota results should carry a provider-specific diagnostic message"
 assert_no_match 'throw QuotaError\.notSupported // 使用缓存或跳过' \
   "QuotaBar/Services/QuotaService.swift" \
   "Cooldown skips must not masquerade as unsupported providers"
 assert_match 'quotaCheckConsumesSearchQuota' \
   "QuotaBar/Models/APIKey.swift" \
   "Providers such as Brave should declare when checking quota consumes real search quota"
+assert_match 'lastHTTPStatus' \
+  "QuotaBar/Models/APIKey.swift" \
+  "API keys should persist the last HTTP status for diagnostics"
+assert_match 'lastDiagnosticMessage' \
+  "QuotaBar/Models/APIKey.swift" \
+  "API keys should persist the last diagnostic message"
+assert_match 'isUsableWithUnknownQuota' \
+  "QuotaBar/Models/APIKey.swift" \
+  "API keys should distinguish usable credentials whose quota is not exposed"
+assert_match 'isUsageLimitExceeded' \
+  "QuotaBar/Models/APIKey.swift" \
+  "API keys should distinguish provider usage-limit exhaustion from unknown quota"
 assert_match 'mode == \.automatic && key\.provider\.quotaCheckConsumesSearchQuota' \
   "QuotaBar/Models/QuotaMonitor.swift" \
   "Automatic refreshes must skip quota checks that consume provider search quota"
@@ -1011,15 +1038,35 @@ let opencodeStat = ProviderStats(
 )
 require(opencodeStat.totalLimitDisplayText == "month 25%", "OpenCode Go provider total should display the monthly percentage window")
 require(opencodeStat.totalRemainingDisplayText == "5h 98%", "OpenCode Go provider remaining should display the largest remaining percentage window with its period")
-let exposedUnknownBadge = APIKey(
+let exposedUnknownKey = APIKey(
     name: "BRAVE_API_KEY_6",
     key: "brave",
     provider: .brave,
     remaining: Int.max,
     limit: Int.max,
+    lastHTTPStatus: 200,
+    lastDiagnosticMessage: "Search works, but monthly quota is hidden by Brave.",
     quotaLabel: "Search OK · monthly quota not exposed"
-).remainingBadgeText
-require(exposedUnknownBadge == "OK", "Brave keys with working search but hidden monthly quota should show OK instead of a fake percentage")
+)
+require(exposedUnknownKey.remainingBadgeText == "OK", "Brave keys with working search but hidden monthly quota should show OK instead of a fake percentage")
+require(exposedUnknownKey.isUsableWithUnknownQuota, "Brave HTTP 200 keys with hidden monthly quota should be marked usable with unknown quota")
+require(exposedUnknownKey.status == .usableUnknown, "Brave HTTP 200 keys with hidden monthly quota should use the usable-unknown health state")
+require(exposedUnknownKey.healthDisplayText == "Usable · quota unknown", "English health text should explain usable unknown-quota Brave keys")
+let usageLimitedBrave = APIKey(
+    name: "BRAVE_API_KEY_7",
+    key: "brave",
+    provider: .brave,
+    remaining: Int.max,
+    limit: Int.max,
+    lastHTTPStatus: 402,
+    lastDiagnosticMessage: "Brave returned HTTP 402 usage limit exceeded.",
+    quotaLabel: "Usage limit exceeded"
+)
+require(usageLimitedBrave.isUsageLimitExceeded, "Brave HTTP 402 usage-limit responses should be marked as usage limit exceeded")
+require(usageLimitedBrave.isExhausted, "Brave usage-limit responses should be treated as exhausted")
+require(usageLimitedBrave.status == .exhausted, "Brave usage-limit responses should use the exhausted health state")
+require(usageLimitedBrave.remainingBadgeText == "0 left", "Brave usage-limit responses should show 0 left instead of OK")
+require(usageLimitedBrave.healthDisplayText == "Usage limit exceeded", "English health text should explain Brave usage-limit exhaustion")
 var disabledKey = APIKey(name: "BRAVE_DISABLED", key: "brave", provider: .brave, remaining: 1000, limit: 1000)
 disabledKey.isActive = false
 require(disabledKey.remainingBadgeText == "Off", "Remaining badge should show inactive keys as Off")
@@ -1030,11 +1077,13 @@ let sortedStat = ProviderStats(
         APIKey(name: "low", key: "brave", provider: .brave, remaining: 20, limit: 1000),
         APIKey(name: "high", key: "brave", provider: .brave, remaining: 900, limit: 1000),
         APIKey(name: "empty", key: "brave", provider: .brave, remaining: 0, limit: 1000),
+        APIKey(name: "usableUnknown", key: "brave", provider: .brave, remaining: Int.max, limit: Int.max, lastHTTPStatus: 200, quotaLabel: "Search OK · monthly quota not exposed"),
+        APIKey(name: "usageLimited", key: "brave", provider: .brave, remaining: Int.max, limit: Int.max, lastHTTPStatus: 402, quotaLabel: "Usage limit exceeded"),
     ]
 )
 require(
-    sortedStat.sortedKeysByCurrentQuota.map { $0.name } == ["high", "low", "empty", "unknown"],
-    "ProviderStats.sortedKeysByCurrentQuota should sort known current quotas descending and keep unknown last"
+    sortedStat.sortedKeysByCurrentQuota.map { $0.name } == ["high", "low", "usableUnknown", "empty", "usageLimited", "unknown"],
+    "ProviderStats.sortedKeysByCurrentQuota should sort known quotas first, keep usable-unknown before exhausted keys, and keep unchecked unknown last"
 )
 let settingsURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("claude-settings.json")
 try! Data("""
