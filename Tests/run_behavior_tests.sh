@@ -113,6 +113,12 @@ assert_match 'scripts/package_dmg.sh --rebuild' \
 assert_match 'softprops/action-gh-release' \
   ".github/workflows/release.yml" \
   "Release workflow should upload the DMG to GitHub Releases"
+assert_match 'actions/setup-python' \
+  ".github/workflows/release.yml" \
+  "Release workflow should install a stable Python before installing Pillow"
+assert_match 'actions/setup-python' \
+  ".github/workflows/behavior-tests.yml" \
+  "Behavior test workflow should install a stable Python before installing Pillow"
 assert_no_match 'api\.anthropic\.com' \
   "QuotaBar/Info.plist" \
   "Anthropic API domains should not be whitelisted while Anthropic is not supported"
