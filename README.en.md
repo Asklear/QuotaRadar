@@ -8,6 +8,8 @@
 
 QuotaBar is a macOS menu bar app for monitoring search API and LLM coding-plan quota status without repeatedly logging in to provider dashboards.
 
+QuotaBar currently supports macOS, with macOS 14.0 as the minimum supported version.
+
 ![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue)
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
