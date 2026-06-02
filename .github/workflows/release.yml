@@ -21,6 +21,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install shell test dependencies
+        run: brew install ripgrep
+
       - name: Install Python test dependencies
         run: python3 -m pip install --user pillow
 

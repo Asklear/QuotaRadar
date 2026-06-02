@@ -119,6 +119,12 @@ assert_match 'actions/setup-python' \
 assert_match 'actions/setup-python' \
   ".github/workflows/behavior-tests.yml" \
   "Behavior test workflow should install a stable Python before installing Pillow"
+assert_match 'brew install ripgrep' \
+  ".github/workflows/release.yml" \
+  "Release workflow should install ripgrep because the behavior test script uses rg"
+assert_match 'brew install ripgrep' \
+  ".github/workflows/behavior-tests.yml" \
+  "Behavior test workflow should install ripgrep because the behavior test script uses rg"
 assert_no_match 'api\.anthropic\.com' \
   "QuotaBar/Info.plist" \
   "Anthropic API domains should not be whitelisted while Anthropic is not supported"
