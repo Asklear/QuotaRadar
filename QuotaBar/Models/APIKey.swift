@@ -42,9 +42,9 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         case .simplifiedChinese:
             switch self {
             case .brave:
-                return "Brave 搜索"
+                return "Brave"
             case .serpapi:
-                return "SerpAPI 搜索"
+                return "SerpAPI"
             case .serper:
                 return "Serper"
             case .exa:
@@ -52,11 +52,11 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             case .bocha:
                 return "博查"
             case .anysearch:
-                return "AnySearch 搜索"
+                return "AnySearch"
             case .querit:
-                return "Querit 搜索"
+                return "Querit"
             case .deepseek:
-                return "深度求索"
+                return "Deepseek"
             case .tavily, .wxmp, .anthropic, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo:
                 return rawValue
             }
