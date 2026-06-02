@@ -173,6 +173,64 @@ enum QuotaParsers {
         )
     }
 
+    static func parseQueritAccount(_ data: Data) throws -> QuotaResult {
+        struct FlexibleInt: Decodable {
+            let value: Int
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.singleValueContainer()
+                if let int = try? container.decode(Int.self) {
+                    value = int
+                } else if let double = try? container.decode(Double.self) {
+                    value = Int(double.rounded(.down))
+                } else if let string = try? container.decode(String.self),
+                          let double = Double(string) {
+                    value = Int(double.rounded(.down))
+                } else {
+                    throw QuotaError.invalidResponse
+                }
+            }
+        }
+
+        struct AccountResponse: Decodable {
+            let ErrNo: Int?
+            let Data: AccountData?
+            let data: AccountData?
+        }
+
+        struct AccountData: Decodable {
+            let current_plan: CurrentPlan?
+        }
+
+        struct CurrentPlan: Decodable {
+            let free_usage_month: FlexibleInt?
+            let coupon_quota: FlexibleInt?
+            let coupon_used: FlexibleInt?
+        }
+
+        let response = try JSONDecoder().decode(AccountResponse.self, from: data)
+        if let errNo = response.ErrNo, errNo != 200 {
+            throw QuotaError.invalidResponse
+        }
+        guard let plan = (response.Data ?? response.data)?.current_plan else {
+            throw QuotaError.invalidResponse
+        }
+
+        let couponQuota = max(0, plan.coupon_quota?.value ?? 0)
+        let couponUsed = max(0, plan.coupon_used?.value ?? 0)
+        let freeUsageMonth = max(0, plan.free_usage_month?.value ?? 0)
+        let limit = 1_000 + couponQuota
+        let used = freeUsageMonth + couponUsed
+        let remaining = max(0, limit - used)
+
+        return QuotaResult(
+            remaining: remaining,
+            limit: limit,
+            resetAt: nextMonthStartUTC(),
+            quotaLabel: "\(remaining) / \(limit) monthly requests"
+        )
+    }
+
     static func parseDeepSeekBalance(_ data: Data) throws -> QuotaResult {
         struct BalanceResponse: Decodable {
             struct BalanceInfo: Decodable {
@@ -889,10 +947,41 @@ actor QuotaService {
         return try QuotaParsers.parseDajialaRemainMoney(data)
     }
 
-    /// Querit: 通过轻量搜索获取 quota
+    /// Querit: dashboard account endpoint returns monthly request usage when authenticated by session cookie.
     private func checkQueritQuota(key: APIKey) async throws -> QuotaResult {
-        // Querit usage is exposed in the web dashboard via login session, not API-key auth.
-        throw QuotaError.notSupported
+        var request = URLRequest(url: URL(string: "https://www.querit.ai/api/v1/user/account")!)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("zh-CN,zh;q=0.9", forHTTPHeaderField: "Accept-Language")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        request.setValue(key.key, forHTTPHeaderField: "Cookie")
+        request.setValue("https://www.querit.ai/zh/dashboard/home", forHTTPHeaderField: "Referer")
+        request.setValue("\"Chromium\";v=\"148\", \"Google Chrome\";v=\"148\", \"Not/A)Brand\";v=\"99\"", forHTTPHeaderField: "sec-ch-ua")
+        request.setValue("?0", forHTTPHeaderField: "sec-ch-ua-mobile")
+        request.setValue("\"macOS\"", forHTTPHeaderField: "sec-ch-ua-platform")
+        request.setValue("empty", forHTTPHeaderField: "sec-fetch-dest")
+        request.setValue("cors", forHTTPHeaderField: "sec-fetch-mode")
+        request.setValue("same-origin", forHTTPHeaderField: "sec-fetch-site")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        var result = try QuotaParsers.parseQueritAccount(data)
+        result.httpStatus = httpResponse.statusCode
+        result.diagnosticMessage = "Querit account endpoint returned monthly request quota."
+        return result
     }
 
     // MARK: - LLM Providers

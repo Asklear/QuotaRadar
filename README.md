@@ -35,7 +35,7 @@ QuotaBar 是一个 macOS 状态栏应用，用来观察搜索 API 与 LLM coding
 | Exa | 公开 search key 不直接暴露用量 |
 | Bocha | 余额 API |
 | AnySearch | 当前按免费无限处理 |
-| Querit | Dashboard 手动查看 |
+| Querit | 控制台会话 Cookie |
 | 微信搜索 | 账户剩余金额 |
 
 ### LLM / Coding Plan

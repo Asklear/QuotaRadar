@@ -145,9 +145,9 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
 
     var supportsDashboardReauthentication: Bool {
         switch self {
-        case .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo:
+        case .querit, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo:
             return true
-        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .deepseek:
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .deepseek:
             return false
         }
     }
@@ -160,7 +160,9 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             return ["console.volcengine.com"]
         case .opencodeGo:
             return ["opencode.ai"]
-        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .deepseek:
+        case .querit:
+            return ["querit.ai"]
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .deepseek:
             return []
         }
     }
@@ -190,7 +192,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         case .wxmp:
             return "WECHAT_API_KEY"
         case .querit:
-            return "QUERIT_API_KEY"
+            return "QUERIT_COOKIE"
         case .anthropic:
             return "ANTHROPIC_API_KEY"
         case .deepseek:
@@ -201,9 +203,9 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
     /// 是否支持主动查询 quota（通过 API endpoint）
     var supportsQuotaQuery: Bool {
         switch self {
-        case .tavily, .brave, .serpapi, .serper, .bocha, .anysearch, .wxmp, .deepseek, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo:
+        case .tavily, .brave, .serpapi, .serper, .bocha, .anysearch, .wxmp, .querit, .deepseek, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo:
             return true
-        case .exa, .querit, .anthropic:
+        case .exa, .anthropic:
             return false // 只能通过 response header、dashboard，或未公开 quota API
         }
     }

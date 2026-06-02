@@ -218,9 +218,12 @@ assert_no_match 'key\.lastHTTPStatus\.map\(String\.init\) \?\? "N/A"' \
 assert_match 'unsupportedQuotaDiagnosticMessage' \
   "QuotaBar/Models/APIKey.swift" \
   "Unsupported providers should explain why quota checks cannot be monitored"
-assert_match 'Querit 没有公开可用 API Key 认证查询的额度接口' \
-  "QuotaBar/Models/AppLanguage.swift" \
-  "Querit diagnostics should explain that dashboard usage is not an API-key quota endpoint"
+assert_match 'https://www\.querit\.ai/api/v1/user/account' \
+  "QuotaBar/Services/QuotaService.swift" \
+  "Querit should query the dashboard account endpoint with saved session cookies"
+assert_match 'parseQueritAccount' \
+  "QuotaBar/Services/QuotaService.swift" \
+  "Querit account responses should be parsed from dashboard account data"
 assert_match 'monthlyCreditsFormat' \
   "QuotaBar/Models/AppLanguage.swift" \
   "Quota labels such as monthly credits should be localized instead of rendered as raw English"
@@ -981,6 +984,7 @@ require(Provider.opencodeGo.category == "LLM", "OpenCode Go should be grouped as
 require(Provider.xfyunCodingPlan.supportsQuotaQuery, "XFYun Coding Plan should support dashboard quota checks")
 require(Provider.volcengineCodingPlan.supportsQuotaQuery, "Volcengine Coding Plan should support dashboard quota checks")
 require(Provider.opencodeGo.supportsQuotaQuery, "OpenCode Go should support dashboard quota checks")
+require(Provider.querit.supportsQuotaQuery, "Querit should support dashboard-cookie quota checks through the user account endpoint")
 require(Provider.deepseek.homeVisibleWithoutKeys, "DeepSeek should appear on the home view before a key is configured")
 require(Provider.xfyunCodingPlan.homeVisibleWithoutKeys, "XFYun Coding Plan should appear on the home view before a key is configured")
 require(Provider.volcengineCodingPlan.homeVisibleWithoutKeys, "Volcengine Coding Plan should appear on the home view before a key is configured")
@@ -1194,7 +1198,7 @@ require(L10n.t(.httpNotRequested, language: .simplifiedChinese) == "未请求", 
 require(Provider.bocha.displayName(language: .simplifiedChinese) == "博查", "Bocha should have a Simplified Chinese provider display name")
 require(Provider.wxmp.displayName(language: .english) == "WeChat Search", "WeChat Search should have an English provider display name")
 require(Provider.deepseek.displayName(language: .simplifiedChinese) == "深度求索", "DeepSeek should have a Simplified Chinese provider display name")
-require(Provider.querit.unsupportedQuotaDiagnosticMessage(language: .simplifiedChinese).contains("没有公开可用 API Key 认证查询的额度接口"), "Querit unsupported diagnostics should explain that no API-key usage endpoint is available")
+require(Provider.querit.displayName(language: .simplifiedChinese) == "Querit 搜索", "Querit should have a Simplified Chinese provider display name")
 SWIFT
 
 swiftc QuotaBar/Models/AppLanguage.swift QuotaBar/Models/APIKey.swift "$TMP_DIR/main.swift" -o "$TMP_DIR/language-test"
@@ -1242,10 +1246,12 @@ require(DashboardCookieBuilder.cookieHeader(from: [unrelated], domains: ["openco
 require(Provider.xfyunCodingPlan.supportsDashboardReauthentication, "XFYun should support dashboard reauthentication")
 require(Provider.volcengineCodingPlan.supportsDashboardReauthentication, "Volcengine should support dashboard reauthentication")
 require(Provider.opencodeGo.supportsDashboardReauthentication, "OpenCode Go should support dashboard reauthentication")
+require(Provider.querit.supportsDashboardReauthentication, "Querit should support dashboard-cookie reauthentication")
 require(!Provider.brave.supportsDashboardReauthentication, "Brave should not use dashboard-cookie reauthentication")
 require(DashboardReauthConfig(provider: .opencodeGo)?.cookieDomains == ["opencode.ai"], "OpenCode Go should capture only opencode.ai cookies")
 require(DashboardReauthConfig(provider: .xfyunCodingPlan)?.cookieDomains == ["maas.xfyun.cn"], "XFYun should capture only maas.xfyun.cn cookies")
 require(DashboardReauthConfig(provider: .volcengineCodingPlan)?.cookieDomains == ["console.volcengine.com"], "Volcengine should capture only console.volcengine.com cookies")
+require(DashboardReauthConfig(provider: .querit)?.cookieDomains == ["querit.ai"], "Querit should capture querit.ai dashboard cookies")
 SWIFT
 
 swiftc QuotaBar/Models/AppLanguage.swift QuotaBar/Models/APIKey.swift QuotaBar/Services/DashboardReauth.swift "$TMP_DIR/main.swift" -o "$TMP_DIR/dashboard-reauth-test"
@@ -1426,6 +1432,14 @@ require(bocha.remaining == 1400, "Bocha account balance should be represented in
 require(bocha.limit == 1400, "Bocha account balance should not invent a larger request limit")
 require(bocha.quotaLabel == "CNY 14.00 balance", "Bocha should display remaining account balance")
 require(bocha.resetAt == nil, "Bocha account balance should not invent a reset cycle")
+
+let querit = try! QuotaParsers.parseQueritAccount(Data("""
+{"ErrNo":200,"Msg":"success","Data":{"current_plan":{"plan_type":"free","free_usage_month":120,"coupon_quota":300,"coupon_used":20,"paid_usage_month":0,"enterprise_usage_month":0}}}
+""".utf8))
+require(querit.remaining == 1160, "Querit should calculate remaining monthly requests from 1000 + coupon_quota - free_usage_month - coupon_used")
+require(querit.limit == 1300, "Querit should include coupon quota in the monthly request limit")
+require(querit.quotaLabel == "1160 / 1300 monthly requests", "Querit should display monthly request quota")
+require(querit.resetAt != nil, "Querit monthly account quota should expose the next reset date")
 
 let xfyun = try! QuotaParsers.parseXFYunCodingPlanList(Data("""
 {"code":0,"data":{"rows":[{"name":"高效版","expiresAt":"2026-06-28 17:48:58","codingPlanUsageDTO":{"packageLeft":80704,"packageLimit":90000,"packageUsage":9296,"rp5hLimit":6000,"rp5hUsage":60,"rpwLimit":45000,"rpwUsage":9296}}]},"succeed":true}

@@ -165,6 +165,7 @@ enum L10n {
         case notAvailableShort
         case braveQuotaHeadersDiagnostic
         case braveUsageLimitDiagnostic
+        case queritAccountDiagnostic
     }
 
     static func t(_ key: Key, language: AppLanguage = AppLanguageStore.shared.language) -> String {
@@ -272,6 +273,8 @@ enum L10n {
             return t(.braveQuotaHeadersDiagnostic, language: language)
         case "Brave returned HTTP 402 usage limit exceeded.":
             return t(.braveUsageLimitDiagnostic, language: language)
+        case "Querit account endpoint returned monthly request quota.":
+            return t(.queritAccountDiagnostic, language: language)
         default:
             return nil
         }
@@ -439,6 +442,7 @@ enum L10n {
         .notAvailableShort: "N/A",
         .braveQuotaHeadersDiagnostic: "Search works and Brave returned quota headers.",
         .braveUsageLimitDiagnostic: "Brave returned HTTP 402 usage limit exceeded.",
+        .queritAccountDiagnostic: "Querit account endpoint returned monthly request quota.",
     ]
 
     private static let simplifiedChinese: [Key: String] = [
@@ -560,5 +564,6 @@ enum L10n {
         .notAvailableShort: "未知",
         .braveQuotaHeadersDiagnostic: "搜索可用，Brave 返回了额度 Header。",
         .braveUsageLimitDiagnostic: "Brave 返回 HTTP 402，额度已用尽。",
+        .queritAccountDiagnostic: "Querit 账户接口返回了月度请求额度。",
     ]
 }
