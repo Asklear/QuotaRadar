@@ -974,6 +974,8 @@ EMPTY_KEY=xxx
 QUOTED_BRAVE_KEY="brave-key"
 SERPER_API_KEY=serper-key
 WECHAT_API_KEY=wechat-key
+QUERIT_API_KEY=querit-api-key
+QUERIT_COOKIE='fake-querit-cookie-value'
 ANTHROPIC_AUTH_TOKEN=token-not-api-key
 ANTHROPIC_API_KEY=anthropic-key
 """
@@ -988,7 +990,7 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     }
 }
 
-require(keys.count == 8, "expected exactly eight supported imported keys")
+require(keys.count == 9, "expected exactly nine supported imported keys")
 require(keys.contains { $0.name == "TAVILY_API_KEY" && $0.provider == .tavily && $0.key == "tvly-test-key" }, "missing Tavily key")
 require(keys.contains { $0.name == "DEEPSEEK_API_KEY" && $0.provider == .deepseek && $0.key == "deepseek-test-key" }, "missing DeepSeek key")
 require(keys.contains { $0.name == "XFYUN_CODING_PLAN_COOKIE" && $0.provider == .xfyunCodingPlan }, "missing XFYun Coding Plan cookie")
@@ -997,6 +999,8 @@ require(keys.contains { $0.name == "OPENCODE_GO_COOKIE" && $0.provider == .openc
 require(keys.contains { $0.name == "QUOTED_BRAVE_KEY" && $0.provider == .brave && $0.key == "brave-key" }, "missing quoted Brave key")
 require(keys.contains { $0.name == "SERPER_API_KEY" && $0.provider == .serper && $0.key == "serper-key" }, "missing Serper key")
 require(keys.contains { $0.name == "WECHAT_API_KEY" && $0.provider == .wxmp && $0.key == "wechat-key" }, "missing WeChat key")
+require(keys.contains { $0.name == "QUERIT_COOKIE" && $0.provider == .querit && $0.key == "fake-querit-cookie-value" }, "missing Querit dashboard cookie")
+require(!keys.contains { $0.name == "QUERIT_API_KEY" }, "Querit API keys must not be imported as dashboard cookies")
 require(!keys.contains { $0.name == "DEEPSEEK_WEB_SEARCH_PRO_API_KEY" }, "web-search-pro DeepSeek key must be ignored")
 require(!keys.contains { $0.name == "ANTHROPIC_AUTH_TOKEN" }, "Anthropic auth token must not be imported as an API key")
 require(!keys.contains { $0.name == "ANTHROPIC_API_KEY" }, "Anthropic API key should not be imported while Anthropic is not in the supported provider list")
@@ -1359,6 +1363,16 @@ require(metadataOnly.count == 1, "APIKeyStore should load saved metadata")
 require(metadataOnly[0].key.isEmpty, "APIKeyStore metadata load should not include secrets")
 let hydrated = store.loadSecrets(for: metadataOnly)
 require(hydrated[0].key == "tvly-from-store", "APIKeyStore should hydrate secrets from FileSecretStore")
+
+let staleQueritID = UUID()
+let validQueritID = UUID()
+let staleQueritMetadata = """
+[{"id":"\(staleQueritID.uuidString)","name":"QUERIT_API_KEY","provider":"Querit","isActive":true,"quotaLabel":"凭据已过期","usageCount":0},{"id":"\(validQueritID.uuidString)","name":"QUERIT_COOKIE","provider":"Querit","isActive":true,"usageCount":0}]
+"""
+defaults.set(Data(staleQueritMetadata.utf8), forKey: "apiKeyMetadata")
+let migratedQuerit = store.load()
+require(!migratedQuerit.contains { $0.name == "QUERIT_API_KEY" }, "APIKeyStore should remove stale Querit API-key records because Querit quota checks require dashboard cookies")
+require(migratedQuerit.contains { $0.name == "QUERIT_COOKIE" && $0.provider == .querit }, "APIKeyStore should keep valid Querit cookie records")
 
 let staleBraveID = UUID()
 let staleBraveMetadata = """

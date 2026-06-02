@@ -89,7 +89,8 @@ struct EnvImporter {
             return .bocha
         } else if uppercased.contains("ANYSEARCH") {
             return .anysearch
-        } else if uppercased.contains("QUERIT") {
+        } else if uppercased.contains("QUERIT")
+                    && (uppercased.contains("COOKIE") || uppercased.contains("SESSION")) {
             return .querit
         } else if uppercased.contains("WX") && uppercased.contains("SEARCH") {
             return .wxmp

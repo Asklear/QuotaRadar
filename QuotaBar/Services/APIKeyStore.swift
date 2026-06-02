@@ -102,7 +102,11 @@ struct APIKeyStore {
     func load() -> [APIKey] {
         if let data = defaults.data(forKey: metadataKey),
            let metadata = try? JSONDecoder().decode([StoredAPIKey].self, from: data) {
-            return metadata.map { item in item.hydrate(with: "") }
+            let migrated = removeStaleQueritAPIKeyRecords(from: metadata)
+            if migrated.count != metadata.count {
+                save(migrated.map { $0.hydrate(with: "") })
+            }
+            return migrated.map { item in item.hydrate(with: "") }
         }
 
         if let legacyData = defaults.data(forKey: legacyKey),
@@ -147,5 +151,19 @@ struct APIKeyStore {
 
     func delete(id: UUID) {
         secretStore.delete(account: id.uuidString)
+    }
+
+    private func removeStaleQueritAPIKeyRecords(from metadata: [StoredAPIKey]) -> [StoredAPIKey] {
+        metadata.filter { item in
+            let uppercasedName = item.name.uppercased()
+            let isStaleQueritAPIKey = item.provider == .querit
+                && uppercasedName.contains("API_KEY")
+                && !uppercasedName.contains("COOKIE")
+                && !uppercasedName.contains("SESSION")
+            if isStaleQueritAPIKey {
+                secretStore.delete(account: item.id.uuidString)
+            }
+            return !isStaleQueritAPIKey
+        }
     }
 }
