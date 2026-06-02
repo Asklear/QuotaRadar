@@ -149,7 +149,7 @@ class QuotaMonitor: ObservableObject {
                         } else {
                             key.quotaLabel = error.localizedDescription
                         }
-                        key.lastDiagnosticMessage = error.localizedDescription
+                        key.lastDiagnosticMessage = key.provider.supportsDashboardReauthentication ? L10n.t(.credentialExpired) : error.localizedDescription
                         key.lastUpdated = Date()
                         failedKeys.append(key.name)
                     } else {

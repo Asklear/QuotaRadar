@@ -713,6 +713,9 @@ assert_match 'autoCookieSaveHint' \
 assert_match 'QuotaError\.unauthorized' \
   "QuotaBar/Models/QuotaMonitor.swift" \
   "Unauthorized quota refreshes should mark dashboard credentials as expired"
+assert_match 'key\.lastDiagnosticMessage = key\.provider\.supportsDashboardReauthentication \? L10n\.t\(\.credentialExpired\) : error\.localizedDescription' \
+  "QuotaBar/Models/QuotaMonitor.swift" \
+  "Dashboard-cookie providers should not describe expired cookies as invalid API keys"
 assert_no_match 'Cookies\.binarycookies|Login Data|Library/Application Support/Google/Chrome|SecKeychain' \
   "QuotaBar" \
   "QuotaBar must not scrape browser cookie databases or use login Keychain APIs for reauthentication"
