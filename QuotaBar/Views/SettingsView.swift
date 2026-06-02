@@ -109,7 +109,7 @@ struct SettingsSidebarView: View {
     @Binding var selection: SettingsDestination?
 
     private var configuredProviders: Int {
-        Set(monitor.apiKeys.map { $0.provider }).count
+        Set(monitor.apiKeys.map { $0.provider }).intersection(Set(Provider.visibleCases)).count
     }
 
     private var lowQuotaCount: Int {
@@ -358,7 +358,7 @@ struct KeysManagementView: View {
     @State private var importMessage: String?
 
     private var keyProviderCategories: [ProviderCategoryStats] {
-        let stats: [ProviderStats] = Provider.allCases.compactMap { provider in
+        let stats: [ProviderStats] = Provider.visibleCases.compactMap { provider in
             let providerKeys = APIKey.sortedByCurrentQuota(
                 monitor.apiKeys.filter { $0.provider == provider }
             )
@@ -768,7 +768,7 @@ struct AddKeySheet: View {
 
             Form {
                 Picker(L10n.t(.provider), selection: $provider) {
-                    ForEach(Provider.allCases) { p in
+                    ForEach(Provider.visibleCases) { p in
                         Label(p.displayName(), systemImage: p.icon)
                             .tag(p)
                     }
@@ -927,7 +927,7 @@ struct ProvidersView: View {
     @ObservedObject var monitor: QuotaMonitor
 
     private var providerCategories: [ProviderCategoryStats] {
-        let stats = Provider.allCases.map { provider in
+        let stats = Provider.visibleCases.map { provider in
             ProviderStats(
                 provider: provider,
                 keys: APIKey.sortedByCurrentQuota(monitor.apiKeys.filter { $0.provider == provider })
@@ -947,7 +947,7 @@ struct ProvidersView: View {
     var body: some View {
         ModernPage(
             title: L10n.t(.providersHeader),
-            subtitle: L10n.format(.providersSupported, configuredProviders, Provider.allCases.count),
+            subtitle: L10n.format(.providersSupported, configuredProviders, Provider.visibleCases.count),
             systemImage: "server.rack"
         ) {
             VStack(spacing: 14) {
@@ -1228,7 +1228,7 @@ struct DiagnosticsView: View {
     @ObservedObject var monitor: QuotaMonitor
 
     private var stats: [ProviderStats] {
-        Provider.allCases.compactMap { provider in
+        Provider.visibleCases.compactMap { provider in
             let keys = APIKey.sortedByCurrentQuota(monitor.apiKeys.filter { $0.provider == provider })
             guard !keys.isEmpty else { return nil }
             return ProviderStats(provider: provider, keys: keys)

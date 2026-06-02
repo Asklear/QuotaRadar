@@ -43,7 +43,6 @@ QuotaBar 是一个 macOS 状态栏应用，用来观察搜索 API 与 LLM coding
 | Provider | 凭据类型 |
 | --- | --- |
 | DeepSeek | API Key |
-| Anthropic | Dashboard 手动查看 |
 | 讯飞星火 | 控制台会话 Cookie |
 | 火山引擎 | 控制台会话 Cookie |
 | OpenCode Go | 控制台会话 Cookie |

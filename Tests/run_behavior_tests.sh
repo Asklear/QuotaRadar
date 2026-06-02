@@ -65,9 +65,24 @@ assert_match 'AppLanguageStore' \
 assert_match 'func displayName\(language: AppLanguage = AppLanguageStore\.shared\.language\)' \
   "QuotaBar/Models/APIKey.swift" \
   "Providers should expose localized display names instead of rendering raw persistence values"
+assert_match 'static var visibleCases: \[Provider\]' \
+  "QuotaBar/Models/APIKey.swift" \
+  "Provider UI lists should use a visible provider list so unsupported providers can be kept out without breaking legacy decoding"
+assert_no_match 'ForEach\(Provider\.allCases\)' \
+  "QuotaBar/Views" \
+  "Visible provider pickers should not render every Codable provider case"
 assert_no_match 'Text\(.*(stat\.)?provider\.rawValue|Label\(.*rawValue|provider\.rawValue\) \(L10n\.t' \
   "QuotaBar/Views" \
   "Visible provider labels should use localized display names instead of raw persistence values"
+assert_no_match 'return \.anthropic' \
+  "QuotaBar/Services/EnvImporter.swift" \
+  "Anthropic should not be imported as a supported provider for now"
+assert_no_match '\| Anthropic \|' \
+  "README.md" \
+  "Anthropic should not be listed as a currently supported provider"
+assert_no_match 'api\.anthropic\.com' \
+  "QuotaBar/Info.plist" \
+  "Anthropic API domains should not be whitelisted while Anthropic is not supported"
 assert_match '简体中文' \
   "QuotaBar/Models/AppLanguage.swift" \
   "The language picker should expose Simplified Chinese as a user-facing option"
@@ -206,6 +221,12 @@ assert_match 'unsupportedQuotaDiagnosticMessage' \
 assert_match 'Querit 没有公开可用 API Key 认证查询的额度接口' \
   "QuotaBar/Models/AppLanguage.swift" \
   "Querit diagnostics should explain that dashboard usage is not an API-key quota endpoint"
+assert_match 'monthlyCreditsFormat' \
+  "QuotaBar/Models/AppLanguage.swift" \
+  "Quota labels such as monthly credits should be localized instead of rendered as raw English"
+assert_match 'zeroRemainingBadge' \
+  "QuotaBar/Models/AppLanguage.swift" \
+  "Compact exhausted badges should be localized instead of hardcoding 0 left"
 assert_match 'isUsableWithUnknownQuota' \
   "QuotaBar/Models/APIKey.swift" \
   "API keys should distinguish usable credentials whose quota is not exposed"
@@ -864,11 +885,10 @@ from PIL import Image
 import sys
 
 expected = {
-    "anthropic", "anysearch", "bocha", "brave", "deepseek", "exa",
+    "anysearch", "bocha", "brave", "deepseek", "exa",
     "querit", "serpapi", "serper", "tavily", "wxmp",
 }
 legacy_placeholder_colors = {
-    "anthropic": (212, 165, 116),
     "anysearch": (156, 39, 176),
     "bocha": (0, 188, 212),
     "brave": (255, 127, 0),
@@ -922,6 +942,7 @@ QUOTED_BRAVE_KEY="brave-key"
 SERPER_API_KEY=serper-key
 WECHAT_API_KEY=wechat-key
 ANTHROPIC_AUTH_TOKEN=token-not-api-key
+ANTHROPIC_API_KEY=anthropic-key
 """
 
 AppLanguageStore.shared.language = .english
@@ -945,6 +966,8 @@ require(keys.contains { $0.name == "SERPER_API_KEY" && $0.provider == .serper &&
 require(keys.contains { $0.name == "WECHAT_API_KEY" && $0.provider == .wxmp && $0.key == "wechat-key" }, "missing WeChat key")
 require(!keys.contains { $0.name == "DEEPSEEK_WEB_SEARCH_PRO_API_KEY" }, "web-search-pro DeepSeek key must be ignored")
 require(!keys.contains { $0.name == "ANTHROPIC_AUTH_TOKEN" }, "Anthropic auth token must not be imported as an API key")
+require(!keys.contains { $0.name == "ANTHROPIC_API_KEY" }, "Anthropic API key should not be imported while Anthropic is not in the supported provider list")
+require(!Provider.visibleCases.contains(.anthropic), "Anthropic should not appear in provider pickers or visible app sections for now")
 
 let masked = APIKey(name: "TAVILY_API_KEY", key: "abcd1234wxyz", provider: .tavily).maskedKey
 require(masked == "abcd••••wxyz", "APIKey.maskedKey should expose the first four and last four characters")
@@ -971,6 +994,10 @@ require(categoryStats.keyCount == 2, "Status bar category stats should count key
 require(categoryStats.providerCount == 2, "Status bar category stats should count providers")
 let exhaustedBadge = APIKey(name: "BRAVE_API_KEY_3", key: "brave", provider: .brave, remaining: 0, limit: 1000).remainingBadgeText
 require(exhaustedBadge == "0 left", "Remaining badge should make exhausted Brave keys clear instead of showing ambiguous 0%")
+AppLanguageStore.shared.language = .simplifiedChinese
+let localizedExhaustedBadge = APIKey(name: "BRAVE_API_KEY_3", key: "brave", provider: .brave, remaining: 0, limit: 1000).remainingBadgeText
+require(localizedExhaustedBadge == "剩余 0", "Remaining badge should localize 0 left in Simplified Chinese")
+AppLanguageStore.shared.language = .english
 let tinyBadge = APIKey(name: "BRAVE_API_KEY_4", key: "brave", provider: .brave, remaining: 1, limit: 1000).remainingBadgeText
 require(tinyBadge == "<1%", "Remaining badge should not round tiny nonzero quotas down to 0%")
 let fullBadge = APIKey(name: "BRAVE_API_KEY_5", key: "brave", provider: .brave, remaining: 1000, limit: 1000).remainingBadgeText
@@ -1007,6 +1034,20 @@ require(xfyunStat.totalRemainingDisplayText == "5h 99%", "Coding Plan provider r
 AppLanguageStore.shared.language = .simplifiedChinese
 require(xfyunStat.totalLimitDisplayText == "月 89.7%", "Coding Plan provider total should localize the monthly period label in Simplified Chinese")
 require(xfyunStat.totalRemainingDisplayText == "5 小时 99%", "Coding Plan provider remaining should localize the five-hour period label in Simplified Chinese")
+let localizedTavilyCredits = APIKey(name: "TAVILY_API_KEY", key: "tvly", provider: .tavily, remaining: 850, limit: 1000, quotaLabel: "850 / 1000 monthly credits")
+require(localizedTavilyCredits.quotaDisplayText == "850 / 1000 月度积分", "Tavily monthly credits should be localized in Simplified Chinese")
+let localizedBraveRequests = APIKey(name: "BRAVE_API_KEY", key: "brave", provider: .brave, remaining: 999, limit: 1000, quotaLabel: "999 / 1000 monthly requests")
+require(localizedBraveRequests.quotaDisplayText == "999 / 1000 月度请求", "Brave monthly requests should be localized in Simplified Chinese")
+let localizedSerpSearches = APIKey(name: "SERPAPI_API_KEY", key: "serp", provider: .serpapi, remaining: 5, limit: 255, quotaLabel: "5 searches left")
+require(localizedSerpSearches.quotaDisplayText == "剩余 5 次搜索", "SerpAPI searches-left labels should be localized in Simplified Chinese")
+let localizedSerperCredits = APIKey(name: "SERPER_API_KEY", key: "serper", provider: .serper, remaining: 24, limit: 24, quotaLabel: "24 credits left")
+require(localizedSerperCredits.quotaDisplayText == "剩余 24 积分", "Serper credits-left labels should be localized in Simplified Chinese")
+let localizedSerperExhausted = APIKey(name: "SERPER_API_KEY", key: "serper", provider: .serper, remaining: 0, limit: 0, quotaLabel: "No Serper credits available")
+require(localizedSerperExhausted.quotaDisplayText == "没有可用的 Serper 积分", "Serper exhausted credit labels should be localized in Simplified Chinese")
+let localizedDeepSeekMoney = APIKey(name: "DEEPSEEK_API_KEY", key: "deepseek", provider: .deepseek, remaining: 1250, limit: 1250, quotaLabel: "CNY 12.50 available")
+require(localizedDeepSeekMoney.quotaDisplayText == "可用 CNY 12.50", "Money available labels should be localized in Simplified Chinese")
+let localizedBochaBalance = APIKey(name: "BOCHA_API_KEY", key: "bocha", provider: .bocha, remaining: 1400, limit: 1400, quotaLabel: "CNY 14.00 balance")
+require(localizedBochaBalance.quotaDisplayText == "余额 CNY 14.00", "Money balance labels should be localized in Simplified Chinese")
 let localizedQuotaKey = APIKey(
     name: "XFYUN_CODING_PLAN_COOKIE",
     key: "cookie",

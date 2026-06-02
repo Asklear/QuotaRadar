@@ -95,8 +95,6 @@ struct EnvImporter {
             return .wxmp
         } else if uppercased.contains("WECHAT") {
             return .wxmp
-        } else if uppercased.contains("ANTHROPIC") && uppercased.contains("API_KEY") {
-            return .anthropic
         } else if uppercased.contains("DEEPSEEK") && uppercased.contains("API_KEY") && !uppercased.contains("WEB_SEARCH_PRO") {
             return .deepseek
         } else if (uppercased.contains("XFYUN") || uppercased.contains("IFLYTEK") || uppercased.contains("SPARK"))

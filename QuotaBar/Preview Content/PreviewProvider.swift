@@ -67,7 +67,7 @@ class PreviewMonitor: QuotaMonitor {
 
 #Preview("Provider Icon") {
     HStack(spacing: 16) {
-        ForEach(Provider.allCases.prefix(4)) { provider in
+        ForEach(Provider.visibleCases.prefix(4)) { provider in
             ProviderIcon(provider: provider, size: 40)
         }
     }

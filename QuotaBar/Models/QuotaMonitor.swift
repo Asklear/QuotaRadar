@@ -27,7 +27,7 @@ class QuotaMonitor: ObservableObject {
 
     var providerStats: [ProviderStats] {
         let grouped = Dictionary(grouping: apiKeys) { $0.provider }
-        let stats: [ProviderStats] = Provider.allCases.compactMap { provider in
+        let stats: [ProviderStats] = Provider.visibleCases.compactMap { provider in
             guard let keys = grouped[provider], !keys.isEmpty else { return nil }
             return ProviderStats(provider: provider, keys: keys)
         }
@@ -36,7 +36,7 @@ class QuotaMonitor: ObservableObject {
 
     var homeProviderStats: [ProviderStats] {
         let grouped = Dictionary(grouping: apiKeys) { $0.provider }
-        let stats: [ProviderStats] = Provider.allCases.compactMap { provider in
+        let stats: [ProviderStats] = Provider.visibleCases.compactMap { provider in
             let keys = grouped[provider] ?? []
             guard !keys.isEmpty || provider.homeVisibleWithoutKeys else { return nil }
             return ProviderStats(provider: provider, keys: keys)
@@ -70,7 +70,7 @@ class QuotaMonitor: ObservableObject {
             return
         }
         isRefreshing = true
-        refreshingProviders = targetProviders ?? Set(Provider.allCases)
+        refreshingProviders = targetProviders ?? Set(Provider.visibleCases)
         lastError = nil
         if mode == .manual {
             if let provider = targetProviders?.first, targetProviders?.count == 1 {
@@ -90,6 +90,11 @@ class QuotaMonitor: ObservableObject {
             var foundTargetKey = false
 
             for var key in apiKeys {
+                guard Provider.visibleCases.contains(key.provider) else {
+                    updatedKeys.append(key)
+                    continue
+                }
+
                 if let targetProviders, !targetProviders.contains(key.provider) {
                     updatedKeys.append(key)
                     continue

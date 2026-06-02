@@ -58,11 +58,6 @@
                 <key>NSExceptionRequiresForwardSecrecy</key>
                 <false/>
             </dict>
-            <key>api.anthropic.com</key>
-            <dict>
-                <key>NSExceptionRequiresForwardSecrecy</key>
-                <false/>
-            </dict>
         </dict>
     </dict>
     <key>NSHumanReadableCopyright</key>

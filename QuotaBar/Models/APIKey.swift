@@ -22,6 +22,10 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    static var visibleCases: [Provider] {
+        allCases.filter { $0 != .anthropic }
+    }
+
     func displayName(language: AppLanguage = AppLanguageStore.shared.language) -> String {
         switch language {
         case .english:
@@ -201,17 +205,6 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             return true
         case .exa, .querit, .anthropic:
             return false // 只能通过 response header、dashboard，或未公开 quota API
-        }
-    }
-
-    var unsupportedQuotaLabel: String {
-        switch self {
-        case .exa:
-            return "Exa Admin API requires a service key"
-        case .querit, .anthropic:
-            return dashboardURL == nil ? "Quota unavailable" : "Check dashboard"
-        case .tavily, .brave, .serpapi, .serper, .bocha, .anysearch, .wxmp, .deepseek, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo:
-            return "Quota unavailable"
         }
     }
 
@@ -434,7 +427,7 @@ struct APIKey: Identifiable, Codable, Equatable {
         }
 
         if isUsageLimitExceeded {
-            return "0 left"
+            return L10n.t(.zeroRemainingBadge)
         }
 
         if isUsableWithUnknownQuota {
@@ -445,10 +438,10 @@ struct APIKey: Identifiable, Codable, Equatable {
             return "∞"
         }
 
-        guard let remaining else { return "N/A" }
+        guard let remaining else { return L10n.t(.notAvailableShort) }
 
         if let limit, limit > 0 {
-            guard remaining > 0 else { return "0 left" }
+            guard remaining > 0 else { return L10n.t(.zeroRemainingBadge) }
             let percentage = Double(remaining) / Double(limit) * 100
             if percentage < 1 {
                 return "<1%"
@@ -456,7 +449,7 @@ struct APIKey: Identifiable, Codable, Equatable {
             return "\(Int(percentage))%"
         }
 
-        return remaining <= 0 ? "0 left" : "\(remaining)"
+        return remaining <= 0 ? L10n.t(.zeroRemainingBadge) : "\(remaining)"
     }
 
     private var currentQuotaSortValue: Int {

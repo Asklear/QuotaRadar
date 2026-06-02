@@ -153,6 +153,18 @@ enum L10n {
         case anthropicDashboardOnlyDiagnostic
         case quotaCheckNotSupportedDiagnostic
         case quotaConsumingRefreshWarning
+        case monthlyCreditsFormat
+        case monthlyRequestsFormat
+        case searchesLeftFormat
+        case creditsLeftFormat
+        case noProviderCreditsAvailableFormat
+        case moneyAvailableFormat
+        case moneyBalanceFormat
+        case manualRefreshOnly
+        case zeroRemainingBadge
+        case notAvailableShort
+        case braveQuotaHeadersDiagnostic
+        case braveUsageLimitDiagnostic
     }
 
     static func t(_ key: Key, language: AppLanguage = AppLanguageStore.shared.language) -> String {
@@ -215,9 +227,19 @@ enum L10n {
     }
 
     static func localizedQuotaLabel(_ label: String, language: AppLanguage = AppLanguageStore.shared.language) -> String {
-        label
+        if let exact = localizedExactQuotaLabel(label, language: language) {
+            return exact
+        }
+
+        return label
             .components(separatedBy: " · ")
             .map { part in
+                if let exact = localizedExactQuotaLabel(part, language: language) {
+                    return exact
+                }
+                if let formatted = localizedStructuredQuotaLabel(part, language: language) {
+                    return formatted
+                }
                 let pieces = part.split(separator: " ", maxSplits: 1).map(String.init)
                 guard pieces.count == 2 else { return part }
                 let period = pieces[0]
@@ -229,6 +251,73 @@ enum L10n {
                 return quotaWindowDisplay(period, value, language: language)
             }
             .joined(separator: " · ")
+    }
+
+    private static func localizedExactQuotaLabel(_ label: String, language: AppLanguage) -> String? {
+        switch label {
+        case "Search OK · monthly quota not exposed":
+            return t(.usableUnknownQuota, language: language)
+        case "Usage limit exceeded":
+            return t(.usageLimitExceeded, language: language)
+        case "Unlimited free usage":
+            return t(.unlimited, language: language)
+        case "Unavailable":
+            return t(.quotaUnavailable, language: language)
+        case "Manual refresh only":
+            return t(.manualRefreshOnly, language: language)
+        case "Search works, but Brave did not expose monthly quota for this key.",
+             "Search works, but monthly quota is hidden by Brave.":
+            return t(.braveQuotaUnknownDiagnostic, language: language)
+        case "Search works and Brave returned quota headers.":
+            return t(.braveQuotaHeadersDiagnostic, language: language)
+        case "Brave returned HTTP 402 usage limit exceeded.":
+            return t(.braveUsageLimitDiagnostic, language: language)
+        default:
+            return nil
+        }
+    }
+
+    private static func localizedStructuredQuotaLabel(_ label: String, language: AppLanguage) -> String? {
+        if let match = regexCapture(label, pattern: #"^([0-9]+) / ([0-9]+) monthly credits$"#) {
+            return format(.monthlyCreditsFormat, match[0], match[1], language: language)
+        }
+        if let match = regexCapture(label, pattern: #"^([0-9]+) / ([0-9]+) monthly requests$"#) {
+            return format(.monthlyRequestsFormat, match[0], match[1], language: language)
+        }
+        if let match = regexCapture(label, pattern: #"^([0-9]+) searches left$"#) {
+            return format(.searchesLeftFormat, match[0], language: language)
+        }
+        if let match = regexCapture(label, pattern: #"^([0-9]+) credits left$"#) {
+            return format(.creditsLeftFormat, match[0], language: language)
+        }
+        if let match = regexCapture(label, pattern: #"^No ([A-Za-z0-9 ]+) credits available$"#) {
+            return format(.noProviderCreditsAvailableFormat, match[0], language: language)
+        }
+        if let match = regexCapture(label, pattern: #"^([A-Z]{3}) ([0-9]+(?:\.[0-9]+)?) available$"#) {
+            return format(.moneyAvailableFormat, match[0], match[1], language: language)
+        }
+        if let match = regexCapture(label, pattern: #"^([A-Z]{3}) ([0-9]+(?:\.[0-9]+)?) balance$"#) {
+            return format(.moneyBalanceFormat, match[0], match[1], language: language)
+        }
+        return nil
+    }
+
+    private static func regexCapture(_ value: String, pattern: String) -> [String]? {
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(value.startIndex..<value.endIndex, in: value)
+        guard let match = regex.firstMatch(in: value, range: range),
+              match.range.location == 0,
+              match.range.length == range.length,
+              match.numberOfRanges > 1 else {
+            return nil
+        }
+
+        return (1..<match.numberOfRanges).compactMap { index in
+            guard let captureRange = Range(match.range(at: index), in: value) else {
+                return nil
+            }
+            return String(value[captureRange])
+        }
     }
 
     private static let english: [Key: String] = [
@@ -338,6 +427,18 @@ enum L10n {
         .anthropicDashboardOnlyDiagnostic: "Anthropic does not expose this quota through a standard API-key usage endpoint. Open the dashboard to check usage.",
         .quotaCheckNotSupportedDiagnostic: "This provider does not expose a supported quota-check endpoint.",
         .quotaConsumingRefreshWarning: "Manual refresh for this provider consumes one real search request.",
+        .monthlyCreditsFormat: "%@ / %@ monthly credits",
+        .monthlyRequestsFormat: "%@ / %@ monthly requests",
+        .searchesLeftFormat: "%@ searches left",
+        .creditsLeftFormat: "%@ credits left",
+        .noProviderCreditsAvailableFormat: "No %@ credits available",
+        .moneyAvailableFormat: "%@ %@ available",
+        .moneyBalanceFormat: "%@ %@ balance",
+        .manualRefreshOnly: "Manual refresh only",
+        .zeroRemainingBadge: "0 left",
+        .notAvailableShort: "N/A",
+        .braveQuotaHeadersDiagnostic: "Search works and Brave returned quota headers.",
+        .braveUsageLimitDiagnostic: "Brave returned HTTP 402 usage limit exceeded.",
     ]
 
     private static let simplifiedChinese: [Key: String] = [
@@ -447,5 +548,17 @@ enum L10n {
         .anthropicDashboardOnlyDiagnostic: "Anthropic 没有通过标准 API Key 用量接口公开该额度；请打开控制台查看。",
         .quotaCheckNotSupportedDiagnostic: "该服务商没有公开受支持的额度查询接口。",
         .quotaConsumingRefreshWarning: "手动刷新该服务商会消耗 1 次真实搜索请求。",
+        .monthlyCreditsFormat: "%@ / %@ 月度积分",
+        .monthlyRequestsFormat: "%@ / %@ 月度请求",
+        .searchesLeftFormat: "剩余 %@ 次搜索",
+        .creditsLeftFormat: "剩余 %@ 积分",
+        .noProviderCreditsAvailableFormat: "没有可用的 %@ 积分",
+        .moneyAvailableFormat: "可用 %@ %@",
+        .moneyBalanceFormat: "余额 %@ %@",
+        .manualRefreshOnly: "仅支持手动刷新",
+        .zeroRemainingBadge: "剩余 0",
+        .notAvailableShort: "未知",
+        .braveQuotaHeadersDiagnostic: "搜索可用，Brave 返回了额度 Header。",
+        .braveUsageLimitDiagnostic: "Brave 返回 HTTP 402，额度已用尽。",
     ]
 }
