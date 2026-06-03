@@ -35,6 +35,7 @@ struct MenuContentView: View {
         ZStack {
             VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
                 .opacity(blurOpacity)
+                .allowsHitTesting(false)
 
             LinearGradient(
                 colors: [
@@ -44,6 +45,7 @@ struct MenuContentView: View {
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
+            .allowsHitTesting(false)
 
             VStack(spacing: 14) {
                 HeaderView(
@@ -73,13 +75,14 @@ struct MenuContentView: View {
         .overlay(
             RoundedRectangle(cornerRadius: Self.menuGlassCornerRadius, style: .continuous)
                 .stroke(Color.white.opacity(borderOpacity), lineWidth: 1)
+                .allowsHitTesting(false)
         )
         .shadow(color: Color.black.opacity(shadowOpacity), radius: 24, x: 0, y: 12)
     }
 
     private func openSettings() {
         if let delegate = NSApp.delegate as? AppDelegate {
-            delegate.openPreferences(destination: .settings)
+            delegate.openPreferencesFromStatusPopover(destination: .settings)
         } else {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -88,7 +91,7 @@ struct MenuContentView: View {
 
     private func openDashboard() {
         if let delegate = NSApp.delegate as? AppDelegate {
-            delegate.openPreferences(destination: .providers)
+            delegate.openPreferencesFromStatusPopover(destination: .providers)
         } else {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -97,7 +100,7 @@ struct MenuContentView: View {
 
     private func openAPIKeyConfiguration() {
         if let delegate = NSApp.delegate as? AppDelegate {
-            delegate.openPreferences(destination: .apiKeys)
+            delegate.openPreferencesFromStatusPopover(destination: .apiKeys)
         } else {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -163,24 +166,17 @@ struct HeaderView: View {
 
                 Spacer()
 
-                Button(action: onOpenDashboard) {
-                    Image(systemName: "rectangle.grid.1x2")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .frame(width: 30, height: 30)
-                        .background(Circle().fill(.thinMaterial))
-                }
-                .buttonStyle(PlainButtonStyle())
-                .help(L10n.t(.providersHeader))
+                HeaderIconButton(
+                    systemName: "rectangle.grid.1x2",
+                    helpText: L10n.t(.providersHeader),
+                    action: onOpenDashboard
+                )
 
-                Button(action: onOpenSettings) {
-                    Image(systemName: "gear")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.primary)
-                        .frame(width: 32, height: 32)
-                        .background(Circle().fill(.thinMaterial))
-                }
-                .buttonStyle(PlainButtonStyle())
+                HeaderIconButton(
+                    systemName: "gear",
+                    helpText: L10n.t(.settingsTab),
+                    action: onOpenSettings
+                )
             }
 
             if let error = lastError {
@@ -196,6 +192,26 @@ struct HeaderView: View {
             }
         }
         .padding(.horizontal, 4)
+    }
+}
+
+struct HeaderIconButton: View {
+    let systemName: String
+    let helpText: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.primary)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(.thinMaterial))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(helpText)
+        .accessibilityLabel(helpText)
     }
 }
 

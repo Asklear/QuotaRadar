@@ -250,6 +250,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowD
         openPreferences(destination: .providers)
     }
 
+    func openPreferencesFromStatusPopover(destination: SettingsDestination) {
+        closeStatusPopover()
+        DispatchQueue.main.async { [weak self] in
+            self?.openPreferences(destination: destination)
+        }
+    }
+
     func openPreferences(destination: SettingsDestination) {
         SettingsNavigationStore.shared.select(destination)
         clearSwiftUISettingsWindowAutosaveFrame()

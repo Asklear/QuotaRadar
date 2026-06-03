@@ -170,10 +170,10 @@ assert_match 'screen\.frame\.minX == 0 && screen\.frame\.minY == 0' \
 assert_match 'showStatusPopover' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar clicks should show only the status popover instead of activating the main app window"
-assert_match 'openPreferences\(destination: \.settings\)' \
+assert_match 'openPreferencesFromStatusPopover\(destination: \.settings\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "The status bar settings button should open the Settings tab instead of the default API Keys page"
-assert_match 'openPreferences\(destination: \.apiKeys\)' \
+assert_match 'openPreferencesFromStatusPopover\(destination: \.apiKeys\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "The status bar empty-state configuration button should open the API Keys page"
 assert_match 'SettingsNavigationStore' \
@@ -461,12 +461,36 @@ assert_no_match 'MenuFooterBar' \
 assert_no_match 'Label\(L10n\.t\(\.providersHeader\), systemImage: "rectangle\.grid\.1x2"\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar footer must not render the Quota Overview title as a clipped visible button"
-assert_match 'Image\(systemName: "rectangle\.grid\.1x2"\)' \
+assert_match 'systemName: "rectangle\.grid\.1x2"' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar header should expose the quota dashboard as an icon-only action"
-assert_match '\.help\(L10n\.t\(\.providersHeader\)\)' \
+assert_match 'helpText: L10n\.t\(\.providersHeader\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar icon-only dashboard action should keep a localized tooltip"
+assert_match '\.help\(helpText\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Shared status bar icon buttons should expose their localized tooltip"
+assert_match 'HeaderIconButton' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar header actions should use a shared icon button with a stable hit target"
+assert_match '\.contentShape\(Circle\(\)\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar header icon buttons should have an explicit circular hit target"
+assert_match '\.allowsHitTesting\(false\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar decorative glass and stroke layers must not intercept button clicks"
+assert_match 'openPreferencesFromStatusPopover\(destination: \.providers\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar dashboard icon should use the status-popover handoff path"
+assert_match 'openPreferencesFromStatusPopover\(destination: \.settings\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar settings icon should use the status-popover handoff path"
+assert_match 'func openPreferencesFromStatusPopover\(destination: SettingsDestination\)' \
+  "QuotaBar/AppDelegate.swift" \
+  "AppDelegate should expose a popover-safe window handoff for status bar buttons"
+assert_match 'closeStatusPopover\(\)' \
+  "QuotaBar/AppDelegate.swift" \
+  "Popover-safe window handoff should close the status popover before opening a main window"
 assert_match 'monitor\.refreshProvider\(item\.provider\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar top item rows should refresh only the selected provider"
