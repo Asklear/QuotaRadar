@@ -49,6 +49,7 @@ struct MenuContentView: View {
                 HeaderView(
                     lastError: monitor.lastError,
                     refreshMessage: monitor.refreshMessage,
+                    onOpenDashboard: { openDashboard() },
                     onOpenSettings: { openSettings() }
                 )
 
@@ -61,18 +62,6 @@ struct MenuContentView: View {
                     MenuAttentionItemsView(monitor: monitor)
 
                     Spacer(minLength: 0)
-
-                    HStack(spacing: 10) {
-                        Button(action: { openDashboard() }) {
-                            Label(L10n.t(.providersHeader), systemImage: "rectangle.grid.1x2")
-                                .font(.system(size: 12, weight: .semibold))
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-
-                        FooterView(lastUpdated: monitor.apiKeys.compactMap { $0.lastUpdated }.max())
-                    }
                 }
             }
             .padding(.horizontal, Self.contentHorizontalInset)
@@ -157,6 +146,7 @@ struct EmptyQuotaStateView: View {
 struct HeaderView: View {
     let lastError: String?
     let refreshMessage: String?
+    let onOpenDashboard: () -> Void
     let onOpenSettings: () -> Void
 
     var body: some View {
@@ -172,6 +162,16 @@ struct HeaderView: View {
                 }
 
                 Spacer()
+
+                Button(action: onOpenDashboard) {
+                    Image(systemName: "rectangle.grid.1x2")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .frame(width: 30, height: 30)
+                        .background(Circle().fill(.thinMaterial))
+                }
+                .buttonStyle(PlainButtonStyle())
+                .help(L10n.t(.providersHeader))
 
                 Button(action: onOpenSettings) {
                     Image(systemName: "gear")
@@ -356,35 +356,6 @@ struct MenuQuotaItemRow: View {
                 .scaleEffect(0.82)
                 .frame(width: 28, height: 28)
         }
-    }
-}
-
-// MARK: - Footer
-
-struct FooterView: View {
-    let lastUpdated: Date?
-
-    var body: some View {
-        Group {
-            if let date = lastUpdated {
-                Text(L10n.format(.updated, timeAgo(from: date)))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            } else {
-                Text(L10n.t(.pullToRefresh))
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
-        }
-        .frame(width: 118, alignment: .trailing)
-    }
-
-    private func timeAgo(from date: Date) -> String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }
 

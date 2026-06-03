@@ -455,6 +455,18 @@ assert_no_match 'Image\(systemName: "chevron.down"\)' \
 assert_match 'openDashboard\(\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar popover should hand off full browsing to the main quota dashboard"
+assert_no_match 'MenuFooterBar' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar popover must not reserve a bottom footer because it gets clipped in the fixed-height popover"
+assert_no_match 'Label\(L10n\.t\(\.providersHeader\), systemImage: "rectangle\.grid\.1x2"\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar footer must not render the Quota Overview title as a clipped visible button"
+assert_match 'Image\(systemName: "rectangle\.grid\.1x2"\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar header should expose the quota dashboard as an icon-only action"
+assert_match '\.help\(L10n\.t\(\.providersHeader\)\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar icon-only dashboard action should keep a localized tooltip"
 assert_match 'monitor\.refreshProvider\(item\.provider\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar top item rows should refresh only the selected provider"
