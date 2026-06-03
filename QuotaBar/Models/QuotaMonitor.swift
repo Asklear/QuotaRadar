@@ -55,7 +55,7 @@ class QuotaMonitor: ObservableObject {
     }
 
     var menuTopQuotaItems: [MenuQuotaItem] {
-        MenuQuotaItem.topItems(from: homeProviderStats, limit: 5)
+        MenuQuotaItem.topItems(from: homeProviderStats, limit: 3)
     }
 
     func refreshAll(mode: RefreshMode = .manual) {

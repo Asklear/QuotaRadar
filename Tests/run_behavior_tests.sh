@@ -437,6 +437,15 @@ assert_match 'menuSize = CGSize\(width: 420, height: 460\)' \
 assert_match 'contentHorizontalInset' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar home view should reserve an explicit horizontal inset to avoid left-edge clipping"
+assert_match 'contentTopSafeInset' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar summary popover should reserve top safe space below the menu bar arrow"
+assert_match 'menuTopQuotaItems: \[MenuQuotaItem\]' \
+  "QuotaBar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose a compact status bar item set"
+assert_match 'MenuQuotaItem\.topItems\(from: homeProviderStats, limit: 3\)' \
+  "QuotaBar/Models/QuotaMonitor.swift" \
+  "Status bar summary should cap top items at three to avoid vertical clipping"
 assert_match 'menuGlassCornerRadius' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar menu should have a defined frosted-glass rounded container"

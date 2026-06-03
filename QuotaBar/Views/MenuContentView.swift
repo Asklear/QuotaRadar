@@ -4,6 +4,8 @@ struct MenuContentView: View {
     static let menuSize = CGSize(width: 420, height: 460)
     private static let menuGlassCornerRadius: CGFloat = 20
     private static let contentHorizontalInset: CGFloat = 22
+    private static let contentTopSafeInset: CGFloat = 26
+    private static let contentBottomInset: CGFloat = 14
 
     @ObservedObject var monitor: QuotaMonitor
     @ObservedObject private var languageStore = AppLanguageStore.shared
@@ -74,7 +76,8 @@ struct MenuContentView: View {
                 }
             }
             .padding(.horizontal, Self.contentHorizontalInset)
-            .padding(.vertical, 16)
+            .padding(.top, Self.contentTopSafeInset)
+            .padding(.bottom, Self.contentBottomInset)
         }
         .frame(width: Self.menuSize.width, height: Self.menuSize.height)
         .clipShape(RoundedRectangle(cornerRadius: Self.menuGlassCornerRadius, style: .continuous))
