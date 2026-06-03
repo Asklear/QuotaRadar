@@ -351,6 +351,26 @@ struct QuotaPresentation: Equatable {
     }
 }
 
+struct MenuQuotaSummary: Equatable {
+    let availableCount: Int
+    let lowCount: Int
+    let failedCount: Int
+
+    init(keys: [APIKey]) {
+        let activeKeys = keys.filter { $0.isActive && !$0.key.isEmpty }
+        availableCount = activeKeys.filter { key in
+            switch key.status {
+            case .healthy, .low, .usableUnknown:
+                return true
+            case .exhausted, .expired, .failed, .disabled, .unknown:
+                return false
+            }
+        }.count
+        lowCount = activeKeys.filter { $0.isLow || $0.isExhausted }.count
+        failedCount = activeKeys.filter { $0.status == .failed || $0.isCredentialExpired }.count
+    }
+}
+
 struct MenuQuotaItem: Identifiable, Equatable {
     let provider: Provider
     let key: APIKey
@@ -372,6 +392,18 @@ struct MenuQuotaItem: Identifiable, Equatable {
                     stat.keys.map { MenuQuotaItem(provider: stat.provider, key: $0) }
                 }
                 .filter { $0.key.isActive }
+                .sorted(by: shouldRankBefore)
+                .prefix(limit)
+        )
+    }
+
+    static func attentionItems(from stats: [ProviderStats], limit: Int = 5) -> [MenuQuotaItem] {
+        Array(
+            stats
+                .flatMap { stat in
+                    stat.keys.map { MenuQuotaItem(provider: stat.provider, key: $0) }
+                }
+                .filter { $0.key.isActive && $0.key.needsStatusBarAttention }
                 .sorted(by: shouldRankBefore)
                 .prefix(limit)
         )
@@ -590,6 +622,15 @@ struct APIKey: Identifiable, Codable, Equatable {
         guard !key.isEmpty else { return L10n.t(.noKeyValue) }
         guard key.count > 8 else { return "***" }
         return "\(key.prefix(4))••••\(key.suffix(4))"
+    }
+
+    var statusBarCredentialLabel: String {
+        provider.supportsDashboardReauthentication ? L10n.t(.dashboardSession) : maskedKey
+    }
+
+    var needsStatusBarAttention: Bool {
+        guard isActive, !key.isEmpty else { return false }
+        return isCredentialExpired || isUsageLimitExceeded || isExhausted || isLow || status == .failed
     }
 
     var resetSummary: String {

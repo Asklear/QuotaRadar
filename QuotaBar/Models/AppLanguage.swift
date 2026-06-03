@@ -78,6 +78,10 @@ enum L10n {
         case openSettings
         case keys
         case providers
+        case available
+        case failed
+        case needsAttention
+        case noAttentionItems
         case low
         case categoryCounts
         case activeCount
@@ -371,6 +375,10 @@ enum L10n {
         .openSettings: "Open Settings",
         .keys: "Keys",
         .providers: "Providers",
+        .available: "Available",
+        .failed: "Failed",
+        .needsAttention: "Needs Attention",
+        .noAttentionItems: "No credentials need attention",
         .low: "Low",
         .categoryCounts: "%d providers · %d keys",
         .activeCount: "%d active",
@@ -506,6 +514,10 @@ enum L10n {
         .openSettings: "打开设置",
         .keys: "密钥",
         .providers: "服务商",
+        .available: "可用",
+        .failed: "失败",
+        .needsAttention: "需要关注",
+        .noAttentionItems: "暂无需要关注的凭据",
         .low: "低额度",
         .categoryCounts: "%d 个服务商 · %d 个密钥",
         .activeCount: "%d 个可用",

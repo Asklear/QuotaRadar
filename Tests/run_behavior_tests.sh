@@ -374,6 +374,18 @@ assert_match 'var quotaPresentation: QuotaPresentation' \
 assert_match 'menuTopQuotaItems' \
   "QuotaBar/Models/QuotaMonitor.swift" \
   "QuotaMonitor should expose top quota items for the menu bar summary"
+assert_match 'menuQuotaSummary' \
+  "QuotaBar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose anxiety-focused status counts for the menu bar"
+assert_match 'menuAttentionQuotaItems' \
+  "QuotaBar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose only credentials that need attention for the menu bar"
+assert_match 'struct MenuQuotaSummary' \
+  "QuotaBar/Models/APIKey.swift" \
+  "Menu bar summary counts should live in a shared model instead of view-only logic"
+assert_match 'var statusBarCredentialLabel' \
+  "QuotaBar/Models/APIKey.swift" \
+  "APIKey should expose a safe status-bar credential label that hides cookie JSON"
 assert_match 'struct MenuQuotaItem' \
   "QuotaBar/Models/APIKey.swift" \
   "Menu bar should use ranked quota items instead of rendering the full provider dashboard"
@@ -410,15 +422,30 @@ assert_no_match 'ForEach\(monitor\.homeCategoryStats\)' \
 assert_no_match 'ForEach\(monitor\.homeProviderStats\) \{ stat in' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar home view should not render a flat provider list"
-assert_match 'MenuSummaryCard' \
+assert_match 'MenuAttentionSummaryCard' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar popover should show a compact numeric summary"
-assert_match 'TopQuotaItemsView' \
+  "Status bar popover should show available, low-quota, and failed counts instead of provider/key totals"
+assert_match 'MenuAttentionItemsView' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar popover should show top quota items instead of the full dashboard"
-assert_match 'ForEach\(monitor\.menuTopQuotaItems' \
+  "Status bar popover should show credentials needing attention instead of a generic remaining list"
+assert_match 'ForEach\(monitor\.menuAttentionQuotaItems' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar top items should come from QuotaMonitor.menuTopQuotaItems"
+  "Status bar attention rows should come from QuotaMonitor.menuAttentionQuotaItems"
+assert_no_match 'StatItem\(value: "\\\\\(totalProviders\\\\\)", label: L10n\.t\(\.providers\)\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar summary should not spend prime space on provider totals"
+assert_no_match 'StatItem\(value: "\\\\\(totalKeys\\\\\)", label: L10n\.t\(\.keys\)\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar summary should not spend prime space on credential totals"
+assert_match 'statusBarCredentialLabel' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar rows should use a safe credential label instead of rendering raw cookie JSON"
+assert_no_match 'Text\(key\.maskedKey\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar rows must not show masked raw cookie JSON for dashboard-session providers"
+assert_match 'L10n\.t\(\.needsAttention' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar attention list should have a clear localized title"
 assert_no_match 'spring\(response: 0\.3\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar collapsible sections should not use spring animation"
@@ -437,12 +464,6 @@ assert_no_match 'onRefresh: \{ monitor\.refreshAll\(\) \}' \
 assert_match 'RefreshButton\(isRefreshing: \.constant\(isRefreshing\), isEnabled: item\.canRefresh' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Each status bar top item row should own its refresh button"
-assert_match 'AI Search' \
-  "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar home view should label search providers as AI Search"
-assert_match 'LLM' \
-  "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar home view should label model/coding providers as LLM"
 assert_match 'MenuContentView.menuSize' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar hosting view must use MenuContentView.menuSize to avoid clipping"
@@ -491,9 +512,9 @@ assert_match 'EmptyQuotaStateView' \
 assert_match 'quotaPresentation' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Key rows must use the shared quota presentation model"
-assert_match 'Text\(key\.maskedKey\)' \
+assert_match 'Text\(key\.statusBarCredentialLabel\)' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar key rows should show the actual masked API key, not the environment variable name"
+  "Status bar key rows should show masked API keys or safe cookie credential labels"
 assert_no_match 'Text\(key\.name\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar key rows must not show TAVILY_API_KEY-style environment variable names"
@@ -1098,6 +1119,8 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 cat >"$TMP_DIR/main.swift" <<'SWIFT'
 import Foundation
 
+AppLanguageStore.shared.language = .english
+
 let env = """
 # comment
 TAVILY_API_KEY=tvly-test-key
@@ -1352,6 +1375,27 @@ require(
     rankedMenuItems.map { $0.key.name } == ["usageLimited", "empty", "low"],
     "MenuQuotaItem.topItems should rank exhausted and lowest numeric quotas for the compact status bar summary"
 )
+let menuSummary = MenuQuotaSummary(keys: [
+    APIKey(name: "healthy", key: "tvly-healthy", provider: .tavily, remaining: 900, limit: 1000),
+    APIKey(name: "low", key: "tvly-low", provider: .tavily, remaining: 20, limit: 1000),
+    APIKey(name: "failed", key: "tvly-failed", provider: .tavily, lastDiagnosticMessage: "network failed"),
+    APIKey(name: "expired", key: "cookie", provider: .volcengineCodingPlan, quotaLabel: "Credential expired")
+])
+require(menuSummary.availableCount == 2, "MenuQuotaSummary should count usable credentials, including low but still usable ones")
+require(menuSummary.lowCount == 1, "MenuQuotaSummary should count low-quota credentials separately")
+require(menuSummary.failedCount == 2, "MenuQuotaSummary should count failed and expired credentials")
+let cookieStatusLabel = APIKey(
+    name: "VOLCENGINE_CODING_PLAN_COOKIE",
+    key: #"{"cookie":"c=a"}"#,
+    provider: .volcengineCodingPlan
+).statusBarCredentialLabel
+require(cookieStatusLabel == "Dashboard session cookie", "Status bar should show the credential type for cookie-backed providers, not masked raw JSON")
+let apiStatusLabel = APIKey(
+    name: "BRAVE_API_KEY",
+    key: "abcd1234wxyz",
+    provider: .brave
+).statusBarCredentialLabel
+require(apiStatusLabel == "abcd••••wxyz", "Status bar should still show masked concrete API keys for normal providers")
 let settingsURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("claude-settings.json")
 try! Data("""
 {"env":{"TAVILY_API_KEY":"tvly-from-settings","BRAVE_API_KEY":"brave-from-settings","ANTHROPIC_API_KEY":""}}
@@ -1398,6 +1442,13 @@ require(L10n.t(.provider, language: .simplifiedChinese) == "服务商", "Chinese
 require(L10n.t(.language, language: .simplifiedChinese) == "语言", "Chinese language label should be available")
 require(L10n.t(.statusBarTransparency, language: .simplifiedChinese) == "状态栏透明度", "Chinese status bar transparency label should be available")
 require(L10n.t(.autoRefreshInterval, language: .simplifiedChinese) == "自动刷新", "Chinese settings should include an automatic refresh label")
+require(L10n.t(.available, language: .english) == "Available", "English menu summary should label available credentials")
+require(L10n.t(.available, language: .simplifiedChinese) == "可用", "Chinese menu summary should label available credentials")
+require(L10n.t(.failed, language: .english) == "Failed", "English menu summary should label failed credentials")
+require(L10n.t(.failed, language: .simplifiedChinese) == "失败", "Chinese menu summary should label failed credentials")
+require(L10n.t(.needsAttention, language: .english) == "Needs Attention", "English menu attention title should be available")
+require(L10n.t(.needsAttention, language: .simplifiedChinese) == "需要关注", "Chinese menu attention title should be available")
+require(L10n.t(.noAttentionItems, language: .simplifiedChinese) == "暂无需要关注的凭据", "Chinese no-attention empty state should be available")
 require(AutoRefreshIntervalOption.off.timeInterval == nil, "Automatic refresh settings should support disabling background refresh")
 require(AutoRefreshIntervalOption.fifteenMinutes.timeInterval == 900, "Automatic refresh settings should expose a 15 minute interval")
 require(L10n.t(.httpNotRequested, language: .english) == "Not requested", "English diagnostics should distinguish skipped HTTP checks")

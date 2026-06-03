@@ -58,6 +58,14 @@ class QuotaMonitor: ObservableObject {
         MenuQuotaItem.topItems(from: homeProviderStats, limit: 3)
     }
 
+    var menuQuotaSummary: MenuQuotaSummary {
+        MenuQuotaSummary(keys: apiKeys)
+    }
+
+    var menuAttentionQuotaItems: [MenuQuotaItem] {
+        MenuQuotaItem.attentionItems(from: homeProviderStats, limit: 3)
+    }
+
     func refreshAll(mode: RefreshMode = .manual) {
         refresh(targetProviders: nil, mode: mode)
     }

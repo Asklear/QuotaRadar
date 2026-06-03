@@ -56,9 +56,9 @@ struct MenuContentView: View {
                     EmptyQuotaStateView(onOpenSettings: { openAPIKeyConfiguration() })
                     Spacer(minLength: 0)
                 } else {
-                    MenuSummaryCard(categories: monitor.homeCategoryStats)
+                    MenuAttentionSummaryCard(summary: monitor.menuQuotaSummary)
 
-                    TopQuotaItemsView(monitor: monitor)
+                    MenuAttentionItemsView(monitor: monitor)
 
                     Spacer(minLength: 0)
 
@@ -201,73 +201,25 @@ struct HeaderView: View {
 
 // MARK: - Menu Summary
 
-struct MenuSummaryCard: View {
-    let categories: [ProviderCategoryStats]
-
-    private var totalProviders: Int {
-        categories.map(\.providerCount).reduce(0, +)
-    }
-
-    private var totalKeys: Int {
-        categories.map(\.keyCount).reduce(0, +)
-    }
+struct MenuAttentionSummaryCard: View {
+    let summary: MenuQuotaSummary
 
     var body: some View {
         GlassCard {
-            VStack(spacing: 10) {
-                HStack(spacing: 14) {
-                    StatItem(value: "\(totalProviders)", label: L10n.t(.providers))
-
-                    Divider()
-                        .frame(height: 28)
-                        .background(Color.white.opacity(0.18))
-
-                    StatItem(value: "\(totalKeys)", label: L10n.t(.keys))
-                }
+            HStack(spacing: 14) {
+                StatItem(value: "\(summary.availableCount)", label: L10n.t(.available), valueColor: .green)
 
                 Divider()
-                    .background(Color.white.opacity(0.14))
+                    .frame(height: 30)
+                    .background(Color.white.opacity(0.18))
 
-                VStack(spacing: 8) {
-                    ForEach(categories) { category in
-                        CategorySummaryRow(category: category)
-                    }
-                }
-            }
-        }
-    }
-}
+                StatItem(value: "\(summary.lowCount)", label: L10n.t(.low), valueColor: summary.lowCount > 0 ? .orange : .secondary)
 
-struct CategorySummaryRow: View {
-    let category: ProviderCategoryStats
+                Divider()
+                    .frame(height: 30)
+                    .background(Color.white.opacity(0.18))
 
-    private var topItem: MenuQuotaItem? {
-        MenuQuotaItem.topItems(from: category.stats, limit: 1).first
-    }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: category.title == "AI Search" ? "magnifyingglass.circle.fill" : category.title == "LLM" ? "cpu.fill" : "square.grid.2x2.fill")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 18, height: 18)
-
-            Text(L10n.categoryTitle(category.title))
-                .font(.system(size: 12, weight: .semibold))
-
-            Text(L10n.format(.categoryCounts, category.providerCount, category.keyCount))
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
-            if let topItem {
-                Text(topItem.presentation.badgeText)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(topItem.key.status.color)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(topItem.key.status.color.opacity(0.12), in: Capsule())
+                StatItem(value: "\(summary.failedCount)", label: L10n.t(.failed), valueColor: summary.failedCount > 0 ? .red : .secondary)
             }
         }
     }
@@ -292,16 +244,16 @@ struct StatItem: View {
     }
 }
 
-// MARK: - Top Quota Items
+// MARK: - Attention Quota Items
 
-struct TopQuotaItemsView: View {
+struct MenuAttentionItemsView: View {
     @ObservedObject var monitor: QuotaMonitor
 
     var body: some View {
         GlassCard {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text(L10n.t(.remaining))
+                    Text(L10n.t(.needsAttention))
                         .font(.system(size: 12, weight: .bold))
                     Spacer()
                     Text(L10n.t(.quotaStatus))
@@ -309,17 +261,17 @@ struct TopQuotaItemsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if monitor.menuTopQuotaItems.isEmpty {
+                if monitor.menuAttentionQuotaItems.isEmpty {
                     HStack(spacing: 8) {
-                        Image(systemName: "key.slash")
+                        Image(systemName: "checkmark.seal.fill")
                             .font(.system(size: 11, weight: .semibold))
-                        Text(L10n.t(.noKeyConfigured))
+                        Text(L10n.t(.noAttentionItems))
                             .font(.caption2)
                         Spacer()
                     }
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.green)
                 } else {
-                    ForEach(monitor.menuTopQuotaItems) { item in
+                    ForEach(monitor.menuAttentionQuotaItems) { item in
                         MenuQuotaItemRow(
                             item: item,
                             isRefreshing: monitor.refreshingProviders.contains(item.provider),
@@ -355,9 +307,8 @@ struct MenuQuotaItemRow: View {
                         .font(.system(size: 12, weight: .semibold))
                         .lineLimit(1)
 
-                    Text(key.maskedKey)
+                    Text(key.statusBarCredentialLabel)
                         .font(.system(size: 11, weight: .medium))
-                        .fontDesign(.monospaced)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
@@ -378,6 +329,13 @@ struct MenuQuotaItemRow: View {
                         .foregroundStyle(.tertiary)
 
                     Text(presentation.sourceText)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+
+                if !presentation.diagnosticText.isEmpty && presentation.diagnosticText != L10n.t(.notChecked) {
+                    Text(presentation.diagnosticText)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
