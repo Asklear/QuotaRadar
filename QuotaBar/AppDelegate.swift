@@ -12,7 +12,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowD
     private var autoRefreshCancellable: AnyCancellable?
     private let preferredSettingsContentSize = NSSize(width: 1040, height: 640)
     private let minimumSettingsWindowSize = NSSize(width: 1040, height: 640)
-    private let statusPopoverAnchorOffset: CGFloat = 18
+    private let statusPopoverAnchorHeight: CGFloat = 6
     private let statusPopoverTopClearance: CGFloat = 12
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -132,8 +132,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowD
 
     private func statusPopoverAnchorRect(for button: NSStatusBarButton) -> NSRect {
         var rect = button.bounds
-        rect.origin.y -= statusPopoverAnchorOffset
-        rect.size.height = max(1, rect.size.height - statusPopoverAnchorOffset)
+        rect.origin.y = button.bounds.minY
+        rect.size.height = max(1, min(statusPopoverAnchorHeight, button.bounds.height))
         return rect
     }
 

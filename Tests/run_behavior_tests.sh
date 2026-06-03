@@ -317,12 +317,18 @@ assert_match 'popover\.contentSize = MenuContentView\.menuSize' \
 assert_no_match 'popover\.show\(relativeTo: button\.bounds, of: button, preferredEdge: \.minY\)' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar popover should not anchor directly to button.bounds because the menu bar can clip the top edge"
-assert_match 'statusPopoverAnchorOffset' \
+assert_match 'statusPopoverAnchorHeight' \
   "QuotaBar/AppDelegate.swift" \
-  "Status bar popover should use a downward anchor offset to avoid menu bar clipping"
+  "Status bar popover should use a stable in-bounds anchor height"
 assert_match 'statusPopoverAnchorRect\(for: button\)' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar popover should compute a clipped-safe anchor rect"
+assert_no_match 'rect\.origin\.y -= statusPopoverAnchorOffset' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar popover anchor must stay inside the status button bounds or NSPopover may not open"
+assert_match 'rect\.origin\.y = button\.bounds\.minY' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar popover anchor should use the button's internal bottom edge"
 assert_match 'repositionStatusPopoverBelowMenuBar' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar popover should clamp the actual window below the menu bar after AppKit positions it"
