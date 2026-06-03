@@ -83,7 +83,7 @@ final class AppAppearanceStore: ObservableObject {
     }
 
     private static func clamped(_ value: Double) -> Double {
-        min(max(value, 0.10), 0.95)
+        min(max(value, 0.0), 1.0)
     }
 }
 

@@ -1,39 +1,81 @@
 import SwiftUI
 
+private struct MenuGlassTransparencyKey: EnvironmentKey {
+    static let defaultValue = 0.58
+}
+
+extension EnvironmentValues {
+    var menuGlassTransparency: Double {
+        get { self[MenuGlassTransparencyKey.self] }
+        set { self[MenuGlassTransparencyKey.self] = min(max(newValue, 0.0), 1.0) }
+    }
+}
+
 // MARK: - Glass Card View
 
 struct GlassCard<Content: View>: View {
+    @Environment(\.menuGlassTransparency) private var menuGlassTransparency
     @ViewBuilder var content: Content
+
+    private var strokeOpacity: Double {
+        0.16 + (1 - menuGlassTransparency) * 0.12
+    }
+
+    private var shadowOpacity: Double {
+        0.10 + (1 - menuGlassTransparency) * 0.08
+    }
 
     var body: some View {
         content
             .padding(16)
             .background(
-                GlassBackground()
+                GlassBackground(transparency: menuGlassTransparency)
             )
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    .stroke(Color.white.opacity(strokeOpacity), lineWidth: 1)
             )
-            .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 4)
+            .shadow(color: Color.black.opacity(shadowOpacity), radius: 10, x: 0, y: 4)
     }
 }
 
 struct GlassBackground: View {
+    let transparency: Double
+
+    private var materialOpacity: Double {
+        0.82 + (1 - transparency) * 0.12
+    }
+
+    private var baseFillOpacity: Double {
+        0.34 + (1 - transparency) * 0.16
+    }
+
+    private var leadingHighlightOpacity: Double {
+        0.08 + transparency * 0.08
+    }
+
+    private var trailingHighlightOpacity: Double {
+        0.04 + transparency * 0.04
+    }
+
     var body: some View {
         ZStack {
             // 背景模糊
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(.ultraThinMaterial)
+                .fill(.regularMaterial)
+                .opacity(materialOpacity)
+
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(baseFillOpacity))
 
             // 微妙渐变覆盖
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(0.15),
-                            Color.white.opacity(0.05)
+                            Color.white.opacity(leadingHighlightOpacity),
+                            Color.white.opacity(trailingHighlightOpacity)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing

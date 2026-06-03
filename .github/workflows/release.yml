@@ -40,6 +40,12 @@ jobs:
           body: |
             QuotaBar macOS build.
 
+            Highlights in the current release line:
+            - Quota-first menu bar overview grouped by AI Search and LLM.
+            - Provider-level refresh and credential diagnostics.
+            - Dashboard-cookie reauthentication for supported providers.
+            - Local-only secret storage without using the login Keychain by default.
+
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.
 
             If macOS reports that the app is damaged or cannot be opened, install the app into /Applications and run:

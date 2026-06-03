@@ -44,17 +44,86 @@ enum DashboardCookieBuilder {
     }
 
     static func containsRequiredCookie(from cookies: [HTTPCookie], domains: [String], requiredNames: [String]) -> Bool {
-        let normalizedDomains = domains.map(normalizeDomain)
-        let names = Set(requiredNames)
-        guard !names.isEmpty else { return true }
+        missingRequiredCookieNames(from: cookies, domains: domains, requiredNames: requiredNames).isEmpty
+    }
 
-        return cookies.contains { cookie in
-            guard names.contains(cookie.name) else { return false }
+    static func missingRequiredCookieNames(from cookies: [HTTPCookie], domains: [String], requiredNames: [String]) -> [String] {
+        let normalizedDomains = domains.map(normalizeDomain)
+        guard !requiredNames.isEmpty else { return [] }
+
+        let matchingCookieNames = Set(cookies.compactMap { cookie -> String? in
             let cookieDomain = normalizeDomain(cookie.domain)
-            return normalizedDomains.contains { allowedDomain in
+            let matchesDomain = normalizedDomains.contains { allowedDomain in
                 cookieDomain == allowedDomain || cookieDomain.hasSuffix(".\(allowedDomain)")
             }
+            return matchesDomain ? cookie.name : nil
+        })
+
+        return requiredNames.filter { !matchingCookieNames.contains($0) }
+    }
+
+    static func missingRequiredCookieNames(inCookieHeader cookieHeader: String, requiredNames: [String]) -> [String] {
+        guard !requiredNames.isEmpty else { return [] }
+
+        let presentNames = Set(cookieHeader
+            .split(separator: ";")
+            .compactMap { part -> String? in
+                let pieces = part.split(separator: "=", maxSplits: 1).map {
+                    String($0).trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                guard pieces.count == 2, !pieces[0].isEmpty else {
+                    return nil
+                }
+                return pieces[0]
+            })
+
+        return requiredNames.filter { !presentNames.contains($0) }
+    }
+
+    static func containsRequiredCookie(inCookieHeader cookieHeader: String, requiredNames: [String]) -> Bool {
+        missingRequiredCookieNames(inCookieHeader: cookieHeader, requiredNames: requiredNames).isEmpty
+    }
+
+    static func reauthenticatedSecret(cookieHeader: String, existingSecret: String?) -> String {
+        guard let existingSecret = existingSecret?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !existingSecret.isEmpty,
+              let data = existingSecret.data(using: .utf8),
+              var object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return cookieHeader
         }
+
+        let hasCredentialMetadata = object.keys.contains { key in
+            let normalizedKey = key.lowercased()
+            return normalizedKey != "cookie" && normalizedKey != "cookies"
+        }
+        guard hasCredentialMetadata else {
+            return cookieHeader
+        }
+
+        object["cookie"] = cookieHeader
+        if object.keys.contains("cookies") {
+            object["cookies"] = cookieHeader
+        }
+
+        if let csrfToken = cookieValue(named: "csrfToken", in: cookieHeader) {
+            for key in object.keys where ["csrftoken", "csrf", "xcsrftoken"].contains(key.lowercased()) {
+                object[key] = csrfToken
+            }
+        }
+
+        let options: JSONSerialization.WritingOptions
+        if #available(macOS 10.13, *) {
+            options = [.sortedKeys]
+        } else {
+            options = []
+        }
+
+        guard JSONSerialization.isValidJSONObject(object),
+              let mergedData = try? JSONSerialization.data(withJSONObject: object, options: options),
+              let mergedSecret = String(data: mergedData, encoding: .utf8) else {
+            return cookieHeader
+        }
+        return mergedSecret
     }
 
     private static func normalizeDomain(_ domain: String) -> String {
@@ -62,5 +131,18 @@ enum DashboardCookieBuilder {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "."))
             .lowercased()
+    }
+
+    private static func cookieValue(named name: String, in cookieHeader: String) -> String? {
+        for part in cookieHeader.split(separator: ";") {
+            let pieces = part.split(separator: "=", maxSplits: 1).map {
+                String($0).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            guard pieces.count == 2 else { continue }
+            if pieces[0] == name {
+                return pieces[1]
+            }
+        }
+        return nil
     }
 }

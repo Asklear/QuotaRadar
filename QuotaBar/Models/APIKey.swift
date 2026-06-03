@@ -26,6 +26,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         allCases.filter { $0 != .anthropic }
     }
 
+    static let categoryDisplayOrder = ["AI Search", "LLM"]
+
     func displayName(language: AppLanguage = AppLanguageStore.shared.language) -> String {
         switch language {
         case .english:
@@ -174,7 +176,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         case .xfyunCodingPlan:
             return ["ssoSessionId", "tenantToken", "atp-auth-token", "account_id"]
         case .volcengineCodingPlan:
-            return ["digest", "userInfo", "AccountID", "csrfToken"]
+            return ["digest", "AccountID", "csrfToken"]
         case .opencodeGo:
             return ["auth"]
         case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .deepseek:
@@ -840,6 +842,68 @@ struct ProviderStats: Identifiable {
         return "\(L10n.format(.providerKeyCount, keys.count)) · \(L10n.format(.activeCount, availableKeys))"
     }
 
+    var statusBarProviderQuotaText: String {
+        guard !activeCredentialKeys.isEmpty else { return L10n.t(.noKeyConfigured) }
+        if activeCredentialKeys.contains(where: { $0.isUnlimitedQuota }) {
+            return L10n.t(.unlimited)
+        }
+        if usesPercentageQuota {
+            return totalRemainingDisplayText
+        }
+        if activeCredentialKeys.count == 1, let key = activeCredentialKeys.first {
+            return key.quotaPresentation.primaryText
+        }
+        if activeFiniteQuotaKeys.reduce(0, { $0 + ($1.limit ?? 0) }) > 0 {
+            let remaining = activeFiniteQuotaKeys.compactMap { $0.remaining }.reduce(0, +)
+            let limit = activeFiniteQuotaKeys.compactMap { $0.limit }.reduce(0, +)
+            return "\(remaining) / \(limit)"
+        }
+        if let firstKnown = sortedKeysByCurrentQuota.first(where: { $0.isActive && !$0.key.isEmpty }) {
+            return firstKnown.quotaPresentation.primaryText
+        }
+        return L10n.t(.quotaUnavailable)
+    }
+
+    var statusBarProviderBadgeText: String {
+        guard !activeCredentialKeys.isEmpty else { return L10n.t(.notAvailableShort) }
+        if activeCredentialKeys.contains(where: { $0.isUnlimitedQuota }) {
+            return "∞"
+        }
+        if usesPercentageQuota {
+            return totalRemainingDisplayText
+        }
+        if let percent = statusBarProviderPercentRemaining {
+            if percent <= 0 {
+                return L10n.t(.zeroRemainingBadge)
+            }
+            if percent < 1 {
+                return "<1%"
+            }
+            return "\(Int(percent.rounded(.down)))%"
+        }
+        if activeCredentialKeys.allSatisfy({ $0.isExhausted || $0.isUsageLimitExceeded }) {
+            return L10n.t(.zeroRemainingBadge)
+        }
+        if activeCredentialKeys.contains(where: { $0.isUsableWithUnknownQuota }) {
+            return L10n.t(.ok)
+        }
+        return L10n.t(.notAvailableShort)
+    }
+
+    var statusBarProviderStatusColor: Color {
+        guard !activeCredentialKeys.isEmpty else { return .gray }
+        if activeCredentialKeys.allSatisfy({ $0.status == .failed || $0.isCredentialExpired || $0.isExhausted }) {
+            return .red
+        }
+        if activeCredentialKeys.contains(where: { $0.isLow || $0.isExhausted || $0.isCredentialExpired || $0.status == .failed }) {
+            return .orange
+        }
+        if activeCredentialKeys.contains(where: { $0.isUsableWithUnknownQuota }) {
+            return .blue
+        }
+        return .green
+    }
+
     private var usesPercentageQuota: Bool {
         switch provider {
         case .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo:
@@ -904,6 +968,26 @@ struct ProviderStats: Identifiable {
             $0.remaining != Int.max &&
             $0.limit != Int.max
         }
+    }
+
+    private var activeCredentialKeys: [APIKey] {
+        keys.filter { $0.isActive && !$0.key.isEmpty }
+    }
+
+    private var activeFiniteQuotaKeys: [APIKey] {
+        activeCredentialKeys.filter {
+            !$0.isUnlimitedQuota &&
+            $0.remaining != Int.max &&
+            $0.limit != Int.max
+        }
+    }
+
+    private var statusBarProviderPercentRemaining: Double? {
+        let quotaKeys = activeFiniteQuotaKeys.filter { ($0.limit ?? 0) > 0 && $0.remaining != nil }
+        let totalLimit = quotaKeys.compactMap { $0.limit }.reduce(0, +)
+        guard totalLimit > 0 else { return nil }
+        let totalRemaining = quotaKeys.compactMap { $0.remaining }.reduce(0, +)
+        return max(0, min(100, Double(totalRemaining) / Double(totalLimit) * 100))
     }
 }
 

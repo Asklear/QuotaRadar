@@ -16,13 +16,29 @@ QuotaBar's core goal is to reduce quota anxiety: users should not need to repeat
 - Secrets stay local. Source code, tests, README files, and GitHub Releases must never contain real API keys or cookies.
 - Every provider needs clear diagnostics: usable, quota unknown, credential expired, connection failed, unsupported API, or quota-consuming check.
 
+## Completed In v0.1.3
+
+- Changed the menu bar popover into a quota-first provider overview grouped by `AI Search` and `LLM`.
+- Enlarged the menu bar popover to reduce scrolling and fixed top/bottom clipping.
+- Replaced fragile SwiftUI header actions in the popover with stable AppKit click targets so the first click works.
+- Unified the main window and credential configuration order as `AI Search` before `LLM`.
+- Made credential configuration distinguish API Key, Admin Credential, and Dashboard Cookie so Volcengine, XFYun Spark, and OpenCode Go are not mislabeled as plain API keys.
+- Added launch at login, automatic refresh intervals, and the ability to disable automatic refresh; automatic refresh skips providers such as Brave that consume a real search request.
+- Added menu bar transparency settings and propagated the configured transparency into inner popover cards.
+- Added automatic reauthentication save for dashboard-cookie providers, with provider quota validation before persisting.
+- Fixed refreshed dashboard cookies being overwritten by stale `~/.claude/settings.json` values. Claude settings are now imported only during first-run initialization, not during refresh.
+- Kept the local secret file as the default credential store to avoid repeated login-keychain password prompts.
+- Updated README, Quickstart, Release workflow notes, and unsigned DMG / Gatekeeper documentation.
+
 ## P0: Current Version Hardening
 
-- [ ] Update QUICKSTART wording from the old "Language & Appearance" label to "Settings".
-- [ ] Check Chinese and English docs for unsigned DMG, disabling automatic refresh, Brave auto-refresh skip behavior, and cookie-provider setup.
-- [ ] Improve Release workflow notes so unsigned DMG users see the Gatekeeper workaround clearly.
-- [ ] Keep the current unsigned DMG release path. Developer ID signing and notarization remain optional future work.
-- [ ] Keep avoiding Keychain as the default secret path to reduce repeated login-keychain prompts.
+- [x] Update outdated QUICKSTART settings-page wording to "Settings".
+- [x] Check Chinese and English docs for unsigned DMG, disabling automatic refresh, Brave auto-refresh skip behavior, and cookie-provider setup.
+- [x] Improve Release workflow notes so unsigned DMG users see the Gatekeeper workaround clearly.
+- [x] Keep the current unsigned DMG release path. Developer ID signing and notarization remain optional future work.
+- [x] Keep avoiding Keychain as the default secret path to reduce repeated login-keychain prompts.
+- [ ] Run screenshot QA for v0.1.3 menu bar transparency across different desktop backgrounds and keep improving glass readability.
+- [ ] Fill in the provider capability matrix as the entry point for future provider additions.
 
 ## P1: Credential Configuration UX
 
@@ -36,7 +52,7 @@ QuotaBar's core goal is to reduce quota anxiety: users should not need to repeat
   - Extract `csrfToken`, `ProjectName`, and related fields from Volcengine cURL.
   - Extract `workspaceID`, `serverID`, and `serverInstance` from OpenCode Go cURL.
   - For Querit, save only dashboard-session cookies and reject plain `QUERIT_API_KEY`.
-- [ ] Make reauthentication auto-save:
+- [x] Make reauthentication auto-save:
   - Open the provider dashboard login page.
   - After the user logs in, read cookies from allowed domains.
   - Verify required cookies exist.
@@ -163,7 +179,7 @@ Acceptance criteria for a new provider:
 
 ## Next Starting Plan
 
-Start with P1 + P2. They reduce configuration and diagnostics friction directly, and they create the foundation for provider expansion.
+Continue with P1 + P2. Reauthentication auto-save is already in place; the remaining high-impact work is making configuration harder to get wrong and diagnostics easier to understand.
 
 1. [ ] Build a provider capability matrix.
    - Suggested files: `docs/provider-capabilities.md` / `docs/provider-capabilities.en.md`.
@@ -190,4 +206,3 @@ Start with P1 + P2. They reduce configuration and diagnostics friction directly,
 - [ ] Windows/Linux clients.
 - [ ] Remote credential sync.
 - [ ] Multi-user team dashboards.
-

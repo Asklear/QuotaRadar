@@ -101,7 +101,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowD
 
         let popover = NSPopover()
         popover.behavior = .transient
-        popover.animates = true
+        popover.animates = false
         popover.contentSize = MenuContentView.menuSize
         popover.contentViewController = hostingController
         popover.delegate = self
@@ -167,10 +167,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowD
     private func startPopoverMouseExitMonitor() {
         stopPopoverMouseExitMonitor()
 
-        let timer = Timer(timeInterval: 0.2, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 0.45, repeats: true) { [weak self] _ in
             self?.closePopoverIfMouseExited()
         }
-        timer.tolerance = 0.08
+        timer.tolerance = 0.10
         RunLoop.main.add(timer, forMode: .common)
         popoverMouseExitTimer = timer
     }

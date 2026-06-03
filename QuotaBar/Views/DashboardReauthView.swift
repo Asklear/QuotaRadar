@@ -122,16 +122,37 @@ struct DashboardReauthSheet: View {
             return
         }
 
+        let missingCookieNames = DashboardCookieBuilder.missingRequiredCookieNames(
+            inCookieHeader: cookieHeader,
+            requiredNames: config.requiredCookieNames
+        )
+        guard missingCookieNames.isEmpty else {
+            isSaving = false
+            statusMessage = L10n.format(.missingRequiredCookies, missingCookieNames.joined(separator: ", "))
+            return
+        }
+
+        validateAndPersistCookies(cookieHeader, config: config)
+    }
+
+    private func validateAndPersistCookies(_ cookieHeader: String, config: DashboardReauthConfig) {
         didAutoSave = true
+        statusMessage = L10n.t(.checkingCookie)
+
+        let existingKey = key ?? monitor.apiKeys.first(where: { $0.provider == provider })
+        let candidateKey: APIKey
         if var updatedKey = key ?? monitor.apiKeys.first(where: { $0.provider == provider }) {
-            updatedKey.key = cookieHeader
+            updatedKey.key = DashboardCookieBuilder.reauthenticatedSecret(
+                cookieHeader: cookieHeader,
+                existingSecret: updatedKey.key
+            )
             updatedKey.name = updatedKey.name.isEmpty ? config.defaultKeyName : updatedKey.name
             updatedKey.note = updatedKey.note ?? L10n.t(.dashboardSession)
             updatedKey.quotaLabel = L10n.t(.cookieSaved)
             updatedKey.lastUpdated = Date()
-            monitor.updateKey(updatedKey)
+            candidateKey = updatedKey
         } else {
-            let newKey = APIKey(
+            candidateKey = APIKey(
                 name: config.defaultKeyName,
                 key: cookieHeader,
                 provider: provider,
@@ -139,13 +160,45 @@ struct DashboardReauthSheet: View {
                 lastUpdated: Date(),
                 quotaLabel: L10n.t(.cookieSaved)
             )
-            monitor.addKey(newKey)
         }
 
-        isSaving = false
-        statusMessage = L10n.t(.cookieSaved)
-        monitor.refreshProvider(provider)
-        dismiss()
+        Task {
+            do {
+                let result = try await QuotaService().checkQuota(for: candidateKey, bypassCooldown: true)
+                await MainActor.run {
+                    var verifiedKey = candidateKey
+                    verifiedKey.remaining = result.remaining
+                    verifiedKey.limit = result.limit
+                    verifiedKey.resetAt = result.resetAt
+                    verifiedKey.quotaLabel = result.quotaLabel
+                    verifiedKey.lastHTTPStatus = result.httpStatus
+                    verifiedKey.lastDiagnosticMessage = result.diagnosticMessage
+                    verifiedKey.lastUpdated = Date()
+
+                    if existingKey == nil {
+                        monitor.addKey(verifiedKey)
+                    } else {
+                        monitor.updateKey(verifiedKey)
+                    }
+
+                    isSaving = false
+                    statusMessage = L10n.t(.cookieSaved)
+                    dismiss()
+                }
+            } catch QuotaError.unauthorized {
+                await MainActor.run {
+                    isSaving = false
+                    didAutoSave = false
+                    statusMessage = L10n.t(.reauthStillUnauthorized)
+                }
+            } catch {
+                await MainActor.run {
+                    isSaving = false
+                    didAutoSave = false
+                    statusMessage = L10n.format(.reauthValidationFailed, error.localizedDescription)
+                }
+            }
+        }
     }
 }
 
@@ -156,16 +209,19 @@ struct DashboardWebView: NSViewRepresentable {
     let onCookiesAvailable: (String) -> Void
 
     func makeNSView(context: Context) -> WKWebView {
-        let webView = WKWebView()
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .default()
+
+        let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
-        webView.load(URLRequest(url: url))
+        context.coordinator.start(webView: webView, url: url)
         return webView
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
-        if webView.url == nil {
-            webView.load(URLRequest(url: url))
+        if webView.url == nil, !context.coordinator.hasStartedLoading {
+            context.coordinator.start(webView: webView, url: url)
         }
     }
 
@@ -177,16 +233,62 @@ struct DashboardWebView: NSViewRepresentable {
         )
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKHTTPCookieStoreObserver {
         private let cookieDomains: [String]
         private let requiredCookieNames: [String]
         private let onCookiesAvailable: (String) -> Void
         private var didEmitCookies = false
+        private weak var webView: WKWebView?
+        private var observedCookieStore: WKHTTPCookieStore?
+        private(set) var hasStartedLoading = false
 
         init(cookieDomains: [String], requiredCookieNames: [String], onCookiesAvailable: @escaping (String) -> Void) {
             self.cookieDomains = cookieDomains
             self.requiredCookieNames = requiredCookieNames
             self.onCookiesAvailable = onCookiesAvailable
+        }
+
+        deinit {
+            observedCookieStore?.remove(self)
+        }
+
+        func start(webView: WKWebView, url: URL) {
+            guard !hasStartedLoading else { return }
+            self.webView = webView
+
+            let cookieStore = webView.configuration.websiteDataStore.httpCookieStore
+            observedCookieStore = cookieStore
+            cookieStore.add(self)
+            clearProviderCookiesBeforeLoading(webView: webView, cookieStore: cookieStore, url: url)
+        }
+
+        private func clearProviderCookiesBeforeLoading(webView: WKWebView, cookieStore: WKHTTPCookieStore, url: URL) {
+            cookieStore.getAllCookies { [weak self, weak webView] cookies in
+                guard let self, let webView else { return }
+
+                let staleCookies = cookies.filter { self.matchesAllowedCookieDomain($0.domain) }
+                guard !staleCookies.isEmpty else {
+                    DispatchQueue.main.async {
+                        self.hasStartedLoading = true
+                        webView.load(URLRequest(url: url))
+                    }
+                    return
+                }
+
+                let group = DispatchGroup()
+                for cookie in staleCookies {
+                    group.enter()
+                    cookieStore.delete(cookie) {
+                        group.leave()
+                    }
+                }
+
+                group.notify(queue: .main) { [weak self, weak webView] in
+                    guard let self, let webView else { return }
+                    self.hasStartedLoading = true
+                    webView.load(URLRequest(url: url))
+                }
+            }
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -196,7 +298,22 @@ struct DashboardWebView: NSViewRepresentable {
                 return
             }
 
-            WKWebsiteDataStore.default().httpCookieStore.getAllCookies { [weak self] cookies in
+            captureCookiesIfReady()
+        }
+
+        func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
+            captureCookiesIfReady()
+        }
+
+        private func captureCookiesIfReady() {
+            guard !didEmitCookies,
+                  let webView,
+                  let host = webView.url?.host,
+                  matchesAllowedDomain(host) else {
+                return
+            }
+
+            webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self] cookies in
                 guard let self, !self.didEmitCookies else { return }
                 let cookieHeader = DashboardCookieBuilder.cookieHeader(
                     from: cookies,
@@ -220,9 +337,20 @@ struct DashboardWebView: NSViewRepresentable {
 
         private func matchesAllowedDomain(_ host: String) -> Bool {
             let normalizedHost = normalizeDomain(host)
-            return cookieDomains.map(normalizeDomain).contains { allowedDomain in
+            return normalizedCookieDomains.contains { allowedDomain in
                 normalizedHost == allowedDomain || normalizedHost.hasSuffix(".\(allowedDomain)")
             }
+        }
+
+        private func matchesAllowedCookieDomain(_ domain: String) -> Bool {
+            let normalizedCookieDomain = normalizeDomain(domain)
+            return normalizedCookieDomains.contains { allowedDomain in
+                normalizedCookieDomain == allowedDomain || normalizedCookieDomain.hasSuffix(".\(allowedDomain)")
+            }
+        }
+
+        private var normalizedCookieDomains: [String] {
+            cookieDomains.map(normalizeDomain)
         }
 
         private func normalizeDomain(_ domain: String) -> String {

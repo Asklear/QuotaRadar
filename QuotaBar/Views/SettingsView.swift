@@ -366,7 +366,7 @@ struct KeysManagementView: View {
             return ProviderStats(provider: provider, keys: providerKeys)
         }
         let grouped = Dictionary(grouping: stats) { $0.provider.statusBarCategoryTitle }
-        return ["LLM", "AI Search"].compactMap { title in
+        return Provider.categoryDisplayOrder.compactMap { title in
             guard let stats = grouped[title], !stats.isEmpty else { return nil }
             return ProviderCategoryStats(title: title, stats: stats)
         }
@@ -934,7 +934,7 @@ struct ProvidersView: View {
             )
         }
         let grouped = Dictionary(grouping: stats) { $0.provider.statusBarCategoryTitle }
-        return ["AI Search", "LLM"].compactMap { title in
+        return Provider.categoryDisplayOrder.compactMap { title in
             guard let stats = grouped[title], !stats.isEmpty else { return nil }
             return ProviderCategoryStats(title: title, stats: stats)
         }
@@ -1480,7 +1480,7 @@ struct AppSettingsView: View {
                             .monospacedDigit()
                     }
 
-                    Slider(value: $appearanceStore.statusBarTransparency, in: 0.10...0.95)
+                    Slider(value: $appearanceStore.statusBarTransparency, in: 0.0...1.0)
                         .controlSize(.small)
                 }
             }

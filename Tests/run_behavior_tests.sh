@@ -68,6 +68,18 @@ assert_match 'func displayName\(language: AppLanguage = AppLanguageStore\.shared
 assert_match 'static var visibleCases: \[Provider\]' \
   "QuotaBar/Models/APIKey.swift" \
   "Provider UI lists should use a visible provider list so unsupported providers can be kept out without breaking legacy decoding"
+assert_match 'static let categoryDisplayOrder = \["AI Search", "LLM"\]' \
+  "QuotaBar/Models/APIKey.swift" \
+  "Provider category display order should be defined once as AI Search before LLM"
+assert_match 'Provider\.categoryDisplayOrder\.compactMap' \
+  "QuotaBar/Models/QuotaMonitor.swift" \
+  "Status bar provider category groups should use the shared AI Search then LLM order"
+assert_match 'Provider\.categoryDisplayOrder\.compactMap' \
+  "QuotaBar/Views/SettingsView.swift" \
+  "Quota overview and credential configuration should use the shared AI Search then LLM order"
+assert_no_match '\["LLM", "AI Search"\]' \
+  "QuotaBar/Views/SettingsView.swift" \
+  "Credential configuration must not show LLM before AI Search"
 assert_no_match 'ForEach\(Provider\.allCases\)' \
   "QuotaBar/Views" \
   "Visible provider pickers should not render every Codable provider case"
@@ -416,9 +428,15 @@ assert_no_match 'monitor.providerStats' \
 assert_no_match 'ScrollView\(showsIndicators' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar popover should not be a long scrolling dashboard"
-assert_no_match 'ForEach\(monitor\.homeCategoryStats\)' \
+assert_match 'MenuProviderOverviewCard' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar popover should not render all provider category sections"
+  "Status bar popover should include provider-level quota statistics instead of only expired or low API keys"
+assert_match 'ForEach\(monitor\.homeCategoryStats\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar provider overview should be grouped by AI Search and LLM provider categories"
+assert_match 'MenuProviderQuotaCell' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar provider overview should render compact per-provider quota cells"
 assert_no_match 'ForEach\(monitor\.homeProviderStats\) \{ stat in' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar home view should not render a flat provider list"
@@ -427,7 +445,7 @@ assert_match 'MenuAttentionSummaryCard' \
   "Status bar popover should show available, low-quota, and failed counts instead of provider/key totals"
 assert_match 'MenuAttentionItemsView' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar popover should show credentials needing attention instead of a generic remaining list"
+  "Status bar popover should keep credentials needing attention as secondary detail below provider statistics"
 assert_match 'ForEach\(monitor\.menuAttentionQuotaItems' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar attention rows should come from QuotaMonitor.menuAttentionQuotaItems"
@@ -467,18 +485,54 @@ assert_match 'systemName: "rectangle\.grid\.1x2"' \
 assert_match 'helpText: L10n\.t\(\.providersHeader\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar icon-only dashboard action should keep a localized tooltip"
-assert_match '\.help\(helpText\)' \
+assert_match 'toolTip = helpText' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Shared status bar icon buttons should expose their localized tooltip"
-assert_match 'HeaderIconButton' \
+assert_match 'StatusHeaderIconButton' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar header actions should use a shared icon button with a stable hit target"
-assert_match '\.contentShape\(Circle\(\)\)' \
+  "Status bar header actions should use a shared AppKit icon button with a stable hit target"
+assert_match 'final class StatusHeaderActionButton: NSButton' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar header icon buttons should have an explicit circular hit target"
+  "Status bar header actions should use an AppKit NSButton instead of relying on SwiftUI Button in a transient popover"
+assert_match 'override func acceptsFirstMouse\(for event: NSEvent\?\) -> Bool' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar header AppKit buttons should accept the first click while the app is inactive"
+assert_match 'override func mouseDown\(with event: NSEvent\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar header AppKit buttons should trigger on mouse down before the transient popover can swallow the action"
+assert_match 'coordinator\.performAction\(\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar header AppKit buttons should call the SwiftUI action bridge directly"
 assert_match '\.allowsHitTesting\(false\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar decorative glass and stroke layers must not intercept button clicks"
+assert_match '\.environment\(\\.menuGlassTransparency, statusBarTransparency\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar transparency should propagate into inner quota cards, not only the outer blur layer"
+assert_match '@Environment\(\\.menuGlassTransparency\)' \
+  "QuotaBar/Views/Components.swift" \
+  "Status bar GlassCard should read the configured transparency"
+assert_match 'GlassBackground\(transparency: menuGlassTransparency\)' \
+  "QuotaBar/Views/Components.swift" \
+  "Status bar card backgrounds should be driven by the configured transparency"
+assert_match 'materialOpacity' \
+  "QuotaBar/Views/Components.swift" \
+  "Status bar card material should change opacity with the transparency slider"
+assert_match '0\.82 \+ \(1 - transparency\) \* 0\.12' \
+  "QuotaBar/Views/Components.swift" \
+  "Status bar cards should keep a readable but translucent material floor at maximum transparency"
+assert_match '\.fill\(\.regularMaterial\)' \
+  "QuotaBar/Views/Components.swift" \
+  "Status bar cards should use regular material so quota text stays readable over bright or busy backgrounds"
+assert_match 'baseFillOpacity' \
+  "QuotaBar/Views/Components.swift" \
+  "Status bar cards should include an adaptive fill layer so text remains readable over busy backgrounds"
+assert_match 'backdropTintOpacity' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar menu should use a light adaptive tint over the real blur instead of an opaque grey panel"
+assert_match 'Slider\(value: \$appearanceStore\.statusBarTransparency, in: 0\.0\.\.\.1\.0\)' \
+  "QuotaBar/Views/SettingsView.swift" \
+  "Status bar transparency slider should support the full 0% to 100% range"
 assert_match 'openPreferencesFromStatusPopover\(destination: \.providers\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar dashboard icon should use the status-popover handoff path"
@@ -503,15 +557,21 @@ assert_match 'RefreshButton\(isRefreshing: \.constant\(isRefreshing\), isEnabled
 assert_match 'MenuContentView.menuSize' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar hosting view must use MenuContentView.menuSize to avoid clipping"
+assert_match 'popover\.animates = false' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar popover should not fade through a low-contrast half-transparent opening state"
 assert_match 'hostingController\.view\.wantsLayer = true' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar hosting view should use a clear layer so the popover can render as frosted glass"
 assert_match 'backgroundColor = NSColor\.clear\.cgColor' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar hosting view should not paint an opaque background over the frosted glass"
-assert_match 'menuSize = CGSize\(width: 420, height: 460\)' \
+assert_match 'menuSize = CGSize\(width: 560, height: 680\)' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar summary popover should be compact instead of a tall scrolling dashboard"
+  "Status bar summary popover should be wide enough to fit provider-level quota statistics without scrolling"
+assert_no_match '^[[:space:]]*ScrollView' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar body content should fit in the expanded popover instead of requiring scrolling"
 assert_match 'contentHorizontalInset' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar home view should reserve an explicit horizontal inset to avoid left-edge clipping"
@@ -524,12 +584,18 @@ assert_match 'menuTopQuotaItems: \[MenuQuotaItem\]' \
 assert_match 'MenuQuotaItem\.topItems\(from: homeProviderStats, limit: 3\)' \
   "QuotaBar/Models/QuotaMonitor.swift" \
   "Status bar summary should cap top items at three to avoid vertical clipping"
+assert_match 'statusBarProviderQuotaText' \
+  "QuotaBar/Models/APIKey.swift" \
+  "ProviderStats should expose compact provider-level quota text for the status bar"
+assert_match 'statusBarProviderBadgeText' \
+  "QuotaBar/Models/APIKey.swift" \
+  "ProviderStats should expose compact provider-level badges for the status bar"
 assert_match 'menuGlassCornerRadius' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar menu should have a defined frosted-glass rounded container"
-assert_match 'VisualEffectBlur\(material: \.hudWindow' \
+assert_match 'VisualEffectBlur\(material: \.popover' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar menu should use a stronger translucent frosted-glass material"
+  "Status bar menu should use the native popover material for a readable macOS glass effect"
 assert_match '\.clipShape\(RoundedRectangle\(cornerRadius: Self\.menuGlassCornerRadius' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar menu should clip the frosted background to a modern rounded container"
@@ -611,9 +677,9 @@ assert_match 'ModernPage\(' \
 assert_match 'keyProviderCategories' \
   "QuotaBar/Views/SettingsView.swift" \
   "API Keys tab should group configured keys by AI Search and LLM so OpenCode Go is visible under LLM"
-assert_match 'return \["LLM", "AI Search"\]' \
+assert_match 'Provider\.categoryDisplayOrder\.compactMap' \
   "QuotaBar/Views/SettingsView.swift" \
-  "API Keys tab should put LLM keys first so OpenCode Go is immediately visible"
+  "API Keys tab should use the shared AI Search then LLM category order"
 assert_match 'NavigationSplitView' \
   "QuotaBar/Views/SettingsView.swift" \
   "Main window should use the current macOS sidebar/content split view instead of an older tab-only layout"
@@ -752,9 +818,9 @@ assert_match 'SMAppService\.mainApp' \
 assert_match 'statusBarTransparency' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar glass UI should react to the configured transparency"
-assert_match 'Slider\(value: \$appearanceStore\.statusBarTransparency, in: 0\.10\.\.\.0\.95\)' \
+assert_match 'Slider\(value: \$appearanceStore\.statusBarTransparency, in: 0\.0\.\.\.1\.0\)' \
   "QuotaBar/Views/SettingsView.swift" \
-  "Language/appearance settings should expose a wider 10%-95% status bar transparency slider"
+  "Language/appearance settings should expose a full 0%-100% status bar transparency slider"
 assert_match 'Picker\(L10n\.t\(\.autoRefreshInterval' \
   "QuotaBar/Views/SettingsView.swift" \
   "Settings should let the user configure automatic refresh cadence"
@@ -857,6 +923,18 @@ assert_match 'import WebKit' \
 assert_match 'WKWebView' \
   "QuotaBar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should embed WKWebView"
+assert_match 'WKHTTPCookieStoreObserver' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should observe cookie changes instead of only page navigation"
+assert_match 'clearProviderCookiesBeforeLoading' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should clear stale provider cookies before opening the login page"
+assert_match 'cookieStore\.delete' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should delete stale WebView cookies for the provider domain"
+assert_match 'cookiesDidChange' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should retry cookie capture when login cookies change"
 assert_match 'WKNavigationDelegate' \
   "QuotaBar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should observe dashboard navigation so it can auto-save cookies after login"
@@ -866,15 +944,39 @@ assert_match 'webView\(_ webView: WKWebView, didFinish navigation: WKNavigation!
 assert_match 'onCookiesAvailable' \
   "QuotaBar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should expose an automatic cookie-save callback"
+assert_match 'reauthenticatedSecret' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should preserve non-cookie JSON credential metadata when refreshing cookies"
+assert_no_match 'updatedKey\.key = cookieHeader' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication must not overwrite JSON dashboard credentials with a raw Cookie header"
+assert_match 'validateAndPersistCookies' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should validate captured cookies before saving and closing"
+assert_match 'try await QuotaService\(\)\.checkQuota\(for: candidateKey, bypassCooldown: true\)' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should call the provider quota endpoint before accepting captured cookies"
+assert_match 'catch QuotaError\.unauthorized' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should keep the login window open when captured cookies still return unauthorized"
+assert_match 'didAutoSave = false' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should allow retry after a captured cookie fails validation"
+assert_no_match 'monitor\.refreshProvider\(provider\)' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should not close first and refresh later because invalid cookies look like no-op"
+assert_match 'reauthStillUnauthorized' \
+  "QuotaBar/Models/AppLanguage.swift" \
+  "Dashboard reauthentication should explain when captured cookies still fail provider login validation"
 assert_match 'WKWebsiteDataStore\.default\(\)\.httpCookieStore' \
   "QuotaBar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should read only cookies from the in-app WebKit data store"
 assert_match 'monitor\.updateKey' \
   "QuotaBar/Views/DashboardReauthView.swift" \
   "Saving dashboard cookies should update the selected QuotaBar credential"
-assert_match 'monitor\.refreshProvider' \
+assert_match 'verifiedKey\.remaining = result\.remaining' \
   "QuotaBar/Views/DashboardReauthView.swift" \
-  "Saving dashboard cookies should immediately refresh that provider"
+  "Saving dashboard cookies should persist the validated quota result instead of closing first and refreshing later"
 assert_match 'DashboardReauthSheet' \
   "QuotaBar/Views/SettingsView.swift" \
   "Settings should expose dashboard reauthentication for cookie-backed providers"
@@ -929,6 +1031,34 @@ assert_match 'mergeImportedKeys' \
 assert_no_match 'hasAnySecret' \
   "QuotaBar/Models/QuotaMonitor.swift" \
   "QuotaMonitor must not skip Claude settings import just because old secrets already exist"
+python3 - <<'PY'
+from pathlib import Path
+import re
+import sys
+
+source = Path("QuotaBar/Models/QuotaMonitor.swift").read_text()
+ensure_match = re.search(r"private func ensureSecretsLoaded\(\) \{(?P<body>.*?)\n    \}", source, re.S)
+if not ensure_match:
+    print("FAIL: QuotaMonitor.ensureSecretsLoaded should exist", file=sys.stderr)
+    sys.exit(1)
+if "ClaudeSettingsImporter" in ensure_match.group("body"):
+    print("FAIL: Refresh-time secret hydration must not re-import ~/.claude/settings.json and overwrite reauthenticated cookies", file=sys.stderr)
+    sys.exit(1)
+
+load_match = re.search(r"private func loadKeys\(\) \{(?P<body>.*?)\n    \}", source, re.S)
+if not load_match:
+    print("FAIL: QuotaMonitor.loadKeys should exist", file=sys.stderr)
+    sys.exit(1)
+load_body = load_match.group("body")
+if load_body.count("ClaudeSettingsImporter.parseDefaultSettings()") != 1:
+    print("FAIL: Claude settings should be auto-imported only once during initial key loading", file=sys.stderr)
+    sys.exit(1)
+guard_index = load_body.find("if !store.didAttemptClaudeSettingsImport")
+import_index = load_body.find("ClaudeSettingsImporter.parseDefaultSettings()")
+if guard_index == -1 or import_index == -1 or import_index < guard_index:
+    print("FAIL: Claude settings auto-import must be inside the first-run import guard", file=sys.stderr)
+    sys.exit(1)
+PY
 assert_match 'func loadSecrets' \
   "QuotaBar/Services/APIKeyStore.swift" \
   "Secrets must be loaded separately from metadata"
@@ -1251,6 +1381,17 @@ require(unlimitedAnySearch.quotaDisplayText == "Unlimited", "AnySearch rows shou
 let anySearchStat = ProviderStats(provider: .anysearch, keys: [unlimitedAnySearch])
 require(anySearchStat.totalLimitDisplayText == "Unlimited", "AnySearch provider totals should not display the Int.max sentinel value")
 require(anySearchStat.totalRemainingDisplayText == "Unlimited", "AnySearch provider remaining totals should not display the Int.max sentinel value")
+require(anySearchStat.statusBarProviderQuotaText == "Unlimited", "Status bar provider quota text should show AnySearch as unlimited")
+require(anySearchStat.statusBarProviderBadgeText == "∞", "Status bar provider badge should show AnySearch as unlimited")
+let tavilyProviderOverview = ProviderStats(provider: .tavily, keys: [
+    APIKey(name: "TAVILY_API_KEY", key: "tvly-1", provider: .tavily, remaining: 750, limit: 1000),
+    APIKey(name: "TAVILY_API_KEY_2", key: "tvly-2", provider: .tavily, remaining: 250, limit: 1000),
+])
+require(tavilyProviderOverview.statusBarProviderQuotaText == "1000 / 2000", "Status bar provider quota text should aggregate known provider quota numerically")
+require(tavilyProviderOverview.statusBarProviderBadgeText == "50%", "Status bar provider badge should aggregate known provider quota percentage")
+let unconfiguredProviderOverview = ProviderStats(provider: .deepseek, keys: [])
+require(unconfiguredProviderOverview.statusBarProviderQuotaText == "No key configured", "Status bar provider quota text should mark unconfigured provider placeholders")
+require(unconfiguredProviderOverview.statusBarProviderBadgeText == "N/A", "Status bar provider badge should mark unconfigured provider placeholders")
 let xfyunStat = ProviderStats(
     provider: .xfyunCodingPlan,
     keys: [
@@ -1544,6 +1685,72 @@ require(DashboardCookieBuilder.cookieHeader(from: [unrelated], domains: ["openco
 require(DashboardCookieBuilder.containsRequiredCookie(from: [opencodeLocale], domains: ["opencode.ai"], requiredNames: ["auth"]) == false, "DashboardCookieBuilder should not treat preference cookies as a logged-in session")
 require(DashboardCookieBuilder.containsRequiredCookie(from: [opencodeLocale, opencodeCookie], domains: ["opencode.ai"], requiredNames: ["auth"]), "DashboardCookieBuilder should detect provider authentication cookies")
 
+let volcengineAccountID = HTTPCookie(properties: [
+    .domain: ".volcengine.com",
+    .path: "/",
+    .name: "AccountID",
+    .value: "2120638754",
+    .secure: "TRUE"
+])!
+let volcengineCSRF = HTTPCookie(properties: [
+    .domain: "console.volcengine.com",
+    .path: "/",
+    .name: "csrfToken",
+    .value: "c",
+    .secure: "TRUE"
+])!
+let volcengineDigest = HTTPCookie(properties: [
+    .domain: ".volcengine.com",
+    .path: "/",
+    .name: "digest",
+    .value: "digest-token",
+    .secure: "TRUE"
+])!
+let volcengineUserInfo = HTTPCookie(properties: [
+    .domain: ".volcengine.com",
+    .path: "/",
+    .name: "userInfo",
+    .value: "user-info-token",
+    .secure: "TRUE"
+])!
+
+let volcengineRequiredCookies = Provider.volcengineCodingPlan.dashboardAuthenticationCookieNames
+require(DashboardCookieBuilder.containsRequiredCookie(
+    from: [volcengineAccountID, volcengineCSRF],
+    domains: ["volcengine.com", "console.volcengine.com"],
+    requiredNames: volcengineRequiredCookies
+) == false, "Volcengine reauthentication must not auto-save partial console cookies")
+require(DashboardCookieBuilder.containsRequiredCookie(
+    from: [volcengineAccountID, volcengineCSRF, volcengineDigest],
+    domains: ["volcengine.com", "console.volcengine.com"],
+    requiredNames: volcengineRequiredCookies
+), "Volcengine reauthentication should not block on the userInfo display cookie when core auth cookies are present")
+require(DashboardCookieBuilder.missingRequiredCookieNames(
+    inCookieHeader: "AccountID=2120638754; csrfToken=c",
+    requiredNames: volcengineRequiredCookies
+) == ["digest"], "Manual Volcengine cookie save should report missing core auth cookies only")
+let reauthedVolcengineSecret = DashboardCookieBuilder.reauthenticatedSecret(
+    cookieHeader: "AccountID=2120638754; csrfToken=n; digest=d; userInfo=u",
+    existingSecret: #"{"cookie":"old","csrfToken":"old","projectName":"default","xWebId":"web-id"}"#
+)
+let reauthedVolcengineData = reauthedVolcengineSecret.data(using: .utf8)!
+let reauthedVolcengineObject = try! JSONSerialization.jsonObject(with: reauthedVolcengineData) as! [String: String]
+require(reauthedVolcengineObject["cookie"]?.contains("digest=d") == true, "Volcengine reauthentication should replace the saved cookie inside JSON credentials")
+require(reauthedVolcengineObject["csrfToken"] == "n", "Volcengine reauthentication should sync csrfToken from the refreshed cookie")
+require(reauthedVolcengineObject["projectName"] == "default", "Volcengine reauthentication should preserve the projectName JSON field")
+require(reauthedVolcengineObject["xWebId"] == "web-id", "Volcengine reauthentication should preserve the xWebId JSON field")
+
+let reauthedOpenCodeSecret = DashboardCookieBuilder.reauthenticatedSecret(
+    cookieHeader: "auth=a; oc_locale=zh",
+    existingSecret: #"{"cookie":"old","workspaceID":"wrk_1","serverID":"srv_1","serverInstance":"server-fn:11"}"#
+)
+let reauthedOpenCodeData = reauthedOpenCodeSecret.data(using: .utf8)!
+let reauthedOpenCodeObject = try! JSONSerialization.jsonObject(with: reauthedOpenCodeData) as! [String: String]
+require(reauthedOpenCodeObject["cookie"] == "auth=a; oc_locale=zh", "OpenCode Go reauthentication should replace the saved cookie inside JSON credentials")
+require(reauthedOpenCodeObject["workspaceID"] == "wrk_1", "OpenCode Go reauthentication should preserve workspaceID")
+require(reauthedOpenCodeObject["serverID"] == "srv_1", "OpenCode Go reauthentication should preserve serverID")
+require(reauthedOpenCodeObject["serverInstance"] == "server-fn:11", "OpenCode Go reauthentication should preserve serverInstance")
+
 require(Provider.xfyunCodingPlan.supportsDashboardReauthentication, "XFYun should support dashboard reauthentication")
 require(Provider.volcengineCodingPlan.supportsDashboardReauthentication, "Volcengine should support dashboard reauthentication")
 require(Provider.opencodeGo.supportsDashboardReauthentication, "OpenCode Go should support dashboard reauthentication")
@@ -1555,6 +1762,33 @@ require(DashboardReauthConfig(provider: .volcengineCodingPlan)?.cookieDomains ==
 require(DashboardReauthConfig(provider: .querit)?.cookieDomains == ["querit.ai"], "Querit should capture querit.ai dashboard cookies")
 require(DashboardReauthConfig(provider: .opencodeGo)?.requiredCookieNames == ["auth"], "OpenCode Go should auto-save only after auth cookies exist")
 require(DashboardReauthConfig(provider: .querit)?.requiredCookieNames.contains("osduss") == true, "Querit should auto-save only after account cookies exist")
+
+for provider in [Provider.querit, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo] {
+    guard let config = DashboardReauthConfig(provider: provider) else {
+        require(false, "\(provider.rawValue) should expose dashboard reauthentication config")
+        continue
+    }
+    let completeCookies = config.requiredCookieNames.map { name in
+        HTTPCookie(properties: [
+            .domain: config.cookieDomains.first ?? "",
+            .path: "/",
+            .name: name,
+            .value: "v",
+            .secure: "TRUE"
+        ])!
+    }
+    let partialCookies = Array(completeCookies.dropLast())
+    require(DashboardCookieBuilder.containsRequiredCookie(
+        from: partialCookies,
+        domains: config.cookieDomains,
+        requiredNames: config.requiredCookieNames
+    ) == false, "\(provider.rawValue) should not save a partial dashboard login cookie set")
+    require(DashboardCookieBuilder.containsRequiredCookie(
+        from: completeCookies,
+        domains: config.cookieDomains,
+        requiredNames: config.requiredCookieNames
+    ), "\(provider.rawValue) should save once all dashboard login cookies are present")
+}
 SWIFT
 
 swiftc QuotaBar/Models/AppLanguage.swift QuotaBar/Models/APIKey.swift QuotaBar/Services/DashboardReauth.swift "$TMP_DIR/main.swift" -o "$TMP_DIR/dashboard-reauth-test"

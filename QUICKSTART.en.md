@@ -56,9 +56,9 @@ The `Quota Overview` page shows provider-level quota summaries.
 
 The menu bar popover groups providers by `AI Search` and `LLM`, supports collapsible providers, and refreshes one provider at a time.
 
-## 6. Language And Appearance
+## 6. Settings
 
-Use `Language & Appearance` to switch English/Simplified Chinese and adjust menu bar popover transparency.
+Use `Settings` to switch English/Simplified Chinese, adjust menu bar popover transparency, configure launch at login, and set the automatic refresh interval. Automatic refresh can also be turned off.
 
 ## 7. Local Data Locations
 

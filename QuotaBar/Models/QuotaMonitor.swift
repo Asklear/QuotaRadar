@@ -47,8 +47,7 @@ class QuotaMonitor: ObservableObject {
     var homeCategoryStats: [ProviderCategoryStats] {
         let stats = homeProviderStats
         let grouped = Dictionary(grouping: stats) { $0.provider.statusBarCategoryTitle }
-        let orderedTitles = ["AI Search", "LLM"]
-        return orderedTitles.compactMap { title in
+        return Provider.categoryDisplayOrder.compactMap { title in
             guard let providerStats = grouped[title], !providerStats.isEmpty else { return nil }
             return ProviderCategoryStats(title: title, stats: providerStats)
         }
@@ -236,16 +235,16 @@ class QuotaMonitor: ObservableObject {
         var hydratedKeys = store.loadSecrets(for: loadedKeys)
 
         if !store.didAttemptClaudeSettingsImport {
+            let importedKeys = ClaudeSettingsImporter.parseDefaultSettings()
             store.markClaudeSettingsImportAttempted()
-        }
 
-        let importedKeys = ClaudeSettingsImporter.parseDefaultSettings()
-        if !importedKeys.isEmpty {
-            let summary = mergeImportedKeys(importedKeys, into: &hydratedKeys)
-            if summary.added > 0 || summary.updated > 0 {
-                apiKeys = hydratedKeys
-                saveKeys()
-                return
+            if !importedKeys.isEmpty {
+                let summary = mergeImportedKeys(importedKeys, into: &hydratedKeys)
+                if summary.added > 0 || summary.updated > 0 {
+                    apiKeys = hydratedKeys
+                    saveKeys()
+                    return
+                }
             }
         }
 
@@ -253,18 +252,7 @@ class QuotaMonitor: ObservableObject {
     }
 
     private func ensureSecretsLoaded() {
-        var hydratedKeys = store.loadSecrets(for: apiKeys)
-        let importedKeys = ClaudeSettingsImporter.parseDefaultSettings()
-        if !importedKeys.isEmpty {
-            let summary = mergeImportedKeys(importedKeys, into: &hydratedKeys)
-            apiKeys = hydratedKeys
-            if summary.added > 0 || summary.updated > 0 {
-                saveKeys()
-            }
-            return
-        }
-
-        apiKeys = hydratedKeys
+        apiKeys = store.loadSecrets(for: apiKeys)
     }
 
     private func mergeImportedKeys(_ importedKeys: [APIKey], into existingKeys: inout [APIKey]) -> ImportSummary {

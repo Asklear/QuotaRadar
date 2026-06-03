@@ -14,6 +14,8 @@ QuotaBar currently supports macOS, with macOS 14.0 as the minimum supported vers
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+Current version: `v0.1.3`.
+
 See [TODO / Roadmap](./TODO.en.md) for the next development plan.
 
 ## Features
@@ -85,16 +87,16 @@ open build/QuotaBar.dmg
 Manual GitHub Release upload:
 
 ```bash
-gh release create v0.1.0 build/QuotaBar.dmg \
-  --title "QuotaBar v0.1.0" \
+gh release create v0.1.3 build/QuotaBar.dmg \
+  --title "QuotaBar v0.1.3" \
   --notes "Unsigned DMG for trusted users. macOS may require removing quarantine on first launch."
 ```
 
 You can also push a tag and let GitHub Actions build the unsigned DMG and upload it to the Release:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.3
+git push origin v0.1.3
 ```
 
 An unsigned DMG does not require Apple Developer Program membership, but macOS Gatekeeper may block the downloaded app. Install it only if you trust this source repository and release. If macOS says the app is damaged or cannot be opened, move the app into `/Applications` and run:
@@ -120,6 +122,8 @@ Without Developer ID signing and notarization, the DMG is suitable only for loca
 2. Open `Credentials` to add credentials or import from `.env`.
 3. Use API keys for normal providers; use dashboard-session cookies for XFYun, Volcengine, and OpenCode Go.
 4. Click a provider-level refresh button to update that provider.
+
+Use `Settings` to switch language, tune menu bar transparency, configure launch at login, and choose an automatic refresh interval. Automatic refresh can be disabled; providers such as Brave that consume a real search request are skipped by automatic refresh.
 
 ## `.env` Import
 

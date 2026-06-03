@@ -134,10 +134,14 @@ enum L10n {
         case saveCookie
         case cookieSaved
         case noCookiesFound
+        case missingRequiredCookies
         case reauthTitle
         case reauthDescription
         case autoCookieSaveHint
         case autoSavingCookie
+        case checkingCookie
+        case reauthStillUnauthorized
+        case reauthValidationFailed
         case close
         case unlimited
         case noKeyValue
@@ -413,7 +417,7 @@ enum L10n {
         .featureRealtime: "Provider-level quota refresh",
         .featureGlass: "Frosted glass menu bar UI",
         .featureMenuBar: "Menu bar quick access",
-        .version: "Version 1.0.0",
+        .version: "Version 0.1.3",
         .importNoKeys: "No supported API keys found in %@.",
         .importSummary: "Imported %d new and updated %d key(s).",
         .refreshAlreadyRunning: "Refresh already running",
@@ -431,10 +435,14 @@ enum L10n {
         .saveCookie: "Save Cookie",
         .cookieSaved: "Cookie saved",
         .noCookiesFound: "No matching cookies found",
+        .missingRequiredCookies: "Missing login cookies: %@",
         .reauthTitle: "Re-authenticate %@",
         .reauthDescription: "Log in to the provider dashboard. QuotaBar will save matching WebView cookies automatically after login.",
         .autoCookieSaveHint: "Waiting for dashboard login. You can still save manually if needed.",
         .autoSavingCookie: "Saving dashboard Cookie...",
+        .checkingCookie: "Checking dashboard login...",
+        .reauthStillUnauthorized: "Captured cookies still return Not logged in. Keep this window open, wait for the dashboard to finish loading, then save again.",
+        .reauthValidationFailed: "Could not validate dashboard login: %@",
         .close: "Close",
         .unlimited: "Unlimited",
         .noKeyValue: "No key value",
@@ -552,7 +560,7 @@ enum L10n {
         .featureRealtime: "按服务商单独刷新额度",
         .featureGlass: "磨砂玻璃状态栏界面",
         .featureMenuBar: "状态栏快速访问",
-        .version: "版本 1.0.0",
+        .version: "版本 0.1.3",
         .importNoKeys: "在 %@ 中没有找到支持的 API 密钥。",
         .importSummary: "已导入 %d 个，新更新 %d 个密钥。",
         .refreshAlreadyRunning: "刷新正在进行",
@@ -570,10 +578,14 @@ enum L10n {
         .saveCookie: "保存 Cookie",
         .cookieSaved: "Cookie 已保存",
         .noCookiesFound: "没有找到匹配的 Cookie",
+        .missingRequiredCookies: "缺少登录 Cookie：%@",
         .reauthTitle: "重新认证 %@",
         .reauthDescription: "登录服务商控制台后，QuotaBar 会自动保存匹配的 WebView Cookie。",
         .autoCookieSaveHint: "等待后台登录完成；需要时仍可手动保存。",
         .autoSavingCookie: "正在保存控制台 Cookie...",
+        .checkingCookie: "正在验证控制台登录...",
+        .reauthStillUnauthorized: "已捕获 Cookie，但接口仍返回未登录。请保持窗口打开，等控制台完全加载后再手动保存。",
+        .reauthValidationFailed: "无法验证控制台登录：%@",
         .close: "关闭",
         .unlimited: "无限",
         .noKeyValue: "没有密钥值",

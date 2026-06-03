@@ -14,6 +14,8 @@ QuotaBar 是一个 macOS 状态栏应用，用来观察搜索 API 与 LLM coding
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+当前版本：`v0.1.3`。
+
 下一阶段计划见 [TODO / Roadmap](./TODO.md)。
 
 ## 功能
@@ -85,16 +87,16 @@ open build/QuotaBar.dmg
 手动发布到 GitHub Release：
 
 ```bash
-gh release create v0.1.0 build/QuotaBar.dmg \
-  --title "QuotaBar v0.1.0" \
+gh release create v0.1.3 build/QuotaBar.dmg \
+  --title "QuotaBar v0.1.3" \
   --notes "Unsigned DMG for trusted users. macOS may require removing quarantine on first launch."
 ```
 
 也可以直接推送 tag，仓库的 GitHub Actions 会自动构建未签名 DMG 并上传到 Release：
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.1.3
+git push origin v0.1.3
 ```
 
 未签名 DMG 不需要 Apple Developer Program，但从 GitHub 下载后可能被 macOS Gatekeeper 拦截。只在信任该源码和 release 的情况下安装；如果提示“App 已损坏”或“无法打开”，先把 app 拖到 `/Applications`，再执行：
@@ -120,6 +122,8 @@ scripts/package_dmg.sh --rebuild --notarize
 2. 进入 `配置凭据`，添加凭据或从 `.env` 导入。
 3. 普通服务商填写 API Key；讯飞星火、火山引擎、OpenCode Go 填控制台会话 Cookie。
 4. 点击单个 provider 的刷新按钮更新该 provider。
+
+在 `设置` 页面可以切换语言、调节状态栏透明度、配置开机自启动和自动刷新间隔。自动刷新支持关闭；Brave 这类会消耗真实搜索请求的 provider 会跳过自动刷新。
 
 ## `.env` 导入
 
