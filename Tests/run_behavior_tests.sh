@@ -314,9 +314,24 @@ assert_match 'popover\.behavior = \.transient' \
 assert_match 'popover\.contentSize = MenuContentView\.menuSize' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar popover must use MenuContentView.menuSize"
-assert_match 'popover\.show\(relativeTo: button\.bounds, of: button, preferredEdge: \.minY\)' \
+assert_no_match 'popover\.show\(relativeTo: button\.bounds, of: button, preferredEdge: \.minY\)' \
   "QuotaBar/AppDelegate.swift" \
-  "Status bar button should show the glass popover anchored below the menu bar icon"
+  "Status bar popover should not anchor directly to button.bounds because the menu bar can clip the top edge"
+assert_match 'statusPopoverAnchorOffset' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar popover should use a downward anchor offset to avoid menu bar clipping"
+assert_match 'statusPopoverAnchorRect\(for: button\)' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar popover should compute a clipped-safe anchor rect"
+assert_match 'repositionStatusPopoverBelowMenuBar' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar popover should clamp the actual window below the menu bar after AppKit positions it"
+assert_match 'visibleFrame\.maxY - statusPopoverTopClearance' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar popover should reserve screen-visible top clearance so the menu bar cannot cover its header"
+assert_match 'window\.setFrame\(frame, display: true' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar popover should move the window itself when AppKit places it under the menu bar"
 assert_match 'configurePopoverWindowAppearance' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar transparency should clear the popover window chrome, not only the SwiftUI overlay"

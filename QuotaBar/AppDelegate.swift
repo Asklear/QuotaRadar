@@ -12,6 +12,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowD
     private var autoRefreshCancellable: AnyCancellable?
     private let preferredSettingsContentSize = NSSize(width: 1040, height: 640)
     private let minimumSettingsWindowSize = NSSize(width: 1040, height: 640)
+    private let statusPopoverAnchorOffset: CGFloat = 18
+    private let statusPopoverTopClearance: CGFloat = 12
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -119,9 +121,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowD
 
     private func showStatusPopover(from button: NSStatusBarButton) {
         guard let popover else { return }
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.show(relativeTo: statusPopoverAnchorRect(for: button), of: button, preferredEdge: .minY)
         configurePopoverWindowAppearance()
+        repositionStatusPopoverBelowMenuBar(relativeTo: button)
+        DispatchQueue.main.async { [weak self] in
+            self?.repositionStatusPopoverBelowMenuBar(relativeTo: button)
+        }
         startPopoverMouseExitMonitor()
+    }
+
+    private func statusPopoverAnchorRect(for button: NSStatusBarButton) -> NSRect {
+        var rect = button.bounds
+        rect.origin.y -= statusPopoverAnchorOffset
+        rect.size.height = max(1, rect.size.height - statusPopoverAnchorOffset)
+        return rect
+    }
+
+    private func repositionStatusPopoverBelowMenuBar(relativeTo button: NSStatusBarButton) {
+        guard let window = popover?.contentViewController?.view.window else { return }
+        let screen = button.window?.screen ?? window.screen ?? NSScreen.main
+        guard let visibleFrame = screen?.visibleFrame else { return }
+
+        let allowedMaxY = visibleFrame.maxY - statusPopoverTopClearance
+        var frame = window.frame
+        guard frame.maxY > allowedMaxY else { return }
+
+        frame.origin.y -= frame.maxY - allowedMaxY
+        window.setFrame(frame, display: true)
     }
 
     private func configurePopoverWindowAppearance() {
