@@ -40,7 +40,8 @@ jobs:
           body: |
             Quota Radar macOS build.
 
-            Highlights in the current release line:
+            Highlights in ${{ github.ref_name }}:
+            - Fully localized Admin credential required status labels in the menu bar.
             - Quota-first menu bar overview grouped by AI Search and LLM.
             - Provider-level refresh and credential diagnostics.
             - Dashboard-cookie reauthentication for supported providers.

@@ -50,9 +50,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.2\.0' \
+assert_match '0\.2\.1' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.2.0 should be recorded in Info.plist"
+  "Quota Radar 0.2.1 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -1664,7 +1664,10 @@ require(Provider.volcengineCodingPlan.supportsQuotaQuery, "Volcengine Coding Pla
 require(Provider.opencodeGo.supportsQuotaQuery, "OpenCode Go should support dashboard quota checks")
 require(Provider.querit.supportsQuotaQuery, "Querit should support dashboard-cookie quota checks through the user account endpoint")
 require(Provider.exa.supportsQuotaQuery, "Exa should support usage checks when an Admin API service key and API key id are configured")
-require(Provider.exa.localizedUnsupportedQuotaLabel(language: .simplifiedChinese) == "需要 Admin 凭据", "Exa plain search keys should explain that Admin credentials are required instead of showing a generic unavailable label")
+require(Provider.exa.localizedUnsupportedQuotaLabel(language: .simplifiedChinese) == "需要管理员凭据", "Exa plain search keys should explain that Admin credentials are required with a fully localized Chinese status label")
+require(Provider.exa.localizedUnsupportedQuotaLabel(language: .traditionalChinese) == "需要管理員憑證", "Exa plain search keys should explain that Admin credentials are required with a fully localized Traditional Chinese status label")
+require(Provider.exa.localizedUnsupportedQuotaLabel(language: .japanese) == "管理者認証情報が必要", "Exa plain search keys should explain that Admin credentials are required with a fully localized Japanese status label")
+require(Provider.exa.localizedUnsupportedQuotaLabel(language: .korean) == "관리자 자격 증명 필요", "Exa plain search keys should explain that Admin credentials are required with a fully localized Korean status label")
 require(Provider.deepseek.homeVisibleWithoutKeys, "DeepSeek should appear on the home view before a key is configured")
 require(Provider.xfyunCodingPlan.homeVisibleWithoutKeys, "XFYun Coding Plan should appear on the home view before a key is configured")
 require(Provider.volcengineCodingPlan.homeVisibleWithoutKeys, "Volcengine Coding Plan should appear on the home view before a key is configured")
@@ -1991,6 +1994,7 @@ require(L10n.t(.settingsTab, language: .simplifiedChinese) == "设置", "Chinese
 require(L10n.t(.provider, language: .simplifiedChinese) == "服务商", "Chinese provider form label should be fully translated")
 require(L10n.t(.language, language: .simplifiedChinese) == "语言", "Chinese language label should be available")
 require(L10n.t(.statusBarTransparency, language: .simplifiedChinese) == "状态栏透明度", "Chinese status bar transparency label should be available")
+require(L10n.t(.adminCredentialRequired, language: .simplifiedChinese) == "需要管理员凭据", "Chinese Admin credential status should be fully translated")
 require(L10n.t(.autoRefreshInterval, language: .simplifiedChinese) == "自动刷新", "Chinese settings should include an automatic refresh label")
 require(L10n.t(.available, language: .english) == "Available", "English menu summary should label available credentials")
 require(L10n.t(.available, language: .simplifiedChinese) == "可用", "Chinese menu summary should label available credentials")

@@ -16,7 +16,7 @@ Quota Radar 是一个 macOS 状态栏应用，用来观察搜索 API 与 LLM cod
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-当前版本：`v0.2.0`。
+当前版本：`v0.2.1`。
 
 下一阶段计划见 [TODO / Roadmap](./TODO.md)。
 
@@ -107,16 +107,16 @@ open build/QuotaRadar.dmg
 手动发布到 GitHub Release：
 
 ```bash
-gh release create v0.2.0 build/QuotaRadar.dmg \
-  --title "Quota Radar v0.2.0" \
+gh release create v0.2.1 build/QuotaRadar.dmg \
+  --title "Quota Radar v0.2.1" \
   --notes "Unsigned DMG for trusted users. macOS may require removing quarantine on first launch."
 ```
 
 也可以直接推送 tag，仓库的 GitHub Actions 会自动构建未签名 DMG 并上传到 Release：
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.2.1
+git push origin v0.2.1
 ```
 
 未签名 DMG 不需要 Apple Developer Program，但从 GitHub 下载后可能被 macOS Gatekeeper 拦截。只在信任该源码和 release 的情况下安装；如果提示“App 已损坏”或“无法打开”，先把 app 拖到 `/Applications`，再执行：

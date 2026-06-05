@@ -16,7 +16,7 @@ Naming convention: the GitHub repository, Swift package, and DMG use `QuotaRadar
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Current version: `v0.2.0`.
+Current version: `v0.2.1`.
 
 See [TODO / Roadmap](./TODO.en.md) for the next development plan.
 
@@ -107,16 +107,16 @@ open build/QuotaRadar.dmg
 Manual GitHub Release upload:
 
 ```bash
-gh release create v0.2.0 build/QuotaRadar.dmg \
-  --title "Quota Radar v0.2.0" \
+gh release create v0.2.1 build/QuotaRadar.dmg \
+  --title "Quota Radar v0.2.1" \
   --notes "Unsigned DMG for trusted users. macOS may require removing quarantine on first launch."
 ```
 
 You can also push a tag and let GitHub Actions build the unsigned DMG and upload it to the Release:
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.2.1
+git push origin v0.2.1
 ```
 
 An unsigned DMG does not require Apple Developer Program membership, but macOS Gatekeeper may block the downloaded app. Install it only if you trust this source repository and release. If macOS says the app is damaged or cannot be opened, move the app into `/Applications` and run:
