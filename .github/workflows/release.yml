@@ -36,9 +36,9 @@ jobs:
       - name: Upload DMG to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/QuotaBar.dmg
+          files: build/QuotaRadar.dmg
           body: |
-            QuotaBar macOS build.
+            Quota Radar macOS build.
 
             Highlights in the current release line:
             - Quota-first menu bar overview grouped by AI Search and LLM.
@@ -51,6 +51,6 @@ jobs:
             If macOS reports that the app is damaged or cannot be opened, install the app into /Applications and run:
 
             ```bash
-            xattr -dr com.apple.quarantine /Applications/QuotaBar.app
-            open /Applications/QuotaBar.app
+            xattr -dr com.apple.quarantine '/Applications/Quota Radar.app'
+            open '/Applications/Quota Radar.app'
             ```
