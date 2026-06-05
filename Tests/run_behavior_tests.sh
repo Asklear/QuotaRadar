@@ -623,19 +623,16 @@ assert_match 'hostingController\.view\.wantsLayer = true' \
 assert_match 'backgroundColor = NSColor\.clear\.cgColor' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar hosting view should not paint an opaque background over the frosted glass"
-assert_match 'menuSize = CGSize\(width: 500, height: 680\)' \
+assert_match 'menuSize = CGSize\(width: 560, height: 680\)' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar summary popover should stay compact while fitting provider-level quota statistics without scrolling"
-assert_no_match 'GridItem\(\.flexible\(\), spacing: 8\),[[:space:]]*GridItem\(\.flexible\(\), spacing: 8\),[[:space:]]*GridItem\(\.flexible\(\), spacing: 8\),[[:space:]]*GridItem\(\.flexible\(\), spacing: 8\)' \
-  "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar provider overview should not use a four-column grid that makes the popover too wide"
+  "Status bar summary popover should be wide enough to fit provider-level quota statistics without scrolling"
 provider_overview_column_count="$(awk '
   /private let columns = \[/ { inside = 1; count = 0; next }
   inside && /\]/ { print count; exit }
   inside && /GridItem\(\.flexible\(\), spacing: 8\)/ { count++ }
 ' QuotaBar/Views/MenuContentView.swift)"
-if [[ "$provider_overview_column_count" != "3" ]]; then
-  fail "Status bar provider overview should use exactly three columns after compacting the popover"
+if [[ "$provider_overview_column_count" != "4" ]]; then
+  fail "Status bar provider overview should keep four columns in the fixed-size popover"
 fi
 assert_no_match '^[[:space:]]*ScrollView' \
   "QuotaBar/Views/MenuContentView.swift" \
@@ -754,9 +751,18 @@ assert_match 'NavigationSplitView' \
 assert_no_match '\.frame\(minWidth: 820, minHeight: 580\)' \
   "QuotaBar/Views/SettingsView.swift" \
   "Main window must not keep the old narrow minimum size because the sidebar plus provider content gets squeezed"
-assert_match '\.frame\(minWidth: 1040, minHeight: 640\)' \
+assert_no_match '\.frame\(minWidth: 1040, minHeight: 640\)' \
   "QuotaBar/Views/SettingsView.swift" \
-  "Main window should reserve enough width for the sidebar and modern provider panels"
+  "Main window content must not force the default 1040px width as the minimum width"
+assert_match '\.frame\(minWidth: 900, minHeight: 600\)' \
+  "QuotaBar/Views/SettingsView.swift" \
+  "Main window should allow horizontal resizing below the default width while preserving usable provider panels"
+assert_match 'preferredSettingsContentSize = NSSize\(width: 1040, height: 640\)' \
+  "QuotaBar/AppDelegate.swift" \
+  "Main window should still open at the comfortable default width"
+assert_match 'minimumSettingsWindowSize = NSSize\(width: 900, height: 600\)' \
+  "QuotaBar/AppDelegate.swift" \
+  "Main window minimum size should allow users to resize horizontally below the default width"
 assert_no_match 'window\.setContentSize\(NSSize\(width: 640, height: 560\)\)' \
   "QuotaBar/AppDelegate.swift" \
   "Settings window creation must not force the modern SettingsView into the old narrow 640x560 window"

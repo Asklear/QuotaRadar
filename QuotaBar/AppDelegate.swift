@@ -12,7 +12,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowD
     private var autoRefreshCancellable: AnyCancellable?
     private var quotaConsumingAutoRefreshCancellable: AnyCancellable?
     private let preferredSettingsContentSize = NSSize(width: 1040, height: 640)
-    private let minimumSettingsWindowSize = NSSize(width: 1040, height: 640)
+    private let minimumSettingsWindowSize = NSSize(width: 900, height: 600)
     private let statusPopoverAnchorHeight: CGFloat = 6
     private let statusPopoverTopClearance: CGFloat = 12
 

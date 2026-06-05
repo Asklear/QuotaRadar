@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct MenuContentView: View {
-    static let menuSize = CGSize(width: 500, height: 680)
+    static let menuSize = CGSize(width: 560, height: 680)
     private static let menuGlassCornerRadius: CGFloat = 20
     private static let contentHorizontalInset: CGFloat = 22
     private static let contentTopSafeInset: CGFloat = 26
@@ -357,6 +357,7 @@ struct MenuProviderOverviewCard: View {
     @ObservedObject var monitor: QuotaMonitor
 
     private let columns = [
+        GridItem(.flexible(), spacing: 8),
         GridItem(.flexible(), spacing: 8),
         GridItem(.flexible(), spacing: 8),
         GridItem(.flexible(), spacing: 8)

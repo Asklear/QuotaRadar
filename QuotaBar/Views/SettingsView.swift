@@ -36,7 +36,7 @@ struct SettingsView: View {
                 .background(ModernWindowBackground())
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 1040, minHeight: 640)
+        .frame(minWidth: 900, minHeight: 600)
         .background(ModernWindowBackground())
         .onAppear {
             if navigationStore.selection == nil {
