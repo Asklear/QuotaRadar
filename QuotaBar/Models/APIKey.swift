@@ -953,7 +953,7 @@ struct ProviderStats: Identifiable {
             return "∞"
         }
         if usesPercentageQuota {
-            return totalRemainingDisplayText
+            return monthlyQuotaWindowDisplay ?? totalRemainingDisplayText
         }
         if let percent = statusBarProviderPercentRemaining {
             if percent <= 0 {
@@ -1027,7 +1027,7 @@ struct ProviderStats: Identifiable {
     private var monthlyQuotaWindowDisplay: String? {
         percentageQuotaWindows
             .filter { $0.name == "month" }
-            .max { lhs, rhs in lhs.percent < rhs.percent }
+            .min { lhs, rhs in lhs.percent < rhs.percent }
             .map { L10n.quotaWindowDisplay($0.name, formatProviderPercent($0.percent)) }
     }
 

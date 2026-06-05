@@ -1468,7 +1468,32 @@ let xfyunStat = ProviderStats(
 require(xfyunStat.totalLimitDisplayText == "month 89.7%", "Coding Plan provider total should display the monthly percentage window")
 require(xfyunStat.totalRemainingDisplayText == "week 79.3%", "Coding Plan provider remaining should display the lowest remaining percentage window with its period")
 require(xfyunStat.statusBarProviderQuotaText == "week 79.3%", "Status bar coding-plan quota text should display the tightest quota cycle")
-require(xfyunStat.statusBarProviderBadgeText == "week 79.3%", "Status bar coding-plan badge should display the tightest quota cycle")
+require(xfyunStat.statusBarProviderBadgeText == "month 89.7%", "Status bar coding-plan badge should display the monthly quota cycle")
+let multiXfyunStat = ProviderStats(
+    provider: .xfyunCodingPlan,
+    keys: [
+        APIKey(
+            name: "XFYUN_CODING_PLAN_COOKIE",
+            key: "cookie-a",
+            provider: .xfyunCodingPlan,
+            remaining: 6440,
+            limit: 10000,
+            quotaLabel: "5h 100% · week 64.4% · month 91%"
+        ),
+        APIKey(
+            name: "XFYUN_CODING_PLAN_COOKIE_2",
+            key: "cookie-b",
+            provider: .xfyunCodingPlan,
+            remaining: 8400,
+            limit: 10000,
+            quotaLabel: "5h 88% · week 70% · month 84%"
+        )
+    ]
+)
+require(multiXfyunStat.totalLimitDisplayText == "month 84%", "Coding Plan provider monthly total should use the lowest monthly percentage across credentials")
+require(multiXfyunStat.totalRemainingDisplayText == "week 64.4%", "Coding Plan provider remaining should use the tightest quota cycle across credentials")
+require(multiXfyunStat.statusBarProviderQuotaText == "week 64.4%", "Status bar coding-plan quota text should use the tightest quota cycle across credentials")
+require(multiXfyunStat.statusBarProviderBadgeText == "month 84%", "Status bar coding-plan badge should use the lowest monthly quota cycle across credentials")
 AppLanguageStore.shared.language = .simplifiedChinese
 require(xfyunStat.totalLimitDisplayText == "月 89.7%", "Coding Plan provider total should localize the monthly period label in Simplified Chinese")
 require(xfyunStat.totalRemainingDisplayText == "周 79.3%", "Coding Plan provider remaining should localize the lowest remaining period label in Simplified Chinese")
