@@ -10,6 +10,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowD
     var popoverMouseExitTimer: Timer?
     var cancellables = Set<AnyCancellable>()
     private var autoRefreshCancellable: AnyCancellable?
+    private var quotaConsumingAutoRefreshCancellable: AnyCancellable?
     private let preferredSettingsContentSize = NSSize(width: 1040, height: 640)
     private let minimumSettingsWindowSize = NSSize(width: 1040, height: 640)
     private let statusPopoverAnchorHeight: CGFloat = 6
@@ -216,6 +217,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowD
                 self?.configureAutoRefreshTimer()
             }
             .store(in: &cancellables)
+        configureQuotaConsumingAutoRefreshTimer()
+        AppAppearanceStore.shared.$quotaConsumingAutoRefreshInterval
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                self?.configureQuotaConsumingAutoRefreshTimer()
+            }
+            .store(in: &cancellables)
 
         // 首次刷新
         quotaMonitor.refreshAll(mode: .automatic)
@@ -234,6 +242,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowD
             .autoconnect()
             .sink { [weak self] _ in
                 self?.quotaMonitor.refreshAll(mode: .automatic)
+            }
+    }
+
+    @MainActor
+    private func configureQuotaConsumingAutoRefreshTimer() {
+        quotaConsumingAutoRefreshCancellable?.cancel()
+        quotaConsumingAutoRefreshCancellable = nil
+
+        guard let interval = AppAppearanceStore.shared.quotaConsumingAutoRefreshInterval.timeInterval else {
+            return
+        }
+
+        quotaConsumingAutoRefreshCancellable = Timer.publish(every: interval, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in
+                self?.quotaMonitor.refreshQuotaConsumingProviders(mode: .quotaConsumingAutomatic)
             }
     }
 

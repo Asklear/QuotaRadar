@@ -4,6 +4,9 @@ import Foundation
 enum AppLanguage: String, CaseIterable, Identifiable {
     case english = "en"
     case simplifiedChinese = "zh-Hans"
+    case traditionalChinese = "zh-Hant"
+    case japanese = "ja"
+    case korean = "ko"
 
     var id: String { rawValue }
 
@@ -13,12 +16,30 @@ enum AppLanguage: String, CaseIterable, Identifiable {
             return "English"
         case .simplifiedChinese:
             return "简体中文"
+        case .traditionalChinese:
+            return "繁體中文"
+        case .japanese:
+            return "日本語"
+        case .korean:
+            return "한국어"
         }
     }
 
     static var systemDefault: AppLanguage {
         let preferred = Locale.preferredLanguages.first?.lowercased() ?? ""
-        return preferred.hasPrefix("zh") ? .simplifiedChinese : .english
+        if preferred.hasPrefix("zh-hant") || preferred.hasPrefix("zh-tw") || preferred.hasPrefix("zh-hk") || preferred.hasPrefix("zh-mo") {
+            return .traditionalChinese
+        }
+        if preferred.hasPrefix("zh") {
+            return .simplifiedChinese
+        }
+        if preferred.hasPrefix("ja") {
+            return .japanese
+        }
+        if preferred.hasPrefix("ko") {
+            return .korean
+        }
+        return .english
     }
 }
 
@@ -46,7 +67,7 @@ final class AppLanguageStore: ObservableObject {
 }
 
 enum L10n {
-    enum Key {
+    enum Key: CaseIterable {
         case apiKeysTab
         case providersTab
         case diagnosticsTab
@@ -68,10 +89,15 @@ enum L10n {
         case autoRefreshInterval
         case autoRefreshDescription
         case autoRefreshBraveWarning
+        case quotaConsumingAutoRefreshInterval
+        case quotaConsumingAutoRefreshWarning
         case autoRefreshFiveMinutes
         case autoRefreshFifteenMinutes
         case autoRefreshThirtyMinutes
         case autoRefreshOneHour
+        case quotaConsumingAutoRefreshSixHours
+        case quotaConsumingAutoRefreshTwelveHours
+        case quotaConsumingAutoRefreshOneDay
         case apiQuotaTitle
         case noApiKeys
         case noApiKeysMessage
@@ -195,7 +221,23 @@ enum L10n {
             return english[key] ?? ""
         case .simplifiedChinese:
             return simplifiedChinese[key] ?? english[key] ?? ""
+        case .traditionalChinese:
+            if let value = traditionalChinese[key] {
+                return value
+            }
+            if let value = simplifiedChinese[key] {
+                return simplifiedChineseToTraditional(value)
+            }
+            return english[key] ?? ""
+        case .japanese:
+            return japanese[key] ?? english[key] ?? ""
+        case .korean:
+            return korean[key] ?? english[key] ?? ""
         }
+    }
+
+    static func missingTranslationKeys(language: AppLanguage) -> [Key] {
+        Key.allCases.filter { t($0, language: language).isEmpty }
     }
 
     static func format(_ key: Key, _ args: CVarArg..., language: AppLanguage = AppLanguageStore.shared.language) -> String {
@@ -203,14 +245,33 @@ enum L10n {
     }
 
     static func categoryTitle(_ title: String, language: AppLanguage = AppLanguageStore.shared.language) -> String {
-        guard language == .simplifiedChinese else { return title }
-        switch title {
-        case "AI Search":
-            return "AI 搜索"
-        case "LLM":
-            return "LLM"
-        default:
+        switch language {
+        case .english:
             return title
+        case .simplifiedChinese:
+            switch title {
+            case "AI Search": return "AI 搜索"
+            case "LLM": return "LLM"
+            default: return title
+            }
+        case .traditionalChinese:
+            switch title {
+            case "AI Search": return "AI 搜尋"
+            case "LLM": return "LLM"
+            default: return title
+            }
+        case .japanese:
+            switch title {
+            case "AI Search": return "AI 検索"
+            case "LLM": return "LLM"
+            default: return title
+            }
+        case .korean:
+            switch title {
+            case "AI Search": return "AI 검색"
+            case "LLM": return "LLM"
+            default: return title
+            }
         }
     }
 
@@ -220,8 +281,10 @@ enum L10n {
         switch language {
         case .english:
             formatter.dateFormat = "MMM d HH:mm"
-        case .simplifiedChinese:
+        case .simplifiedChinese, .traditionalChinese, .japanese:
             formatter.dateFormat = "M月d日 HH:mm"
+        case .korean:
+            formatter.dateFormat = "M월 d일 HH:mm"
         }
         return formatter.string(from: date)
     }
@@ -238,6 +301,39 @@ enum L10n {
                 return "周"
             case "month":
                 return "月"
+            default:
+                return title
+            }
+        case .traditionalChinese:
+            switch title {
+            case "5h":
+                return "5 小時"
+            case "week":
+                return "週"
+            case "month":
+                return "月"
+            default:
+                return title
+            }
+        case .japanese:
+            switch title {
+            case "5h":
+                return "5 時間"
+            case "week":
+                return "週"
+            case "month":
+                return "月"
+            default:
+                return title
+            }
+        case .korean:
+            switch title {
+            case "5h":
+                return "5시간"
+            case "week":
+                return "주"
+            case "month":
+                return "월"
             default:
                 return title
             }
@@ -369,10 +465,15 @@ enum L10n {
         .autoRefreshInterval: "Automatic Refresh",
         .autoRefreshDescription: "Choose how often QuotaBar refreshes providers in the background.",
         .autoRefreshBraveWarning: "Automatic refresh skips Brave because each Brave check consumes one real search request.",
+        .quotaConsumingAutoRefreshInterval: "Quota-Consuming Refresh",
+        .quotaConsumingAutoRefreshWarning: "Enable only when you accept spending real search quota. These checks use a much longer refresh cadence.",
         .autoRefreshFiveMinutes: "Every 5 minutes",
         .autoRefreshFifteenMinutes: "Every 15 minutes",
         .autoRefreshThirtyMinutes: "Every 30 minutes",
         .autoRefreshOneHour: "Every hour",
+        .quotaConsumingAutoRefreshSixHours: "Every 6 hours",
+        .quotaConsumingAutoRefreshTwelveHours: "Every 12 hours",
+        .quotaConsumingAutoRefreshOneDay: "Every day",
         .apiQuotaTitle: "API Quota",
         .noApiKeys: "No credentials",
         .noApiKeysMessage: "Import a .env file or add credentials on the Credentials page to show provider quotas here.",
@@ -512,10 +613,15 @@ enum L10n {
         .autoRefreshInterval: "自动刷新",
         .autoRefreshDescription: "选择 QuotaBar 在后台刷新服务商额度的频率。",
         .autoRefreshBraveWarning: "自动刷新会跳过 Brave，因为每次 Brave 检查都会消耗 1 次真实搜索请求。",
+        .quotaConsumingAutoRefreshInterval: "消耗检索额度的自动刷新",
+        .quotaConsumingAutoRefreshWarning: "仅在你接受消耗真实搜索额度时开启。这类检查使用更长的刷新周期。",
         .autoRefreshFiveMinutes: "每 5 分钟",
         .autoRefreshFifteenMinutes: "每 15 分钟",
         .autoRefreshThirtyMinutes: "每 30 分钟",
         .autoRefreshOneHour: "每小时",
+        .quotaConsumingAutoRefreshSixHours: "每 6 小时",
+        .quotaConsumingAutoRefreshTwelveHours: "每 12 小时",
+        .quotaConsumingAutoRefreshOneDay: "每天",
         .apiQuotaTitle: "API 额度",
         .noApiKeys: "没有凭据",
         .noApiKeysMessage: "导入 .env 文件或在凭据页添加凭据后，这里会显示各服务商的额度。",
@@ -632,4 +738,338 @@ enum L10n {
         .braveUsageLimitDiagnostic: "Brave 返回 HTTP 402，额度已用尽。",
         .queritAccountDiagnostic: "Querit 账户接口返回了月度请求额度。",
     ]
+
+    private static let traditionalChinese: [Key: String] = simplifiedChinese.merging([
+        .apiKeysTab: "配置憑證",
+        .providersTab: "額度監控",
+        .diagnosticsTab: "診斷",
+        .settingsTab: "設定",
+        .apiKeysCount: "%d 個憑證",
+        .apiKeyConfiguration: "配置憑證",
+        .apiKeyConfigurationDescription: "新增 API Key 或控制台會話 Cookie。新增憑證會按服務商顯示在下方。",
+        .addKey: "新增憑證",
+        .languageDescription: "調整應用程式行為、刷新頻率、語言和狀態列外觀。",
+        .statusBarTransparency: "狀態列透明度",
+        .statusBarTransparencyDescription: "調整狀態列彈窗的磨砂玻璃透明程度。",
+        .launchAtLogin: "登入時啟動",
+        .launchAtLoginDescription: "登入 macOS 後自動啟動 QuotaBar。",
+        .autoRefreshInterval: "自動刷新",
+        .autoRefreshDescription: "選擇 QuotaBar 在背景刷新服務商額度的頻率。",
+        .autoRefreshBraveWarning: "自動刷新會跳過 Brave，因為每次 Brave 檢查都會消耗 1 次真實搜尋請求。",
+        .quotaConsumingAutoRefreshInterval: "消耗搜尋額度的自動刷新",
+        .quotaConsumingAutoRefreshWarning: "僅在你接受消耗真實搜尋額度時開啟。這類檢查使用更長的刷新週期。",
+        .apiQuotaTitle: "API 額度",
+        .noApiKeys: "沒有憑證",
+        .noApiKeysMessage: "匯入 .env 檔案或在憑證頁新增憑證後，這裡會顯示各服務商的額度。",
+        .keys: "金鑰",
+        .available: "可用",
+        .needsAttention: "需要關注",
+        .noAttentionItems: "暫無需要關注的憑證",
+        .noKeyConfigured: "未配置金鑰",
+        .openDashboard: "開啟控制台",
+        .disabled: "已停用",
+        .quotaUnavailable: "額度不可用",
+        .keyName: "憑證名稱",
+        .apiKey: "API 金鑰",
+        .quotaStatus: "額度狀態",
+        .lastUpdated: "上次更新",
+        .providersHeader: "額度監控",
+        .remaining: "剩餘",
+        .version: "版本 0.1.3",
+        .credentialExpired: "憑證已過期",
+        .reauthenticate: "重新認證",
+        .dashboardSession: "控制台會話 Cookie",
+        .healthStatus: "健康狀態",
+        .diagnosticMessage: "診斷資訊",
+        .usableUnknownQuota: "可用 · 額度未知",
+        .usageLimitExceeded: "額度已用盡",
+        .quotaConsumingRefreshWarning: "手動刷新該服務商會消耗 1 次真實搜尋請求。",
+        .monthlyCreditsFormat: "%@ / %@ 月度積分",
+        .monthlyRequestsFormat: "%@ / %@ 月度請求",
+        .searchesLeftFormat: "剩餘 %@ 次搜尋",
+        .creditsLeftFormat: "剩餘 %@ 積分",
+        .zeroRemainingBadge: "剩餘 0",
+    ]) { _, new in new }
+
+    private static let japanese: [Key: String] = english.merging([
+        .apiKeysTab: "認証情報",
+        .providersTab: "クォータ監視",
+        .diagnosticsTab: "診断",
+        .aboutTab: "情報",
+        .settingsTab: "設定",
+        .apiKeysCount: "%d 件の認証情報",
+        .apiKeyConfiguration: "認証情報の設定",
+        .apiKeyConfigurationDescription: "API キーまたはダッシュボードセッション Cookie を追加します。追加した認証情報はプロバイダー別に表示されます。",
+        .importFromEnv: ".env からインポート",
+        .addKey: "認証情報を追加",
+        .language: "言語",
+        .languageTitle: "言語",
+        .languageDescription: "アプリの動作、更新間隔、言語、メニューバー表示を調整します。",
+        .appLanguage: "アプリの言語",
+        .statusBarTransparency: "メニューバー透明度",
+        .statusBarTransparencyDescription: "メニューバーポップオーバーのフロストガラス透明度を調整します。",
+        .launchAtLogin: "ログイン時に起動",
+        .launchAtLoginDescription: "macOS にサインインした後、QuotaBar を自動的に起動します。",
+        .autoRefreshInterval: "自動更新",
+        .autoRefreshDescription: "QuotaBar がバックグラウンドでプロバイダーのクォータを更新する頻度を選択します。",
+        .autoRefreshBraveWarning: "Brave のチェックは実際の検索リクエストを 1 回消費するため、自動更新ではスキップされます。",
+        .quotaConsumingAutoRefreshInterval: "検索クォータを消費する自動更新",
+        .quotaConsumingAutoRefreshWarning: "実際の検索クォータを消費してよい場合のみ有効にしてください。このチェックは長い更新間隔を使います。",
+        .autoRefreshFiveMinutes: "5 分ごと",
+        .autoRefreshFifteenMinutes: "15 分ごと",
+        .autoRefreshThirtyMinutes: "30 分ごと",
+        .autoRefreshOneHour: "1 時間ごと",
+        .quotaConsumingAutoRefreshSixHours: "6 時間ごと",
+        .quotaConsumingAutoRefreshTwelveHours: "12 時間ごと",
+        .quotaConsumingAutoRefreshOneDay: "毎日",
+        .apiQuotaTitle: "API クォータ",
+        .noApiKeys: "認証情報がありません",
+        .noApiKeysMessage: ".env をインポートするか、認証情報ページで追加すると、ここにプロバイダーのクォータが表示されます。",
+        .openSettings: "設定を開く",
+        .keys: "キー",
+        .providers: "プロバイダー",
+        .available: "利用可能",
+        .failed: "失敗",
+        .needsAttention: "要確認",
+        .noAttentionItems: "確認が必要な認証情報はありません",
+        .low: "低残量",
+        .categoryCounts: "%d プロバイダー · %d キー",
+        .activeCount: "%d 有効",
+        .providerKeyCount: "%d キー",
+        .noKeyConfigured: "キー未設定",
+        .openDashboard: "ダッシュボードを開く",
+        .updated: "%@ 更新",
+        .pullToRefresh: "プロバイダーをクリックして更新",
+        .disabled: "無効",
+        .quotaUnavailable: "クォータ取得不可",
+        .remainingValue: "残り %d",
+        .addAPIKey: "認証情報を追加",
+        .provider: "プロバイダー",
+        .keyName: "認証情報名",
+        .apiKey: "API キー",
+        .noteOptional: "メモ（任意）",
+        .cancel: "キャンセル",
+        .add: "追加",
+        .editAPIKey: "認証情報を編集",
+        .note: "メモ",
+        .active: "有効",
+        .quotaStatus: "クォータ状態",
+        .lastUpdated: "最終更新",
+        .delete: "削除",
+        .save: "保存",
+        .providersHeader: "クォータ監視",
+        .providersSupported: "%d 設定済み · %d 対応",
+        .total: "合計",
+        .remaining: "残り",
+        .aboutSubtitle: "API クォータをリアルタイムで監視",
+        .featureSupport: "複数 API プロバイダー対応",
+        .featureRealtime: "プロバイダー単位のクォータ更新",
+        .featureGlass: "フロストガラスのメニューバー UI",
+        .featureMenuBar: "メニューバーから素早くアクセス",
+        .version: "バージョン 0.1.3",
+        .refreshAlreadyRunning: "更新中です",
+        .refreshing: "更新中...",
+        .refreshingProvider: "%@ を更新中...",
+        .updatedJustNow: "たった今更新しました",
+        .failedRefresh: "%d 件のキー更新に失敗",
+        .resetDate: "%@ にリセット",
+        .resetsMonthlyDay1: "毎月 1 日にリセット",
+        .noResetCycle: "リセット周期なし",
+        .dashboardReset: "ダッシュボード周期",
+        .resetNotExposed: "リセット時刻は非公開",
+        .credentialExpired: "認証情報の期限切れ",
+        .reauthenticate: "再認証",
+        .saveCookie: "Cookie を保存",
+        .cookieSaved: "Cookie を保存しました",
+        .noCookiesFound: "一致する Cookie が見つかりません",
+        .missingRequiredCookies: "不足しているログイン Cookie: %@",
+        .reauthTitle: "%@ を再認証",
+        .reauthDescription: "プロバイダーのダッシュボードにログインしてください。ログイン後、QuotaBar が一致する WebView Cookie を自動保存します。",
+        .autoCookieSaveHint: "ダッシュボードのログイン待機中です。必要に応じて手動保存もできます。",
+        .autoSavingCookie: "ダッシュボード Cookie を保存中...",
+        .checkingCookie: "ダッシュボードログインを確認中...",
+        .reauthStillUnauthorized: "Cookie は取得できましたが、API はまだ未ログインを返しています。画面の読み込み完了後に再保存してください。",
+        .reauthValidationFailed: "ダッシュボードログインを検証できません: %@",
+        .close: "閉じる",
+        .unlimited: "無制限",
+        .noKeyValue: "キー値なし",
+        .adminCredentialRequired: "Admin 認証情報が必要",
+        .off: "オフ",
+        .ok: "OK",
+        .expired: "期限切れ",
+        .dashboardSession: "ダッシュボードセッション Cookie",
+        .diagnosticsDescription: "各認証情報の最新チェック結果、HTTP 状態、プロバイダー別診断を確認します。",
+        .healthStatus: "ヘルス",
+        .httpNotRequested: "未リクエスト",
+        .diagnosticMessage: "診断",
+        .notChecked: "未チェック",
+        .usableUnknownQuota: "利用可 · クォータ不明",
+        .usageLimitExceeded: "使用上限超過",
+        .quotaConsumingRefreshWarning: "このプロバイダーの手動更新は実際の検索リクエストを 1 回消費します。",
+        .monthlyCreditsFormat: "%@ / %@ 月間クレジット",
+        .monthlyRequestsFormat: "%@ / %@ 月間リクエスト",
+        .searchesLeftFormat: "残り %@ 検索",
+        .creditsLeftFormat: "残り %@ クレジット",
+        .manualRefreshOnly: "手動更新のみ",
+        .zeroRemainingBadge: "残り 0",
+        .notAvailableShort: "N/A",
+    ]) { _, new in new }
+
+    private static let korean: [Key: String] = english.merging([
+        .apiKeysTab: "자격 증명",
+        .providersTab: "할당량 모니터링",
+        .diagnosticsTab: "진단",
+        .aboutTab: "정보",
+        .settingsTab: "설정",
+        .apiKeysCount: "자격 증명 %d개",
+        .apiKeyConfiguration: "자격 증명 설정",
+        .apiKeyConfigurationDescription: "API 키 또는 대시보드 세션 Cookie를 추가합니다. 새 자격 증명은 공급자별로 표시됩니다.",
+        .importFromEnv: ".env에서 가져오기",
+        .addKey: "자격 증명 추가",
+        .language: "언어",
+        .languageTitle: "언어",
+        .languageDescription: "앱 동작, 새로 고침 주기, 언어 및 메뉴 막대 모양을 조정합니다.",
+        .appLanguage: "앱 언어",
+        .statusBarTransparency: "메뉴 막대 투명도",
+        .statusBarTransparencyDescription: "메뉴 막대 팝오버의 반투명 효과를 조정합니다.",
+        .launchAtLogin: "로그인 시 열기",
+        .launchAtLoginDescription: "macOS에 로그인한 후 QuotaBar를 자동으로 시작합니다.",
+        .autoRefreshInterval: "자동 새로 고침",
+        .autoRefreshDescription: "QuotaBar가 백그라운드에서 공급자 할당량을 새로 고치는 주기를 선택합니다.",
+        .autoRefreshBraveWarning: "Brave 확인은 실제 검색 요청 1회를 소비하므로 자동 새로 고침에서 건너뜁니다.",
+        .quotaConsumingAutoRefreshInterval: "검색 할당량을 소비하는 자동 새로 고침",
+        .quotaConsumingAutoRefreshWarning: "실제 검색 할당량을 소비해도 되는 경우에만 켜세요. 이 확인은 더 긴 주기를 사용합니다.",
+        .autoRefreshFiveMinutes: "5분마다",
+        .autoRefreshFifteenMinutes: "15분마다",
+        .autoRefreshThirtyMinutes: "30분마다",
+        .autoRefreshOneHour: "매시간",
+        .quotaConsumingAutoRefreshSixHours: "6시간마다",
+        .quotaConsumingAutoRefreshTwelveHours: "12시간마다",
+        .quotaConsumingAutoRefreshOneDay: "매일",
+        .apiQuotaTitle: "API 할당량",
+        .noApiKeys: "자격 증명 없음",
+        .noApiKeysMessage: ".env 파일을 가져오거나 자격 증명 페이지에서 추가하면 여기에 공급자 할당량이 표시됩니다.",
+        .openSettings: "설정 열기",
+        .keys: "키",
+        .providers: "공급자",
+        .available: "사용 가능",
+        .failed: "실패",
+        .needsAttention: "확인 필요",
+        .noAttentionItems: "확인이 필요한 자격 증명이 없습니다",
+        .low: "낮음",
+        .categoryCounts: "공급자 %d개 · 키 %d개",
+        .activeCount: "활성 %d개",
+        .providerKeyCount: "키 %d개",
+        .noKeyConfigured: "키가 설정되지 않음",
+        .openDashboard: "대시보드 열기",
+        .updated: "%@ 업데이트",
+        .pullToRefresh: "공급자를 클릭하여 새로 고침",
+        .disabled: "비활성화됨",
+        .quotaUnavailable: "할당량을 사용할 수 없음",
+        .remainingValue: "%d 남음",
+        .addAPIKey: "자격 증명 추가",
+        .provider: "공급자",
+        .keyName: "자격 증명 이름",
+        .apiKey: "API 키",
+        .noteOptional: "메모(선택 사항)",
+        .cancel: "취소",
+        .add: "추가",
+        .editAPIKey: "자격 증명 편집",
+        .note: "메모",
+        .active: "활성",
+        .quotaStatus: "할당량 상태",
+        .lastUpdated: "마지막 업데이트",
+        .delete: "삭제",
+        .save: "저장",
+        .providersHeader: "할당량 모니터링",
+        .providersSupported: "설정됨 %d개 · 지원 %d개",
+        .total: "전체",
+        .remaining: "남음",
+        .aboutSubtitle: "API 할당량을 실시간으로 모니터링",
+        .featureSupport: "여러 API 공급자 지원",
+        .featureRealtime: "공급자별 할당량 새로 고침",
+        .featureGlass: "반투명 메뉴 막대 UI",
+        .featureMenuBar: "메뉴 막대 빠른 접근",
+        .version: "버전 0.1.3",
+        .refreshAlreadyRunning: "새로 고침 중입니다",
+        .refreshing: "새로 고치는 중...",
+        .refreshingProvider: "%@ 새로 고치는 중...",
+        .updatedJustNow: "방금 업데이트됨",
+        .failedRefresh: "키 %d개 새로 고침 실패",
+        .resetDate: "%@ 재설정",
+        .resetsMonthlyDay1: "매월 1일 재설정",
+        .noResetCycle: "재설정 주기 없음",
+        .dashboardReset: "대시보드 주기",
+        .resetNotExposed: "재설정 시간이 공개되지 않음",
+        .credentialExpired: "자격 증명 만료됨",
+        .reauthenticate: "다시 인증",
+        .saveCookie: "Cookie 저장",
+        .cookieSaved: "Cookie 저장됨",
+        .noCookiesFound: "일치하는 Cookie가 없습니다",
+        .missingRequiredCookies: "누락된 로그인 Cookie: %@",
+        .reauthTitle: "%@ 다시 인증",
+        .reauthDescription: "공급자 대시보드에 로그인하세요. 로그인 후 QuotaBar가 일치하는 WebView Cookie를 자동 저장합니다.",
+        .autoCookieSaveHint: "대시보드 로그인 대기 중입니다. 필요한 경우 수동으로 저장할 수 있습니다.",
+        .autoSavingCookie: "대시보드 Cookie 저장 중...",
+        .checkingCookie: "대시보드 로그인 확인 중...",
+        .reauthStillUnauthorized: "Cookie를 가져왔지만 API가 아직 로그인되지 않았다고 응답합니다. 대시보드 로딩 후 다시 저장하세요.",
+        .reauthValidationFailed: "대시보드 로그인을 검증할 수 없음: %@",
+        .close: "닫기",
+        .unlimited: "무제한",
+        .noKeyValue: "키 값 없음",
+        .adminCredentialRequired: "Admin 자격 증명 필요",
+        .off: "끔",
+        .ok: "정상",
+        .expired: "만료됨",
+        .dashboardSession: "대시보드 세션 Cookie",
+        .diagnosticsDescription: "각 자격 증명의 최근 확인 결과, HTTP 상태 및 공급자별 진단을 검토합니다.",
+        .healthStatus: "상태",
+        .httpNotRequested: "요청 안 함",
+        .diagnosticMessage: "진단",
+        .notChecked: "확인 안 됨",
+        .usableUnknownQuota: "사용 가능 · 할당량 알 수 없음",
+        .usageLimitExceeded: "사용 한도 초과",
+        .quotaConsumingRefreshWarning: "이 공급자를 수동 새로 고침하면 실제 검색 요청 1회를 소비합니다.",
+        .monthlyCreditsFormat: "%@ / %@ 월간 크레딧",
+        .monthlyRequestsFormat: "%@ / %@ 월간 요청",
+        .searchesLeftFormat: "%@회 검색 남음",
+        .creditsLeftFormat: "%@ 크레딧 남음",
+        .manualRefreshOnly: "수동 새로 고침만",
+        .zeroRemainingBadge: "0 남음",
+        .notAvailableShort: "N/A",
+    ]) { _, new in new }
+
+    private static func simplifiedChineseToTraditional(_ value: String) -> String {
+        let replacements: [(String, String)] = [
+            ("凭据", "憑證"),
+            ("密钥", "金鑰"),
+            ("额度", "額度"),
+            ("设置", "設定"),
+            ("状态栏", "狀態列"),
+            ("刷新", "刷新"),
+            ("搜索", "搜尋"),
+            ("请求", "請求"),
+            ("积分", "積分"),
+            ("可用", "可用"),
+            ("过期", "過期"),
+            ("诊断", "診斷"),
+            ("信息", "資訊"),
+            ("控制台", "控制台"),
+            ("会话", "會話"),
+            ("导入", "匯入"),
+            ("打开", "開啟"),
+            ("关闭", "關閉"),
+            ("启用", "啟用"),
+            ("已停用", "已停用"),
+            ("服务商", "服務商"),
+            ("语言", "語言"),
+            ("自动", "自動"),
+            ("后台", "背景"),
+            ("真实", "真實"),
+            ("简体中文", "簡體中文")
+        ]
+        return replacements.reduce(value) { partial, replacement in
+            partial.replacingOccurrences(of: replacement.0, with: replacement.1)
+        }
+    }
 }

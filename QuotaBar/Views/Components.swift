@@ -44,19 +44,19 @@ struct GlassBackground: View {
     let transparency: Double
 
     private var materialOpacity: Double {
-        0.82 + (1 - transparency) * 0.12
+        0.28 + (1 - transparency) * 0.62
     }
 
     private var baseFillOpacity: Double {
-        0.34 + (1 - transparency) * 0.16
+        0.08 + (1 - transparency) * 0.42
     }
 
     private var leadingHighlightOpacity: Double {
-        0.08 + transparency * 0.08
+        0.04 + (1 - transparency) * 0.10
     }
 
     private var trailingHighlightOpacity: Double {
-        0.04 + transparency * 0.04
+        0.02 + (1 - transparency) * 0.06
     }
 
     var body: some View {

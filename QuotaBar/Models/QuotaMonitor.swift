@@ -4,6 +4,7 @@ import Combine
 enum RefreshMode {
     case manual
     case automatic
+    case quotaConsumingAutomatic
 }
 
 @MainActor
@@ -71,6 +72,12 @@ class QuotaMonitor: ObservableObject {
 
     func refreshProvider(_ provider: Provider, mode: RefreshMode = .manual) {
         refresh(targetProviders: [provider], mode: mode)
+    }
+
+    func refreshQuotaConsumingProviders(mode: RefreshMode = .quotaConsumingAutomatic) {
+        let providers = Set(Provider.visibleCases.filter { $0.quotaCheckConsumesSearchQuota })
+        guard !providers.isEmpty else { return }
+        refresh(targetProviders: providers, mode: mode)
     }
 
     private func refresh(targetProviders: Set<Provider>?, mode: RefreshMode) {

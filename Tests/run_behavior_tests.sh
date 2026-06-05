@@ -296,12 +296,24 @@ assert_match 'isUsageLimitExceeded' \
 assert_match 'mode == \.automatic && key\.provider\.quotaCheckConsumesSearchQuota' \
   "QuotaBar/Models/QuotaMonitor.swift" \
   "Automatic refreshes must skip quota checks that consume provider search quota"
+assert_match 'case quotaConsumingAutomatic' \
+  "QuotaBar/Models/QuotaMonitor.swift" \
+  "Quota-consuming providers should have a separate automatic refresh mode from normal free checks"
+assert_match 'func refreshQuotaConsumingProviders\(mode: RefreshMode = \.quotaConsumingAutomatic\)' \
+  "QuotaBar/Models/QuotaMonitor.swift" \
+  "Quota-consuming providers should be refreshed by their own long-cadence timer"
 assert_match 'quotaMonitor\.refreshAll\(mode: \.automatic\)' \
   "QuotaBar/AppDelegate.swift" \
   "Background timer refreshes should use automatic mode"
+assert_match 'quotaMonitor\.refreshQuotaConsumingProviders\(mode: \.quotaConsumingAutomatic\)' \
+  "QuotaBar/AppDelegate.swift" \
+  "A separate timer should refresh quota-consuming providers only when explicitly enabled"
 assert_match 'configureAutoRefreshTimer' \
   "QuotaBar/AppDelegate.swift" \
   "Background quota refresh cadence should be configurable instead of hardcoded"
+assert_match 'configureQuotaConsumingAutoRefreshTimer' \
+  "QuotaBar/AppDelegate.swift" \
+  "Quota-consuming automatic refresh should use a separate long-cadence timer"
 assert_match 'Timer\.publish\(every: interval' \
   "QuotaBar/AppDelegate.swift" \
   "Auto refresh timer should use the configured interval"
@@ -470,21 +482,21 @@ assert_no_match 'spring\(response: 0\.3\)' \
 assert_no_match 'Image\(systemName: "chevron.down"\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar collapsible sections should not show triangle/chevron disclosure icons"
-assert_match 'openDashboard\(\)' \
+assert_no_match 'openDashboard\(\)' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar popover should hand off full browsing to the main quota dashboard"
+  "Status bar header should avoid a second ambiguous dashboard action next to Settings"
 assert_no_match 'MenuFooterBar' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar popover must not reserve a bottom footer because it gets clipped in the fixed-height popover"
 assert_no_match 'Label\(L10n\.t\(\.providersHeader\), systemImage: "rectangle\.grid\.1x2"\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar footer must not render the Quota Overview title as a clipped visible button"
-assert_match 'systemName: "rectangle\.grid\.1x2"' \
+assert_no_match 'systemName: "rectangle\.grid\.1x2"' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar header should expose the quota dashboard as an icon-only action"
-assert_match 'helpText: L10n\.t\(\.providersHeader\)' \
+  "Status bar header should not show a second ambiguous dashboard icon next to Settings"
+assert_match 'systemName: "gearshape"' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar icon-only dashboard action should keep a localized tooltip"
+  "Status bar header should expose a single, recognizable Settings action"
 assert_match 'toolTip = helpText' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Shared status bar icon buttons should expose their localized tooltip"
@@ -497,12 +509,18 @@ assert_match 'final class StatusHeaderActionButton: NSButton' \
 assert_match 'override func acceptsFirstMouse\(for event: NSEvent\?\) -> Bool' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar header AppKit buttons should accept the first click while the app is inactive"
-assert_match 'override func mouseDown\(with event: NSEvent\)' \
+assert_match 'button\.target = coordinator' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar header AppKit buttons should trigger on mouse down before the transient popover can swallow the action"
-assert_match 'coordinator\.performAction\(\)' \
+  "Status bar header AppKit buttons should use normal target/action dispatch"
+assert_match 'button\.action = #selector\(Coordinator\.performAction\)' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar header AppKit buttons should call the SwiftUI action bridge directly"
+  "Status bar header AppKit buttons should connect the coordinator action explicitly"
+assert_match 'button\.sendAction\(on: \[\.leftMouseDown\]\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar header AppKit buttons should fire on mouse down before the transient popover can swallow the click"
+assert_no_match 'actionHandler' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar header buttons should not rely on a custom mouseDown closure that can bypass normal AppKit dispatch"
 assert_match '\.allowsHitTesting\(false\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar decorative glass and stroke layers must not intercept button clicks"
@@ -518,9 +536,9 @@ assert_match 'GlassBackground\(transparency: menuGlassTransparency\)' \
 assert_match 'materialOpacity' \
   "QuotaBar/Views/Components.swift" \
   "Status bar card material should change opacity with the transparency slider"
-assert_match '0\.82 \+ \(1 - transparency\) \* 0\.12' \
+assert_match '0\.28 \+ \(1 - transparency\) \* 0\.62' \
   "QuotaBar/Views/Components.swift" \
-  "Status bar cards should keep a readable but translucent material floor at maximum transparency"
+  "Status bar cards should visibly change material opacity with the transparency slider"
 assert_match '\.fill\(\.regularMaterial\)' \
   "QuotaBar/Views/Components.swift" \
   "Status bar cards should use regular material so quota text stays readable over bright or busy backgrounds"
@@ -530,12 +548,15 @@ assert_match 'baseFillOpacity' \
 assert_match 'backdropTintOpacity' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar menu should use a light adaptive tint over the real blur instead of an opaque grey panel"
+assert_match 'private var blurOpacity: Double \{' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar transparency should affect the outer blur layer, not only inner cards"
+assert_match '0\.32 \+ \(1 - statusBarTransparency\) \* 0\.58' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar outer blur opacity should visibly change across the full transparency range"
 assert_match 'Slider\(value: \$appearanceStore\.statusBarTransparency, in: 0\.0\.\.\.1\.0\)' \
   "QuotaBar/Views/SettingsView.swift" \
   "Status bar transparency slider should support the full 0% to 100% range"
-assert_match 'openPreferencesFromStatusPopover\(destination: \.providers\)' \
-  "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar dashboard icon should use the status-popover handoff path"
 assert_match 'openPreferencesFromStatusPopover\(destination: \.settings\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar settings icon should use the status-popover handoff path"
@@ -809,6 +830,12 @@ assert_match 'autoRefreshInterval' \
 assert_match 'AutoRefreshIntervalOption' \
   "QuotaBar/Models/AppAppearance.swift" \
   "QuotaBar should expose a finite set of safe automatic refresh intervals"
+assert_match 'QuotaConsumingAutoRefreshIntervalOption' \
+  "QuotaBar/Models/AppAppearance.swift" \
+  "Quota-consuming providers should use a separate long-cadence refresh interval option"
+assert_match 'quotaConsumingAutoRefreshInterval' \
+  "QuotaBar/Models/AppAppearance.swift" \
+  "Quota-consuming automatic refresh should be persisted separately from normal free refresh"
 assert_match 'LaunchAtLoginStore' \
   "QuotaBar/Models/AppAppearance.swift" \
   "QuotaBar should expose a launch-at-login setting"
@@ -824,12 +851,21 @@ assert_match 'Slider\(value: \$appearanceStore\.statusBarTransparency, in: 0\.0\
 assert_match 'Picker\(L10n\.t\(\.autoRefreshInterval' \
   "QuotaBar/Views/SettingsView.swift" \
   "Settings should let the user configure automatic refresh cadence"
+assert_match 'Picker\(L10n\.t\(\.quotaConsumingAutoRefreshInterval' \
+  "QuotaBar/Views/SettingsView.swift" \
+  "Settings should expose a separate long-cadence automatic refresh option for quota-consuming providers"
 assert_match 'Toggle\(isOn: Binding' \
   "QuotaBar/Views/SettingsView.swift" \
   "Settings should expose launch-at-login as a real toggle"
 assert_match 'L10n\.t\(\.autoRefreshBraveWarning' \
   "QuotaBar/Views/SettingsView.swift" \
   "Auto refresh settings should warn that Brave is skipped because checks consume search quota"
+assert_match 'L10n\.t\(\.quotaConsumingAutoRefreshWarning' \
+  "QuotaBar/Views/SettingsView.swift" \
+  "Quota-consuming auto refresh settings should warn that real search quota will be spent"
+assert_no_match 'Text\(L10n\.t\(\.apiKeyConfiguration\)\)' \
+  "QuotaBar/Views/SettingsView.swift" \
+  "Credentials page must not repeat the same Credential Configuration title in the top page header and local panel"
 assert_no_match '0\.20\.\.\.0\.88|0\.72 \+ \(1 - statusBarTransparency\) \* 0\.20|0\.20 - statusBarTransparency \* 0\.12' \
   "QuotaBar" \
   "Status bar transparency must not keep the old narrow range or barely visible opacity formula"
@@ -923,6 +959,15 @@ assert_match 'import WebKit' \
 assert_match 'WKWebView' \
   "QuotaBar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should embed WKWebView"
+assert_match 'WKUIDelegate' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should handle OAuth popup windows such as Querit Google login"
+assert_match 'webView\.uiDelegate = context\.coordinator' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should install a WKUIDelegate for login popups"
+assert_match 'webView\(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures\)' \
+  "QuotaBar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should load target=_blank OAuth windows instead of dropping them"
 assert_match 'WKHTTPCookieStoreObserver' \
   "QuotaBar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should observe cookie changes instead of only page navigation"
@@ -1406,10 +1451,12 @@ let xfyunStat = ProviderStats(
     ]
 )
 require(xfyunStat.totalLimitDisplayText == "month 89.7%", "Coding Plan provider total should display the monthly percentage window")
-require(xfyunStat.totalRemainingDisplayText == "5h 99%", "Coding Plan provider remaining should display the largest remaining percentage window with its period")
+require(xfyunStat.totalRemainingDisplayText == "week 79.3%", "Coding Plan provider remaining should display the lowest remaining percentage window with its period")
+require(xfyunStat.statusBarProviderQuotaText == "week 79.3%", "Status bar coding-plan quota text should display the tightest quota cycle")
+require(xfyunStat.statusBarProviderBadgeText == "week 79.3%", "Status bar coding-plan badge should display the tightest quota cycle")
 AppLanguageStore.shared.language = .simplifiedChinese
 require(xfyunStat.totalLimitDisplayText == "月 89.7%", "Coding Plan provider total should localize the monthly period label in Simplified Chinese")
-require(xfyunStat.totalRemainingDisplayText == "5 小时 99%", "Coding Plan provider remaining should localize the five-hour period label in Simplified Chinese")
+require(xfyunStat.totalRemainingDisplayText == "周 79.3%", "Coding Plan provider remaining should localize the lowest remaining period label in Simplified Chinese")
 let localizedTavilyCredits = APIKey(name: "TAVILY_API_KEY", key: "tvly", provider: .tavily, remaining: 850, limit: 1000, quotaLabel: "850 / 1000 monthly credits")
 require(localizedTavilyCredits.quotaDisplayText == "850 / 1000 月度积分", "Tavily monthly credits should be localized in Simplified Chinese")
 let localizedBraveRequests = APIKey(name: "BRAVE_API_KEY", key: "brave", provider: .brave, remaining: 999, limit: 1000, quotaLabel: "999 / 1000 monthly requests")
@@ -1460,7 +1507,7 @@ let volcengineStat = ProviderStats(
     ]
 )
 require(volcengineStat.totalLimitDisplayText == "month 94.6%", "Volcengine provider total should display the monthly percentage window")
-require(volcengineStat.totalRemainingDisplayText == "5h 100%", "Volcengine provider remaining should display the largest remaining percentage window with its period")
+require(volcengineStat.totalRemainingDisplayText == "week 89.2%", "Volcengine provider remaining should display the lowest remaining percentage window with its period")
 let opencodeStat = ProviderStats(
     provider: .opencodeGo,
     keys: [
@@ -1475,7 +1522,7 @@ let opencodeStat = ProviderStats(
     ]
 )
 require(opencodeStat.totalLimitDisplayText == "month 25%", "OpenCode Go provider total should display the monthly percentage window")
-require(opencodeStat.totalRemainingDisplayText == "5h 98%", "OpenCode Go provider remaining should display the largest remaining percentage window with its period")
+require(opencodeStat.totalRemainingDisplayText == "month 25%", "OpenCode Go provider remaining should display the lowest remaining percentage window with its period")
 let exposedUnknownKey = APIKey(
     name: "BRAVE_API_KEY_6",
     key: "brave",
@@ -1606,6 +1653,9 @@ store.language = .english
 require(defaults.string(forKey: AppLanguageStore.defaultsKey) == AppLanguage.english.rawValue, "AppLanguageStore should persist language changes")
 require(AppLanguage.english.displayName == "English", "English language option should have a stable display name")
 require(AppLanguage.simplifiedChinese.displayName == "简体中文", "Simplified Chinese language option should have a Chinese display name")
+require(AppLanguage.traditionalChinese.displayName == "繁體中文", "Traditional Chinese language option should have a native display name")
+require(AppLanguage.japanese.displayName == "日本語", "Japanese language option should have a native display name")
+require(AppLanguage.korean.displayName == "한국어", "Korean language option should have a native display name")
 require(L10n.t(.providersTab, language: .english) == "Quota Overview", "English quota overview tab title should be available")
 require(L10n.t(.providersHeader, language: .english) == "Quota Overview", "English quota overview page title should match the navigation")
 require(L10n.t(.apiKeysTab, language: .english) == "Credentials", "English credentials tab title should be available")
@@ -1628,6 +1678,22 @@ require(L10n.t(.needsAttention, language: .simplifiedChinese) == "需要关注",
 require(L10n.t(.noAttentionItems, language: .simplifiedChinese) == "暂无需要关注的凭据", "Chinese no-attention empty state should be available")
 require(AutoRefreshIntervalOption.off.timeInterval == nil, "Automatic refresh settings should support disabling background refresh")
 require(AutoRefreshIntervalOption.fifteenMinutes.timeInterval == 900, "Automatic refresh settings should expose a 15 minute interval")
+require(QuotaConsumingAutoRefreshIntervalOption.off.timeInterval == nil, "Quota-consuming automatic refresh should be disabled by default")
+require(QuotaConsumingAutoRefreshIntervalOption.sixHours.timeInterval == 21_600, "Quota-consuming automatic refresh should expose a long 6 hour interval")
+require(QuotaConsumingAutoRefreshIntervalOption.twelveHours.timeInterval == 43_200, "Quota-consuming automatic refresh should expose a long 12 hour interval")
+require(QuotaConsumingAutoRefreshIntervalOption.oneDay.timeInterval == 86_400, "Quota-consuming automatic refresh should expose a daily interval")
+for language in AppLanguage.allCases {
+    require(L10n.missingTranslationKeys(language: language).isEmpty, "\(language.rawValue) should have translations for every L10n key")
+    require(!L10n.t(.settingsTab, language: language).isEmpty, "\(language.rawValue) settings label should not be empty")
+    require(!L10n.t(.quotaConsumingAutoRefreshWarning, language: language).isEmpty, "\(language.rawValue) quota-consuming refresh warning should not be empty")
+    require(!L10n.quotaPeriodTitle("week", language: language).isEmpty, "\(language.rawValue) week period label should be localized")
+}
+require(L10n.t(.settingsTab, language: .traditionalChinese) == "設定", "Traditional Chinese settings label should be localized")
+require(L10n.t(.settingsTab, language: .japanese) == "設定", "Japanese settings label should be localized")
+require(L10n.t(.settingsTab, language: .korean) == "설정", "Korean settings label should be localized")
+require(L10n.quotaPeriodTitle("5h", language: .traditionalChinese) == "5 小時", "Traditional Chinese five-hour quota period should be localized")
+require(L10n.quotaPeriodTitle("week", language: .japanese) == "週", "Japanese week quota period should be localized")
+require(L10n.quotaPeriodTitle("month", language: .korean) == "월", "Korean month quota period should be localized")
 require(L10n.t(.httpNotRequested, language: .english) == "Not requested", "English diagnostics should distinguish skipped HTTP checks")
 require(L10n.t(.httpNotRequested, language: .simplifiedChinese) == "未请求", "Chinese diagnostics should distinguish skipped HTTP checks")
 require(Provider.bocha.displayName(language: .simplifiedChinese) == "博查", "Bocha should have a Simplified Chinese provider display name")

@@ -17,23 +17,23 @@ struct MenuContentView: View {
     }
 
     private var blurOpacity: Double {
-        1.0
+        0.32 + (1 - statusBarTransparency) * 0.58
     }
 
     private var backdropTintOpacity: Double {
-        0.18 + (1 - statusBarTransparency) * 0.12
+        0.04 + (1 - statusBarTransparency) * 0.44
     }
 
     private var glassHighlightOpacity: Double {
-        0.14 + statusBarTransparency * 0.04
+        0.08 + (1 - statusBarTransparency) * 0.08
     }
 
     private var borderOpacity: Double {
-        0.16 + (1 - statusBarTransparency) * 0.14
+        0.12 + (1 - statusBarTransparency) * 0.18
     }
 
     private var shadowOpacity: Double {
-        0.14 + (1 - statusBarTransparency) * 0.10
+        0.10 + (1 - statusBarTransparency) * 0.16
     }
 
     var body: some View {
@@ -60,7 +60,6 @@ struct MenuContentView: View {
                 HeaderView(
                     lastError: monitor.lastError,
                     refreshMessage: monitor.refreshMessage,
-                    onOpenDashboard: { openDashboard() },
                     onOpenSettings: { openSettings() }
                 )
 
@@ -95,15 +94,6 @@ struct MenuContentView: View {
     private func openSettings() {
         if let delegate = NSApp.delegate as? AppDelegate {
             delegate.openPreferencesFromStatusPopover(destination: .settings)
-        } else {
-            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-            NSApp.activate(ignoringOtherApps: true)
-        }
-    }
-
-    private func openDashboard() {
-        if let delegate = NSApp.delegate as? AppDelegate {
-            delegate.openPreferencesFromStatusPopover(destination: .providers)
         } else {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -161,7 +151,6 @@ struct EmptyQuotaStateView: View {
 struct HeaderView: View {
     let lastError: String?
     let refreshMessage: String?
-    let onOpenDashboard: () -> Void
     let onOpenSettings: () -> Void
 
     var body: some View {
@@ -179,14 +168,7 @@ struct HeaderView: View {
                 Spacer()
 
                 StatusHeaderIconButton(
-                    systemName: "rectangle.grid.1x2",
-                    helpText: L10n.t(.providersHeader),
-                    action: onOpenDashboard
-                )
-                .frame(width: 32, height: 32)
-
-                StatusHeaderIconButton(
-                    systemName: "gear",
+                    systemName: "gearshape",
                     helpText: L10n.t(.settingsTab),
                     action: onOpenSettings
                 )
@@ -243,7 +225,9 @@ struct StatusHeaderIconButton: NSViewRepresentable {
         button.contentTintColor = .labelColor
         button.toolTip = helpText
         button.setAccessibilityLabel(helpText)
-        button.actionHandler = { coordinator.performAction() }
+        button.target = coordinator
+        button.action = #selector(Coordinator.performAction)
+        button.sendAction(on: [.leftMouseDown])
         button.wantsLayer = true
         button.layer?.cornerRadius = 16
         button.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.34).cgColor
@@ -263,14 +247,8 @@ struct StatusHeaderIconButton: NSViewRepresentable {
 }
 
 final class StatusHeaderActionButton: NSButton {
-    var actionHandler: (() -> Void)?
-
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
-    }
-
-    override func mouseDown(with event: NSEvent) {
-        actionHandler?()
     }
 }
 

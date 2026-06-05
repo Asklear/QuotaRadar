@@ -214,6 +214,7 @@ struct DashboardWebView: NSViewRepresentable {
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         context.coordinator.start(webView: webView, url: url)
         return webView
@@ -233,7 +234,7 @@ struct DashboardWebView: NSViewRepresentable {
         )
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKHTTPCookieStoreObserver {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieStoreObserver {
         private let cookieDomains: [String]
         private let requiredCookieNames: [String]
         private let onCookiesAvailable: (String) -> Void
@@ -299,6 +300,16 @@ struct DashboardWebView: NSViewRepresentable {
             }
 
             captureCookiesIfReady()
+        }
+
+        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            guard navigationAction.targetFrame == nil,
+                  let popupURL = navigationAction.request.url else {
+                return nil
+            }
+
+            webView.load(URLRequest(url: popupURL))
+            return nil
         }
 
         func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {

@@ -454,11 +454,8 @@ struct APIKeyConfigurationPanel: View {
                     .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(L10n.t(.apiKeyConfiguration))
-                        .font(.system(size: 15, weight: .semibold))
-
                     Text(L10n.t(.apiKeyConfigurationDescription))
-                        .font(.caption)
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -479,6 +476,8 @@ struct APIKeyConfigurationPanel: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(L10n.t(.apiKeyConfiguration))
     }
 }
 
@@ -1451,6 +1450,20 @@ struct AppSettingsView: View {
                     Label(L10n.t(.autoRefreshBraveWarning), systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    Divider()
+
+                    Picker(L10n.t(.quotaConsumingAutoRefreshInterval), selection: $appearanceStore.quotaConsumingAutoRefreshInterval) {
+                        ForEach(QuotaConsumingAutoRefreshIntervalOption.allCases) { option in
+                            Text(option.displayName)
+                                .tag(option)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    Label(L10n.t(.quotaConsumingAutoRefreshWarning), systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
                 }
             }
 

@@ -62,6 +62,43 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             case .tavily, .wxmp, .anthropic, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo:
                 return rawValue
             }
+        case .traditionalChinese:
+            switch self {
+            case .wxmp:
+                return "微信搜尋"
+            case .xfyunCodingPlan:
+                return "訊飛星火"
+            case .volcengineCodingPlan:
+                return "火山引擎"
+            case .bocha:
+                return "博查"
+            case .deepseek:
+                return "Deepseek"
+            case .tavily, .brave, .serpapi, .serper, .exa, .anysearch, .querit, .anthropic, .opencodeGo:
+                return rawValue
+            }
+        case .japanese:
+            switch self {
+            case .wxmp:
+                return "WeChat 検索"
+            case .xfyunCodingPlan:
+                return "XFYun Spark"
+            case .volcengineCodingPlan:
+                return "Volcengine"
+            case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .querit, .anthropic, .deepseek, .opencodeGo:
+                return rawValue
+            }
+        case .korean:
+            switch self {
+            case .wxmp:
+                return "WeChat 검색"
+            case .xfyunCodingPlan:
+                return "XFYun Spark"
+            case .volcengineCodingPlan:
+                return "Volcengine"
+            case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .querit, .anthropic, .deepseek, .opencodeGo:
+                return rawValue
+            }
         }
     }
 
@@ -325,17 +362,57 @@ enum QuotaDataSource: String, Equatable {
     case unavailable
 
     var displayName: String {
-        switch self {
-        case .officialAPI:
-            return AppLanguageStore.shared.language == .simplifiedChinese ? "官方 API" : "Official API"
-        case .dashboardAPI:
-            return AppLanguageStore.shared.language == .simplifiedChinese ? "控制台接口" : "Dashboard API"
-        case .responseHeader:
-            return AppLanguageStore.shared.language == .simplifiedChinese ? "响应 Header" : "Response Header"
-        case .localPolicy:
-            return AppLanguageStore.shared.language == .simplifiedChinese ? "本地规则" : "Local Policy"
-        case .unavailable:
-            return AppLanguageStore.shared.language == .simplifiedChinese ? "未公开" : "Not Exposed"
+        switch (self, AppLanguageStore.shared.language) {
+        case (.officialAPI, .english):
+            return "Official API"
+        case (.officialAPI, .simplifiedChinese):
+            return "官方 API"
+        case (.officialAPI, .traditionalChinese):
+            return "官方 API"
+        case (.officialAPI, .japanese):
+            return "公式 API"
+        case (.officialAPI, .korean):
+            return "공식 API"
+        case (.dashboardAPI, .english):
+            return "Dashboard API"
+        case (.dashboardAPI, .simplifiedChinese):
+            return "控制台接口"
+        case (.dashboardAPI, .traditionalChinese):
+            return "控制台介面"
+        case (.dashboardAPI, .japanese):
+            return "ダッシュボード API"
+        case (.dashboardAPI, .korean):
+            return "대시보드 API"
+        case (.responseHeader, .english):
+            return "Response Header"
+        case (.responseHeader, .simplifiedChinese):
+            return "响应 Header"
+        case (.responseHeader, .traditionalChinese):
+            return "回應 Header"
+        case (.responseHeader, .japanese):
+            return "レスポンス Header"
+        case (.responseHeader, .korean):
+            return "응답 Header"
+        case (.localPolicy, .english):
+            return "Local Policy"
+        case (.localPolicy, .simplifiedChinese):
+            return "本地规则"
+        case (.localPolicy, .traditionalChinese):
+            return "本地規則"
+        case (.localPolicy, .japanese):
+            return "ローカルルール"
+        case (.localPolicy, .korean):
+            return "로컬 규칙"
+        case (.unavailable, .english):
+            return "Not Exposed"
+        case (.unavailable, .simplifiedChinese):
+            return "未公开"
+        case (.unavailable, .traditionalChinese):
+            return "未公開"
+        case (.unavailable, .japanese):
+            return "非公開"
+        case (.unavailable, .korean):
+            return "비공개"
         }
     }
 }
@@ -583,6 +660,12 @@ struct APIKey: Identifiable, Codable, Equatable {
                 return "Search OK · monthly quota not exposed"
             case .simplifiedChinese:
                 return "搜索可用 · 未公开月度额度"
+            case .traditionalChinese:
+                return "搜尋可用 · 未公開月度額度"
+            case .japanese:
+                return "検索利用可 · 月間クォータ非公開"
+            case .korean:
+                return "검색 가능 · 월간 할당량 비공개"
             }
         }
         return quotaDisplayText
@@ -815,7 +898,7 @@ struct ProviderStats: Identifiable {
     var totalRemainingDisplayText: String {
         if hasUnlimitedQuota { return L10n.t(.unlimited) }
         if usesPercentageQuota {
-            return bestQuotaWindowDisplay ?? formatProviderPercent(totalRemainingPercent)
+            return tightestQuotaWindowDisplay ?? formatProviderPercent(totalRemainingPercent)
         }
         return "\(totalRemaining)"
     }
@@ -948,9 +1031,9 @@ struct ProviderStats: Identifiable {
             .map { L10n.quotaWindowDisplay($0.name, formatProviderPercent($0.percent)) }
     }
 
-    private var bestQuotaWindowDisplay: String? {
+    private var tightestQuotaWindowDisplay: String? {
         percentageQuotaWindows
-            .max { lhs, rhs in lhs.percent < rhs.percent }
+            .min { lhs, rhs in lhs.percent < rhs.percent }
             .map { L10n.quotaWindowDisplay($0.name, formatProviderPercent($0.percent)) }
     }
 

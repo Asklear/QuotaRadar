@@ -42,10 +42,46 @@ enum AutoRefreshIntervalOption: String, CaseIterable, Identifiable {
     }
 }
 
+enum QuotaConsumingAutoRefreshIntervalOption: String, CaseIterable, Identifiable {
+    case off
+    case sixHours
+    case twelveHours
+    case oneDay
+
+    var id: String { rawValue }
+
+    var timeInterval: TimeInterval? {
+        switch self {
+        case .off:
+            return nil
+        case .sixHours:
+            return 6 * 60 * 60
+        case .twelveHours:
+            return 12 * 60 * 60
+        case .oneDay:
+            return 24 * 60 * 60
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .off:
+            return L10n.t(.off)
+        case .sixHours:
+            return L10n.t(.quotaConsumingAutoRefreshSixHours)
+        case .twelveHours:
+            return L10n.t(.quotaConsumingAutoRefreshTwelveHours)
+        case .oneDay:
+            return L10n.t(.quotaConsumingAutoRefreshOneDay)
+        }
+    }
+}
+
 final class AppAppearanceStore: ObservableObject {
     static let shared = AppAppearanceStore()
     static let statusBarTransparencyKey = "statusBarTransparency"
     static let autoRefreshIntervalKey = "autoRefreshInterval"
+    static let quotaConsumingAutoRefreshIntervalKey = "quotaConsumingAutoRefreshInterval"
 
     @Published var statusBarTransparency: Double {
         didSet {
@@ -64,6 +100,12 @@ final class AppAppearanceStore: ObservableObject {
         }
     }
 
+    @Published var quotaConsumingAutoRefreshInterval: QuotaConsumingAutoRefreshIntervalOption {
+        didSet {
+            defaults.set(quotaConsumingAutoRefreshInterval.rawValue, forKey: Self.quotaConsumingAutoRefreshIntervalKey)
+        }
+    }
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -79,6 +121,13 @@ final class AppAppearanceStore: ObservableObject {
             autoRefreshInterval = interval
         } else {
             autoRefreshInterval = .fifteenMinutes
+        }
+
+        if let rawValue = defaults.string(forKey: Self.quotaConsumingAutoRefreshIntervalKey),
+           let interval = QuotaConsumingAutoRefreshIntervalOption(rawValue: rawValue) {
+            quotaConsumingAutoRefreshInterval = interval
+        } else {
+            quotaConsumingAutoRefreshInterval = .off
         }
     }
 

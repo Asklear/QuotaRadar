@@ -40,9 +40,20 @@ QuotaBar's core goal is to reduce quota anxiety: users should not need to repeat
 - [ ] Run screenshot QA for v0.1.3 menu bar transparency across different desktop backgrounds and keep improving glass readability.
 - [ ] Fill in the provider capability matrix as the entry point for future provider additions.
 
+## v0.1.4 Fix Queue
+
+- [x] LLM coding plans in the menu bar must not always show the `5 hours` cycle. Compare all available cycles such as 5 hours, week, and month, then display the cycle with the lowest remaining percentage so a zero weekly quota is not hidden by a full 5-hour quota.
+- [x] Fix Querit reauthentication when choosing Google login does not open the verification window.
+- [x] Add a setting for automatic refresh of providers whose checks consume search quota, with longer interval choices than normal free checks to avoid wasting quota.
+- [x] Re-investigate why menu bar transparency settings have no visible effect, including the outer popover, inner cards, and macOS material layers.
+- [x] Add more language options, at least Simplified Chinese, Traditional Chinese, Japanese, and Korean, and fully localize descriptions, buttons, diagnostics, dates, period units, and provider configuration copy.
+- [x] Simplify the `Credentials` page title hierarchy so the large title and subtitle do not both repeat "Credentials".
+- [ ] Redesign the frontend UI around established macOS monitoring apps: use iStat Menus / Stats as menu bar references, Activity Monitor as the main-window reference, and Little Snitch Control Center as the diagnostics/action reference.
+
 ## P1: Credential Configuration UX
 
 - [ ] Turn `Credentials` into a provider-aware wizard instead of one generic form.
+- [x] Simplify the credential page title hierarchy so the page title and local heading do not repeat the same wording.
 - [ ] Show the expected credential type for each provider:
   - API Key: Tavily, SerpAPI, Serper, Bocha, DeepSeek, and similar providers.
   - Admin Credential: Exa Team Management service key plus target API key id.
@@ -57,6 +68,7 @@ QuotaBar's core goal is to reduce quota anxiety: users should not need to repeat
   - After the user logs in, read cookies from allowed domains.
   - Verify required cookies exist.
   - Save the credential to the local secret store after a successful test.
+- [x] Fix Querit Google login in reauthentication; add OAuth popup/new-window handling or external-browser fallback if needed.
 - [ ] Add credential state labels:
   - `Not Configured`
   - `Configured, Untested`
@@ -85,6 +97,11 @@ QuotaBar's core goal is to reduce quota anxiety: users should not need to repeat
   - Manual HTTP proxy, such as `http://127.0.0.1:7890`.
   - Manual SOCKS proxy, such as `socks5://127.0.0.1:7890`.
   - No proxy.
+- [x] Add automatic refresh settings for quota-consuming providers:
+  - Disabled by default.
+  - Clearly warn that real request quota will be consumed.
+  - Use longer intervals than normal refresh, such as 6 hours, 12 hours, and daily.
+  - Providers such as Brave join automatic refresh only after the user enables this.
 - [ ] Add threshold notifications:
   - Quota below 20%.
   - Quota exhausted.
@@ -129,19 +146,35 @@ Acceptance criteria for a new provider:
 
 ## P4: Frontend Aesthetics And Interaction
 
+- [ ] Establish QuotaBar's macOS monitoring-app design baseline:
+  - iStat Menus: learn from dense but clear menu bar modules, refresh cadence controls, and settings grouping.
+  - Stats: learn from lightweight native modules, compact metric blocks, and broad localization coverage.
+  - Little Snitch Control Center: learn from menu bar diagnostics, recent activity summaries, and quick actions.
+  - Activity Monitor: learn from main-window tables, grouping, filtering, summary areas, and diagnostic information hierarchy.
+- [ ] Position QuotaBar as `iStat Menus for API quota`, not a SaaS dashboard:
+  - Numbers first: remaining, total, percentage, reset time, and update time beat decoration.
+  - Moderate density: the menu bar shows only provider-level essentials; the main window carries detail.
+  - Native material: use macOS sidebar, toolbar, popover, separators, and material instead of marketing-style cards and large gradients.
+  - Nearby actions: refresh, reauthenticate, test connection, and open dashboard should sit close to the relevant provider.
 - [ ] Keep the main window moving toward a modern macOS style:
   - Clearer sidebar hierarchy.
   - Less repeated information.
   - Provider banners collapse on click without relying on triangle icons.
   - Collapse animations compress in place instead of flying in from above.
+  - Make the quota overview closer to Activity Monitor: table/grouping plus a side or bottom summary, not repeated card stacks.
 - [ ] Keep the menu bar popover lightweight:
   - Collapsible AI Search and LLM groups.
   - Credentials sorted by remaining quota inside each provider.
   - Keys shown as first four and last four characters, not environment variable names.
   - Auto-close when the pointer leaves, without activating the main window.
+  - LLM coding plans should show the cycle with the lowest remaining percentage instead of always showing the 5-hour cycle.
+  - Menu bar transparency settings must visibly affect the popover over real desktop backgrounds while preserving readability.
+  - Make the menu bar layout closer to iStat Menus / Stats: compact metrics, fine separators, clear hierarchy, and no long scrolling dashboard.
+  - Redesign the whole menu bar popover toward a Stats / iStat Menus monitoring style: tighter modules, fewer large cards, clearer metric hierarchy, and a cleaner action area.
 - [ ] Continue using the battery/quota metaphor:
   - The app icon should be simpler and readable at distance.
   - The menu bar icon should work on light, dark, and transparent menu bars.
+  - The menu bar popover's top-right action icon should be modern and semantically clear, not another generic grey circular button.
   - Use official provider icons when available; use consistent fallbacks otherwise.
 - [ ] Add a visual QA checklist:
   - 13-inch display, wide display, external display.
@@ -155,13 +188,18 @@ Acceptance criteria for a new provider:
 - [ ] Keep macOS as the short-term priority and preserve the native SwiftUI menu bar experience.
 - [ ] If Windows/Linux support becomes necessary, evaluate Tauri or Electron before trying to port SwiftUI behavior directly.
 - [ ] Centralize localization keys and avoid hardcoded business copy inside views or parsers.
-- [ ] Finish localization for dates and period units:
+- [x] Add language options:
+  - Traditional Chinese
+  - Japanese
+  - Korean
+- [x] Finish localization for dates and period units:
   - 5 hours
   - week
   - month
   - next reset
   - unavailable
   - quota unknown
+- [x] Sweep all help text, settings text, buttons, diagnostics, errors, and release-facing docs so new languages are complete.
 - [ ] Define provider-name rules:
   - Brand names usually remain untranslated, such as Deepseek, Serper, Exa, and Querit.
   - Generic states and quota units must be localized.
