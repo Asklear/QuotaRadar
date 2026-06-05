@@ -1,4 +1,4 @@
-# QuotaBar TODO / Roadmap
+# Quota Radar TODO / Roadmap
 
 <p align="right">
   Language:
@@ -6,7 +6,7 @@
   <strong>English</strong>
 </p>
 
-QuotaBar's core goal is to reduce quota anxiety: users should not need to repeatedly log into provider dashboards to know which keys still work, when quota resets, which credentials expired, and which checks consume real quota.
+Quota Radar's core goal is to reduce quota anxiety: users should not need to repeatedly log into provider dashboards to know which keys still work, when quota resets, which credentials expired, and which checks consume real quota.
 
 ## Product Principles
 
@@ -16,7 +16,7 @@ QuotaBar's core goal is to reduce quota anxiety: users should not need to repeat
 - Secrets stay local. Source code, tests, README files, and GitHub Releases must never contain real API keys or cookies.
 - Every provider needs clear diagnostics: usable, quota unknown, credential expired, connection failed, unsupported API, or quota-consuming check.
 
-## Completed In v0.1.3
+## Completed In v0.2.0
 
 - Changed the menu bar popover into a quota-first provider overview grouped by `AI Search` and `LLM`.
 - Enlarged the menu bar popover to reduce scrolling and fixed top/bottom clipping.
@@ -29,6 +29,8 @@ QuotaBar's core goal is to reduce quota anxiety: users should not need to repeat
 - Fixed refreshed dashboard cookies being overwritten by stale `~/.claude/settings.json` values. Claude settings are now imported only during first-run initialization, not during refresh.
 - Kept the local secret file as the default credential store to avoid repeated login-keychain password prompts.
 - Updated README, Quickstart, Release workflow notes, and unsigned DMG / Gatekeeper documentation.
+- Updated README main-window and menu-bar screenshots from the running v0.2.0 app.
+- DeepSeek, Bocha, and WeChat Search now display CNY balance values instead of credits or percentages.
 
 ## P0: Current Version Hardening
 
@@ -37,10 +39,10 @@ QuotaBar's core goal is to reduce quota anxiety: users should not need to repeat
 - [x] Improve Release workflow notes so unsigned DMG users see the Gatekeeper workaround clearly.
 - [x] Keep the current unsigned DMG release path. Developer ID signing and notarization remain optional future work.
 - [x] Keep avoiding Keychain as the default secret path to reduce repeated login-keychain prompts.
-- [ ] Run screenshot QA for v0.1.3 menu bar transparency across different desktop backgrounds and keep improving glass readability.
+- [x] Run screenshot QA for v0.2.0 menu bar transparency and refresh README screenshots.
 - [ ] Fill in the provider capability matrix as the entry point for future provider additions.
 
-## v0.1.4 Fix Queue
+## v0.2.0 Fix Queue
 
 - [x] LLM coding plans in the menu bar must not always show the `5 hours` cycle. Compare all available cycles such as 5 hours, week, and month, then display the cycle with the lowest remaining percentage so a zero weekly quota is not hidden by a full 5-hour quota.
 - [x] Fix Querit reauthentication when choosing Google login does not open the verification window.
@@ -146,12 +148,12 @@ Acceptance criteria for a new provider:
 
 ## P4: Frontend Aesthetics And Interaction
 
-- [ ] Establish QuotaBar's macOS monitoring-app design baseline:
+- [ ] Establish Quota Radar's macOS monitoring-app design baseline:
   - iStat Menus: learn from dense but clear menu bar modules, refresh cadence controls, and settings grouping.
   - Stats: learn from lightweight native modules, compact metric blocks, and broad localization coverage.
   - Little Snitch Control Center: learn from menu bar diagnostics, recent activity summaries, and quick actions.
   - Activity Monitor: learn from main-window tables, grouping, filtering, summary areas, and diagnostic information hierarchy.
-- [ ] Position QuotaBar as `iStat Menus for API quota`, not a SaaS dashboard:
+- [ ] Position QuotaRadar as `iStat Menus for API quota`, not a SaaS dashboard:
   - Numbers first: remaining, total, percentage, reset time, and update time beat decoration.
   - Moderate density: the menu bar shows only provider-level essentials; the main window carries detail.
   - Native material: use macOS sidebar, toolbar, popover, separators, and material instead of marketing-style cards and large gradients.
@@ -223,16 +225,16 @@ Continue with P1 + P2. Reauthentication auto-save is already in place; the remai
    - Suggested files: `docs/provider-capabilities.md` / `docs/provider-capabilities.en.md`.
    - Fields: provider, category, credential type, usage source, reset cycle, does check consume quota, diagnostic endpoint, notes.
 2. [ ] Refactor the credential page into provider-aware forms.
-   - Main files: `QuotaBar/Models/APIKey.swift`, `QuotaBar/Views/SettingsView.swift`, `QuotaBar/Services/EnvImporter.swift`.
+   - Main files: `QuotaRadar/Models/APIKey.swift`, `QuotaRadar/Views/SettingsView.swift`, `QuotaRadar/Services/EnvImporter.swift`.
    - Goal: after selecting a provider, users only see fields that provider needs.
 3. [ ] Add a cURL paste parser.
-   - Main file: create `QuotaBar/Services/CurlCredentialParser.swift`.
+   - Main file: create `QuotaRadar/Services/CurlCredentialParser.swift`.
    - Goal: Querit, XFYun Spark, Volcengine, and OpenCode Go can extract cookies/headers from copied browser cURL.
 4. [ ] Add per-provider connectivity tests.
-   - Main files: `QuotaBar/Services/QuotaService.swift`, `QuotaBar/Models/QuotaMonitor.swift`, `QuotaBar/Views/SettingsView.swift`.
+   - Main files: `QuotaRadar/Services/QuotaService.swift`, `QuotaRadar/Models/QuotaMonitor.swift`, `QuotaRadar/Views/SettingsView.swift`.
    - Goal: each provider can test credential usability and disclose whether the test consumes quota.
 5. [ ] Add proxy settings.
-   - Main files: `QuotaBar/Models/AppAppearance.swift`, `QuotaBar/Services/QuotaService.swift`, `QuotaBar/Views/SettingsView.swift`.
+   - Main files: `QuotaRadar/Models/AppAppearance.swift`, `QuotaRadar/Services/QuotaService.swift`, `QuotaRadar/Views/SettingsView.swift`.
    - Goal: support system proxy, manual HTTP/SOCKS proxy, and no proxy.
 6. [ ] Run a main-window and menu-popover visual QA pass.
    - Check screenshots across sizes, languages, and light/dark mode.

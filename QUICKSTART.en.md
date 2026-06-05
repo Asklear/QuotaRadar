@@ -1,4 +1,4 @@
-# QuotaBar Quickstart
+# Quota Radar Quickstart
 
 <p align="right">
   Language:
@@ -12,7 +12,7 @@ Run from the project root:
 
 ```bash
 ./install.sh --bundle-only --rebuild
-open build/QuotaBar.app
+open 'build/Quota Radar.app'
 ```
 
 Install into `/Applications`:
@@ -23,7 +23,7 @@ Install into `/Applications`:
 
 ## 2. Open The UI
 
-Click the QuotaBar battery icon in the macOS menu bar.
+Click the Quota Radar battery icon in the macOS menu bar.
 
 The Dock icon opens the main window; the menu bar popover gives quick quota visibility.
 
@@ -65,7 +65,7 @@ Use `Settings` to switch English/Simplified Chinese, adjust menu bar popover tra
 Secret file:
 
 ```text
-~/Library/Application Support/QuotaBar/secrets.json
+~/Library/Application Support/QuotaRadar/secrets.json
 ```
 
 This file is outside the repository and should never be pushed to GitHub.

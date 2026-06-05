@@ -1,4 +1,4 @@
-# QuotaBar 快速启动
+# Quota Radar 快速启动
 
 <p align="right">
   语言：
@@ -12,7 +12,7 @@
 
 ```bash
 ./install.sh --bundle-only --rebuild
-open build/QuotaBar.app
+open 'build/Quota Radar.app'
 ```
 
 安装到 `/Applications`：
@@ -23,7 +23,7 @@ open build/QuotaBar.app
 
 ## 2. 打开界面
 
-点击 macOS 状态栏里的 QuotaBar 电池图标。
+点击 macOS 状态栏里的 Quota Radar 电池图标。
 
 Dock 图标会打开主窗口；状态栏弹窗用于快速查看额度。
 
@@ -65,7 +65,7 @@ OPENCODE_GO_COOKIE=...
 真实凭据文件：
 
 ```text
-~/Library/Application Support/QuotaBar/secrets.json
+~/Library/Application Support/QuotaRadar/secrets.json
 ```
 
 该文件不属于代码仓库，不应该推送到 GitHub。
