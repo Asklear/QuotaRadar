@@ -25,7 +25,7 @@ QuotaBar 是一个 macOS 状态栏应用，用来观察搜索 API 与 LLM coding
 </p>
 
 <p align="center">
-  <em>主窗口以 provider 为单位展示剩余额度、总量和健康状态；截图使用脱敏演示数据。</em>
+  <em>主窗口以 provider 为单位展示剩余额度、总量和健康状态；截图来自真实运行画面，密钥由应用自动打码。</em>
 </p>
 
 <p align="center">

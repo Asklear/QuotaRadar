@@ -25,7 +25,7 @@ See [TODO / Roadmap](./TODO.en.md) for the next development plan.
 </p>
 
 <p align="center">
-  <em>The main window summarizes remaining quota, total quota, and health status by provider. Screenshots use sanitized demo data.</em>
+  <em>The main window summarizes remaining quota, total quota, and health status by provider. Screenshots are captured from the running app, with credentials masked by QuotaBar.</em>
 </p>
 
 <p align="center">

@@ -55,18 +55,18 @@ assert_match 'docs/assets/screenshots/quota-overview\.png' \
 assert_match 'docs/assets/screenshots/menu-bar-popover\.png' \
   "README.md" \
   "Chinese README should show the menu bar popover screenshot"
-assert_match '脱敏演示数据' \
+assert_match '真实运行画面，密钥由应用自动打码' \
   "README.md" \
-  "Chinese README should clarify that public screenshots use sanitized demo data"
+  "Chinese README should clarify that public screenshots use masked real app captures"
 assert_match 'docs/assets/screenshots/quota-overview\.png' \
   "README.en.md" \
   "English README should show the quota overview screenshot"
 assert_match 'docs/assets/screenshots/menu-bar-popover\.png' \
   "README.en.md" \
   "English README should show the menu bar popover screenshot"
-assert_match 'sanitized demo data' \
+assert_match 'captured from the running app, with credentials masked by QuotaBar' \
   "README.en.md" \
-  "English README should clarify that public screenshots use sanitized demo data"
+  "English README should clarify that public screenshots use masked real app captures"
 assert_match 'setActivationPolicy\(\.regular\)' \
   "QuotaBar/AppDelegate.swift" \
   "QuotaBar should explicitly use a regular activation policy so it appears in Dock"
