@@ -452,9 +452,21 @@ assert_match 'MenuProviderQuotaCell' \
 assert_no_match 'ForEach\(monitor\.homeProviderStats\) \{ stat in' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar home view should not render a flat provider list"
-assert_match 'MenuAttentionSummaryCard' \
+assert_match 'MenuMetricStrip' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar popover should show available, low-quota, and failed counts instead of provider/key totals"
+assert_match 'struct MonitorModule<Content: View>' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar popover should use lightweight monitoring modules instead of large dashboard cards"
+assert_match 'struct MenuMetricStrip' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar popover should use a compact metric strip like Stats/iStat Menus"
+assert_match 'MenuMetricStrip\(summary: monitor\.menuQuotaSummary\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar summary metrics should be rendered as a compact strip"
+assert_match 'struct MenuSectionHeader' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar sections should use a consistent compact monitoring header"
 assert_match 'MenuAttentionItemsView' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar popover should keep credentials needing attention as secondary detail below provider statistics"
@@ -494,9 +506,12 @@ assert_no_match 'Label\(L10n\.t\(\.providersHeader\), systemImage: "rectangle\.g
 assert_no_match 'systemName: "rectangle\.grid\.1x2"' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar header should not show a second ambiguous dashboard icon next to Settings"
-assert_match 'systemName: "gearshape"' \
+assert_match 'systemName: "slider\.horizontal\.3"' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar header should expose a single, recognizable Settings action"
+  "Status bar header should expose a single control-panel Settings action"
+assert_no_match 'controlBackgroundColor\.withAlphaComponent\(0\.34\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar header action should not look like another heavy grey circular card"
 assert_match 'toolTip = helpText' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Shared status bar icon buttons should expose their localized tooltip"

@@ -67,7 +67,7 @@ struct MenuContentView: View {
                     EmptyQuotaStateView(onOpenSettings: { openAPIKeyConfiguration() })
                     Spacer(minLength: 0)
                 } else {
-                    MenuAttentionSummaryCard(summary: monitor.menuQuotaSummary)
+                    MenuMetricStrip(summary: monitor.menuQuotaSummary)
 
                     MenuProviderOverviewCard(monitor: monitor)
 
@@ -168,7 +168,7 @@ struct HeaderView: View {
                 Spacer()
 
                 StatusHeaderIconButton(
-                    systemName: "gearshape",
+                    systemName: "slider.horizontal.3",
                     helpText: L10n.t(.settingsTab),
                     action: onOpenSettings
                 )
@@ -230,7 +230,9 @@ struct StatusHeaderIconButton: NSViewRepresentable {
         button.sendAction(on: [.leftMouseDown])
         button.wantsLayer = true
         button.layer?.cornerRadius = 16
-        button.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.34).cgColor
+        button.layer?.backgroundColor = NSColor.separatorColor.withAlphaComponent(0.18).cgColor
+        button.layer?.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
+        button.layer?.borderWidth = 0.5
     }
 
     final class Coordinator: NSObject {
@@ -254,39 +256,95 @@ final class StatusHeaderActionButton: NSButton {
 
 // MARK: - Menu Summary
 
-struct MenuAttentionSummaryCard: View {
-    let summary: MenuQuotaSummary
+struct MonitorModule<Content: View>: View {
+    @Environment(\.menuGlassTransparency) private var menuGlassTransparency
+    var spacing: CGFloat = 10
+    @ViewBuilder var content: Content
+
+    private var moduleFillOpacity: Double {
+        0.045 + (1 - menuGlassTransparency) * 0.22
+    }
+
+    private var moduleStrokeOpacity: Double {
+        0.12 + (1 - menuGlassTransparency) * 0.10
+    }
 
     var body: some View {
-        GlassCard {
-            HStack(spacing: 14) {
-                StatItem(value: "\(summary.availableCount)", label: L10n.t(.available), valueColor: .green)
+        VStack(alignment: .leading, spacing: spacing) {
+            content
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .fill(.regularMaterial)
+                .opacity(0.22 + (1 - menuGlassTransparency) * 0.34)
+        )
+        .background(
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(moduleFillOpacity))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .stroke(Color.white.opacity(moduleStrokeOpacity), lineWidth: 0.8)
+        )
+    }
+}
 
-                Divider()
-                    .frame(height: 30)
-                    .background(Color.white.opacity(0.18))
+struct MenuSectionHeader: View {
+    let title: String
+    var detail: String?
 
-                StatItem(value: "\(summary.lowCount)", label: L10n.t(.low), valueColor: summary.lowCount > 0 ? .orange : .secondary)
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.primary)
 
-                Divider()
-                    .frame(height: 30)
-                    .background(Color.white.opacity(0.18))
+            Spacer(minLength: 8)
 
-                StatItem(value: "\(summary.failedCount)", label: L10n.t(.failed), valueColor: summary.failedCount > 0 ? .red : .secondary)
+            if let detail {
+                Text(detail)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.tertiary)
             }
         }
     }
 }
 
-struct StatItem: View {
+struct MenuMetricStrip: View {
+    let summary: MenuQuotaSummary
+
+    var body: some View {
+        MonitorModule(spacing: 0) {
+            HStack(spacing: 0) {
+                CompactMetricItem(value: "\(summary.availableCount)", label: L10n.t(.available), valueColor: .green)
+
+                Divider()
+                    .frame(height: 28)
+                    .background(Color.white.opacity(0.18))
+
+                CompactMetricItem(value: "\(summary.lowCount)", label: L10n.t(.low), valueColor: summary.lowCount > 0 ? .orange : .secondary)
+
+                Divider()
+                    .frame(height: 28)
+                    .background(Color.white.opacity(0.18))
+
+                CompactMetricItem(value: "\(summary.failedCount)", label: L10n.t(.failed), valueColor: summary.failedCount > 0 ? .red : .secondary)
+            }
+        }
+    }
+}
+
+struct CompactMetricItem: View {
     let value: String
     let label: String
     var valueColor: Color = .primary
 
     var body: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 1) {
             Text(value)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundStyle(valueColor)
 
             Text(label)
@@ -310,16 +368,9 @@ struct MenuProviderOverviewCard: View {
     ]
 
     var body: some View {
-        GlassCard {
+        MonitorModule(spacing: 8) {
             VStack(alignment: .leading, spacing: 9) {
-                HStack {
-                    Text(L10n.t(.providers))
-                        .font(.system(size: 12, weight: .bold))
-                    Spacer()
-                    Text(L10n.t(.quotaStatus))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+                MenuSectionHeader(title: L10n.t(.providers), detail: L10n.t(.quotaStatus))
 
                 ForEach(monitor.homeCategoryStats) { category in
                     VStack(alignment: .leading, spacing: 6) {
@@ -373,10 +424,10 @@ struct MenuProviderQuotaCell: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 5)
         .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
-        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(Color.primary.opacity(0.045), lineWidth: 0.8)
         )
     }
 }
@@ -387,16 +438,9 @@ struct MenuAttentionItemsView: View {
     @ObservedObject var monitor: QuotaMonitor
 
     var body: some View {
-        GlassCard {
+        MonitorModule(spacing: 9) {
             VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text(L10n.t(.needsAttention))
-                        .font(.system(size: 12, weight: .bold))
-                    Spacer()
-                    Text(L10n.t(.quotaStatus))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+                MenuSectionHeader(title: L10n.t(.needsAttention), detail: L10n.t(.quotaStatus))
 
                 if monitor.menuAttentionQuotaItems.isEmpty {
                     HStack(spacing: 8) {
