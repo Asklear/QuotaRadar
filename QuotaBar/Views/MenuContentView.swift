@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct MenuContentView: View {
-    static let menuSize = CGSize(width: 560, height: 680)
+    static let menuSize = CGSize(width: 500, height: 680)
     private static let menuGlassCornerRadius: CGFloat = 20
     private static let contentHorizontalInset: CGFloat = 22
     private static let contentTopSafeInset: CGFloat = 26
@@ -196,22 +196,17 @@ struct StatusHeaderIconButton: NSViewRepresentable {
     let helpText: String
     let action: () -> Void
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(action: action)
-    }
-
     func makeNSView(context: Context) -> StatusHeaderActionButton {
         let button = StatusHeaderActionButton(frame: NSRect(x: 0, y: 0, width: 32, height: 32))
-        configure(button, coordinator: context.coordinator)
+        configure(button)
         return button
     }
 
     func updateNSView(_ button: StatusHeaderActionButton, context: Context) {
-        context.coordinator.action = action
-        configure(button, coordinator: context.coordinator)
+        configure(button)
     }
 
-    private func configure(_ button: StatusHeaderActionButton, coordinator: Coordinator) {
+    private func configure(_ button: StatusHeaderActionButton) {
         let image = NSImage(systemSymbolName: systemName, accessibilityDescription: helpText)
         image?.isTemplate = true
 
@@ -225,32 +220,33 @@ struct StatusHeaderIconButton: NSViewRepresentable {
         button.contentTintColor = .labelColor
         button.toolTip = helpText
         button.setAccessibilityLabel(helpText)
-        button.target = coordinator
-        button.action = #selector(Coordinator.performAction)
-        button.sendAction(on: [.leftMouseDown])
+        button.actionHandler = action
         button.wantsLayer = true
         button.layer?.cornerRadius = 16
         button.layer?.backgroundColor = NSColor.separatorColor.withAlphaComponent(0.18).cgColor
         button.layer?.borderColor = NSColor.white.withAlphaComponent(0.16).cgColor
         button.layer?.borderWidth = 0.5
     }
-
-    final class Coordinator: NSObject {
-        var action: () -> Void
-
-        init(action: @escaping () -> Void) {
-            self.action = action
-        }
-
-        @objc func performAction() {
-            action()
-        }
-    }
 }
 
 final class StatusHeaderActionButton: NSButton {
+    var actionHandler: (() -> Void)?
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        let handler = actionHandler
+        highlight(true)
+        DispatchQueue.main.async { [weak self] in
+            self?.highlight(false)
+            handler?()
+        }
+    }
+
+    override func performClick(_ sender: Any?) {
+        actionHandler?()
     }
 }
 
@@ -361,7 +357,6 @@ struct MenuProviderOverviewCard: View {
     @ObservedObject var monitor: QuotaMonitor
 
     private let columns = [
-        GridItem(.flexible(), spacing: 8),
         GridItem(.flexible(), spacing: 8),
         GridItem(.flexible(), spacing: 8),
         GridItem(.flexible(), spacing: 8)

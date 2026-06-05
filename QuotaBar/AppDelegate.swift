@@ -27,14 +27,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowD
     }
 
     private func setupStatusBar() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
         guard let button = statusItem?.button else { return }
 
         let icon = makeStatusBarIcon()
         icon.isTemplate = true
         button.image = icon
-        button.imagePosition = .imageLeading
+        button.imagePosition = .imageOnly
+        button.imageScaling = .scaleProportionallyDown
+        button.contentTintColor = .labelColor
+        button.toolTip = "API Quota"
 
         // 监听点击
         button.target = self

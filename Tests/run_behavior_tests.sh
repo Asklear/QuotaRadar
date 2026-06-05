@@ -524,18 +524,21 @@ assert_match 'final class StatusHeaderActionButton: NSButton' \
 assert_match 'override func acceptsFirstMouse\(for event: NSEvent\?\) -> Bool' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar header AppKit buttons should accept the first click while the app is inactive"
-assert_match 'button\.target = coordinator' \
+assert_match 'button\.actionHandler = action' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar header AppKit buttons should use normal target/action dispatch"
-assert_match 'button\.action = #selector\(Coordinator\.performAction\)' \
+  "Status bar header AppKit buttons should retain the action closure inside the NSButton"
+assert_match 'override func mouseDown\(with event: NSEvent\)' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar header AppKit buttons should connect the coordinator action explicitly"
-assert_match 'button\.sendAction\(on: \[\.leftMouseDown\]\)' \
+  "Status bar header AppKit buttons should run the action on the first physical click inside the transient popover"
+assert_match 'let handler = actionHandler' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar header AppKit buttons should fire on mouse down before the transient popover can swallow the click"
-assert_no_match 'actionHandler' \
+  "Status bar header buttons should capture the action before the transient popover can deallocate the button"
+assert_no_match 'button\.sendAction\(on: \[\.leftMouseDown\]\)' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar header buttons should not rely on a custom mouseDown closure that can bypass normal AppKit dispatch"
+  "Status bar header buttons should not rely on NSControl event masks inside the transient popover"
+assert_match 'override func performClick\(_ sender: Any\?\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar header AppKit buttons should also respond to accessibility perform-click actions"
 assert_match '\.allowsHitTesting\(false\)' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar decorative glass and stroke layers must not intercept button clicks"
@@ -593,6 +596,24 @@ assert_match 'RefreshButton\(isRefreshing: \.constant\(isRefreshing\), isEnabled
 assert_match 'MenuContentView.menuSize' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar hosting view must use MenuContentView.menuSize to avoid clipping"
+assert_match 'statusItem = NSStatusBar\.system\.statusItem\(withLength: NSStatusItem\.squareLength\)' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar item should use a compact square hit target so it is less likely to be hidden by long app menus"
+assert_no_match 'button\.sendAction\(on: \[\.leftMouseDown\]\)' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar item should use the default mouse-up action so the transient popover is not immediately closed by the same click"
+assert_match 'button\.toolTip = "API Quota"' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar item should expose a clear tooltip for the compact icon hit target"
+assert_match 'button\.imagePosition = \.imageOnly' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar item should center the icon inside the square menu-bar hit target"
+assert_match 'button\.imageScaling = \.scaleProportionallyDown' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar item should scale the icon visibly inside the menu-bar button"
+assert_match 'button\.contentTintColor = \.labelColor' \
+  "QuotaBar/AppDelegate.swift" \
+  "Status bar item should explicitly tint the template icon with the menu-bar label color"
 assert_match 'popover\.animates = false' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar popover should not fade through a low-contrast half-transparent opening state"
@@ -602,9 +623,20 @@ assert_match 'hostingController\.view\.wantsLayer = true' \
 assert_match 'backgroundColor = NSColor\.clear\.cgColor' \
   "QuotaBar/AppDelegate.swift" \
   "Status bar hosting view should not paint an opaque background over the frosted glass"
-assert_match 'menuSize = CGSize\(width: 560, height: 680\)' \
+assert_match 'menuSize = CGSize\(width: 500, height: 680\)' \
   "QuotaBar/Views/MenuContentView.swift" \
-  "Status bar summary popover should be wide enough to fit provider-level quota statistics without scrolling"
+  "Status bar summary popover should stay compact while fitting provider-level quota statistics without scrolling"
+assert_no_match 'GridItem\(\.flexible\(\), spacing: 8\),[[:space:]]*GridItem\(\.flexible\(\), spacing: 8\),[[:space:]]*GridItem\(\.flexible\(\), spacing: 8\),[[:space:]]*GridItem\(\.flexible\(\), spacing: 8\)' \
+  "QuotaBar/Views/MenuContentView.swift" \
+  "Status bar provider overview should not use a four-column grid that makes the popover too wide"
+provider_overview_column_count="$(awk '
+  /private let columns = \[/ { inside = 1; count = 0; next }
+  inside && /\]/ { print count; exit }
+  inside && /GridItem\(\.flexible\(\), spacing: 8\)/ { count++ }
+' QuotaBar/Views/MenuContentView.swift)"
+if [[ "$provider_overview_column_count" != "3" ]]; then
+  fail "Status bar provider overview should use exactly three columns after compacting the popover"
+fi
 assert_no_match '^[[:space:]]*ScrollView' \
   "QuotaBar/Views/MenuContentView.swift" \
   "Status bar body content should fit in the expanded popover instead of requiring scrolling"
