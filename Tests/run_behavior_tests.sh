@@ -874,6 +874,9 @@ assert_match 'AppSettingsView' \
 assert_match 'Picker\(L10n\.t\(\.language' \
   "QuotaBar/Views/SettingsView.swift" \
   "Settings should provide a language picker"
+assert_no_match 'Text\(L10n\.t\(\.appLanguage\)\)' \
+  "QuotaBar/Views/SettingsView.swift" \
+  "Settings language panel should not repeat an App Language summary row below the segmented picker"
 assert_match 'AppAppearanceStore' \
   "QuotaBar/Models/AppAppearance.swift" \
   "QuotaBar should persist appearance settings such as status bar transparency"

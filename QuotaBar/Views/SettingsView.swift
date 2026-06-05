@@ -1397,16 +1397,6 @@ struct AppSettingsView: View {
                         }
                     }
                     .pickerStyle(.segmented)
-
-                    Divider()
-
-                    HStack {
-                        Text(L10n.t(.appLanguage))
-                        Spacer()
-                        Text(languageStore.language.displayName)
-                            .foregroundStyle(.secondary)
-                    }
-                    .font(.subheadline)
                 }
             }
 
