@@ -904,7 +904,11 @@ enum QuotaDataSource: String, Equatable {
     case unavailable
 
     var displayName: String {
-        switch (self, AppLanguageStore.shared.language) {
+        displayName(language: AppLanguageStore.shared.language)
+    }
+
+    func displayName(language: AppLanguage) -> String {
+        switch (self, language) {
         case (.officialAPI, .english):
             return "Official API"
         case (.officialAPI, .simplifiedChinese):
@@ -970,6 +974,10 @@ struct QuotaPresentation: Equatable {
 
     var sourceText: String {
         dataSource.displayName
+    }
+
+    func sourceText(language: AppLanguage) -> String {
+        dataSource.displayName(language: language)
     }
 }
 
