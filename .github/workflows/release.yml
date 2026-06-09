@@ -40,12 +40,19 @@ jobs:
           body: |
             Quota Radar macOS build.
 
-            Highlights in ${{ github.ref_name }}:
-            - Fully localized Admin credential required status labels in the menu bar.
-            - Quota-first menu bar overview grouped by AI Search and LLM.
-            - Provider-level refresh and credential diagnostics.
-            - Dashboard-cookie reauthentication for supported providers.
-            - Local-only secret storage without using the login Keychain by default.
+            What's new in ${{ github.ref_name }}:
+            - Easier quota overview: see which providers still have quota, which are low, and which checks failed without opening every provider dashboard.
+            - Cleaner credential management: API keys can be saved and copied, while web login authorization is used only for quota checks.
+            - Better provider coverage notes for Codex, Claude, Aliyun Coding Plan, Tencent Cloud Coding Plan, XFYun Spark, Volcengine, Querit, Exa, Serper, and other providers.
+            - Provider-level diagnostics now avoid duplicate rows for copy-only companion API keys.
+            - Chinese and English screenshots and the provider capability matrix were refreshed for this release.
+
+            中文说明：
+            - 主窗口和状态栏先按服务商汇总额度，更容易看出哪些还能用、哪些快用完、哪些检查失败。
+            - API Key 和网页登录授权分开管理：API Key 可以保存和复制；网页登录授权只用于查询额度，不会当成 API Key 展示。
+            - Codex、Claude、阿里云 Coding Plan、腾讯云 Coding Plan、讯飞星火、火山引擎、Querit、Exa、Serper 等服务商的额度来源和限制已经写入文档。
+            - 诊断页不再为“仅用于保存/复制”的配套 API Key 生成重复额度行。
+            - 本次发布更新了中英文截图和 provider capability matrix。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.
 

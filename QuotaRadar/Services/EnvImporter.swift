@@ -33,7 +33,7 @@ struct EnvImporter {
             guard !keyValue.isEmpty, keyValue != "xxx" else { continue }
 
             // Try to match with provider
-            if let provider = detectProvider(from: keyName) {
+            if let provider = detectProvider(from: keyName), isImportable(provider) {
                 let apiKey = APIKey(
                     name: keyName,
                     key: keyValue,
@@ -53,7 +53,8 @@ struct EnvImporter {
                 .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
 
             guard !trimmedValue.isEmpty, trimmedValue != "xxx",
-                  let provider = detectProvider(from: keyName) else {
+                  let provider = detectProvider(from: keyName),
+                  isImportable(provider) else {
                 return nil
             }
 
@@ -70,6 +71,10 @@ struct EnvImporter {
             }
             return lhs.provider.rawValue < rhs.provider.rawValue
         }
+    }
+
+    private static func isImportable(_ provider: Provider) -> Bool {
+        Provider.visibleCases.contains(provider)
     }
 
     private static func detectProvider(from keyName: String) -> Provider? {
@@ -90,8 +95,17 @@ struct EnvImporter {
         } else if uppercased.contains("ANYSEARCH") {
             return .anysearch
         } else if uppercased.contains("QUERIT")
-                    && (uppercased.contains("COOKIE") || uppercased.contains("SESSION")) {
+                    && (uppercased.contains("API_KEY") || uppercased.contains("KEY") || uppercased.contains("COOKIE") || uppercased.contains("SESSION")) {
             return .querit
+        } else if uppercased.contains("ANTHROPIC")
+                    && uppercased.contains("API_KEY")
+                    && !uppercased.contains("AUTH_TOKEN") {
+            return .claudeAPIUsage
+        } else if (uppercased.contains("OPENAI") || uppercased.contains("CODEX"))
+                    && uppercased.contains("API_KEY")
+                    && !uppercased.contains("SESSION")
+                    && !uppercased.contains("COOKIE") {
+            return .codexAPIUsage
         } else if uppercased.contains("WX") && uppercased.contains("SEARCH") {
             return .wxmp
         } else if uppercased.contains("WECHAT") {
@@ -99,14 +113,38 @@ struct EnvImporter {
         } else if uppercased.contains("DEEPSEEK") && uppercased.contains("API_KEY") && !uppercased.contains("WEB_SEARCH_PRO") {
             return .deepseek
         } else if (uppercased.contains("XFYUN") || uppercased.contains("IFLYTEK") || uppercased.contains("SPARK"))
+                    && uppercased.contains("TOKEN")
+                    && (uppercased.contains("API_KEY") || uppercased.contains("KEY")) {
+            return .xfyunTokenPlan
+        } else if (uppercased.contains("XFYUN") || uppercased.contains("IFLYTEK") || uppercased.contains("SPARK"))
                     && (uppercased.contains("CODING") || uppercased.contains("COOKIE") || uppercased.contains("SESSION")) {
             return .xfyunCodingPlan
+        } else if (uppercased.contains("VOLCENGINE") || uppercased.contains("VOLC") || uppercased.contains("ARK"))
+                    && uppercased.contains("TOKEN")
+                    && (uppercased.contains("CREDENTIAL") || uppercased.contains("SECRET") || uppercased.contains("ADMIN")) {
+            return .volcengineTokenPlan
         } else if (uppercased.contains("VOLCENGINE") || uppercased.contains("VOLC") || uppercased.contains("ARK"))
                     && (uppercased.contains("CODING") || uppercased.contains("COOKIE") || uppercased.contains("SESSION")) {
             return .volcengineCodingPlan
         } else if uppercased.contains("OPENCODE")
                     && (uppercased.contains("GO") || uppercased.contains("COOKIE") || uppercased.contains("SESSION")) {
             return .opencodeGo
+        } else if uppercased.contains("ALIYUN")
+                    && uppercased.contains("CODING")
+                    && (uppercased.contains("API_KEY") || uppercased.contains("KEY") || uppercased.contains("COOKIE") || uppercased.contains("SESSION")) {
+            return .aliyunCodingPlan
+        } else if uppercased.contains("ALIYUN")
+                    && uppercased.contains("TOKEN")
+                    && (uppercased.contains("API_KEY") || uppercased.contains("KEY") || uppercased.contains("COOKIE") || uppercased.contains("SESSION")) {
+            return .aliyunTokenPlan
+        } else if (uppercased.contains("TENCENT") || uppercased.contains("TENCENT_CLOUD"))
+                    && uppercased.contains("CODING")
+                    && (uppercased.contains("API_KEY") || uppercased.contains("KEY") || uppercased.contains("COOKIE") || uppercased.contains("SESSION")) {
+            return .tencentCloudCodingPlan
+        } else if (uppercased.contains("TENCENT") || uppercased.contains("TENCENT_CLOUD"))
+                    && uppercased.contains("TOKEN")
+                    && (uppercased.contains("CREDENTIAL") || uppercased.contains("SECRET") || uppercased.contains("ADMIN")) {
+            return .tencentCloudTokenPlan
         }
 
         return nil

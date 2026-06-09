@@ -20,9 +20,12 @@ struct APIKeyStore {
         var remaining: Int?
         var limit: Int?
         var resetAt: Date?
+        var planEndsAt: Date?
         var lastUpdated: Date?
         var lastHTTPStatus: Int?
         var lastDiagnosticMessage: String?
+        var lastDiagnosticText: LocalizedTextDescriptor?
+        var quotaText: LocalizedTextDescriptor?
         var quotaLabel: String?
         var usageCount: Int
         var lastUsed: Date?
@@ -36,9 +39,12 @@ struct APIKeyStore {
             remaining = key.remaining
             limit = key.limit
             resetAt = key.resetAt
+            planEndsAt = key.planEndsAt
             lastUpdated = key.lastUpdated
             lastHTTPStatus = key.lastHTTPStatus
             lastDiagnosticMessage = key.lastDiagnosticMessage
+            lastDiagnosticText = key.lastDiagnosticText
+            quotaText = key.quotaText
             quotaLabel = key.quotaLabel
             usageCount = key.usageCount
             lastUsed = key.lastUsed
@@ -78,9 +84,12 @@ struct APIKeyStore {
                 remaining: normalizedRemaining,
                 limit: normalizedLimit,
                 resetAt: resetAt,
+                planEndsAt: planEndsAt,
                 lastUpdated: lastUpdated,
                 lastHTTPStatus: lastHTTPStatus,
                 lastDiagnosticMessage: lastDiagnosticMessage,
+                lastDiagnosticText: lastDiagnosticText,
+                quotaText: quotaText,
                 quotaLabel: normalizedQuotaLabel,
                 usageCount: usageCount,
                 lastUsed: lastUsed
@@ -93,6 +102,7 @@ struct APIKeyStore {
     private let metadataKey = "apiKeyMetadata"
     private let legacyKey = "apiKeys"
     private let claudeSettingsImportAttemptedKey = "didAttemptClaudeSettingsImport"
+    private let apiKeyMetadataClearedByUserKey = "apiKeyMetadataClearedByUser"
 
     init(defaults: UserDefaults = .standard, secretStore: FileSecretStore = FileSecretStore()) {
         self.defaults = defaults
@@ -102,11 +112,7 @@ struct APIKeyStore {
     func load() -> [APIKey] {
         if let data = defaults.data(forKey: metadataKey),
            let metadata = try? JSONDecoder().decode([StoredAPIKey].self, from: data) {
-            let migrated = removeStaleQueritAPIKeyRecords(from: metadata)
-            if migrated.count != metadata.count {
-                save(migrated.map { $0.hydrate(with: "") })
-            }
-            return migrated.map { item in item.hydrate(with: "") }
+            return metadata.map { item in item.hydrate(with: "") }
         }
 
         if let legacyData = defaults.data(forKey: legacyKey),
@@ -146,6 +152,7 @@ struct APIKeyStore {
         if let data = try? JSONEncoder().encode(metadata) {
             defaults.set(data, forKey: metadataKey)
         }
+        defaults.set(keys.isEmpty, forKey: apiKeyMetadataClearedByUserKey)
         defaults.removeObject(forKey: legacyKey)
     }
 
@@ -153,17 +160,4 @@ struct APIKeyStore {
         secretStore.delete(account: id.uuidString)
     }
 
-    private func removeStaleQueritAPIKeyRecords(from metadata: [StoredAPIKey]) -> [StoredAPIKey] {
-        metadata.filter { item in
-            let uppercasedName = item.name.uppercased()
-            let isStaleQueritAPIKey = item.provider == .querit
-                && uppercasedName.contains("API_KEY")
-                && !uppercasedName.contains("COOKIE")
-                && !uppercasedName.contains("SESSION")
-            if isStaleQueritAPIKey {
-                secretStore.delete(account: item.id.uuidString)
-            }
-            return !isStaleQueritAPIKey
-        }
-    }
 }

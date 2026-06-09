@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -27,6 +28,8 @@ struct SettingsView: View {
     }
 
     var body: some View {
+        let currentLanguage = languageStore.language
+
         NavigationSplitView {
             SettingsSidebarView(monitor: monitor, selection: $navigationStore.selection)
                 .navigationSplitViewColumnWidth(min: 190, ideal: 216, max: 250)
@@ -38,6 +41,7 @@ struct SettingsView: View {
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 900, minHeight: 600)
         .background(ModernWindowBackground())
+        .id(currentLanguage)
         .onAppear {
             if navigationStore.selection == nil {
                 navigationStore.selection = .providers
@@ -632,9 +636,9 @@ struct APIKeyProviderBanner: View {
                 ProviderIcon(provider: provider, size: 28)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(provider.displayName())
+                    Text(provider.providerFamilyDisplayName())
                         .font(.system(size: 14, weight: .semibold))
-                    Text(L10n.categoryTitle(provider.statusBarCategoryTitle))
+                    Text(provider.planTypeDisplayName() ?? L10n.categoryTitle(provider.statusBarCategoryTitle))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -682,15 +686,17 @@ struct APIKeyManagementRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(key.name)
+                    Text(key.managementDisplayName)
                         .font(.system(size: 13, weight: .semibold))
 
-                    Text(credentialTypeText)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.primary.opacity(0.06), in: Capsule())
+                    if let credentialTypeText {
+                        Text(credentialTypeText)
+                            .font(.caption2.weight(.medium))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.primary.opacity(0.06), in: Capsule())
+                    }
                 }
 
                 HStack(spacing: 6) {
@@ -699,7 +705,7 @@ struct APIKeyManagementRow: View {
                         .foregroundStyle(.secondary)
                         .fontDesign(.monospaced)
 
-                    if let note = key.note, !note.isEmpty {
+                    if let note = key.displayNote {
                         Text(note)
                             .font(.caption)
                             .foregroundStyle(.tertiary)
@@ -726,6 +732,17 @@ struct APIKeyManagementRow: View {
             .controlSize(.mini)
             .help(L10n.t(.active))
 
+            if let copyableCredentialValue = key.copyableCredentialValue {
+                Button(action: { copyCredentialToPasteboard(copyableCredentialValue) }) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: 28, height: 28)
+                        .background(.thinMaterial, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .help(L10n.t(.copyCredential))
+            }
+
             Button(action: onEdit) {
                 Image(systemName: "pencil")
                     .font(.system(size: 12, weight: .semibold))
@@ -742,15 +759,23 @@ struct APIKeyManagementRow: View {
     }
 
     private var maskedKey: String {
-        key.maskedKey
+        key.managementCredentialValueText
     }
 
-    private var credentialTypeText: String {
-        key.provider.supportsDashboardReauthentication ? L10n.t(.dashboardSession) : L10n.t(.apiKey)
+    private var credentialTypeText: String? {
+        key.managementCredentialTypeBadgeText
+    }
+
+    private func copyCredentialToPasteboard(_ value: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(value, forType: .string)
     }
 
     private var statusText: String {
-        key.healthDisplayText
+        if key.isBusinessInvocationCredential {
+            return L10n.t(.useDashboardCookie)
+        }
+        return key.healthDisplayText
     }
 }
 
@@ -762,54 +787,534 @@ struct AddKeySheet: View {
 
     @State private var name = ""
     @State private var key = ""
+    @State private var companionAPIKey = ""
     @State private var provider: Provider = .tavily
     @State private var note = ""
+    @State private var curlText = ""
+    @State private var importError: String?
+    @State private var showingReauth = false
+    @State private var lastAutoFilledCredentialName = Provider.tavily.defaultCredentialName
+    @State private var showCredentialValue = false
+    @State private var showCompanionAPIKey = false
+
+    private var credentialLabel: String {
+        let credentialKind: CredentialKind = provider.capability.credentialKind
+        switch credentialKind {
+        case .apiKey:
+            return L10n.t(.apiKey)
+        case .dashboardCookie:
+            return L10n.t(.dashboardSession)
+        case .adminCredential:
+            return L10n.t(.adminCredential)
+        }
+    }
+
+    private var acceptsDashboardCookie: Bool {
+        provider.capability.credentialKind == CredentialKind.dashboardCookie
+    }
+
+    private var canAddCredential: Bool {
+        let hasPrimaryCredential = !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasCompanionAPIKey = provider.supportsCompanionAPIKeyStorage
+            && !companionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return hasPrimaryCredential || hasCompanionAPIKey
+    }
 
     var body: some View {
-        VStack(spacing: 20) {
-            Text(L10n.t(.addAPIKey))
-                .font(.title2)
-                .fontWeight(.bold)
+        CredentialEditorShell(
+            title: L10n.t(.addAPIKey),
+            provider: $provider
+        ) {
+            AddCredentialDetailPane(
+                provider: provider,
+                credentialLabel: credentialLabel,
+                acceptsDashboardCookie: acceptsDashboardCookie,
+                companionAPIKey: $companionAPIKey,
+                name: $name,
+                key: $key,
+                note: $note,
+                curlText: $curlText,
+                showCredentialValue: $showCredentialValue,
+                showCompanionAPIKey: $showCompanionAPIKey,
+                importError: importError,
+                onImportCurl: importCurlCredential,
+                onReauthenticate: { showingReauth = true }
+            )
+        } footer: {
+            AddCredentialActionBar(
+                canAdd: canAddCredential,
+                onCancel: { dismiss() },
+                onAdd: addCredential
+            )
+        }
+        .frame(width: 760, height: 540)
+        .background(.regularMaterial)
+        .sheet(isPresented: $showingReauth) {
+            DashboardReauthSheet(monitor: monitor, provider: provider, key: nil)
+        }
+        .onChange(of: provider) { oldProvider, newProvider in
+            syncDefaultCredentialName(for: newProvider, replacing: oldProvider)
+            importError = nil
+            curlText = ""
+            if !newProvider.supportsCompanionAPIKeyStorage {
+                companionAPIKey = ""
+            }
+        }
+        .onAppear {
+            syncDefaultCredentialName(for: provider)
+        }
+    }
 
-            Form {
-                Picker(L10n.t(.provider), selection: $provider) {
-                    ForEach(Provider.visibleCases) { p in
-                        Label(p.displayName(), systemImage: p.icon)
-                            .tag(p)
+    private func importCurlCredential() {
+        do {
+            let parsed = try CurlCredentialParser.parse(curlText, provider: provider)
+            key = parsed.serializedCredential
+            syncDefaultCredentialName(for: provider)
+            importError = nil
+        } catch {
+            importError = L10n.t(.curlImportFailed)
+        }
+    }
+
+    private func addCredential() {
+        let trimmedCompanionAPIKey = companionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if provider.supportsCompanionAPIKeyStorage, !trimmedCompanionAPIKey.isEmpty {
+            monitor.addKey(APIKey(
+                name: provider.copyableAPIKeyCredentialName,
+                key: trimmedCompanionAPIKey,
+                provider: provider
+            ))
+        }
+
+        guard !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            dismiss()
+            return
+        }
+
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let nameForSaving = trimmedName.isEmpty ? provider.defaultCredentialName : trimmedName
+        let newKey = APIKey(
+            name: nameForSaving,
+            key: key,
+            provider: provider,
+            note: note.isEmpty ? nil : note
+        )
+        monitor.addKey(newKey)
+        dismiss()
+    }
+
+    private func syncDefaultCredentialName(for newProvider: Provider, replacing oldProvider: Provider? = nil) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let generatedNames = Set([
+            lastAutoFilledCredentialName,
+            oldProvider?.defaultCredentialName,
+            newProvider.defaultCredentialName
+        ].compactMap { $0 })
+
+        guard trimmedName.isEmpty || generatedNames.contains(trimmedName) else {
+            return
+        }
+
+        name = newProvider.defaultCredentialName
+        lastAutoFilledCredentialName = newProvider.defaultCredentialName
+    }
+}
+
+struct CredentialEditorShell<Content: View, Footer: View>: View {
+    let title: String
+    @Binding var provider: Provider
+    @ViewBuilder var content: Content
+    @ViewBuilder var footer: Footer
+
+    var body: some View {
+        VStack(spacing: 0) {
+            AddCredentialHeader(title: title, provider: provider)
+
+            Divider()
+
+            HStack(spacing: 0) {
+                AddCredentialProviderList(provider: $provider)
+                    .frame(width: 220)
+                    .background(Color(nsColor: .controlBackgroundColor).opacity(0.42))
+
+                Divider()
+
+                ScrollView {
+                    content
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                }
+                .background(Color(nsColor: .windowBackgroundColor).opacity(0.20))
+            }
+
+            Divider()
+
+            footer
+        }
+    }
+}
+
+struct AddCredentialHeader: View {
+    let title: String
+    let provider: Provider
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ProviderIcon(provider: provider, size: 28, style: .compactBadge)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+
+                HStack(spacing: 5) {
+                    Text(provider.providerFamilyDisplayName())
+
+                    if let planName = provider.planTypeDisplayName() {
+                        Text(planName)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(provider.color.opacity(0.12), in: Capsule())
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+}
+
+struct AddCredentialProviderList: View {
+    @Binding var provider: Provider
+
+    private var groupedProviders: [String: [Provider]] {
+        Dictionary(grouping: Provider.visibleCases) { $0.statusBarCategoryTitle }
+    }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Provider.categoryDisplayOrder, id: \.self) { category in
+                        if let providers = groupedProviders[category], !providers.isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(L10n.categoryTitle(category))
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.secondary)
+                                    .textCase(.uppercase)
+                                    .padding(.horizontal, 10)
+
+                                ForEach(providers) { option in
+                                    Button {
+                                        provider = option
+                                    } label: {
+                                        ProviderPickerRow(provider: option, isSelected: provider == option)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .id(option)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(9)
+            }
+            .onAppear {
+                proxy.scrollTo(provider, anchor: .center)
+            }
+            .onChange(of: provider) { _, newValue in
+                withAnimation(.easeInOut(duration: 0.16)) {
+                    proxy.scrollTo(newValue, anchor: .center)
+                }
+            }
+        }
+    }
+}
+
+struct ProviderPickerRow: View {
+    let provider: Provider
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ProviderIcon(provider: provider, size: 22, style: .compactBadge)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(provider.providerFamilyDisplayName())
+                    .font(.system(size: 12, weight: isSelected ? .semibold : .regular))
+                    .lineLimit(1)
+                    .foregroundStyle(.primary)
+
+                if let planName = provider.planTypeDisplayName() {
+                    Text(planName)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(isSelected ? Color.accentColor.opacity(0.14) : Color.clear)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+    }
+}
+
+struct AddCredentialDetailPane: View {
+    let provider: Provider
+    let credentialLabel: String
+    let acceptsDashboardCookie: Bool
+    var credentialKind: CredentialKind? = nil
+    var showsCompanionAPIKeyStorage = true
+    @Binding var companionAPIKey: String
+    @Binding var name: String
+    @Binding var key: String
+    @Binding var note: String
+    @Binding var curlText: String
+    @Binding var showCredentialValue: Bool
+    @Binding var showCompanionAPIKey: Bool
+    let importError: String?
+    let onImportCurl: () -> Void
+    let onReauthenticate: () -> Void
+
+    private var monitoringCredentialLabel: String {
+        showsCompanionAPIKeyStorage && provider.supportsCompanionAPIKeyStorage && acceptsDashboardCookie
+            ? L10n.t(.quotaMonitoringAuthorization)
+            : credentialLabel
+    }
+
+    private var activeCredentialKind: CredentialKind {
+        credentialKind ?? provider.capability.credentialKind
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            CredentialEditorSection {
+                HStack(spacing: 12) {
+                    ProviderIcon(provider: provider, size: 30, style: .compactBadge)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(provider.providerFamilyDisplayName())
+                            .font(.system(size: 15, weight: .semibold))
+
+                        Text(provider.planTypeDisplayName() ?? credentialLabel)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    if provider.supportsDashboardReauthentication {
+                        Button(action: onReauthenticate) {
+                            Label(L10n.t(.reauthenticate), systemImage: "person.badge.key.fill")
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            }
+
+            CredentialEditorSection {
+                AddCredentialField(label: L10n.t(.keyName)) {
+                    TextField(L10n.t(.keyName), text: $name)
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+
+            if showsCompanionAPIKeyStorage && provider.supportsCompanionAPIKeyStorage {
+                CredentialEditorSection {
+                    AddCredentialField(label: L10n.t(.apiKeyForCopy)) {
+                        CredentialSecretInput(
+                            label: L10n.t(.apiKey),
+                            text: $companionAPIKey,
+                            showCredentialValue: $showCompanionAPIKey
+                        )
+                    }
+
+                    Text(L10n.t(.apiKeyForCopyHelp))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            CredentialEditorSection {
+                AddCredentialField(label: monitoringCredentialLabel) {
+                    switch activeCredentialKind {
+                    case .apiKey, .adminCredential:
+                        CredentialSecretInput(
+                            label: monitoringCredentialLabel,
+                            text: $key,
+                            showCredentialValue: $showCredentialValue
+                        )
+                    case .dashboardCookie:
+                        CredentialSecretInput(
+                            label: monitoringCredentialLabel,
+                            text: $key,
+                            showCredentialValue: $showCredentialValue,
+                            supportsMultiline: true,
+                            minLines: 3,
+                            maxLines: 6
+                        )
                     }
                 }
 
-                TextField(L10n.t(.keyName), text: $name)
-                    .textFieldStyle(.roundedBorder)
+                Text(L10n.t(.credentialHelp))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                SecureField(L10n.t(.apiKey), text: $key)
-                    .textFieldStyle(.roundedBorder)
-
-                TextField(L10n.t(.noteOptional), text: $note)
-                    .textFieldStyle(.roundedBorder)
-            }
-            .frame(width: 400)
-
-            HStack {
-                Button(L10n.t(.cancel)) { dismiss() }
-                    .buttonStyle(.bordered)
-
-                Button(L10n.t(.add)) {
-                    let newKey = APIKey(
-                        name: name.isEmpty ? "\(provider.displayName()) \(L10n.t(.keys))" : name,
-                        key: key,
-                        provider: provider,
-                        note: note.isEmpty ? nil : note
-                    )
-                    monitor.addKey(newKey)
-                    dismiss()
+                if acceptsDashboardCookie {
+                    Text(L10n.t(.quotaMonitoringAuthorizationHelp))
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(key.isEmpty)
+
+                if provider.capability.supportsCurlImport && acceptsDashboardCookie {
+                    AddCredentialField(label: L10n.t(.pasteCurl)) {
+                        TextField(L10n.t(.pasteCurl), text: $curlText, axis: .vertical)
+                            .lineLimit(2...4)
+                            .textFieldStyle(.roundedBorder)
+                    }
+
+                    HStack(spacing: 8) {
+                        Button(action: onImportCurl) {
+                            Label(L10n.t(.pasteCurl), systemImage: "doc.on.clipboard")
+                        }
+                        .controlSize(.small)
+                        .disabled(curlText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        if let importError {
+                            Text(importError)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
+
+            CredentialEditorSection {
+                AddCredentialField(label: L10n.t(.noteOptional)) {
+                    TextField(L10n.t(.noteOptional), text: $note)
+                        .textFieldStyle(.roundedBorder)
+                }
             }
         }
-        .padding()
-        .frame(width: 450, height: 300)
+        .padding(16)
+    }
+}
+
+struct CredentialEditorSection<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            content
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.primary.opacity(0.075), lineWidth: 1)
+        )
+    }
+}
+
+struct CredentialSecretInput: View {
+    let label: String
+    @Binding var text: String
+    @Binding var showCredentialValue: Bool
+    var supportsMultiline = false
+    var minLines = 1
+    var maxLines = 1
+
+    var body: some View {
+        HStack(alignment: supportsMultiline && showCredentialValue ? .top : .center, spacing: 8) {
+            Group {
+                if showCredentialValue {
+                    if supportsMultiline {
+                        TextField(label, text: $text, axis: .vertical)
+                            .lineLimit(minLines...maxLines)
+                    } else {
+                        TextField(label, text: $text)
+                    }
+                } else {
+                    SecureField(label, text: $text)
+                }
+            }
+            .textFieldStyle(.plain)
+            .font(.system(size: 12, design: .monospaced))
+
+            Button {
+                showCredentialValue.toggle()
+            } label: {
+                Image(systemName: showCredentialValue ? "eye.slash" : "eye")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .help(showCredentialValue ? L10n.t(.hideCredential) : L10n.t(.showCredential))
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, supportsMultiline && showCredentialValue ? 8 : 7)
+        .background(Color(nsColor: .textBackgroundColor).opacity(0.86), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.primary.opacity(0.10), lineWidth: 1)
+        )
+    }
+}
+
+struct AddCredentialField<Content: View>: View {
+    let label: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(label)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+
+            content
+        }
+    }
+}
+
+struct AddCredentialActionBar: View {
+    let canAdd: Bool
+    let onCancel: () -> Void
+    let onAdd: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Spacer()
+
+            Button(L10n.t(.cancel), action: onCancel)
+                .buttonStyle(.bordered)
+
+            Button(L10n.t(.add), action: onAdd)
+                .buttonStyle(.borderedProminent)
+                .disabled(!canAdd)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color(nsColor: .windowBackgroundColor).opacity(0.55))
     }
 }
 
@@ -820,81 +1325,98 @@ struct EditKeySheet: View {
     @Environment(\.dismiss) private var dismiss
     let key: APIKey
 
+    @State private var provider: Provider
     @State private var name: String
     @State private var keyValue: String
+    @State private var companionAPIKey: String
     @State private var note: String
     @State private var isActive: Bool
     @State private var showingReauth = false
+    @State private var curlText = ""
+    @State private var importError: String?
+    @State private var showCredentialValue = false
+    @State private var showCompanionAPIKey = false
+    @State private var lastAutoFilledCredentialName: String
 
     init(monitor: QuotaMonitor, key: APIKey) {
         self.monitor = monitor
         self.key = key
+        _provider = State(initialValue: key.provider)
         _name = State(initialValue: key.name)
         _keyValue = State(initialValue: key.key)
+        _companionAPIKey = State(initialValue: monitor.apiKeys.first {
+            $0.id != key.id && $0.provider == key.provider && $0.isStoredAPIKeyOnlyCredential
+        }?.key ?? "")
         _note = State(initialValue: key.note ?? "")
         _isActive = State(initialValue: key.isActive)
+        _lastAutoFilledCredentialName = State(initialValue: key.name)
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            HStack {
-                ProviderIcon(provider: key.provider, size: 40)
-                Text(L10n.t(.editAPIKey))
-                    .font(.title2)
-                    .fontWeight(.bold)
-            }
+        CredentialEditorShell(
+            title: L10n.t(.editAPIKey),
+            provider: $provider
+        ) {
+            AddCredentialDetailPane(
+                provider: provider,
+                credentialLabel: editCredentialLabel,
+                acceptsDashboardCookie: acceptsDashboardCookie,
+                credentialKind: editCredentialKind,
+                showsCompanionAPIKeyStorage: showsCompanionAPIKeyField,
+                companionAPIKey: $companionAPIKey,
+                name: $name,
+                key: $keyValue,
+                note: $note,
+                curlText: $curlText,
+                showCredentialValue: $showCredentialValue,
+                showCompanionAPIKey: $showCompanionAPIKey,
+                importError: importError,
+                onImportCurl: importCurlCredential,
+                onReauthenticate: { showingReauth = true }
+            )
 
-            Form {
-                TextField(L10n.t(.keyName), text: $name)
-                    .textFieldStyle(.roundedBorder)
-
-                SecureField(L10n.t(.apiKey), text: $keyValue)
-                    .textFieldStyle(.roundedBorder)
-
-                TextField(L10n.t(.note), text: $note)
-                    .textFieldStyle(.roundedBorder)
-
+            CredentialEditorSection {
                 Toggle(L10n.t(.active), isOn: $isActive)
+                    .toggleStyle(.switch)
 
-                if key.isUnlimitedQuota {
+                if key.isUnlimitedQuota || key.quotaLabel != nil || key.remaining != nil || key.limit != nil {
                     HStack {
                         Text(L10n.t(.quotaStatus))
                         Spacer()
                         Text(key.quotaDisplayText)
                             .foregroundStyle(.secondary)
                     }
-                } else if key.quotaLabel != nil || key.remaining != nil || key.limit != nil {
-                    HStack {
-                        Text(L10n.t(.quotaStatus))
-                        Spacer()
-                        Text(key.quotaDisplayText)
-                            .foregroundStyle(.secondary)
-                    }
+                    .font(.caption)
 
                     if let updated = key.lastUpdated {
                         HStack {
                             Text(L10n.t(.lastUpdated))
                             Spacer()
-                            Text(updated, style: .relative)
+                            Text(L10n.shortDateTime(updated))
                                 .foregroundStyle(.secondary)
                         }
+                        .font(.caption)
                     }
                 }
 
-                if let dashboard = key.provider.dashboardURL {
-                    Link(L10n.t(.openDashboard), destination: URL(string: dashboard)!)
-                }
+                HStack(spacing: 10) {
+                    if let dashboard = provider.dashboardURL,
+                       let dashboardURL = URL(string: dashboard) {
+                        Link(L10n.t(.openDashboard), destination: dashboardURL)
+                            .controlSize(.small)
+                    }
 
-                if key.provider.supportsDashboardReauthentication {
-                    Button {
-                        showingReauth = true
-                    } label: {
-                        Label(L10n.t(.reauthenticate), systemImage: "person.badge.key.fill")
+                    if provider.supportsDashboardReauthentication && !key.isStoredAPIKeyOnlyCredential {
+                        Button {
+                            showingReauth = true
+                        } label: {
+                            Label(L10n.t(.reauthenticate), systemImage: "person.badge.key.fill")
+                        }
+                        .controlSize(.small)
                     }
                 }
             }
-            .frame(width: 400)
-
+        } footer: {
             HStack {
                 Button(L10n.t(.delete), role: .destructive) {
                     monitor.removeKey(id: key.id)
@@ -907,22 +1429,147 @@ struct EditKeySheet: View {
                     .buttonStyle(.bordered)
 
                 Button(L10n.t(.save)) {
-                    var updated = key
-                    updated.name = name
-                    updated.key = keyValue
-                    updated.note = note.isEmpty ? nil : note
-                    updated.isActive = isActive
-                    monitor.updateKey(updated)
+                    saveCredential()
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color(nsColor: .windowBackgroundColor).opacity(0.55))
         }
-        .padding()
-        .frame(width: 450, height: 400)
+        .frame(width: 760, height: 540)
+        .background(.regularMaterial)
         .sheet(isPresented: $showingReauth) {
-            DashboardReauthSheet(monitor: monitor, provider: key.provider, key: key)
+            DashboardReauthSheet(
+                monitor: monitor,
+                provider: provider,
+                key: key.provider == provider ? key : nil
+            )
         }
+        .onChange(of: provider) { oldProvider, newProvider in
+            syncDefaultCredentialName(for: newProvider, replacing: oldProvider)
+            importError = nil
+            curlText = ""
+            companionAPIKey = companionAPIKeyCredential(for: newProvider)?.key ?? ""
+        }
+    }
+
+    private var editCredentialLabel: String {
+        switch editCredentialKind {
+        case .apiKey:
+            return L10n.t(.apiKey)
+        case .dashboardCookie:
+            return L10n.t(.quotaMonitoringAuthorization)
+        case .adminCredential:
+            return L10n.t(.adminCredential)
+        }
+    }
+
+    private var editCredentialKind: CredentialKind {
+        key.isStoredAPIKeyOnlyCredential ? .apiKey : provider.capability.credentialKind
+    }
+
+    private var acceptsDashboardCookie: Bool {
+        editCredentialKind == .dashboardCookie
+    }
+
+    private var showsCompanionAPIKeyField: Bool {
+        provider.supportsCompanionAPIKeyStorage && !key.isStoredAPIKeyOnlyCredential
+    }
+
+    private var companionAPIKeyCredentialForCurrentProvider: APIKey? {
+        companionAPIKeyCredential(for: provider)
+    }
+
+    private func companionAPIKeyCredential(for provider: Provider) -> APIKey? {
+        monitor.apiKeys.first {
+            $0.id != key.id && $0.provider == provider && $0.isStoredAPIKeyOnlyCredential
+        }
+    }
+
+    private func importCurlCredential() {
+        do {
+            let parsed = try CurlCredentialParser.parse(curlText, provider: provider)
+            keyValue = parsed.serializedCredential
+            importError = nil
+        } catch {
+            importError = L10n.t(.curlImportFailed)
+        }
+    }
+
+    private func saveCredential() {
+        var updated = key
+        let providerChanged = updated.provider != provider
+        updated.provider = provider
+        updated.name = savedCredentialName
+        updated.key = keyValue
+        updated.note = note.isEmpty ? nil : note
+        updated.isActive = isActive
+        if providerChanged {
+            clearQuotaState(&updated)
+        }
+        monitor.updateKey(updated)
+        saveCompanionAPIKeyIfNeeded()
+    }
+
+    private var savedCredentialName: String {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedName.isEmpty else { return trimmedName }
+        return key.isStoredAPIKeyOnlyCredential ? provider.copyableAPIKeyCredentialName : provider.defaultCredentialName
+    }
+
+    private func saveCompanionAPIKeyIfNeeded() {
+        guard showsCompanionAPIKeyField else { return }
+        let trimmedAPIKey = companionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedAPIKey.isEmpty else { return }
+
+        if var existing = companionAPIKeyCredentialForCurrentProvider {
+            existing.name = provider.copyableAPIKeyCredentialName
+            existing.key = trimmedAPIKey
+            existing.provider = provider
+            existing.note = nil
+            monitor.updateKey(existing)
+        } else {
+            monitor.addKey(APIKey(
+                name: provider.copyableAPIKeyCredentialName,
+                key: trimmedAPIKey,
+                provider: provider
+            ))
+        }
+    }
+
+    private func clearQuotaState(_ updated: inout APIKey) {
+        updated.remaining = nil
+        updated.limit = nil
+        updated.resetAt = nil
+        updated.planEndsAt = nil
+        updated.lastUpdated = nil
+        updated.lastHTTPStatus = nil
+        updated.lastDiagnosticMessage = nil
+        updated.lastDiagnosticText = nil
+        updated.quotaText = nil
+        updated.quotaLabel = nil
+    }
+
+    private func syncDefaultCredentialName(for newProvider: Provider, replacing oldProvider: Provider? = nil) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let generatedNames = Set([
+            lastAutoFilledCredentialName,
+            oldProvider?.defaultCredentialName,
+            oldProvider?.copyableAPIKeyCredentialName,
+            newProvider.defaultCredentialName,
+            newProvider.copyableAPIKeyCredentialName
+        ].compactMap { $0 })
+
+        guard trimmedName.isEmpty || generatedNames.contains(trimmedName) else {
+            return
+        }
+
+        name = key.isStoredAPIKeyOnlyCredential
+            ? newProvider.copyableAPIKeyCredentialName
+            : newProvider.defaultCredentialName
+        lastAutoFilledCredentialName = name
     }
 }
 
@@ -1050,7 +1697,7 @@ struct ProviderQuotaMonitorRow: View {
     @State private var showingReauth = false
 
     private var provider: Provider { stat.provider }
-    private var keys: [APIKey] { stat.sortedKeysByCurrentQuota }
+    private var keys: [APIKey] { stat.sortedMonitoringKeysByCurrentQuota }
     private var activeCount: Int { keys.filter { $0.isActive }.count }
     private var isRefreshing: Bool { monitor.refreshingProviders.contains(provider) }
     private var canRefresh: Bool { keys.contains { $0.isActive && !$0.key.isEmpty } }
@@ -1135,15 +1782,22 @@ struct ProviderQuotaMonitorRow: View {
                         .transition(.opacity)
                 } else {
                     VStack(spacing: 0) {
-                        ProviderQuotaKeyTableHeader()
+                        VStack(spacing: 0) {
+                            ProviderQuotaKeyTableHeader()
 
-                        ForEach(Array(keys.enumerated()), id: \.element.id) { index, key in
-                            if index > 0 {
-                                Divider()
-                                    .padding(.leading, 12)
+                            ForEach(Array(keys.enumerated()), id: \.element.id) { index, key in
+                                if index > 0 {
+                                    Divider()
+                                        .padding(.leading, 12)
+                                }
+
+                                ProviderQuotaKeyTableRow(key: key)
                             }
+                        }
 
-                            ProviderQuotaKeyTableRow(key: key)
+                        if let detailKey = keys.first(where: { !$0.quotaWindowDetails.isEmpty }) {
+                            QuotaWindowDetails(windows: detailKey.quotaWindowDetails)
+                                .padding(.top, 8)
                         }
                     }
                     .padding(.leading, 56)
@@ -1167,10 +1821,13 @@ struct ProviderQuotaMonitorRow: View {
             ProviderIcon(provider: provider, size: 30)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(provider.displayName())
+                Text(provider.providerFamilyDisplayName())
                     .font(.system(size: 13, weight: .semibold))
 
                 HStack(spacing: 12) {
+                    if let planName = provider.planTypeDisplayName() {
+                        Text(planName)
+                    }
                     Text(L10n.format(.providerKeyCount, keyCount))
                     Text(L10n.format(.activeCount, activeCount))
                 }
@@ -1262,7 +1919,7 @@ struct ProviderQuotaKeyTableHeader: View {
                 .frame(width: 112, alignment: .trailing)
 
             Text(L10n.t(.lastUpdated))
-                .frame(width: 124, alignment: .trailing)
+                .frame(width: ProviderQuotaTimingColumn.width, alignment: .trailing)
         }
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.tertiary)
@@ -1313,22 +1970,59 @@ struct ProviderQuotaKeyTableRow: View {
             ProviderQuotaStatusPill(text: key.healthDisplayText, tint: key.status.color)
                 .frame(width: 112, alignment: .trailing)
 
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(updatedText)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
-                Text(key.resetSummary)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
-            .frame(width: 124, alignment: .trailing)
+            ProviderQuotaTimingColumn(key: key, updatedText: updatedText)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(Color.primary.opacity(0.022), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+}
+
+struct ProviderQuotaTimingColumn: View {
+    static let width: CGFloat = 188
+
+    let key: APIKey
+    let updatedText: String
+
+    @ViewBuilder
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 2) {
+            timingText(updatedText, style: .secondary, weight: .medium)
+            if !key.visibleQuotaResetSummary.isEmpty {
+                timingText(key.visibleQuotaResetSummary, style: .tertiary)
+            }
+
+            if !key.planEndSummary.isEmpty {
+                planEndText
+            }
+        }
+        .frame(width: Self.width, alignment: .trailing)
+    }
+
+    @ViewBuilder
+    private var planEndText: some View {
+        let expiresSoon = key.visiblePlanEndsAt.map { $0.timeIntervalSinceNow < 14 * 24 * 60 * 60 } == true
+        timingText(
+            key.planEndSummary,
+            style: expiresSoon ? AnyShapeStyle(.orange) : AnyShapeStyle(.tertiary)
+        )
+    }
+
+    private func timingText(_ text: String, style: AnyShapeStyle, weight: Font.Weight = .regular) -> some View {
+        Text(text)
+            .font(.caption2.weight(weight))
+            .foregroundStyle(style)
+            .lineLimit(1)
+            .minimumScaleFactor(0.62)
+    }
+
+    private func timingText(_ text: String, style: HierarchicalShapeStyle, weight: Font.Weight = .regular) -> some View {
+        Text(text)
+            .font(.caption2)
+            .fontWeight(weight)
+            .foregroundStyle(style)
+            .lineLimit(1)
+            .minimumScaleFactor(0.62)
     }
 }
 
@@ -1380,9 +2074,9 @@ struct CredentialDiagnosticProviderSection: View {
                     ProviderIcon(provider: stat.provider, size: 28)
 
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(stat.provider.displayName())
+                        Text(stat.provider.providerFamilyDisplayName())
                             .font(.system(size: 14, weight: .semibold))
-                        Text(L10n.categoryTitle(stat.provider.statusBarCategoryTitle))
+                        Text(stat.provider.planTypeDisplayName() ?? L10n.categoryTitle(stat.provider.statusBarCategoryTitle))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -1402,8 +2096,8 @@ struct CredentialDiagnosticProviderSection: View {
                 }
 
                 VStack(spacing: 6) {
-                    ForEach(stat.sortedKeysByCurrentQuota) { key in
-                        CredentialDiagnosticRow(key: key)
+                    ForEach(stat.credentialDiagnosticItems) { item in
+                        CredentialDiagnosticRow(item: item)
                     }
                 }
             }
@@ -1412,21 +2106,19 @@ struct CredentialDiagnosticProviderSection: View {
 }
 
 struct CredentialDiagnosticRow: View {
-    let key: APIKey
+    let item: CredentialDiagnosticItem
 
-    private var httpStatusText: String {
-        key.lastHTTPStatus.map(String.init) ?? L10n.t(.httpNotRequested)
-    }
+    private var key: APIKey { item.key }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Circle()
-                    .fill(key.status.color)
+                    .fill(item.status.color)
                     .frame(width: 7, height: 7)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(key.name)
+                    Text(key.managementDisplayName)
                         .font(.system(size: 13, weight: .semibold))
                     Text(key.maskedKey)
                         .font(.caption)
@@ -1436,8 +2128,8 @@ struct CredentialDiagnosticRow: View {
 
                 Spacer()
 
-                DiagnosticPill(title: L10n.t(.healthStatus), value: key.healthDisplayText, tint: key.status.color)
-                DiagnosticPill(title: L10n.t(.lastHTTPStatus), value: httpStatusText, tint: .secondary)
+                DiagnosticPill(title: L10n.t(.healthStatus), value: item.healthDisplayText, tint: item.status.color)
+                DiagnosticPill(title: L10n.t(.lastHTTPStatus), value: item.httpStatusText, tint: .secondary)
             }
 
             HStack(alignment: .top, spacing: 8) {
@@ -1446,7 +2138,7 @@ struct CredentialDiagnosticRow: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 16)
 
-                Text(key.diagnosticSummary)
+                Text(item.diagnosticSummary)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1497,109 +2189,212 @@ struct AppSettingsView: View {
         ModernPage(
             title: L10n.t(.settingsTab),
             subtitle: L10n.t(.languageDescription),
-            systemImage: "gearshape.fill"
+            systemImage: "gearshape.fill",
+            maxContentWidth: 760
         ) {
-            MaterialPanel {
-                VStack(alignment: .leading, spacing: 14) {
+            SettingsFormSection(title: L10n.t(.settingsGeneralSection)) {
+                SettingsPreferenceRow(
+                    icon: "globe",
+                    title: L10n.t(.language)
+                ) {
                     Picker(L10n.t(.language), selection: $languageStore.language) {
                         ForEach(AppLanguage.allCases) { language in
                             Text(language.displayName)
                                 .tag(language)
                         }
                     }
+                    .labelsHidden()
                     .pickerStyle(.segmented)
+                    .frame(width: 430)
+                }
+
+                SettingsDivider()
+
+                SettingsPreferenceRow(
+                    icon: "power",
+                    title: L10n.t(.launchAtLogin),
+                    subtitle: L10n.t(.launchAtLoginDescription)
+                ) {
+                    Toggle("", isOn: Binding(
+                        get: { launchAtLoginStore.isEnabled },
+                        set: { launchAtLoginStore.setEnabled($0) }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                }
+
+                if let error = launchAtLoginStore.lastError {
+                    SettingsFootnote(icon: "exclamationmark.triangle.fill", text: error, tint: .red)
                 }
             }
 
-            MaterialPanel {
-                VStack(alignment: .leading, spacing: 14) {
-                    Toggle(isOn: Binding(
-                        get: { launchAtLoginStore.isEnabled },
-                        set: { launchAtLoginStore.setEnabled($0) }
-                    )) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(L10n.t(.launchAtLogin))
-                                .font(.system(size: 14, weight: .semibold))
-
-                            Text(L10n.t(.launchAtLoginDescription))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .toggleStyle(.switch)
-
-                    if let error = launchAtLoginStore.lastError {
-                        Text(error)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-
-                    Divider()
-
-                    Picker(L10n.t(.autoRefreshInterval), selection: $appearanceStore.autoRefreshInterval) {
+            SettingsFormSection(title: L10n.t(.settingsRefreshSection)) {
+                SettingsPreferenceRow(
+                    icon: "arrow.clockwise",
+                    title: L10n.t(.autoRefreshInterval),
+                    subtitle: L10n.t(.autoRefreshDescription)
+                ) {
+                    Picker("", selection: $appearanceStore.autoRefreshInterval) {
                         ForEach(AutoRefreshIntervalOption.allCases) { option in
                             Text(option.displayName)
                                 .tag(option)
                         }
                     }
+                    .labelsHidden()
                     .pickerStyle(.menu)
+                    .frame(width: 170)
+                }
 
-                    Text(L10n.t(.autoRefreshDescription))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                SettingsFootnote(
+                    icon: "exclamationmark.triangle.fill",
+                    text: L10n.t(.autoRefreshBraveWarning)
+                )
 
-                    Label(L10n.t(.autoRefreshBraveWarning), systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                SettingsDivider()
 
-                    Divider()
-
-                    Picker(L10n.t(.quotaConsumingAutoRefreshInterval), selection: $appearanceStore.quotaConsumingAutoRefreshInterval) {
+                SettingsPreferenceRow(
+                    icon: "magnifyingglass",
+                    title: L10n.t(.quotaConsumingAutoRefreshInterval),
+                    subtitle: L10n.t(.quotaConsumingAutoRefreshWarning)
+                ) {
+                    Picker("", selection: $appearanceStore.quotaConsumingAutoRefreshInterval) {
                         ForEach(QuotaConsumingAutoRefreshIntervalOption.allCases) { option in
                             Text(option.displayName)
                                 .tag(option)
                         }
                     }
+                    .labelsHidden()
                     .pickerStyle(.menu)
-
-                    Label(L10n.t(.quotaConsumingAutoRefreshWarning), systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                    .frame(width: 170)
                 }
             }
 
-            MaterialPanel {
-                VStack(alignment: .leading, spacing: 12) {
+            SettingsFormSection(title: L10n.t(.settingsAppearanceSection)) {
+                SettingsPreferenceRow(
+                    icon: "circle.lefthalf.filled",
+                    title: L10n.t(.statusBarTransparency),
+                    subtitle: L10n.t(.statusBarTransparencyDescription)
+                ) {
                     HStack(spacing: 10) {
-                        Image(systemName: "circle.lefthalf.filled")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .frame(width: 28, height: 28)
-                            .background(.thinMaterial, in: Circle())
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(L10n.t(.statusBarTransparency))
-                                .font(.system(size: 14, weight: .semibold))
-
-                            Text(L10n.t(.statusBarTransparencyDescription))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
                         Text(transparencyText)
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
-                    }
+                            .frame(width: 42, alignment: .trailing)
 
-                    Slider(value: $appearanceStore.statusBarTransparency, in: 0.0...1.0)
-                        .controlSize(.small)
+                        Slider(value: $appearanceStore.statusBarTransparency, in: 0.0...1.0)
+                            .controlSize(.small)
+                            .frame(width: 170)
+                    }
                 }
             }
         }
         .navigationTitle(L10n.t(.settingsTab))
+    }
+}
+
+struct SettingsFormSection<Content: View>: View {
+    let title: String
+    let content: Content
+
+    init(title: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.content = content()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, 2)
+
+            MaterialPanel(padding: 0) {
+                VStack(spacing: 0) {
+                    content
+                }
+            }
+        }
+    }
+}
+
+struct SettingsPreferenceRow<Control: View>: View {
+    let icon: String
+    let title: String
+    let subtitle: String?
+    let control: Control
+
+    init(
+        icon: String,
+        title: String,
+        subtitle: String? = nil,
+        @ViewBuilder control: () -> Control
+    ) {
+        self.icon = icon
+        self.title = title
+        self.subtitle = subtitle
+        self.control = control()
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 26, height: 26)
+                .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.primary)
+
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+            }
+
+            Spacer(minLength: 16)
+
+            control
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+}
+
+struct SettingsDivider: View {
+    var body: some View {
+        Divider()
+            .padding(.leading, 52)
+    }
+}
+
+struct SettingsFootnote: View {
+    let icon: String
+    let text: String
+    var tint: Color = .secondary
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(tint)
+                .frame(width: 14)
+
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(tint)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .padding(.leading, 38)
     }
 }
 

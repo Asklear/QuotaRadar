@@ -19,9 +19,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.2.2</string>
+    <string>0.3.0</string>
     <key>CFBundleVersion</key>
-    <string>6</string>
+    <string>7</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
     <key>NSAppTransportSecurity</key>
@@ -56,6 +56,26 @@
                 <false/>
             </dict>
             <key>api.deepseek.com</key>
+            <dict>
+                <key>NSExceptionRequiresForwardSecrecy</key>
+                <false/>
+            </dict>
+            <key>api.anthropic.com</key>
+            <dict>
+                <key>NSExceptionRequiresForwardSecrecy</key>
+                <false/>
+            </dict>
+            <key>api.openai.com</key>
+            <dict>
+                <key>NSExceptionRequiresForwardSecrecy</key>
+                <false/>
+            </dict>
+            <key>chatgpt.com</key>
+            <dict>
+                <key>NSExceptionRequiresForwardSecrecy</key>
+                <false/>
+            </dict>
+            <key>claude.ai</key>
             <dict>
                 <key>NSExceptionRequiresForwardSecrecy</key>
                 <false/>

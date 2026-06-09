@@ -10,8 +10,9 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 
 ## Product Principles
 
-- Prefer official usage or billing APIs. Use dashboard-session cookies only when no official API exists.
-- Clearly separate API keys, admin credentials, and dashboard cookies so users do not paste a model API key where a cookie is required.
+- Prefer official usage or billing APIs. Use web login authorizations only when no official API exists.
+- Clearly separate API keys and web login authorizations. Some provider usage APIs require API keys that differ from model/search invocation keys.
+- Providers for which the user has a business key and account can enter a verification flow: store the business key, capture web login authorizations, and verify the quota endpoint. Providers without account or endpoint evidence stay as hidden extension stubs.
 - Automatic refresh must avoid real quota consumption by default. Providers such as Brave, where a check performs a real search request, should be manual-only unless the user explicitly opts in.
 - Secrets stay local. Source code, tests, README files, and GitHub Releases must never contain real API keys or cookies.
 - Every provider needs clear diagnostics: usable, quota unknown, credential expired, connection failed, unsupported API, or quota-consuming check.
@@ -22,25 +23,42 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - Enlarged the menu bar popover to reduce scrolling and fixed top/bottom clipping.
 - Replaced fragile SwiftUI header actions in the popover with stable AppKit click targets so the first click works.
 - Unified the main window and credential configuration order as `AI Search` before `LLM`.
-- Made credential configuration distinguish API Key, Admin Credential, and Dashboard Cookie so Volcengine, XFYun Spark, and OpenCode Go are not mislabeled as plain API keys.
+- Made credential configuration distinguish API keys and web login authorization so Volcengine, XFYun Spark, and OpenCode Go are not mislabeled as plain API keys.
 - Added launch at login, automatic refresh intervals, and the ability to disable automatic refresh; automatic refresh skips providers such as Brave that consume a real search request.
 - Added menu bar transparency settings and propagated the configured transparency into inner popover cards.
-- Added automatic reauthentication save for dashboard-cookie providers, with provider quota validation before persisting.
-- Fixed refreshed dashboard cookies being overwritten by stale `~/.claude/settings.json` values. Claude settings are now imported only during first-run initialization, not during refresh.
+- Added automatic reauthentication save for web-login providers, with provider quota validation before persisting.
+- Fixed refreshed web login authorizations being overwritten by stale `~/.claude/settings.json` values. Claude settings are now imported only during first-run initialization, not during refresh.
 - Kept the local secret file as the default credential store to avoid repeated login-keychain password prompts.
 - Updated README, Quickstart, Release workflow notes, and unsigned DMG / Gatekeeper documentation.
-- Updated README main-window and menu-bar screenshots from the running v0.2.0 app.
+- Added README main-window and menu-bar screenshots from the running app.
 - DeepSeek, Bocha, and WeChat Search now display CNY balance values instead of credits or percentages.
 
 ## P0: Current Version Hardening
 
 - [x] Update outdated QUICKSTART settings-page wording to "Settings".
-- [x] Check Chinese and English docs for unsigned DMG, disabling automatic refresh, Brave auto-refresh skip behavior, and cookie-provider setup.
+- [x] Check Chinese and English docs for unsigned DMG, disabling automatic refresh, Brave auto-refresh skip behavior, and web-login authorization setup.
 - [x] Improve Release workflow notes so unsigned DMG users see the Gatekeeper workaround clearly.
 - [x] Keep the current unsigned DMG release path. Developer ID signing and notarization remain optional future work.
 - [x] Keep avoiding Keychain as the default secret path to reduce repeated login-keychain prompts.
 - [x] Run screenshot QA for v0.2.2 menu bar transparency and make Chinese / English README pages use screenshots in their own language.
-- [ ] Fill in the provider capability matrix as the entry point for future provider additions.
+- [x] Fill in the provider capability matrix as the entry point for future provider additions.
+
+## Fixed In v0.3.0
+
+- [x] Updated the provider capability matrix with real browser login-state checks and local redacted checks for each provider's `quota`, `resetAt`, and `planEndsAt` boundaries.
+- [x] Corrected Querit monitoring semantics: the account endpoint returns monthly usage only, does not expose plan limit/reset/end fields, and a plain `QUERIT_API_KEY` cannot query dashboard usage.
+- [x] Corrected Serper monitoring semantics: the Account API returns balance and `rateLimit`, but no reset/end fields.
+- [x] Clarified Aliyun Coding Plan: `aliclaw.coding-plan` checks subscription state; `codingPlanInfo.endTime` can be a plan end when present, and if the dashboard exposes 5-hour/weekly/monthly request-count fields, Quota Radar renders remaining/total counts with the XFYun-style model.
+- [x] Clarified Tencent Cloud Coding Plan: dashboard `cgi/capi?cmd=DescribePkg&serviceType=hunyuan` is the verified endpoint; subscribed packages can expose request counts, quota-window reset times, and package end time.
+- [x] Clarified Tencent Cloud Token Plan: Quota Radar retains the official `DescribeTokenPlanApiKey` parser, but lacks a real user key sample; the dashboard discovers packages through `ListUserTokenPlans`, and it stays hidden until verified.
+- [x] Documented Token Plan measurement semantics: Tencent Cloud currently exposes token quota, XFYun Spark looks like seat/count quota, Aliyun is expected to be credits-based, and Volcengine remains unconfirmed.
+- [x] Synced README, Quickstart, and Roadmap wording so business API keys are not described as quota-query credentials.
+- [x] Fixed the main window jumping to another display in multi-screen setups: Quota Radar now remembers the user's last window frame and repairs placement only when that saved frame is invalid or off-screen.
+- [x] Changed the quota overview toward provider-first summaries, reducing repeated API-key detail rows while keeping sortable and expandable key-level detail inside each provider.
+- [x] Stopped diagnostics from creating duplicate quota rows for copy-only companion API keys. Those API keys now reuse the paired web-login authorization's health and HTTP status.
+- [x] Supported storing both a provider API key and web-login authorization: the API key is available for copying and management, while web-login authorization is used only for quota checks.
+- [x] Refreshed Chinese and English README screenshots from the current v0.3.0 running app, with credentials masked by Quota Radar.
+- [x] Hardened release hygiene by ignoring `.playwright-mcp/`, `test-results/`, and similar temporary screenshot/debug directories, and by keeping a secret scan in the release checklist.
 
 ## Fixed In v0.2.2
 
@@ -58,25 +76,27 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Add more language options, at least Simplified Chinese, Traditional Chinese, Japanese, and Korean, and fully localize descriptions, buttons, diagnostics, dates, period units, and provider configuration copy.
 - [x] Simplify the `Credentials` page title hierarchy so the large title and subtitle do not both repeat "Credentials".
 
-The broader UI redesign toward iStat Menus / Stats / Activity Monitor remains in P4, instead of being mixed into the v0.2.0 fix queue.
+The broader UI redesign toward a native, dense, low-distraction macOS monitoring panel remains in P4, instead of being mixed into the v0.2.0 fix queue.
 
 ## P1: Credential Configuration UX
 
-- [ ] Turn `Credentials` into a provider-aware wizard instead of one generic form.
+- [x] Turn `Credentials` into a provider-aware basic form instead of a fully generic form.
 - [x] Simplify the credential page title hierarchy so the page title and local heading do not repeat the same wording.
 - [x] Show the basic expected credential type for each provider:
-  - API Key: Tavily, SerpAPI, Serper, Bocha, DeepSeek, and similar providers.
-  - Admin Credential: Exa Team Management service key plus target API key id.
-  - Dashboard Cookie: Querit, XFYun Spark, Volcengine, and OpenCode Go.
-- [ ] Add "paste cURL and parse automatically" for dashboard-cookie providers:
-  - Extract the Cookie header from copied `curl`.
+  - API key: Tavily, SerpAPI, Serper, Bocha, DeepSeek, Exa Team Management service key plus target API key id, and similar providers.
+  - Web login authorization: Querit, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
+  - Verified integrations: Aliyun Coding Plan can check subscription state through `aliclaw.coding-plan` and now parses 5-hour/weekly/monthly request-count fields when exposed; Tencent Cloud Coding Plan parses request-count quota cycles through dashboard `cgi/capi?cmd=DescribePkg&serviceType=hunyuan`. Business invocation API keys for both can be stored and shown, but they are not used for quota monitoring.
+  - Sample still needed: the current Aliyun Coding Plan account returns no subscription; usage-field parsing is reserved, and if a subscribed account still does not expose usage details, keep "Usable · quota unknown".
+  - Hidden extension stubs: XFYun Spark Token Plan, Volcengine Token Plan, Aliyun Token Plan, and Tencent Cloud Token Plan. They are not shown, imported, or refreshed until usable quota fields, measurement units, and real credential samples are confirmed.
+- [x] Add "paste cURL and parse automatically" for web-login providers:
+  - Extract the required web login authorization data from copied `curl`, including the Cookie header when the provider endpoint requires it.
   - Extract `csrfToken`, `ProjectName`, and related fields from Volcengine cURL.
   - Extract `workspaceID`, `serverID`, and `serverInstance` from OpenCode Go cURL.
-  - For Querit, save only dashboard-session cookies and reject plain `QUERIT_API_KEY`.
+  - For Querit, `QUERIT_API_KEY` is stored only as a copyable API key; quota monitoring still stores web login authorization and uses the dashboard Account API.
 - [x] Make reauthentication auto-save:
   - Open the provider dashboard login page.
   - After the user logs in, read cookies from allowed domains.
-  - Verify required cookies exist.
+  - Verify required login authorization fields exist.
   - Save the credential to the local secret store after a successful test.
 - [x] Fix Querit Google login in reauthentication; add OAuth popup/new-window handling or external-browser fallback if needed.
 - [ ] Add credential state labels:
@@ -115,17 +135,18 @@ The broader UI redesign toward iStat Menus / Stats / Activity Monitor remains in
 - [ ] Add threshold notifications:
   - Quota below 20%.
   - Quota exhausted.
-  - Cookie expired.
+  - Login authorization expired.
   - Provider connection failed repeatedly.
 
 ## P3: Provider Expansion
 
 Acceptance criteria for a new provider:
 
-- [ ] Find an official usage API, billing API, dashboard API, or confirm that only manual/dashboard-cookie monitoring is possible.
+- [ ] Find an official usage API, billing API, dashboard API, or confirm that only manual/web-login monitoring is possible.
 - [ ] Confirm quota units, reset cycle, and whether checking quota consumes real quota.
 - [ ] Add parser fixtures; do not rely only on manual testing.
-- [ ] Add provider icon, category, default credential name, and localized copy.
+- [x] Add browser/API verification records for currently integrated providers, including quota, resetAt, and planEndsAt field boundaries.
+- [x] Add provider icon fallback, category, default credential name, and localized copy.
 - [ ] Add `.env` and `~/.claude/settings.json` import rules.
 - [ ] Add behavior tests and secret-safety checks.
 
@@ -156,12 +177,12 @@ Acceptance criteria for a new provider:
 
 ## P4: Frontend Aesthetics And Interaction
 
-- [ ] Establish Quota Radar's macOS monitoring-app design baseline:
-  - iStat Menus: learn from dense but clear menu bar modules, refresh cadence controls, and settings grouping.
-  - Stats: learn from lightweight native modules, compact metric blocks, and broad localization coverage.
-  - Little Snitch Control Center: learn from menu bar diagnostics, recent activity summaries, and quick actions.
-  - Activity Monitor: learn from main-window tables, grouping, filtering, summary areas, and diagnostic information hierarchy.
-- [ ] Position QuotaRadar as `iStat Menus for API quota`, not a SaaS dashboard:
+- [ ] Establish Quota Radar's macOS monitoring-panel design baseline:
+  - Dense but clear menu bar modules, refresh cadence controls, and settings grouping.
+  - Lightweight native modules, compact metric blocks, and broad localization coverage.
+  - Menu bar diagnostics, recent activity summaries, and quick actions.
+  - Main-window tables, grouping, filtering, summary areas, and diagnostic information hierarchy.
+- [ ] Position QuotaRadar as an API quota monitoring panel, not a SaaS dashboard:
   - Numbers first: remaining, total, percentage, reset time, and update time beat decoration.
   - Moderate density: the menu bar shows only provider-level essentials; the main window carries detail.
   - Native material: use macOS sidebar, toolbar, popover, separators, and material instead of marketing-style cards and large gradients.
@@ -171,7 +192,7 @@ Acceptance criteria for a new provider:
   - Less repeated information.
   - Provider banners collapse on click without relying on triangle icons.
   - Collapse animations compress in place instead of flying in from above.
-  - Make the quota overview closer to Activity Monitor: table/grouping plus a side or bottom summary, not repeated card stacks.
+  - Make the quota overview table/grouping first with a side or bottom summary, not repeated card stacks.
 - [x] Implement the menu bar popover's baseline monitoring interactions:
   - AI Search and LLM groups are shown separately.
   - Providers can collapse.
@@ -181,8 +202,8 @@ Acceptance criteria for a new provider:
   - LLM coding plans show the cycle with the lowest remaining percentage instead of always showing the 5-hour cycle.
   - Menu bar transparency is wired through and README screenshots have been refreshed from the running app.
 - [ ] Deepen the next menu bar visual pass:
-  - Make the layout closer to iStat Menus / Stats: compact metrics, fine separators, clear hierarchy, and no long scrolling dashboard.
-  - Redesign the overall style toward Stats / iStat Menus monitoring panels: tighter modules, fewer large cards, clearer metric hierarchy, and a cleaner action area.
+  - Use compact metrics, fine separators, clear hierarchy, and no long scrolling dashboard.
+  - Redesign the overall style toward native monitoring panels: tighter modules, fewer large cards, clearer metric hierarchy, and a cleaner action area.
   - Keep improving transparency across different desktop backgrounds while preserving text readability.
 - [ ] Continue using the quota-radar metaphor:
   - The app icon and menu bar icon should stay structurally aligned and read as quota monitoring at distance.
@@ -194,6 +215,7 @@ Acceptance criteria for a new provider:
   - Light and dark mode.
   - Chinese and English.
   - Long provider names, long error messages, many keys.
+  - Multi-screen open/reopen flows keep the window on the display where the user placed it.
   - No text overlap or clipping.
 
 ## P5: Multi-Platform And Multi-Language
@@ -224,7 +246,7 @@ Acceptance criteria for a new provider:
 - [ ] Add local notifications:
   - Nearly exhausted.
   - Exhausted.
-  - Cookie expired.
+  - Login authorization expired.
   - Balance restored or monthly reset detected.
 - [ ] Add provider-level refresh history so users can tell whether refresh actually changed anything.
 
@@ -232,15 +254,15 @@ Acceptance criteria for a new provider:
 
 Continue with P1 + P2. Reauthentication auto-save is already in place; the remaining high-impact work is making configuration harder to get wrong and diagnostics easier to understand.
 
-1. [ ] Build a provider capability matrix.
+1. [x] Build a provider capability matrix.
    - Suggested files: `docs/provider-capabilities.md` / `docs/provider-capabilities.en.md`.
    - Fields: provider, category, credential type, usage source, reset cycle, does check consume quota, diagnostic endpoint, notes.
-2. [ ] Refactor the credential page into provider-aware forms.
+2. [x] Refactor the credential page into provider-aware forms.
    - Main files: `QuotaRadar/Models/APIKey.swift`, `QuotaRadar/Views/SettingsView.swift`, `QuotaRadar/Services/EnvImporter.swift`.
    - Goal: after selecting a provider, users only see fields that provider needs.
-3. [ ] Add a cURL paste parser.
+3. [x] Add a cURL paste parser.
    - Main file: create `QuotaRadar/Services/CurlCredentialParser.swift`.
-   - Goal: Querit, XFYun Spark, Volcengine, and OpenCode Go can extract cookies/headers from copied browser cURL.
+   - Goal: Querit, XFYun Spark Coding Plan, Volcengine Coding Plan, and OpenCode Go can extract cookies/headers from copied browser cURL.
 4. [ ] Add per-provider connectivity tests.
    - Main files: `QuotaRadar/Services/QuotaService.swift`, `QuotaRadar/Models/QuotaMonitor.swift`, `QuotaRadar/Views/SettingsView.swift`.
    - Goal: each provider can test credential usability and disclose whether the test consumes quota.

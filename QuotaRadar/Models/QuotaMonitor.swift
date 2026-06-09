@@ -118,18 +118,25 @@ class QuotaMonitor: ObservableObject {
                     continue
                 }
 
-                foundTargetKey = true
-
                 guard key.isActive, !key.key.isEmpty else {
                     updatedKeys.append(key)
                     continue
                 }
 
+                if key.isStoredAPIKeyOnlyCredential {
+                    updatedKeys.append(key)
+                    continue
+                }
+
+                foundTargetKey = true
+
                 if mode == .automatic && key.provider.quotaCheckConsumesSearchQuota {
                     if key.lastUpdated == nil, key.quotaLabel == nil {
                         key.quotaLabel = "Manual refresh only"
+                        key.quotaText = LocalizedTextDescriptor.localized(.manualRefreshOnly)
                     }
                     key.lastDiagnosticMessage = L10n.t(.quotaConsumingRefreshWarning)
+                    key.lastDiagnosticText = LocalizedTextDescriptor.localized(.quotaConsumingRefreshWarning)
                     updatedKeys.append(key)
                     continue
                 }
@@ -139,9 +146,12 @@ class QuotaMonitor: ObservableObject {
                     key.remaining = result.remaining
                     key.limit = result.limit
                     key.resetAt = result.resetAt
+                    key.planEndsAt = result.planEndsAt
                     key.quotaLabel = result.quotaLabel
+                    key.quotaText = result.quotaText
                     key.lastHTTPStatus = result.httpStatus
                     key.lastDiagnosticMessage = result.diagnosticMessage
+                    key.lastDiagnosticText = result.diagnosticText
                     key.lastUpdated = Date()
                     updatedKeys.append(key)
                 } catch {
@@ -153,26 +163,51 @@ class QuotaMonitor: ObservableObject {
                         key.remaining = nil
                         key.limit = nil
                         key.resetAt = nil
+                        key.planEndsAt = nil
                         key.quotaLabel = key.provider.localizedUnsupportedQuotaLabel()
+                        key.quotaText = LocalizedTextDescriptor.localized(.quotaUnavailable)
                         key.lastHTTPStatus = nil
                         key.lastDiagnosticMessage = key.provider.unsupportedQuotaDiagnosticMessage()
+                        key.lastDiagnosticText = LocalizedTextDescriptor.localized(
+                            key.isBusinessInvocationCredential
+                                ? .businessInvocationKeyQuotaInstruction
+                                : .quotaCheckNotSupportedDiagnostic
+                        )
+                        key.lastUpdated = Date()
+                    } else if case QuotaError.noSubscription = error {
+                        key.remaining = nil
+                        key.limit = nil
+                        key.resetAt = nil
+                        key.planEndsAt = nil
+                        key.quotaLabel = "No subscribed plan"
+                        key.quotaText = LocalizedTextDescriptor.localized(.noSubscribedPlan)
+                        key.lastHTTPStatus = 200
+                        key.lastDiagnosticMessage = "No subscribed plan"
+                        key.lastDiagnosticText = LocalizedTextDescriptor.localized(.noSubscribedPlan)
                         key.lastUpdated = Date()
                     } else if case QuotaError.unauthorized = error {
                         key.remaining = nil
                         key.limit = nil
                         key.resetAt = nil
+                        key.planEndsAt = nil
                         key.lastHTTPStatus = 401
                         if key.provider.supportsDashboardReauthentication {
                             key.quotaLabel = L10n.t(.credentialExpired)
+                            key.quotaText = LocalizedTextDescriptor.localized(.credentialExpired)
                         } else {
                             key.quotaLabel = error.localizedDescription
+                            key.quotaText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
                         }
                         key.lastDiagnosticMessage = key.provider.supportsDashboardReauthentication ? L10n.t(.credentialExpired) : error.localizedDescription
+                        key.lastDiagnosticText = key.provider.supportsDashboardReauthentication
+                            ? LocalizedTextDescriptor.localized(.credentialExpired)
+                            : LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
                         key.lastUpdated = Date()
                         failedKeys.append(key.name)
                     } else {
                         key.lastHTTPStatus = (error as? QuotaError)?.httpStatus
                         key.lastDiagnosticMessage = error.localizedDescription
+                        key.lastDiagnosticText = (error as? QuotaError)?.localizedTextDescriptor
                         key.lastUpdated = Date()
                         failedKeys.append(key.name)
                     }
@@ -289,10 +324,13 @@ class QuotaMonitor: ObservableObject {
                 replacement.remaining = existingKey.remaining
                 replacement.limit = existingKey.limit
                 replacement.resetAt = existingKey.resetAt
+                replacement.planEndsAt = existingKey.planEndsAt
                 replacement.lastUpdated = existingKey.lastUpdated
                 replacement.lastHTTPStatus = existingKey.lastHTTPStatus
                 replacement.lastDiagnosticMessage = existingKey.lastDiagnosticMessage
+                replacement.lastDiagnosticText = existingKey.lastDiagnosticText
                 replacement.quotaLabel = existingKey.quotaLabel
+                replacement.quotaText = existingKey.quotaText
                 replacement.usageCount = existingKey.usageCount
                 replacement.lastUsed = existingKey.lastUsed
                 existingKeys[index] = replacement

@@ -12,6 +12,7 @@ PRODUCT_NAME="QuotaRadar"
 DISPLAY_NAME="Quota Radar"
 SOURCE_DIR="QuotaRadar"
 BUILD_DIR="${PROJECT_DIR}/build"
+RESOURCE_BUNDLE_NAME="${PRODUCT_NAME}_${PRODUCT_NAME}.bundle"
 BUNDLE_ONLY=false
 REBUILD=false
 
@@ -34,7 +35,12 @@ done
 APP_BUNDLE="${BUILD_DIR}/${DISPLAY_NAME}.app"
 
 if [ -d "${APP_BUNDLE}" ] && [ "${REBUILD}" = false ]; then
-    echo "📦 Using existing app bundle: ${APP_BUNDLE}"
+    if [ -x "${APP_BUNDLE}/Contents/MacOS/${PRODUCT_NAME}" ] && [ -d "${APP_BUNDLE}/Contents/Resources/${RESOURCE_BUNDLE_NAME}" ]; then
+        echo "📦 Using existing app bundle: ${APP_BUNDLE}"
+    else
+        echo "⚠️ Existing app bundle is incomplete; rebuilding ${DISPLAY_NAME}..."
+        REBUILD=true
+    fi
 else
     echo "🚀 Building ${DISPLAY_NAME}..."
     REBUILD=true
@@ -91,9 +97,12 @@ if [ "${REBUILD}" = true ]; then
     cp "${PROJECT_DIR}/${SOURCE_DIR}/QuotaRadar.entitlements" "${RESOURCES}/" 2>/dev/null || true
     cp "${PROJECT_DIR}/${SOURCE_DIR}/Resources/QuotaRadar.icns" "${RESOURCES}/QuotaRadar.icns"
 
-    RESOURCE_BUNDLE="${PROJECT_DIR}/.build/release/${PRODUCT_NAME}_${PRODUCT_NAME}.bundle"
+    RESOURCE_BUNDLE="${PROJECT_DIR}/.build/release/${RESOURCE_BUNDLE_NAME}"
     if [ -d "${RESOURCE_BUNDLE}" ]; then
         cp -R "${RESOURCE_BUNDLE}" "${RESOURCES}/"
+    else
+        echo "❌ Resource bundle not found at ${RESOURCE_BUNDLE}"
+        exit 1
     fi
 
     # Create PkgInfo
@@ -148,7 +157,7 @@ if [ -d "/Applications/${DISPLAY_NAME}.app" ]; then
     echo "  1. Open Applications folder (Cmd+Shift+A in Finder)"
     echo "  open '/Applications/${DISPLAY_NAME}.app'"
     echo ""
-    echo "The app will appear in your menu bar with the white quota-radar icon"
+    echo "The app will appear in your menu bar with the adaptive quota-radar icon"
 else
     echo "❌ Installation failed"
     exit 1

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import WebKit
 
 struct DashboardReauthSheet: View {
@@ -96,7 +97,7 @@ struct DashboardReauthSheet: View {
             )
 
             DispatchQueue.main.async {
-                persistCookies(cookieHeader, allowEmptyStatus: true)
+                persistCookies(cookieHeader, allowEmptyStatus: true, dismissAfterSave: true)
             }
         }
     }
@@ -105,10 +106,10 @@ struct DashboardReauthSheet: View {
         guard !didAutoSave, !isSaving else { return }
         isSaving = true
         statusMessage = L10n.t(.autoSavingCookie)
-        persistCookies(cookieHeader, allowEmptyStatus: false)
+        persistCookies(cookieHeader, allowEmptyStatus: false, dismissAfterSave: false)
     }
 
-    private func persistCookies(_ cookieHeader: String, allowEmptyStatus: Bool) {
+    private func persistCookies(_ cookieHeader: String, allowEmptyStatus: Bool, dismissAfterSave: Bool) {
         guard let config else {
             isSaving = false
             return
@@ -132,10 +133,10 @@ struct DashboardReauthSheet: View {
             return
         }
 
-        validateAndPersistCookies(cookieHeader, config: config)
+        validateAndPersistCookies(cookieHeader, config: config, dismissAfterSave: dismissAfterSave)
     }
 
-    private func validateAndPersistCookies(_ cookieHeader: String, config: DashboardReauthConfig) {
+    private func validateAndPersistCookies(_ cookieHeader: String, config: DashboardReauthConfig, dismissAfterSave: Bool) {
         didAutoSave = true
         statusMessage = L10n.t(.checkingCookie)
 
@@ -146,9 +147,12 @@ struct DashboardReauthSheet: View {
                 cookieHeader: cookieHeader,
                 existingSecret: updatedKey.key
             )
-            updatedKey.name = updatedKey.name.isEmpty ? config.defaultKeyName : updatedKey.name
+            if updatedKey.name.isEmpty || updatedKey.isBusinessInvocationCredential {
+                updatedKey.name = config.defaultKeyName
+            }
             updatedKey.note = updatedKey.note ?? L10n.t(.dashboardSession)
             updatedKey.quotaLabel = L10n.t(.cookieSaved)
+            updatedKey.quotaText = LocalizedTextDescriptor.localized(.cookieSaved)
             updatedKey.lastUpdated = Date()
             candidateKey = updatedKey
         } else {
@@ -158,8 +162,23 @@ struct DashboardReauthSheet: View {
                 provider: provider,
                 note: L10n.t(.dashboardSession),
                 lastUpdated: Date(),
+                quotaText: LocalizedTextDescriptor.localized(.cookieSaved),
                 quotaLabel: L10n.t(.cookieSaved)
             )
+        }
+
+        guard provider.supportsQuotaQuery else {
+            if existingKey == nil {
+                monitor.addKey(candidateKey)
+            } else {
+                monitor.updateKey(candidateKey)
+            }
+            isSaving = false
+            statusMessage = L10n.t(.cookieSaved)
+            if dismissAfterSave {
+                dismiss()
+            }
+            return
         }
 
         Task {
@@ -170,9 +189,12 @@ struct DashboardReauthSheet: View {
                     verifiedKey.remaining = result.remaining
                     verifiedKey.limit = result.limit
                     verifiedKey.resetAt = result.resetAt
+                    verifiedKey.planEndsAt = result.planEndsAt
                     verifiedKey.quotaLabel = result.quotaLabel
+                    verifiedKey.quotaText = result.quotaText
                     verifiedKey.lastHTTPStatus = result.httpStatus
                     verifiedKey.lastDiagnosticMessage = result.diagnosticMessage
+                    verifiedKey.lastDiagnosticText = result.diagnosticText
                     verifiedKey.lastUpdated = Date()
 
                     if existingKey == nil {
@@ -183,7 +205,9 @@ struct DashboardReauthSheet: View {
 
                     isSaving = false
                     statusMessage = L10n.t(.cookieSaved)
-                    dismiss()
+                    if dismissAfterSave {
+                        dismiss()
+                    }
                 }
             } catch QuotaError.unauthorized {
                 await MainActor.run {
@@ -199,6 +223,20 @@ struct DashboardReauthSheet: View {
                 }
             }
         }
+    }
+}
+
+final class OAuthPopupWindow: NSWindow {
+    init(contentView: NSView) {
+        super.init(
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 640),
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        self.contentView = contentView
+        self.isReleasedWhenClosed = false
+        self.animationBehavior = .none
     }
 }
 
@@ -234,13 +272,14 @@ struct DashboardWebView: NSViewRepresentable {
         )
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieStoreObserver {
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKHTTPCookieStoreObserver, NSWindowDelegate {
         private let cookieDomains: [String]
         private let requiredCookieNames: [String]
         private let onCookiesAvailable: (String) -> Void
         private var didEmitCookies = false
         private weak var webView: WKWebView?
         private var observedCookieStore: WKHTTPCookieStore?
+        private var oauthPopupWindows: [ObjectIdentifier: OAuthPopupWindow] = [:]
         private(set) var hasStartedLoading = false
 
         init(cookieDomains: [String], requiredCookieNames: [String], onCookiesAvailable: @escaping (String) -> Void) {
@@ -251,6 +290,7 @@ struct DashboardWebView: NSViewRepresentable {
 
         deinit {
             observedCookieStore?.remove(self)
+            closeAllOAuthPopups()
         }
 
         func start(webView: WKWebView, url: URL) {
@@ -304,12 +344,81 @@ struct DashboardWebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
             guard navigationAction.targetFrame == nil,
-                  let popupURL = navigationAction.request.url else {
+                  navigationAction.request.url != nil else {
                 return nil
             }
 
-            webView.load(URLRequest(url: popupURL))
-            return nil
+            let popupWebView = WKWebView(frame: NSRect(x: 0, y: 0, width: 520, height: 640), configuration: configuration)
+            popupWebView.navigationDelegate = self
+            popupWebView.uiDelegate = self
+            popupWebView.allowsBackForwardNavigationGestures = true
+
+            let popupWindow = OAuthPopupWindow(contentView: popupWebView)
+            popupWindow.title = "Quota Radar"
+            popupWindow.delegate = self
+            popupWindow.center()
+            popupWindow.makeKeyAndOrderFront(nil)
+            oauthPopupWindows[ObjectIdentifier(popupWebView)] = popupWindow
+
+            return popupWebView
+        }
+
+        func webViewDidClose(_ webView: WKWebView) {
+            closeOAuthPopup(for: webView)
+        }
+
+        private func closeOAuthPopup(for webView: WKWebView) {
+            let key = ObjectIdentifier(webView)
+            guard let popupWindow = oauthPopupWindows.removeValue(forKey: key) else { return }
+            detachOAuthPopupWebView(webView)
+            popupWindow.delegate = nil
+            popupWindow.orderOut(nil)
+            retainOAuthPopupUntilNextRunLoop(popupWindow, webView: webView)
+        }
+
+        func windowWillClose(_ notification: Notification) {
+            guard let popupWindow = notification.object as? OAuthPopupWindow else { return }
+            let matchingKeys = oauthPopupWindows
+                .filter { $0.value === popupWindow }
+                .map(\.key)
+            for key in matchingKeys {
+                guard let managedWindow = oauthPopupWindows.removeValue(forKey: key) else { continue }
+                if let popupWebView = managedWindow.contentView as? WKWebView {
+                    detachOAuthPopupWebView(popupWebView)
+                    retainOAuthPopupUntilNextRunLoop(managedWindow, webView: popupWebView)
+                } else {
+                    retainOAuthPopupUntilNextRunLoop(managedWindow, webView: nil)
+                }
+            }
+            popupWindow.delegate = nil
+        }
+
+        private func closeAllOAuthPopups() {
+            let managedPopups = oauthPopupWindows
+            oauthPopupWindows.removeAll()
+            for (_, popupWindow) in managedPopups {
+                if let popupWebView = popupWindow.contentView as? WKWebView {
+                    detachOAuthPopupWebView(popupWebView)
+                    retainOAuthPopupUntilNextRunLoop(popupWindow, webView: popupWebView)
+                } else {
+                    retainOAuthPopupUntilNextRunLoop(popupWindow, webView: nil)
+                }
+                popupWindow.delegate = nil
+                popupWindow.orderOut(nil)
+            }
+        }
+
+        private func detachOAuthPopupWebView(_ webView: WKWebView) {
+            webView.stopLoading()
+            webView.navigationDelegate = nil
+            webView.uiDelegate = nil
+        }
+
+        private func retainOAuthPopupUntilNextRunLoop(_ popupWindow: OAuthPopupWindow, webView: WKWebView?) {
+            DispatchQueue.main.async {
+                _ = popupWindow
+                _ = webView
+            }
         }
 
         func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {

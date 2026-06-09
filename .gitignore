@@ -16,5 +16,7 @@ secrets.json
 *.log
 *.ips
 *.crash
+.playwright-mcp/
+test-results/
 
 DerivedData/

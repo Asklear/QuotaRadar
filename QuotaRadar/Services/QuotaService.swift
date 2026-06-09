@@ -1,12 +1,43 @@
 import Foundation
+import CryptoKit
 
 struct QuotaResult {
     let remaining: Int
     let limit: Int
     let resetAt: Date?
+    var planEndsAt: Date?
     var quotaLabel: String? = nil
+    var quotaText: LocalizedTextDescriptor? = nil
+    var quotaWindows: [QuotaWindowText] = []
     var httpStatus: Int? = nil
     var diagnosticMessage: String? = nil
+    var diagnosticText: LocalizedTextDescriptor? = nil
+
+    init(
+        remaining: Int,
+        limit: Int,
+        resetAt: Date?,
+        planEndsAt: Date? = nil,
+        quotaLabel: String? = nil,
+        quotaText: LocalizedTextDescriptor? = nil,
+        quotaWindows: [QuotaWindowText] = [],
+        httpStatus: Int? = nil,
+        diagnosticMessage: String? = nil,
+        diagnosticText: LocalizedTextDescriptor? = nil
+    ) {
+        self.remaining = remaining
+        self.limit = limit
+        self.resetAt = resetAt
+        self.planEndsAt = planEndsAt
+        self.quotaLabel = quotaLabel
+        self.quotaWindows = quotaWindows
+        self.quotaText = quotaText
+            ?? (!quotaWindows.isEmpty ? LocalizedTextDescriptor.quotaWindows(quotaWindows) : nil)
+            ?? quotaLabel.flatMap(LocalizedTextDescriptor.fromLegacyLabel)
+        self.httpStatus = httpStatus
+        self.diagnosticMessage = diagnosticMessage
+        self.diagnosticText = diagnosticText ?? diagnosticMessage.flatMap(LocalizedTextDescriptor.fromLegacyLabel)
+    }
 }
 
 enum QuotaParsers {
@@ -126,6 +157,7 @@ enum QuotaParsers {
             remaining: refreshedRemaining,
             limit: knownLimit,
             resetAt: result.resetAt,
+            planEndsAt: result.planEndsAt,
             quotaLabel: "\(refreshedRemaining) / \(knownLimit) monthly requests"
         )
     }
@@ -229,6 +261,8 @@ enum QuotaParsers {
             let free_usage_month: FlexibleInt?
             let coupon_quota: FlexibleInt?
             let coupon_used: FlexibleInt?
+            let paid_usage_month: FlexibleInt?
+            let enterprise_usage_month: FlexibleInt?
         }
 
         let response = try JSONDecoder().decode(AccountResponse.self, from: data)
@@ -242,14 +276,29 @@ enum QuotaParsers {
         let couponQuota = max(0, plan.coupon_quota?.value ?? 0)
         let couponUsed = max(0, plan.coupon_used?.value ?? 0)
         let freeUsageMonth = max(0, plan.free_usage_month?.value ?? 0)
-        let limit = 1_000 + couponQuota
-        let used = freeUsageMonth + couponUsed
-        let remaining = max(0, limit - used)
+        let paidUsageMonth = max(0, plan.paid_usage_month?.value ?? 0)
+        let enterpriseUsageMonth = max(0, plan.enterprise_usage_month?.value ?? 0)
+        let used = freeUsageMonth + paidUsageMonth + enterpriseUsageMonth + couponUsed
+
+        guard couponQuota > 0 else {
+            return QuotaResult(
+                remaining: Int.max,
+                limit: Int.max,
+                resetAt: nil,
+                quotaLabel: "\(used) monthly requests used",
+                quotaText: .localized(.monthlyRequestsUsedFormat, String(used)),
+                diagnosticMessage: "Querit account endpoint returned monthly usage, but no plan quota limit.",
+                diagnosticText: .localized(.usableUnknownQuota)
+            )
+        }
+
+        let limit = couponQuota
+        let remaining = max(0, limit - couponUsed)
 
         return QuotaResult(
             remaining: remaining,
             limit: limit,
-            resetAt: nextMonthStartUTC(),
+            resetAt: nil,
             quotaLabel: "\(remaining) / \(limit) monthly requests"
         )
     }
@@ -425,9 +474,11 @@ enum QuotaParsers {
         }
 
         let percentWindows = windows.map { window in
-            (
+            PercentQuotaWindow(
                 name: window.name,
-                remainingPercent: Double(window.left) / Double(window.limit) * 100
+                remainingPercent: Double(window.left) / Double(window.limit) * 100,
+                resetAt: nil,
+                remainingText: "\(window.left) / \(window.limit)"
             )
         }
         let basisPoints = percentWindows
@@ -440,8 +491,10 @@ enum QuotaParsers {
         return QuotaResult(
             remaining: max(0, min(10_000, basisPoints)),
             limit: 10_000,
-            resetAt: parseLocalDateTime(plan.expiresAt),
-            quotaLabel: label
+            resetAt: nil,
+            planEndsAt: parseLocalDateTime(plan.expiresAt),
+            quotaLabel: label,
+            quotaWindows: orderPercentWindows(percentWindows).map(quotaWindowText)
         )
     }
 
@@ -539,6 +592,356 @@ enum QuotaParsers {
         )
     }
 
+    static func parseCodexWhamUsage(_ data: Data) throws -> QuotaResult {
+        struct UsageResponse: Decodable {
+            struct RateLimit: Decodable {
+                let allowed: Bool?
+                let limit_reached: Bool?
+                let primary_window: UsageWindow?
+                let secondary_window: UsageWindow?
+            }
+
+            struct UsageWindow: Decodable {
+                let used_percent: Double?
+                let limit_window_seconds: Int?
+                let reset_after_seconds: Double?
+                let reset_at: Double?
+            }
+
+            let rate_limit: RateLimit?
+        }
+
+        let response = try JSONDecoder().decode(UsageResponse.self, from: data)
+        guard let rateLimit = response.rate_limit else {
+            throw QuotaError.invalidResponse
+        }
+
+        var windows: [PercentQuotaWindow] = []
+        if let primaryWindow = rateLimit.primary_window {
+            let windowName = quotaWindowName(seconds: primaryWindow.limit_window_seconds) ?? "5h"
+            if let parsed = codexPercentQuotaWindow(
+                name: windowName,
+                usedPercent: primaryWindow.used_percent,
+                resetAt: primaryWindow.reset_at,
+                resetAfterSeconds: primaryWindow.reset_after_seconds
+            ) {
+                windows.append(parsed)
+            }
+        }
+        if let secondaryWindow = rateLimit.secondary_window {
+            let windowName = quotaWindowName(seconds: secondaryWindow.limit_window_seconds) ?? "week"
+            if let parsed = codexPercentQuotaWindow(
+                name: windowName,
+                usedPercent: secondaryWindow.used_percent,
+                resetAt: secondaryWindow.reset_at,
+                resetAfterSeconds: secondaryWindow.reset_after_seconds
+            ) {
+                windows.append(parsed)
+            }
+        }
+
+        guard !windows.isEmpty else {
+            throw QuotaError.invalidResponse
+        }
+
+        let orderedWindows = orderPercentWindows(windows)
+        return percentQuotaResult(
+            windows: orderedWindows,
+            label: orderedWindows
+                .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
+                .joined(separator: " · ")
+        )
+    }
+
+    static func parseCodexSubscriptionLifecycle(_ data: Data) throws -> Date? {
+        struct SubscriptionResponse: Decodable {
+            let active_until: String?
+            let current_period_end: String?
+            let expires_at: String?
+        }
+
+        let response = try JSONDecoder().decode(SubscriptionResponse.self, from: data)
+        return parseISO8601Date(response.active_until)
+            ?? parseISO8601Date(response.current_period_end)
+            ?? parseISO8601Date(response.expires_at)
+    }
+
+    static func parseTencentCloudCodingPlanDescribePkg(_ data: Data) throws -> QuotaResult {
+        struct ResponseEnvelope: Decodable {
+            let code: Int?
+            let mccode: Int?
+            let data: OuterData?
+            let Response: ResponseBody?
+        }
+
+        struct OuterData: Decodable {
+            let code: Int?
+            let cgwerrorCode: Int?
+            let data: InnerData?
+            let Response: ResponseBody?
+        }
+
+        struct InnerData: Decodable {
+            let Response: ResponseBody?
+        }
+
+        struct ResponseBody: Decodable {
+            let Error: TencentCloudError?
+            let PkgList: [Package]?
+        }
+
+        struct TencentCloudError: Decodable {
+            let Code: String?
+            let Message: String?
+        }
+
+        struct Package: Decodable {
+            let Status: String?
+            let EndTime: String?
+            let RemainingDays: Int?
+            let UsageDetail: UsageDetail?
+        }
+
+        struct UsageDetail: Decodable {
+            let PerFiveHour: UsageWindow?
+            let PerWeek: UsageWindow?
+            let PerMonth: UsageWindow?
+        }
+
+        struct UsageWindow: Decodable {
+            let Used: FlexibleDouble?
+            let Total: FlexibleDouble?
+            let UsagePercent: FlexibleDouble?
+            let EndTime: String?
+        }
+
+        struct FlexibleDouble: Decodable {
+            let value: Double
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.singleValueContainer()
+                if let double = try? container.decode(Double.self) {
+                    value = double
+                } else if let int = try? container.decode(Int.self) {
+                    value = Double(int)
+                } else if let string = try? container.decode(String.self),
+                          let double = Double(string) {
+                    value = double
+                } else {
+                    throw QuotaError.invalidResponse
+                }
+            }
+        }
+
+        let envelope = try JSONDecoder().decode(ResponseEnvelope.self, from: data)
+        if let code = envelope.code, code != 0 {
+            throw QuotaError.invalidResponse
+        }
+        if let mccode = envelope.mccode, mccode != 0 {
+            throw QuotaError.invalidResponse
+        }
+        if let code = envelope.data?.code, code != 0 {
+            throw QuotaError.invalidResponse
+        }
+        if let cgwerrorCode = envelope.data?.cgwerrorCode, cgwerrorCode != 0 {
+            throw QuotaError.invalidResponse
+        }
+
+        let response = envelope.data?.data?.Response
+            ?? envelope.data?.Response
+            ?? envelope.Response
+        guard let response else {
+            throw QuotaError.invalidResponse
+        }
+        if response.Error != nil {
+            throw QuotaError.invalidResponse
+        }
+
+        guard let packages = response.PkgList else {
+            throw QuotaError.invalidResponse
+        }
+        guard !packages.isEmpty else {
+            throw QuotaError.noSubscription
+        }
+
+        let package = packages.first {
+            $0.Status?.localizedCaseInsensitiveContains("normal") == true && $0.UsageDetail != nil
+        } ?? packages.first { $0.UsageDetail != nil }
+        guard let usage = package?.UsageDetail else {
+            throw QuotaError.invalidResponse
+        }
+
+        let windowSpecs: [(name: String, usage: UsageWindow?)] = [
+            ("5h", usage.PerFiveHour),
+            ("week", usage.PerWeek),
+            ("month", usage.PerMonth),
+        ]
+        let windows = windowSpecs.compactMap { spec -> PercentQuotaWindow? in
+            guard let usage = spec.usage else { return nil }
+            let remainingPercent: Double
+            let remainingText: String?
+            if let usagePercent = usage.UsagePercent?.value {
+                remainingPercent = max(0, 100 - usagePercent)
+                if let used = usage.Used?.value,
+                   let total = usage.Total?.value,
+                   total > 0 {
+                    remainingText = "\(Int(max(0, total - used).rounded(.down))) / \(Int(total.rounded(.down)))"
+                } else {
+                    remainingText = nil
+                }
+            } else if let used = usage.Used?.value,
+                      let total = usage.Total?.value,
+                      total > 0 {
+                remainingPercent = max(0, (total - used) / total * 100)
+                remainingText = "\(Int(max(0, total - used).rounded(.down))) / \(Int(total.rounded(.down)))"
+            } else {
+                return nil
+            }
+
+            return PercentQuotaWindow(
+                name: spec.name,
+                remainingPercent: remainingPercent,
+                resetAt: parseLocalDateTime(usage.EndTime),
+                remainingText: remainingText
+            )
+        }
+
+        guard !windows.isEmpty else {
+            throw QuotaError.invalidResponse
+        }
+
+        let orderedWindows = orderPercentWindows(windows)
+        return percentQuotaResult(
+            windows: orderedWindows,
+            planEndsAt: parseLocalDateTime(package?.EndTime),
+            label: orderedWindows
+                .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
+                .joined(separator: " · ")
+        )
+    }
+
+    static func parseAliyunCodingPlanStatus(_ data: Data) throws -> QuotaResult {
+        guard let envelope = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw QuotaError.invalidResponse
+        }
+
+        if let code = envelope["code"] {
+            let codeString = String(describing: code)
+            guard codeString == "200" || codeString == "0" else {
+                throw QuotaError.invalidResponse
+            }
+        }
+
+        guard let payload = aliyunDataPayload(from: envelope) else {
+            throw QuotaError.invalidResponse
+        }
+
+        if let hasCodingPlan = payload["hasCodingPlan"] as? Bool,
+           !hasCodingPlan {
+            throw QuotaError.noSubscription
+        }
+
+        guard let codingPlanInfo = payload["codingPlanInfo"] as? [String: Any] else {
+            throw QuotaError.invalidResponse
+        }
+
+        let status = stringValue(codingPlanInfo["status"])?.uppercased()
+        if status == "INVALID" {
+            throw QuotaError.noSubscription
+        }
+
+        if let windows = aliyunCodingPlanUsageWindows(from: codingPlanInfo),
+           !windows.isEmpty {
+            let orderedWindows = orderPercentWindows(windows)
+            return percentQuotaResult(
+                windows: orderedWindows,
+                planEndsAt: aliyunTimestampDate(codingPlanInfo["endTime"]),
+                label: orderedWindows
+                    .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
+                    .joined(separator: " · ")
+            )
+        }
+
+        return QuotaResult(
+            remaining: Int.max,
+            limit: Int.max,
+            resetAt: nil,
+            planEndsAt: aliyunTimestampDate(codingPlanInfo["endTime"]),
+            quotaLabel: "Usable · quota unknown",
+            quotaText: .localized(.usableUnknownQuota),
+            diagnosticMessage: "Aliyun Coding Plan returned subscription status, but usage quota was not exposed.",
+            diagnosticText: .localized(.usableUnknownQuota)
+        )
+    }
+
+    static func parseTencentCloudTokenPlanApiKey(_ data: Data) throws -> QuotaResult {
+        struct ResponseEnvelope: Decodable {
+            let Response: ResponseBody
+        }
+
+        struct ResponseBody: Decodable {
+            let Balance: Balance?
+            let Error: TencentCloudError?
+        }
+
+        struct TencentCloudError: Decodable {
+            let Code: String
+            let Message: String
+        }
+
+        struct FlexibleInt: Decodable {
+            let value: Int
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.singleValueContainer()
+                if let int = try? container.decode(Int.self) {
+                    value = int
+                } else if let double = try? container.decode(Double.self) {
+                    value = Int(double.rounded(.down))
+                } else if let string = try? container.decode(String.self),
+                          let double = Double(string) {
+                    value = Int(double.rounded(.down))
+                } else {
+                    throw QuotaError.invalidResponse
+                }
+            }
+        }
+
+        struct Balance: Decodable {
+            let ExclusiveQuota: FlexibleInt?
+            let ExclusiveRemain: FlexibleInt?
+            let SharedQuota: FlexibleInt?
+            let SharedRemain: FlexibleInt?
+            let Status: Int?
+        }
+
+        let envelope = try JSONDecoder().decode(ResponseEnvelope.self, from: data)
+        if envelope.Response.Error != nil {
+            throw QuotaError.invalidResponse
+        }
+        guard let balance = envelope.Response.Balance else {
+            throw QuotaError.invalidResponse
+        }
+
+        let exclusiveQuota = max(0, balance.ExclusiveQuota?.value ?? 0)
+        let exclusiveRemain = max(0, balance.ExclusiveRemain?.value ?? 0)
+        let sharedQuota = max(0, balance.SharedQuota?.value ?? 0)
+        let sharedRemain = max(0, balance.SharedRemain?.value ?? 0)
+        let limit = exclusiveQuota + sharedQuota
+        let remaining = exclusiveRemain + sharedRemain
+
+        guard limit > 0 || remaining > 0 else {
+            throw QuotaError.invalidResponse
+        }
+
+        return QuotaResult(
+            remaining: remaining,
+            limit: max(limit, remaining),
+            resetAt: nil,
+            quotaLabel: "\(remaining) / \(max(limit, remaining)) tokens"
+        )
+    }
+
     private static func parseCommaSeparatedInts(_ header: String?) -> [Int] {
         header?
             .split(separator: ",")
@@ -550,9 +953,10 @@ enum QuotaParsers {
         let name: String
         let remainingPercent: Double
         let resetAt: Date?
+        var remainingText: String? = nil
     }
 
-    private static func percentQuotaResult(windows: [PercentQuotaWindow], label: String) -> QuotaResult {
+    private static func percentQuotaResult(windows: [PercentQuotaWindow], planEndsAt: Date? = nil, label: String) -> QuotaResult {
         let tightest = windows.min { lhs, rhs in
             lhs.remainingPercent < rhs.remainingPercent
         }
@@ -567,8 +971,55 @@ enum QuotaParsers {
             remaining: max(0, min(10_000, basisPoints)),
             limit: 10_000,
             resetAt: resetAt,
-            quotaLabel: label
+            planEndsAt: planEndsAt,
+            quotaLabel: label,
+            quotaWindows: orderPercentWindows(windows).map(quotaWindowText)
         )
+    }
+
+    private static func quotaWindowText(_ window: PercentQuotaWindow) -> QuotaWindowText {
+        QuotaWindowText(
+            name: window.name,
+            percentText: formatPercent(window.remainingPercent),
+            resetAt: window.resetAt,
+            remainingText: window.remainingText
+        )
+    }
+
+    private static func codexPercentQuotaWindow(
+        name: String,
+        usedPercent: Double?,
+        resetAt: Double?,
+        resetAfterSeconds: Double?
+    ) -> PercentQuotaWindow? {
+        guard let usedPercent else { return nil }
+        let resetDate: Date?
+        if let resetAt, resetAt > 0 {
+            resetDate = Date(timeIntervalSince1970: resetAt)
+        } else if let resetAfterSeconds, resetAfterSeconds > 0 {
+            resetDate = Date(timeIntervalSinceNow: resetAfterSeconds)
+        } else {
+            resetDate = nil
+        }
+        return PercentQuotaWindow(
+            name: name,
+            remainingPercent: max(0, 100 - usedPercent),
+            resetAt: resetDate
+        )
+    }
+
+    private static func quotaWindowName(seconds: Int?) -> String? {
+        guard let seconds else { return nil }
+        switch seconds {
+        case 18_000:
+            return "5h"
+        case 604_800:
+            return "week"
+        case 2_419_200...2_678_400:
+            return "month"
+        default:
+            return nil
+        }
     }
 
     private static func orderPercentWindows(_ windows: [PercentQuotaWindow]) -> [PercentQuotaWindow] {
@@ -592,6 +1043,152 @@ enum QuotaParsers {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return formatter.date(from: value)
+    }
+
+    private static func parseISO8601Date(_ value: String?) -> Date? {
+        guard let value, !value.isEmpty else { return nil }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: value) {
+            return date
+        }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: value)
+    }
+
+    private static func aliyunDataPayload(from envelope: [String: Any]) -> [String: Any]? {
+        if let hasCodingPlan = envelope["hasCodingPlan"] as? Bool {
+            return hasCodingPlan || envelope["codingPlanInfo"] != nil ? envelope : nil
+        }
+
+        let data = envelope["data"] as? [String: Any]
+        let dataV2 = data?["DataV2"] as? [String: Any]
+        let inner = dataV2?["data"] as? [String: Any]
+        if let success = inner?["success"] as? Bool,
+           !success {
+            return nil
+        }
+        return inner?["data"] as? [String: Any]
+    }
+
+    private static func aliyunCodingPlanUsageWindows(from codingPlanInfo: [String: Any]) -> [PercentQuotaWindow]? {
+        let usageContainers = [
+            codingPlanInfo["usageDetail"],
+            codingPlanInfo["usage"],
+            codingPlanInfo["quotaUsage"],
+            codingPlanInfo["codingPlanUsageDTO"],
+            codingPlanInfo["codingPlanUsage"],
+        ].compactMap { $0 as? [String: Any] }
+
+        let sources = usageContainers.isEmpty ? [codingPlanInfo] : usageContainers
+        for source in sources {
+            let windows = [
+                aliyunCodingPlanWindow(
+                    name: "5h",
+                    source: source,
+                    objectKeys: ["perFiveHour", "PerFiveHour", "rp5h", "fiveHour", "five_hour", "rolling"],
+                    leftKeys: ["rp5hLeft", "rp5hRemaining", "perFiveHourLeft", "fiveHourLeft"],
+                    limitKeys: ["rp5hLimit", "perFiveHourLimit", "fiveHourLimit"],
+                    usageKeys: ["rp5hUsage", "perFiveHourUsage", "fiveHourUsage"]
+                ),
+                aliyunCodingPlanWindow(
+                    name: "week",
+                    source: source,
+                    objectKeys: ["perWeek", "PerWeek", "rpw", "week", "weekly"],
+                    leftKeys: ["rpwLeft", "rpwRemaining", "perWeekLeft", "weekLeft", "weeklyLeft"],
+                    limitKeys: ["rpwLimit", "perWeekLimit", "weekLimit", "weeklyLimit"],
+                    usageKeys: ["rpwUsage", "perWeekUsage", "weekUsage", "weeklyUsage"]
+                ),
+                aliyunCodingPlanWindow(
+                    name: "month",
+                    source: source,
+                    objectKeys: ["perMonth", "PerMonth", "package", "month", "monthly"],
+                    leftKeys: ["packageLeft", "packageRemaining", "perMonthLeft", "monthLeft", "monthlyLeft"],
+                    limitKeys: ["packageLimit", "perMonthLimit", "monthLimit", "monthlyLimit"],
+                    usageKeys: ["packageUsage", "perMonthUsage", "monthUsage", "monthlyUsage"]
+                ),
+            ].compactMap { $0 }
+
+            if !windows.isEmpty {
+                return windows
+            }
+        }
+
+        return nil
+    }
+
+    private static func aliyunCodingPlanWindow(
+        name: String,
+        source: [String: Any],
+        objectKeys: [String],
+        leftKeys: [String],
+        limitKeys: [String],
+        usageKeys: [String]
+    ) -> PercentQuotaWindow? {
+        let object = firstDictionary(in: source, keys: objectKeys)
+        let limit = firstDoubleValue(in: object ?? source, keys: ["total", "Total", "limit", "Limit", "quota", "Quota"] + limitKeys)
+        guard let limit, limit > 0 else { return nil }
+
+        let used = firstDoubleValue(in: object ?? source, keys: ["used", "Used", "usage", "Usage"] + usageKeys)
+        let explicitLeft = firstDoubleValue(in: object ?? source, keys: ["left", "Left", "remaining", "Remaining", "remain", "Remain"] + leftKeys)
+        let remaining = explicitLeft ?? (limit - (used ?? 0))
+        let safeRemaining = max(0, remaining)
+
+        return PercentQuotaWindow(
+            name: name,
+            remainingPercent: safeRemaining / limit * 100,
+            resetAt: nil,
+            remainingText: "\(Int(safeRemaining.rounded(.down))) / \(Int(limit.rounded(.down)))"
+        )
+    }
+
+    private static func firstDictionary(in source: [String: Any], keys: [String]) -> [String: Any]? {
+        for key in keys {
+            if let value = source[key] as? [String: Any] {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func firstDoubleValue(in source: [String: Any], keys: [String]) -> Double? {
+        for key in keys {
+            if let value = doubleValue(source[key]) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func aliyunTimestampDate(_ value: Any?) -> Date? {
+        let numericValue: Double?
+        numericValue = doubleValue(value)
+
+        guard let numericValue, numericValue > 0 else {
+            return nil
+        }
+        let seconds = numericValue > 10_000_000_000 ? numericValue / 1000 : numericValue
+        return Date(timeIntervalSince1970: seconds)
+    }
+
+    private static func doubleValue(_ value: Any?) -> Double? {
+        if let number = value as? NSNumber {
+            return number.doubleValue
+        }
+        if let string = value as? String {
+            return Double(string)
+        }
+        return nil
+    }
+
+    private static func stringValue(_ value: Any?) -> String? {
+        if let string = value as? String {
+            return string
+        }
+        if let number = value as? NSNumber {
+            return number.stringValue
+        }
+        return nil
     }
 
     private static func firstDouble(in text: String, field: String) -> Double? {
@@ -655,22 +1252,65 @@ enum QuotaError: Error, LocalizedError {
     case rateLimited(resetAt: Date?)
     case unauthorized
     case notSupported
+    case noSubscription
     case cooldown
 
     var errorDescription: String? {
+        localizedTextDescriptor.render()
+    }
+
+    var localizedTextDescriptor: LocalizedTextDescriptor {
         switch self {
         case .invalidResponse:
-            return "Invalid response from server"
+            return .localized(.quotaErrorInvalidResponse)
         case .networkError(let error):
-            return "Network error: \(error.localizedDescription)"
+            if let networkErrorKey = Self.knownNetworkErrorKey(error) {
+                return .localized(networkErrorKey)
+            }
+            return .localized(.quotaErrorNetworkFormat, error.localizedDescription)
         case .rateLimited:
-            return "Rate limit exceeded"
+            return .localized(.quotaErrorRateLimited)
         case .unauthorized:
-            return "Invalid API key"
+            return .localized(.quotaErrorInvalidAPIKey)
         case .notSupported:
-            return "Quota check not supported for this provider"
+            return .localized(.quotaCheckNotSupportedDiagnostic)
+        case .noSubscription:
+            return .localized(.noSubscribedPlan)
         case .cooldown:
-            return "Quota was checked recently"
+            return .localized(.quotaErrorCooldown)
+        }
+    }
+
+    private static func knownNetworkErrorKey(_ error: Error) -> L10n.Key? {
+        if let urlError = error as? URLError,
+           let key = knownNetworkErrorKey(for: urlError.code) {
+            return key
+        }
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            let urlErrorCode = URLError.Code(rawValue: nsError.code)
+            if let key = knownNetworkErrorKey(for: urlErrorCode) {
+                return key
+            }
+        }
+
+        return L10n.knownNetworkErrorKey(error.localizedDescription)
+    }
+
+    private static func knownNetworkErrorKey(for code: URLError.Code) -> L10n.Key? {
+        switch code {
+        case .timedOut:
+            return .quotaErrorTimedOutNetwork
+        case .notConnectedToInternet:
+            return .quotaErrorOfflineNetwork
+        case .networkConnectionLost:
+            return .quotaErrorConnectionLostNetwork
+        case .cannotFindHost, .dnsLookupFailed:
+            return .quotaErrorHostNotFoundNetwork
+        case .cannotConnectToHost:
+            return .quotaErrorCannotConnectNetwork
+        default:
+            return nil
         }
     }
 
@@ -680,7 +1320,7 @@ enum QuotaError: Error, LocalizedError {
             return 401
         case .rateLimited:
             return 429
-        case .invalidResponse, .networkError, .notSupported, .cooldown:
+        case .invalidResponse, .networkError, .notSupported, .noSubscription, .cooldown:
             return nil
         }
     }
@@ -769,6 +1409,11 @@ private struct ExaAdminCredential {
     }
 }
 
+private struct ChatGPTSessionContext {
+    let accessToken: String
+    let accountID: String?
+}
+
 actor QuotaService {
     private let session: URLSession
     private var lastCheck: [String: Date] = [:]
@@ -809,6 +1454,12 @@ actor QuotaService {
             return try await checkQueritQuota(key: key)
         case .anthropic:
             return try await checkAnthropicQuota(key: key)
+        case .claudeAPIUsage, .codexAPIUsage:
+            throw QuotaError.notSupported
+        case .claudeSubscription:
+            throw QuotaError.notSupported
+        case .codexSubscription:
+            return try await checkCodexSubscriptionQuota(key: key)
         case .deepseek:
             return try await checkDeepSeekQuota(key: key)
         case .xfyunCodingPlan:
@@ -817,6 +1468,14 @@ actor QuotaService {
             return try await checkVolcengineCodingPlanQuota(key: key)
         case .opencodeGo:
             return try await checkOpenCodeGoQuota(key: key)
+        case .aliyunCodingPlan:
+            return try await checkAliyunCodingPlanQuota(key: key)
+        case .tencentCloudCodingPlan:
+            return try await checkTencentCloudCodingPlanQuota(key: key)
+        case .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan:
+            throw QuotaError.notSupported
+        case .tencentCloudTokenPlan:
+            return try await checkTencentCloudTokenPlanQuota(key: key)
         case .wxmp:
             return try await checkWxmpQuota(key: key)
         }
@@ -831,6 +1490,7 @@ actor QuotaService {
         result.httpStatus = response.statusCode
         if let diagnosticMessage {
             result.diagnosticMessage = diagnosticMessage
+            result.diagnosticText = LocalizedTextDescriptor.fromLegacyLabel(diagnosticMessage)
         }
         return result
     }
@@ -889,7 +1549,9 @@ actor QuotaService {
         if httpResponse.statusCode == 402 {
             result.httpStatus = httpResponse.statusCode
             result.quotaLabel = "Usage limit exceeded"
+            result.quotaText = LocalizedTextDescriptor.localized(.usageLimitExceeded)
             result.diagnosticMessage = "Brave returned HTTP 402 usage limit exceeded."
+            result.diagnosticText = LocalizedTextDescriptor.localized(.braveUsageLimitDiagnostic)
         } else {
             result = QuotaParsers.applyKnownBraveMonthlyQuotaIfNeeded(
                 result,
@@ -899,8 +1561,10 @@ actor QuotaService {
             result.httpStatus = httpResponse.statusCode
             if result.quotaLabel == "Search OK · monthly quota not exposed" {
                 result.diagnosticMessage = "Search works, but Brave did not expose monthly quota for this key."
+                result.diagnosticText = LocalizedTextDescriptor.localized(.braveQuotaUnknownDiagnostic)
             } else {
                 result.diagnosticMessage = "Search works and Brave returned quota headers."
+                result.diagnosticText = LocalizedTextDescriptor.localized(.braveQuotaHeadersDiagnostic)
             }
         }
         return result
@@ -1089,8 +1753,7 @@ actor QuotaService {
 
         return try withHTTPStatus(
             QuotaParsers.parseQueritAccount(data),
-            from: httpResponse,
-            diagnosticMessage: "Querit account endpoint returned monthly request quota."
+            from: httpResponse
         )
     }
 
@@ -1269,5 +1932,434 @@ actor QuotaService {
             QuotaParsers.parseOpenCodeGoUsage(data),
             from: httpResponse
         )
+    }
+
+    private func checkAliyunCodingPlanQuota(key: APIKey) async throws -> QuotaResult {
+        guard !key.isBusinessInvocationCredential else {
+            throw QuotaError.notSupported
+        }
+
+        let credential = DashboardCredential(key.key)
+        guard !credential.cookie.isEmpty else {
+            throw QuotaError.unauthorized
+        }
+
+        let region = credential.value(for: ["region", "aliyunRegion"]) ?? "cn-beijing"
+        let secToken = try await fetchAliyunConsoleSecToken(cookie: credential.cookie)
+        let api = "zeldaEasy.broadscope-bailian.aliclaw.coding-plan"
+
+        var components = URLComponents(string: "https://bailian-cs.console.aliyun.com/data/api.json")!
+        components.queryItems = [
+            URLQueryItem(name: "action", value: "BroadScopeAspnGateway"),
+            URLQueryItem(name: "product", value: "sfm_bailian"),
+            URLQueryItem(name: "api", value: api),
+            URLQueryItem(name: "_v", value: "undefined"),
+        ]
+        guard let url = components.url else {
+            throw QuotaError.invalidResponse
+        }
+
+        let params: [String: Any] = [
+            "Api": api,
+            "V": "1.0",
+            "Data": [
+                "cornerstoneParam": [:] as [String: Any],
+            ],
+        ]
+        let paramsData = try JSONSerialization.data(withJSONObject: params)
+        guard let paramsString = String(data: paramsData, encoding: .utf8) else {
+            throw QuotaError.invalidResponse
+        }
+
+        var form = URLComponents()
+        form.queryItems = [
+            URLQueryItem(name: "params", value: paramsString),
+            URLQueryItem(name: "sec_token", value: secToken),
+            URLQueryItem(name: "region", value: region),
+        ]
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue(credential.cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://bailian.console.aliyun.com", forHTTPHeaderField: "Origin")
+        request.setValue("https://bailian.console.aliyun.com/?tab=plan#/efm/subscription/coding-plan", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.httpBody = form.percentEncodedQuery?.data(using: .utf8)
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        return try withHTTPStatus(
+            QuotaParsers.parseAliyunCodingPlanStatus(data),
+            from: httpResponse
+        )
+    }
+
+    /// Codex Subscription: ChatGPT Codex Cloud usage endpoint.
+    /// The secret is a ChatGPT web login Cookie header captured by reauthentication.
+    private func checkCodexSubscriptionQuota(key: APIKey) async throws -> QuotaResult {
+        let credential = DashboardCredential(key.key)
+        guard !credential.cookie.isEmpty else {
+            throw QuotaError.unauthorized
+        }
+        let sessionContext = try await fetchChatGPTSessionContext(cookie: credential.cookie)
+
+        var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/usage")!)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("zh-CN,zh;q=0.9", forHTTPHeaderField: "Accept-Language")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        request.setValue(credential.cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://chatgpt.com/codex", forHTTPHeaderField: "Referer")
+        request.setValue("\"Chromium\";v=\"148\", \"Google Chrome\";v=\"148\", \"Not/A)Brand\";v=\"99\"", forHTTPHeaderField: "sec-ch-ua")
+        request.setValue("?0", forHTTPHeaderField: "sec-ch-ua-mobile")
+        request.setValue("\"macOS\"", forHTTPHeaderField: "sec-ch-ua-platform")
+        request.setValue("empty", forHTTPHeaderField: "sec-fetch-dest")
+        request.setValue("cors", forHTTPHeaderField: "sec-fetch-mode")
+        request.setValue("same-origin", forHTTPHeaderField: "sec-fetch-site")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue("Bearer \(sessionContext.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        var result = try QuotaParsers.parseCodexWhamUsage(data)
+        if let accountID = sessionContext.accountID,
+           let planEndsAt = try? await fetchCodexSubscriptionPlanEnd(
+                cookie: credential.cookie,
+                accessToken: sessionContext.accessToken,
+                accountID: accountID
+           ) {
+            result.planEndsAt = planEndsAt
+        }
+
+        return withHTTPStatus(result, from: httpResponse)
+    }
+
+    private func fetchChatGPTSessionContext(cookie: String) async throws -> ChatGPTSessionContext {
+        var request = URLRequest(url: URL(string: "https://chatgpt.com/api/auth/session")!)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("zh-CN,zh;q=0.9", forHTTPHeaderField: "Accept-Language")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        request.setValue(cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://chatgpt.com/codex", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let accessToken = object["accessToken"] as? String,
+              !accessToken.isEmpty else {
+            throw QuotaError.unauthorized
+        }
+        let account = object["account"] as? [String: Any]
+        return ChatGPTSessionContext(
+            accessToken: accessToken,
+            accountID: account?["id"] as? String
+        )
+    }
+
+    private func fetchCodexSubscriptionPlanEnd(
+        cookie: String,
+        accessToken: String,
+        accountID: String
+    ) async throws -> Date? {
+        guard let encodedAccountID = accountID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
+            throw QuotaError.invalidResponse
+        }
+        var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/subscriptions?account_id=\(encodedAccountID)")!)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("zh-CN,zh;q=0.9", forHTTPHeaderField: "Accept-Language")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        request.setValue(cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://chatgpt.com/codex", forHTTPHeaderField: "Referer")
+        request.setValue("\"Chromium\";v=\"148\", \"Google Chrome\";v=\"148\", \"Not/A)Brand\";v=\"99\"", forHTTPHeaderField: "sec-ch-ua")
+        request.setValue("?0", forHTTPHeaderField: "sec-ch-ua-mobile")
+        request.setValue("\"macOS\"", forHTTPHeaderField: "sec-ch-ua-platform")
+        request.setValue("empty", forHTTPHeaderField: "sec-fetch-dest")
+        request.setValue("cors", forHTTPHeaderField: "sec-fetch-mode")
+        request.setValue("same-origin", forHTTPHeaderField: "sec-fetch-site")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+        return try QuotaParsers.parseCodexSubscriptionLifecycle(data)
+    }
+
+    private func fetchAliyunConsoleSecToken(cookie: String) async throws -> String {
+        var request = URLRequest(url: URL(string: "https://bailian.console.aliyun.com/tool/user/info.json")!)
+        request.httpMethod = "GET"
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        request.setValue(cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://bailian.console.aliyun.com/?tab=plan#/efm/subscription/coding-plan", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let userData = object["data"] as? [String: Any],
+              let secToken = userData["secToken"] as? String,
+              !secToken.isEmpty else {
+            throw QuotaError.unauthorized
+        }
+
+        return secToken
+    }
+
+    private func checkTencentCloudCodingPlanQuota(key: APIKey) async throws -> QuotaResult {
+        let credential = DashboardCredential(key.key)
+        guard !credential.cookie.isEmpty,
+              let uin = numericTencentCookie(
+                credential.value(for: ["uin"]) ?? credential.cookieValue(named: "uin")
+              ),
+              let csrfToken = credential.value(for: ["skey", "p_skey", "pSkey"])
+                ?? credential.cookieValue(named: "skey")
+                ?? credential.cookieValue(named: "p_skey") else {
+            throw QuotaError.unauthorized
+        }
+
+        let ownerUin = numericTencentCookie(
+            credential.value(for: ["ownerUin", "owneruin", "owner_uin"]) ?? credential.cookieValue(named: "ownerUin")
+        ) ?? uin
+        let csrfCode = tencentCloudCSRFCode(from: csrfToken)
+        let timestampMs = Int(Date().timeIntervalSince1970 * 1000)
+
+        var components = URLComponents(string: "https://console.cloud.tencent.com/cgi/capi")!
+        components.queryItems = [
+            URLQueryItem(name: "cmd", value: "DescribePkg"),
+            URLQueryItem(name: "action", value: "delegate"),
+            URLQueryItem(name: "serviceType", value: "hunyuan"),
+            URLQueryItem(name: "secure", value: "1"),
+            URLQueryItem(name: "version", value: "3"),
+            URLQueryItem(name: "json", value: "1"),
+            URLQueryItem(name: "dictId", value: "3216"),
+            URLQueryItem(name: "sts", value: "1"),
+            URLQueryItem(name: "t", value: String(timestampMs)),
+            URLQueryItem(name: "uin", value: uin),
+            URLQueryItem(name: "ownerUin", value: ownerUin),
+            URLQueryItem(name: "csrfCode", value: csrfCode),
+        ]
+        guard let url = components.url else {
+            throw QuotaError.invalidResponse
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(credential.cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://console.cloud.tencent.com", forHTTPHeaderField: "Origin")
+        request.setValue("https://console.cloud.tencent.com/tokenhub/codingplan", forHTTPHeaderField: "Referer")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "regionId": 1,
+            "serviceType": "hunyuan",
+            "cmd": "DescribePkg",
+            "data": [
+                "Version": "2023-09-01",
+                "Language": "zh-CN",
+            ],
+        ])
+
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        return try withHTTPStatus(
+            QuotaParsers.parseTencentCloudCodingPlanDescribePkg(data),
+            from: httpResponse
+        )
+    }
+
+    private func numericTencentCookie(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let digits = value.filter(\.isNumber)
+        return digits.isEmpty ? nil : digits
+    }
+
+    private func tencentCloudCSRFCode(from token: String) -> String {
+        var hash: UInt32 = 5381
+        for unit in token.utf16 {
+            hash = hash &+ (hash << 5) &+ UInt32(unit)
+        }
+        return String(hash & 0x7fffffff)
+    }
+
+    private func checkTencentCloudTokenPlanQuota(key: APIKey) async throws -> QuotaResult {
+        guard let credential = TencentCloudTokenPlanCredential(key.key) else {
+            throw QuotaError.notSupported
+        }
+
+        var request = try TencentCloudAPIRequestBuilder.describeTokenPlanApiKey(credential: credential)
+        request.timeoutInterval = 30
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        return try withHTTPStatus(
+            QuotaParsers.parseTencentCloudTokenPlanApiKey(data),
+            from: httpResponse
+        )
+    }
+
+}
+
+private struct TencentCloudTokenPlanCredential {
+    let secretID: String
+    let secretKey: String
+    let apiKeyID: String
+    let region: String
+
+    init?(_ raw: String) {
+        let credential = DashboardCredential(raw)
+        guard let secretID = credential.value(for: ["secretID", "secretId", "secret_id"]),
+              let secretKey = credential.value(for: ["secretKey", "secret_key"]),
+              let apiKeyID = credential.value(for: ["apiKeyID", "apiKeyId", "api_key_id", "keyID", "keyId", "id"]) else {
+            return nil
+        }
+
+        self.secretID = secretID
+        self.secretKey = secretKey
+        self.apiKeyID = apiKeyID
+        self.region = credential.value(for: ["region"]) ?? "ap-guangzhou"
+    }
+}
+
+private enum TencentCloudAPIRequestBuilder {
+    static func describeTokenPlanApiKey(credential: TencentCloudTokenPlanCredential, date: Date = Date()) throws -> URLRequest {
+        let endpoint = "tokenhub.tencentcloudapi.com"
+        let service = "tokenhub"
+        let action = "DescribeTokenPlanApiKey"
+        let version = "2025-05-29"
+        let payload = #"{"ApiKeyId":"\#(credential.apiKeyID)"}"#
+        let timestamp = Int(date.timeIntervalSince1970)
+        let dateString = utcDateString(from: date)
+
+        let canonicalHeaders = "content-type:application/json; charset=utf-8\nhost:\(endpoint)\nx-tc-action:\(action.lowercased())\n"
+        let signedHeaders = "content-type;host;x-tc-action"
+        let hashedRequestPayload = sha256Hex(payload)
+        let canonicalRequest = [
+            "POST",
+            "/",
+            "",
+            canonicalHeaders,
+            signedHeaders,
+            hashedRequestPayload
+        ].joined(separator: "\n")
+
+        let credentialScope = "\(dateString)/\(service)/tc3_request"
+        let stringToSign = [
+            "TC3-HMAC-SHA256",
+            String(timestamp),
+            credentialScope,
+            sha256Hex(canonicalRequest)
+        ].joined(separator: "\n")
+
+        let secretDate = hmacSHA256(data: dateString, key: Data("TC3\(credential.secretKey)".utf8))
+        let secretService = hmacSHA256(data: service, key: secretDate)
+        let secretSigning = hmacSHA256(data: "tc3_request", key: secretService)
+        let signature = hmacSHA256Hex(data: stringToSign, key: secretSigning)
+        let authorization = "TC3-HMAC-SHA256 Credential=\(credential.secretID)/\(credentialScope), SignedHeaders=\(signedHeaders), Signature=\(signature)"
+
+        var request = URLRequest(url: URL(string: "https://\(endpoint)")!)
+        request.httpMethod = "POST"
+        request.httpBody = Data(payload.utf8)
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.setValue(endpoint, forHTTPHeaderField: "Host")
+        request.setValue(action, forHTTPHeaderField: "X-TC-Action")
+        request.setValue(version, forHTTPHeaderField: "X-TC-Version")
+        request.setValue(credential.region, forHTTPHeaderField: "X-TC-Region")
+        request.setValue(String(timestamp), forHTTPHeaderField: "X-TC-Timestamp")
+        request.setValue(authorization, forHTTPHeaderField: "Authorization")
+        return request
+    }
+
+    private static func utcDateString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    private static func sha256Hex(_ value: String) -> String {
+        let digest = SHA256.hash(data: Data(value.utf8))
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    private static func hmacSHA256(data: String, key: Data) -> Data {
+        let key = SymmetricKey(data: key)
+        let signature = HMAC<SHA256>.authenticationCode(for: Data(data.utf8), using: key)
+        return Data(signature)
+    }
+
+    private static func hmacSHA256Hex(data: String, key: Data) -> String {
+        hmacSHA256(data: data, key: key).map { String(format: "%02x", $0) }.joined()
     }
 }

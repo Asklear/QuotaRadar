@@ -15,10 +15,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var cancellables = Set<AnyCancellable>()
     private var autoRefreshCancellable: AnyCancellable?
     private var quotaConsumingAutoRefreshCancellable: AnyCancellable?
+    private let settingsWindowFrameDefaultsKey = "QuotaRadarSettingsWindowFrame"
+    private var isApplyingSettingsWindowPlacement = false
     private let preferredSettingsContentSize = NSSize(width: 1040, height: 640)
     private let minimumSettingsWindowSize = NSSize(width: 900, height: 600)
     private let statusPanelGap: CGFloat = 6
     private let statusPanelScreenInset: CGFloat = 10
+    private let statusPanelOuterPadding: CGFloat = 18
+
+    private var statusPanelSize: CGSize {
+        CGSize(
+            width: MenuContentView.menuSize.width + statusPanelOuterPadding * 2,
+            height: MenuContentView.menuSize.height + statusPanelOuterPadding * 2
+        )
+    }
+
+    private var statusPanelContentFrame: NSRect {
+        NSRect(
+            x: statusPanelOuterPadding,
+            y: statusPanelOuterPadding,
+            width: MenuContentView.menuSize.width,
+            height: MenuContentView.menuSize.height
+        )
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         LegacyConfigurationMigrator.migrateUserDefaultsIfNeeded()
@@ -38,7 +57,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let button = statusItem?.button else { return }
 
         let icon = makeStatusBarIcon()
-        icon.isTemplate = false
+        icon.isTemplate = true
         button.image = icon
         button.imagePosition = .imageOnly
         button.imageScaling = .scaleProportionallyDown
@@ -67,7 +86,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             xRadius: rect.width * 0.24,
             yRadius: rect.height * 0.24
         )
-        NSColor.white.setFill()
+        NSColor.black.setFill()
         tilePath.fill()
 
         NSGraphicsContext.saveGraphicsState()
@@ -121,24 +140,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func setupStatusPanel() {
         let contentView = MenuContentView(monitor: quotaMonitor)
         let hostingController = NSHostingController(rootView: contentView)
-        let containerView = StatusPanelContainerView(frame: NSRect(origin: .zero, size: MenuContentView.menuSize))
+        let containerView = StatusPanelContainerView(frame: NSRect(origin: .zero, size: statusPanelSize))
         containerView.wantsLayer = true
         containerView.layer?.backgroundColor = NSColor.clear.cgColor
 
-        hostingController.view.frame = containerView.bounds
-        hostingController.view.autoresizingMask = [.width, .height]
+        hostingController.view.frame = statusPanelContentFrame
+        hostingController.view.autoresizingMask = []
         hostingController.view.wantsLayer = true
         hostingController.view.layer?.backgroundColor = NSColor.clear.cgColor
         containerView.addSubview(hostingController.view)
 
         let panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: MenuContentView.menuSize),
+            contentRect: NSRect(origin: .zero, size: statusPanelSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
         panel.contentView = containerView
-        panel.setContentSize(MenuContentView.menuSize)
+        panel.setContentSize(statusPanelSize)
         panel.animationBehavior = .none
         panel.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle]
         panel.hidesOnDeactivate = false
@@ -186,15 +205,37 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             buttonFrame = NSRect(origin: NSEvent.mouseLocation, size: .zero)
         }
 
-        let screen = button.window?.screen ?? NSScreen.main
+        let screen = screenContainingStatusButton(buttonFrame)
         let visibleFrame = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1512, height: 949)
-        let size = MenuContentView.menuSize
+        let size = statusPanelSize
         let minX = visibleFrame.minX + statusPanelScreenInset
         let maxX = visibleFrame.maxX - size.width - statusPanelScreenInset
-        let preferredX = buttonFrame.midX - MenuContentView.menuSize.width / 2
+        let preferredX = buttonFrame.midX - MenuContentView.menuSize.width / 2 - statusPanelOuterPadding
         let x = min(max(preferredX, minX), maxX)
-        let y = visibleFrame.maxY - statusPanelGap - size.height
+        let preferredY = buttonFrame.minY - statusPanelGap - MenuContentView.menuSize.height - statusPanelOuterPadding
+        let maxY = visibleFrame.maxY - statusPanelScreenInset - MenuContentView.menuSize.height - statusPanelOuterPadding
+        let minY = visibleFrame.minY + statusPanelScreenInset - statusPanelOuterPadding
+        let y = min(max(preferredY, minY), maxY)
         return NSRect(x: x, y: y, width: size.width, height: size.height)
+    }
+
+    private func screenContainingStatusButton(_ buttonFrame: NSRect) -> NSScreen? {
+        let buttonCenter = NSPoint(x: buttonFrame.midX, y: buttonFrame.midY)
+        if let containingScreen = NSScreen.screens.first(where: { $0.frame.contains(buttonCenter) }) {
+            return containingScreen
+        }
+
+        return NSScreen.screens.min { lhs, rhs in
+            squaredDistance(from: buttonCenter, to: lhs.frame) < squaredDistance(from: buttonCenter, to: rhs.frame)
+        } ?? NSScreen.main
+    }
+
+    private func squaredDistance(from point: NSPoint, to rect: NSRect) -> CGFloat {
+        let clampedX = min(max(point.x, rect.minX), rect.maxX)
+        let clampedY = min(max(point.y, rect.minY), rect.maxY)
+        let deltaX = point.x - clampedX
+        let deltaY = point.y - clampedY
+        return deltaX * deltaX + deltaY * deltaY
     }
 
     private func configureStatusPanelWindowAppearance(window: NSWindow) {
@@ -301,10 +342,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func statusHeaderSettingsHitRect(in contentView: NSView) -> NSRect {
-        let size = MenuContentView.menuSize
+        let size = statusPanelSize
         let visualTopRect = NSRect(
-            x: size.width - 68,
-            y: 10,
+            x: statusPanelContentFrame.maxX - 68,
+            y: statusPanelContentFrame.minY + 10,
             width: 54,
             height: 48
         )
@@ -382,6 +423,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         statusPanelSettingsOverlayButton?.toolTip = L10n.t(.settingsTab)
         statusPanelSettingsOverlayButton?.setAccessibilityLabel(L10n.t(.settingsTab))
+        settingsWindow?.title = L10n.t(.settingsWindowTitle)
     }
 
     @MainActor
@@ -417,6 +459,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if flag, let settingsWindow, settingsWindow.isVisible {
+            bringExistingSettingsWindowToFront(settingsWindow)
+            return false
+        }
         openPreferences()
         return false
     }
@@ -427,6 +473,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc func openPreferences() {
         openPreferences(destination: .providers)
+    }
+
+    private func bringExistingSettingsWindowToFront(_ settingsWindow: NSWindow) {
+        configureSettingsWindow(settingsWindow)
+        settingsWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        scheduleSettingsWindowPlacementRecovery(settingsWindow)
     }
 
     func openPreferencesFromStatusPopover(destination: SettingsDestination) {
@@ -440,12 +493,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         SettingsNavigationStore.shared.select(destination)
         clearSwiftUISettingsWindowAutosaveFrame()
 
+        let isCreatingSettingsWindow = settingsWindow == nil
         if settingsWindow == nil {
             closeRestoredSettingsWindows()
             let settingsView = SettingsView(monitor: quotaMonitor)
             let controller = NSHostingController(rootView: settingsView)
             let window = NSWindow(contentViewController: controller)
-            window.title = "Quota Radar Settings"
+            window.title = L10n.t(.settingsWindowTitle)
             window.identifier = NSUserInterfaceItemIdentifier("QuotaRadarMainSettingsWindow")
             window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
             window.isReleasedWhenClosed = false
@@ -456,7 +510,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         if let settingsWindow {
-            configureSettingsWindow(settingsWindow)
+            configureSettingsWindow(settingsWindow, restoreSavedFrameIfNeeded: isCreatingSettingsWindow)
         }
 
         settingsWindow?.makeKeyAndOrderFront(nil)
@@ -485,6 +539,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         scheduleSettingsWindowPlacementRecovery(window)
     }
 
+    func windowDidMove(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow,
+              window === settingsWindow else { return }
+        saveSettingsWindowFrame(window)
+    }
+
+    func windowDidEndLiveResize(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow,
+              window === settingsWindow else { return }
+        saveSettingsWindowFrame(window)
+    }
+
     private func closeRestoredSettingsWindows() {
         for window in NSApp.windows where window.isVisible && window.styleMask.contains(.titled) {
             window.close()
@@ -492,6 +558,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func configureSettingsWindow(_ window: NSWindow) {
+        configureSettingsWindow(window, restoreSavedFrameIfNeeded: false)
+    }
+
+    private func configureSettingsWindow(_ window: NSWindow, restoreSavedFrameIfNeeded: Bool) {
         window.minSize = minimumSettingsWindowSize
         window.collectionBehavior.insert(.moveToActiveSpace)
 
@@ -500,7 +570,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             window.setContentSize(preferredSettingsContentSize)
         }
 
-        keepSettingsWindowOnScreen(window)
+        restoreOrRepairSettingsWindowPlacement(window, restoreSavedFrameIfNeeded: restoreSavedFrameIfNeeded)
     }
 
     private func clearSwiftUISettingsWindowAutosaveFrame() {
@@ -512,7 +582,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func keepSettingsWindowOnScreen(_ window: NSWindow) {
-        forceSettingsWindowOntoPreferredScreen(window)
+        repairSettingsWindowPlacementIfNeeded(window)
     }
 
     private func scheduleSettingsWindowPlacementRecovery(_ window: NSWindow) {
@@ -520,13 +590,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         for delay in delays {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak window] in
                 guard let self, let window else { return }
-                self.forceSettingsWindowOntoPreferredScreen(window)
+                self.repairSettingsWindowPlacementIfNeeded(window)
                 window.makeKeyAndOrderFront(nil)
             }
         }
     }
 
-    private func forceSettingsWindowOntoPreferredScreen(_ window: NSWindow) {
+    private func restoreOrRepairSettingsWindowPlacement(_ window: NSWindow, restoreSavedFrameIfNeeded: Bool) {
+        if restoreSavedFrameIfNeeded,
+           let savedFrame = savedSettingsWindowFrame(),
+           settingsWindowFrameIsUsable(savedFrame) {
+            setSettingsWindowFrame(savedFrame, for: window)
+            return
+        }
+
+        repairSettingsWindowPlacementIfNeeded(window)
+    }
+
+    private func repairSettingsWindowPlacementIfNeeded(_ window: NSWindow) {
+        guard !settingsWindowFrameIsUsable(window.frame) else {
+            saveSettingsWindowFrame(window)
+            return
+        }
+
+        placeSettingsWindowNearCurrentInteraction(window)
+    }
+
+    private func placeSettingsWindowNearCurrentInteraction(_ window: NSWindow) {
         let visibleFrame = preferredSettingsVisibleFrame().insetBy(dx: 24, dy: 24)
         let currentFrame = window.frame
 
@@ -540,20 +630,32 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             width: targetSize.width,
             height: targetSize.height
         )
-        window.setFrame(clampedFrame(centeredFrame, to: visibleFrame), display: true)
+        setSettingsWindowFrame(clampedFrame(centeredFrame, to: visibleFrame), for: window)
     }
 
     private func preferredSettingsVisibleFrame() -> NSRect {
-        if let primaryScreen = NSScreen.screens.first(where: { screen in
-            screen.frame.minX == 0 && screen.frame.minY == 0
-        }), primaryScreen.visibleFrame.width > 0, primaryScreen.visibleFrame.height > 0 {
-            return primaryScreen.visibleFrame
+        let currentPoint = NSEvent.mouseLocation
+        if let interactionScreen = NSScreen.screens.first(where: { screen in
+            screen.frame.contains(currentPoint)
+        }), interactionScreen.visibleFrame.width > 0, interactionScreen.visibleFrame.height > 0 {
+            return interactionScreen.visibleFrame
         }
 
-        if let positiveScreen = NSScreen.screens.first(where: { screen in
-            screen.visibleFrame.minX >= 0 && screen.visibleFrame.minY >= 0
-        }) {
-            return positiveScreen.visibleFrame
+        if let button = statusItem?.button,
+           let window = button.window {
+            let buttonFrameInWindow = button.convert(button.bounds, to: nil)
+            let buttonFrame = window.convertToScreen(buttonFrameInWindow)
+            if let statusScreen = screenContainingStatusButton(buttonFrame),
+               statusScreen.visibleFrame.width > 0,
+               statusScreen.visibleFrame.height > 0 {
+                return statusScreen.visibleFrame
+            }
+        }
+
+        if let keyWindowScreen = NSApp.keyWindow?.screen,
+           keyWindowScreen.visibleFrame.width > 0,
+           keyWindowScreen.visibleFrame.height > 0 {
+            return keyWindowScreen.visibleFrame
         }
 
         if let mainScreen = NSScreen.main, mainScreen.visibleFrame.width > 0, mainScreen.visibleFrame.height > 0 {
@@ -561,11 +663,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         let activeDisplayBounds = activeDisplayFrames()
-        let preferredBounds = activeDisplayBounds.first { frame in
-            frame.minX >= 0 && frame.minY >= 0
-        }
 
-        if let preferredBounds, preferredBounds.width > 0, preferredBounds.height > 0 {
+        if let preferredBounds = activeDisplayBounds.first, preferredBounds.width > 0, preferredBounds.height > 0 {
             return NSRect(
                 x: preferredBounds.minX,
                 y: preferredBounds.minY,
@@ -575,6 +674,65 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         return NSRect(x: 0, y: 0, width: 1512, height: 949)
+    }
+
+    private func savedSettingsWindowFrame() -> NSRect? {
+        guard let value = UserDefaults.standard.string(forKey: settingsWindowFrameDefaultsKey),
+              !value.isEmpty else {
+            return nil
+        }
+
+        let frame = NSRectFromString(value)
+        guard frame.width > 0, frame.height > 0 else {
+            return nil
+        }
+        return frame
+    }
+
+    private func saveSettingsWindowFrame(_ window: NSWindow) {
+        guard !isApplyingSettingsWindowPlacement,
+              window === settingsWindow,
+              settingsWindowFrameIsUsable(window.frame) else {
+            return
+        }
+        UserDefaults.standard.set(NSStringFromRect(window.frame), forKey: settingsWindowFrameDefaultsKey)
+    }
+
+    private func settingsWindowFrameIsUsable(_ frame: NSRect) -> Bool {
+        guard frame.width >= minimumSettingsWindowSize.width * 0.5,
+              frame.height >= minimumSettingsWindowSize.height * 0.5 else {
+            return false
+        }
+
+        return NSScreen.screens.contains { screen in
+            let visibleFrame = screen.visibleFrame
+            let intersection = frame.intersection(visibleFrame)
+            let minimumVisibleWidth = min(240, frame.width * 0.25)
+            let minimumVisibleHeight = min(160, frame.height * 0.25)
+            return intersection.width >= minimumVisibleWidth && intersection.height >= minimumVisibleHeight
+        }
+    }
+
+    private func setSettingsWindowFrame(_ frame: NSRect, for window: NSWindow) {
+        let targetVisibleFrame = visibleFrameForSettingsWindowFrame(frame)?.insetBy(dx: 24, dy: 24)
+            ?? preferredSettingsVisibleFrame().insetBy(dx: 24, dy: 24)
+        let clamped = clampedFrame(frame, to: targetVisibleFrame)
+
+        isApplyingSettingsWindowPlacement = true
+        window.setFrame(clamped, display: true)
+        isApplyingSettingsWindowPlacement = false
+        saveSettingsWindowFrame(window)
+    }
+
+    private func visibleFrameForSettingsWindowFrame(_ frame: NSRect) -> NSRect? {
+        NSScreen.screens
+            .map { screen -> (visibleFrame: NSRect, area: CGFloat) in
+                let intersection = frame.intersection(screen.visibleFrame)
+                return (screen.visibleFrame, max(0, intersection.width) * max(0, intersection.height))
+            }
+            .filter { $0.area > 0 }
+            .max { lhs, rhs in lhs.area < rhs.area }?
+            .visibleFrame
     }
 
     private func activeDisplayFrames() -> [CGRect] {

@@ -59,7 +59,9 @@ enum DashboardCookieBuilder {
             return matchesDomain ? cookie.name : nil
         })
 
-        return requiredNames.filter { !matchingCookieNames.contains($0) }
+        return requiredNames
+            .filter { !matchesRequirement($0, cookieNames: matchingCookieNames) }
+            .map(displayNameForRequirement)
     }
 
     static func missingRequiredCookieNames(inCookieHeader cookieHeader: String, requiredNames: [String]) -> [String] {
@@ -77,7 +79,9 @@ enum DashboardCookieBuilder {
                 return pieces[0]
             })
 
-        return requiredNames.filter { !presentNames.contains($0) }
+        return requiredNames
+            .filter { !matchesRequirement($0, cookieNames: presentNames) }
+            .map(displayNameForRequirement)
     }
 
     static func containsRequiredCookie(inCookieHeader cookieHeader: String, requiredNames: [String]) -> Bool {
@@ -133,6 +137,32 @@ enum DashboardCookieBuilder {
             .lowercased()
     }
 
+    private static func matchesRequirement(_ requirement: String, cookieNames: Set<String>) -> Bool {
+        requirement
+            .split(separator: "|")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .contains { candidate in
+                if candidate.hasSuffix("*") {
+                    let prefix = String(candidate.dropLast())
+                    return cookieNames.contains { $0.hasPrefix(prefix) }
+                }
+                return cookieNames.contains(candidate)
+            }
+    }
+
+    private static func displayNameForRequirement(_ requirement: String) -> String {
+        requirement
+            .split(separator: "|")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map { candidate in
+                candidate.hasSuffix(".*") ? String(candidate.dropLast(2)) : candidate
+            }
+            .removingDuplicates()
+            .joined(separator: " / ")
+    }
+
     private static func cookieValue(named name: String, in cookieHeader: String) -> String? {
         for part in cookieHeader.split(separator: ";") {
             let pieces = part.split(separator: "=", maxSplits: 1).map {
@@ -144,5 +174,12 @@ enum DashboardCookieBuilder {
             }
         }
         return nil
+    }
+}
+
+private extension Array where Element: Hashable {
+    func removingDuplicates() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
     }
 }

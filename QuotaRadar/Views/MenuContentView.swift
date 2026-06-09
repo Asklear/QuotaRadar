@@ -5,7 +5,7 @@ struct MenuContentView: View {
     static let menuSize = CGSize(width: 560, height: 680)
     private static let menuGlassCornerRadius: CGFloat = 20
     private static let contentHorizontalInset: CGFloat = 22
-    private static let contentTopSafeInset: CGFloat = 12
+    private static let contentTopSafeInset: CGFloat = 18
     private static let contentBottomInset: CGFloat = 14
 
     @ObservedObject var monitor: QuotaMonitor
@@ -467,6 +467,7 @@ struct CompactMetricItem: View {
 
 struct MenuProviderOverviewCard: View {
     @ObservedObject var monitor: QuotaMonitor
+    private let providerOverviewMaxHeight: CGFloat = 318
 
     private let columns = [
         GridItem(.flexible(), spacing: 8),
@@ -480,22 +481,39 @@ struct MenuProviderOverviewCard: View {
             VStack(alignment: .leading, spacing: 9) {
                 MenuSectionHeader(title: L10n.t(.providers), detail: L10n.t(.quotaStatus))
 
-                ForEach(monitor.homeCategoryStats) { category in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(L10n.categoryTitle(category.title))
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.tertiary)
-                            .textCase(.uppercase)
+                MenuBoundedScrollRegion {
+                    VStack(alignment: .leading, spacing: 9) {
+                        ForEach(monitor.homeCategoryStats) { category in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(L10n.categoryTitle(category.title))
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(.tertiary)
+                                    .textCase(.uppercase)
 
-                        LazyVGrid(columns: columns, alignment: .leading, spacing: 7) {
-                            ForEach(category.stats) { stat in
-                                MenuProviderQuotaCell(stat: stat)
+                                LazyVGrid(columns: columns, alignment: .leading, spacing: 7) {
+                                    ForEach(category.stats) { stat in
+                                        MenuProviderQuotaCell(stat: stat)
+                                    }
+                                }
                             }
                         }
                     }
                 }
+                .frame(maxHeight: providerOverviewMaxHeight)
             }
         }
+    }
+}
+
+struct MenuBoundedScrollRegion<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        ScrollView(.vertical) {
+            content
+                .padding(.trailing, 4)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
     }
 }
 
@@ -507,10 +525,19 @@ struct MenuProviderQuotaCell: View {
             HStack(spacing: 5) {
                 ProviderIcon(provider: stat.provider, size: 16)
 
-                Text(stat.provider.displayName())
-                    .font(.system(size: 10, weight: .semibold))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(stat.provider.providerFamilyDisplayName())
+                        .font(.system(size: 10, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+
+                    if let planName = stat.provider.planTypeDisplayName() {
+                        Text(planName)
+                            .font(.system(size: 7.5, weight: .medium))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                }
             }
 
             HStack(spacing: 4) {
@@ -607,17 +634,14 @@ struct MenuQuotaItemRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
 
-                HStack(spacing: 4) {
-                    Text(presentation.resetText)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
+                let metadataItems = [
+                    presentation.resetText,
+                    presentation.planEndText,
+                    presentation.sourceText
+                ].filter { !$0.isEmpty }
 
-                    Text("·")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-
-                    Text(presentation.sourceText)
+                if !metadataItems.isEmpty {
+                    Text(metadataItems.joined(separator: " · "))
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
@@ -628,6 +652,10 @@ struct MenuQuotaItemRow: View {
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
+                }
+
+                if !key.quotaWindowDetails.isEmpty {
+                    QuotaWindowDetails(windows: key.quotaWindowDetails, compact: true)
                 }
             }
 

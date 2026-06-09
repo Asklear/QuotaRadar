@@ -103,11 +103,28 @@ struct GlassBackground: View {
 // MARK: - Provider Icon (Custom Image)
 
 struct ProviderIcon: View {
+    enum Style {
+        case colorful
+        case monochrome
+        case compactBadge
+    }
+
     let provider: Provider
     let size: CGFloat
+    let style: Style
+
+    init(provider: Provider, size: CGFloat, style: Style = .colorful) {
+        self.provider = provider
+        self.size = size
+        self.style = style
+    }
 
     var body: some View {
-        if let iconImage = customIcon {
+        if style == .compactBadge {
+            compactBadgeIcon
+        } else if style == .monochrome {
+            monochromeIcon
+        } else if let iconImage = customIcon {
             ZStack {
                 RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
                     .fill(Color.white.opacity(0.08))
@@ -132,6 +149,71 @@ struct ProviderIcon: View {
         }
     }
 
+    private var officialColorProviderIcon: Bool {
+        switch provider {
+        case .claudeAPIUsage, .claudeSubscription:
+            return true
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .codexAPIUsage, .codexSubscription, .deepseek, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
+            return false
+        }
+    }
+
+    @ViewBuilder
+    private var compactBadgeIcon: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.85))
+                .overlay(
+                    RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                        .fill(provider.color.opacity(0.10))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 0.6)
+                )
+
+            if let iconImage = customIcon {
+                Image(nsImage: iconImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .padding(size * 0.13)
+            } else {
+                Image(systemName: provider.icon)
+                    .font(.system(size: size * 0.56, weight: .semibold))
+                    .foregroundStyle(provider.color)
+            }
+        }
+        .frame(width: size, height: size)
+    }
+
+    @ViewBuilder
+    private var monochromeIcon: some View {
+        if let iconImage = customIcon {
+            if officialColorProviderIcon {
+                Image(nsImage: iconImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .padding(size * 0.10)
+                    .frame(width: size, height: size)
+            } else {
+                Image(nsImage: iconImage)
+                    .resizable()
+                    .renderingMode(.template)
+                    .aspectRatio(contentMode: .fit)
+                    .foregroundStyle(.primary)
+                    .padding(size * 0.10)
+                    .frame(width: size, height: size)
+            }
+        } else {
+            Image(systemName: provider.icon)
+                .font(.system(size: size * 0.70, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: size, height: size)
+        }
+    }
+
     private var customIcon: NSImage? {
         if let icon = NSImage(named: provider.iconAssetName) {
             return icon
@@ -139,7 +221,8 @@ struct ProviderIcon: View {
 
         let folderName = provider.iconAssetName.replacingOccurrences(of: "ProviderIcons/", with: "")
         let subdirectory = "Assets.xcassets/ProviderIcons/\(folderName).iconset"
-        guard let url = Bundle.module.url(
+        guard let bundle = swiftPMResourceBundle,
+              let url = bundle.url(
             forResource: "icon_32x32@2x",
             withExtension: "png",
             subdirectory: subdirectory
@@ -147,6 +230,60 @@ struct ProviderIcon: View {
             return nil
         }
         return NSImage(contentsOf: url)
+    }
+
+    private var swiftPMResourceBundle: Bundle? {
+        let bundleName = "QuotaRadar_QuotaRadar.bundle"
+        let candidates = [
+            Bundle.main.resourceURL?.appendingPathComponent(bundleName),
+            Bundle.main.bundleURL.appendingPathComponent("Contents/Resources/\(bundleName)")
+        ]
+
+        for url in candidates.compactMap({ $0 }) {
+            if let bundle = Bundle(url: url) {
+                return bundle
+            }
+        }
+
+        return nil
+    }
+}
+
+struct QuotaWindowDetails: View {
+    let windows: [QuotaWindowText]
+    var compact: Bool = false
+
+    private var visibleWindows: [QuotaWindowText] {
+        windows.filter { !$0.name.isEmpty && !$0.percentText.isEmpty }
+    }
+
+    var body: some View {
+        if !visibleWindows.isEmpty {
+            VStack(alignment: .leading, spacing: compact ? 4 : 6) {
+                ForEach(Array(visibleWindows.enumerated()), id: \.offset) { _, window in
+                    HStack(spacing: 8) {
+                        Text(window.displayText)
+                            .font(.system(size: compact ? 10 : 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+
+                        Spacer(minLength: 8)
+
+                        if let detailValueText = window.detailValueText {
+                            Text(detailValueText)
+                                .font(.system(size: compact ? 10 : 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.70)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, compact ? 8 : 10)
+            .padding(.vertical, compact ? 6 : 8)
+            .background(Color.primary.opacity(compact ? 0.028 : 0.035), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
     }
 }
 
