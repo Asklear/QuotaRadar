@@ -15,6 +15,9 @@ final class SettingsNavigationStore: ObservableObject {
 }
 
 struct SettingsView: View {
+    private static let sidebarWidth: CGFloat = 220
+    private static let dividerWidth: CGFloat = 1
+
     @ObservedObject var monitor: QuotaMonitor
     @ObservedObject private var languageStore = AppLanguageStore.shared
     @ObservedObject private var navigationStore = SettingsNavigationStore.shared
@@ -30,15 +33,24 @@ struct SettingsView: View {
     var body: some View {
         let currentLanguage = languageStore.language
 
-        NavigationSplitView {
-            SettingsSidebarView(monitor: monitor, selection: $navigationStore.selection)
-                .navigationSplitViewColumnWidth(min: 190, ideal: 216, max: 250)
-        } detail: {
-            selectedContent
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(ModernWindowBackground())
+        GeometryReader { geometry in
+            let contentWidth = max(0, geometry.size.width - Self.sidebarWidth - Self.dividerWidth)
+
+            HStack(spacing: 0) {
+                SettingsSidebarView(monitor: monitor, selection: $navigationStore.selection)
+                    .frame(width: Self.sidebarWidth, height: geometry.size.height, alignment: .topLeading)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .layoutPriority(1)
+
+                Divider()
+                    .frame(width: Self.dividerWidth)
+                    .overlay(Color.primary.opacity(0.08))
+
+                selectedContent
+                    .frame(width: contentWidth, height: geometry.size.height, alignment: .topLeading)
+                    .background(ModernWindowBackground())
+            }
         }
-        .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 900, minHeight: 600)
         .background(ModernWindowBackground())
         .id(currentLanguage)
@@ -186,6 +198,9 @@ struct SidebarNavigationButton: View {
 
                 Text(destination.title)
                     .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.86)
+                    .truncationMode(.tail)
 
                 Spacer()
             }
@@ -368,10 +383,11 @@ struct KeysManagementView: View {
     @State private var importMessage: String?
 
     private var keyProviderCategories: [ProviderCategoryStats] {
-        let stats: [ProviderStats] = monitor.orderedVisibleProviders.map { provider in
+        let stats: [ProviderStats] = monitor.orderedVisibleProviders.compactMap { provider in
             let providerKeys = APIKey.sortedByCurrentQuota(
                 monitor.apiKeys.filter { $0.provider == provider }
             )
+            guard !providerKeys.isEmpty else { return nil }
             return ProviderStats(provider: provider, keys: providerKeys)
         }
         let grouped = Dictionary(grouping: stats) { $0.provider.statusBarCategoryTitle }
@@ -599,22 +615,18 @@ struct ProviderKeyRowsSection: View {
                     Divider()
 
                     VStack(spacing: 4) {
-                        if stat.sortedKeysByCurrentQuota.isEmpty {
-                            ProviderQuotaEmptyKeyRow()
-                        } else {
-                            ForEach(stat.sortedKeysByCurrentQuota) { key in
-                                APIKeyManagementRow(
-                                    key: key,
-                                    onSetActive: { isActive in
-                                        var updated = key
-                                        updated.isActive = isActive
-                                        monitor.updateKey(updated)
-                                    },
-                                    onEdit: {
-                                        editingKey = key
-                                    }
-                                )
-                            }
+                        ForEach(stat.sortedKeysByCurrentQuota) { key in
+                            APIKeyManagementRow(
+                                key: key,
+                                onSetActive: { isActive in
+                                    var updated = key
+                                    updated.isActive = isActive
+                                    monitor.updateKey(updated)
+                                },
+                                onEdit: {
+                                    editingKey = key
+                                }
+                            )
                         }
                     }
                     .transition(.opacity)
@@ -720,40 +732,13 @@ struct APIKeyManagementRow: View {
 
             Spacer()
 
-            Text(statusText)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(key.status.color)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(key.status.color.opacity(0.12), in: Capsule())
-
-            Toggle(isOn: Binding(get: { key.isActive }, set: { onSetActive($0) })) {
-                Text(L10n.t(.active))
-            }
-            .toggleStyle(.switch)
-            .labelsHidden()
-            .controlSize(.mini)
-            .help(L10n.t(.active))
-
-            if let copyableCredentialValue = key.copyableCredentialValue {
-                Button(action: { copyCredentialToPasteboard(copyableCredentialValue) }) {
-                    Image(systemName: "doc.on.doc")
-                        .font(.system(size: 12, weight: .semibold))
-                        .frame(width: 28, height: 28)
-                        .background(.thinMaterial, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .help(L10n.t(.copyCredential))
-            }
-
-            Button(action: onEdit) {
-                Image(systemName: "pencil")
-                    .font(.system(size: 12, weight: .semibold))
-                    .frame(width: 28, height: 28)
-                    .background(.thinMaterial, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .help(L10n.t(.editAPIKey))
+            CredentialRowActionGroup(
+                key: key,
+                statusText: statusText,
+                onSetActive: onSetActive,
+                onEdit: onEdit,
+                onCopy: copyCredentialToPasteboard
+            )
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 7)
@@ -779,6 +764,71 @@ struct APIKeyManagementRow: View {
             return L10n.t(.useDashboardCookie)
         }
         return key.healthDisplayText
+    }
+}
+
+struct CredentialRowActionGroup: View {
+    private static let statusPillWidth: CGFloat = 126
+    private static let toggleWidth: CGFloat = 42
+    private static let actionButtonSize: CGFloat = 28
+
+    let key: APIKey
+    let statusText: String
+    let onSetActive: (Bool) -> Void
+    let onEdit: () -> Void
+    let onCopy: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(statusText)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(key.status.color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .frame(width: Self.statusPillWidth)
+                .background(key.status.color.opacity(0.12), in: Capsule())
+
+            Toggle(isOn: Binding(get: { key.isActive }, set: { onSetActive($0) })) {
+                Text(L10n.t(.active))
+            }
+            .toggleStyle(.switch)
+            .labelsHidden()
+            .controlSize(.mini)
+            .frame(width: Self.toggleWidth)
+            .help(L10n.t(.active))
+
+            copyActionSlot
+
+            Button(action: onEdit) {
+                Image(systemName: "pencil")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: Self.actionButtonSize, height: Self.actionButtonSize)
+                    .background(.thinMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help(L10n.t(.editAPIKey))
+        }
+    }
+
+    @ViewBuilder
+    private var copyActionSlot: some View {
+        ZStack {
+            Color.clear
+
+            if let copyableCredentialValue = key.copyableCredentialValue {
+                Button(action: { onCopy(copyableCredentialValue) }) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(width: Self.actionButtonSize, height: Self.actionButtonSize)
+                        .background(.thinMaterial, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .help(L10n.t(.copyCredential))
+            }
+        }
+        .frame(width: Self.actionButtonSize, height: Self.actionButtonSize)
     }
 }
 
@@ -882,15 +932,16 @@ struct AddKeySheet: View {
 
     private func addCredential() {
         let trimmedCompanionAPIKey = companionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        if provider.supportsCompanionAPIKeyStorage, !trimmedCompanionAPIKey.isEmpty {
-            monitor.addKey(APIKey(
-                name: provider.copyableAPIKeyCredentialName,
-                key: trimmedCompanionAPIKey,
-                provider: provider
-            ))
-        }
+        let trimmedCredential = key.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        guard !trimmedCredential.isEmpty else {
+            if provider.supportsCompanionAPIKeyStorage, !trimmedCompanionAPIKey.isEmpty {
+                monitor.addKey(APIKey(
+                    name: provider.copyableAPIKeyCredentialName,
+                    key: trimmedCompanionAPIKey,
+                    provider: provider
+                ))
+            }
             dismiss()
             return
         }
@@ -899,12 +950,32 @@ struct AddKeySheet: View {
         let nameForSaving = trimmedName.isEmpty ? provider.defaultCredentialName : trimmedName
         let newKey = APIKey(
             name: nameForSaving,
-            key: key,
+            key: trimmedCredential,
             provider: provider,
             note: note.isEmpty ? nil : note
         )
         monitor.addKey(newKey)
+
+        if provider.supportsCompanionAPIKeyStorage, !trimmedCompanionAPIKey.isEmpty {
+            monitor.addKey(APIKey(
+                name: provider.copyableAPIKeyCredentialName,
+                key: trimmedCompanionAPIKey,
+                provider: provider,
+                linkedAuthorizationID: newKey.id
+            ))
+        }
+
+        refreshProviderAfterSavingCredential(newKey)
         dismiss()
+    }
+
+    private func refreshProviderAfterSavingCredential(_ savedKey: APIKey) {
+        guard savedKey.isActive,
+              !savedKey.isStoredAPIKeyOnlyCredential,
+              savedKey.provider.supportsQuotaQuery else {
+            return
+        }
+        monitor.refreshProvider(provider)
     }
 
     private func syncDefaultCredentialName(for newProvider: Provider, replacing oldProvider: Provider? = nil) {
@@ -988,6 +1059,110 @@ struct AddCredentialHeader: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
+    }
+}
+
+struct ProviderDashboardJumpButton: View {
+    let provider: Provider
+    var size: CGFloat = 28
+
+    var body: some View {
+        if let dashboard = provider.dashboardURL,
+           let url = URL(string: dashboard) {
+            Link(destination: url) {
+                ProviderActionIcon(
+                    systemName: "arrow.up.right.square",
+                    tint: provider.color,
+                    size: size
+                )
+            }
+            .buttonStyle(.plain)
+            .help(L10n.t(.openDashboard))
+            .accessibilityLabel(L10n.t(.openDashboard))
+        }
+    }
+}
+
+struct ProviderReauthenticationButton: View {
+    let provider: Provider
+    var size: CGFloat = 28
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ProviderActionIcon(
+                systemName: "person.badge.key.fill",
+                tint: provider.color,
+                size: size
+            )
+        }
+        .buttonStyle(.plain)
+        .help(L10n.t(.updateLoginAuthorizationAction))
+        .accessibilityLabel(L10n.t(.updateLoginAuthorizationAction))
+    }
+}
+
+struct ProviderActionIcon: View {
+    let systemName: String
+    let tint: Color
+    let size: CGFloat
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: size * 0.43, weight: .semibold))
+            .foregroundStyle(tint)
+            .frame(width: size, height: size)
+            .background(.thinMaterial, in: Circle())
+            .overlay(
+                Circle()
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 0.6)
+            )
+    }
+}
+
+struct ProviderQuotaActionGroup: View {
+    let provider: Provider
+    let isRefreshing: Bool
+    let canRefresh: Bool
+    let onReauthenticate: () -> Void
+    let onRefresh: () -> Void
+
+    private let size: CGFloat = 28
+
+    var body: some View {
+        HStack(spacing: 6) {
+            actionSlot {
+                ProviderDashboardJumpButton(provider: provider, size: size)
+            }
+
+            actionSlot {
+                if provider.supportsDashboardReauthentication {
+                    ProviderReauthenticationButton(provider: provider, size: size, action: onReauthenticate)
+                }
+            }
+
+            actionSlot {
+                if canRefresh {
+                    RefreshButton(
+                        isRefreshing: .constant(isRefreshing),
+                        isEnabled: canRefresh,
+                        size: size,
+                        helpText: L10n.t(.refreshQuotaAction),
+                        accessibilityLabelText: L10n.t(.refreshQuotaAction),
+                        action: onRefresh
+                    )
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func actionSlot<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        ZStack {
+            Color.clear
+            content()
+        }
+        .frame(width: size, height: size)
     }
 }
 
@@ -1125,10 +1300,7 @@ struct AddCredentialDetailPane: View {
                     Spacer()
 
                     if provider.supportsDashboardReauthentication {
-                        Button(action: onReauthenticate) {
-                            Label(L10n.t(.reauthenticate), systemImage: "person.badge.key.fill")
-                        }
-                        .controlSize(.small)
+                        ProviderReauthenticationButton(provider: provider, size: 28, action: onReauthenticate)
                     }
                 }
             }
@@ -1405,23 +1577,6 @@ struct EditKeySheet: View {
                         .font(.caption)
                     }
                 }
-
-                HStack(spacing: 10) {
-                    if let dashboard = provider.dashboardURL,
-                       let dashboardURL = URL(string: dashboard) {
-                        Link(L10n.t(.openDashboard), destination: dashboardURL)
-                            .controlSize(.small)
-                    }
-
-                    if provider.supportsDashboardReauthentication && !key.isStoredAPIKeyOnlyCredential {
-                        Button {
-                            showingReauth = true
-                        } label: {
-                            Label(L10n.t(.reauthenticate), systemImage: "person.badge.key.fill")
-                        }
-                        .controlSize(.small)
-                    }
-                }
             }
         } footer: {
             HStack {
@@ -1491,7 +1646,15 @@ struct EditKeySheet: View {
 
     private func companionAPIKeyCredential(for provider: Provider) -> APIKey? {
         monitor.apiKeys.first {
-            $0.id != key.id && $0.provider == provider && $0.isStoredAPIKeyOnlyCredential
+            $0.id != key.id
+                && $0.provider == provider
+                && $0.isStoredAPIKeyOnlyCredential
+                && $0.linkedAuthorizationID == key.id
+        } ?? monitor.apiKeys.first {
+            $0.id != key.id
+                && $0.provider == provider
+                && $0.isStoredAPIKeyOnlyCredential
+                && $0.linkedAuthorizationID == nil
         }
     }
 
@@ -1517,7 +1680,17 @@ struct EditKeySheet: View {
             clearQuotaState(&updated)
         }
         monitor.updateKey(updated)
-        saveCompanionAPIKeyIfNeeded()
+        saveCompanionAPIKeyIfNeeded(for: updated)
+        refreshProviderAfterSavingCredential(updated)
+    }
+
+    private func refreshProviderAfterSavingCredential(_ savedKey: APIKey) {
+        guard savedKey.isActive,
+              !savedKey.isStoredAPIKeyOnlyCredential,
+              savedKey.provider.supportsQuotaQuery else {
+            return
+        }
+        monitor.refreshProvider(provider)
     }
 
     private var savedCredentialName: String {
@@ -1526,7 +1699,7 @@ struct EditKeySheet: View {
         return key.isStoredAPIKeyOnlyCredential ? provider.copyableAPIKeyCredentialName : provider.defaultCredentialName
     }
 
-    private func saveCompanionAPIKeyIfNeeded() {
+    private func saveCompanionAPIKeyIfNeeded(for authorizationKey: APIKey) {
         guard showsCompanionAPIKeyField else { return }
         let trimmedAPIKey = companionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedAPIKey.isEmpty else { return }
@@ -1535,13 +1708,15 @@ struct EditKeySheet: View {
             existing.name = provider.copyableAPIKeyCredentialName
             existing.key = trimmedAPIKey
             existing.provider = provider
+            existing.linkedAuthorizationID = authorizationKey.id
             existing.note = nil
             monitor.updateKey(existing)
         } else {
             monitor.addKey(APIKey(
                 name: provider.copyableAPIKeyCredentialName,
                 key: trimmedAPIKey,
-                provider: provider
+                provider: provider,
+                linkedAuthorizationID: authorizationKey.id
             ))
         }
     }
@@ -1586,11 +1761,13 @@ struct ProvidersView: View {
     @ObservedObject var monitor: QuotaMonitor
 
     private var providerCategories: [ProviderCategoryStats] {
-        let stats = monitor.orderedVisibleProviders.map { provider in
-            ProviderStats(
+        let stats = monitor.orderedVisibleProviders.compactMap { provider -> ProviderStats? in
+            let stat = ProviderStats(
                 provider: provider,
                 keys: APIKey.sortedByCurrentQuota(monitor.apiKeys.filter { $0.provider == provider })
             )
+            guard !stat.sortedMonitoringKeysByCurrentQuota.isEmpty else { return nil }
+            return stat
         }
         let grouped = Dictionary(grouping: stats) { $0.provider.statusBarCategoryTitle }
         return Provider.categoryDisplayOrder.compactMap { title in
@@ -1600,7 +1777,7 @@ struct ProvidersView: View {
     }
 
     private var configuredProviders: Int {
-        Set(monitor.apiKeys.map { $0.provider }).intersection(Set(Provider.visibleCases)).count
+        providerCategories.map(\.providerCount).reduce(0, +)
     }
 
     var body: some View {
@@ -1610,9 +1787,18 @@ struct ProvidersView: View {
             systemImage: "server.rack",
             maxContentWidth: 1080
         ) {
-            VStack(spacing: 14) {
-                ForEach(providerCategories) { category in
-                    ProviderSettingsCategorySection(category: category, monitor: monitor)
+            if providerCategories.isEmpty {
+                EmptyContentPanel(
+                    title: L10n.t(.noApiKeys),
+                    systemImage: "server.rack",
+                    actionTitle: nil,
+                    action: nil
+                )
+            } else {
+                VStack(spacing: 14) {
+                    ForEach(providerCategories) { category in
+                        ProviderSettingsCategorySection(category: category, monitor: monitor)
+                    }
                 }
             }
         }
@@ -1675,14 +1861,17 @@ struct ProviderQuotaMonitorTableHeader: View {
             Text(L10n.t(.provider))
                 .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
 
-            Text(L10n.t(.remaining))
-                .frame(width: 94, alignment: .trailing)
+            Text(L10n.t(.keyQuota))
+                .frame(width: 104, alignment: .trailing)
 
-            Text(L10n.t(.total))
-                .frame(width: 82, alignment: .trailing)
+            Text(L10n.t(.credentialPool))
+                .frame(width: 154, alignment: .trailing)
+
+            Text(L10n.t(.criticalTime))
+                .frame(width: 150, alignment: .trailing)
 
             Text(L10n.t(.quotaStatus))
-                .frame(width: 100, alignment: .trailing)
+                .frame(width: 92, alignment: .trailing)
 
             Color.clear
                 .frame(width: 104)
@@ -1705,16 +1894,19 @@ struct ProviderQuotaMonitorRow: View {
 
     private var provider: Provider { stat.provider }
     private var keys: [APIKey] { stat.sortedMonitoringKeysByCurrentQuota }
-    private var activeCount: Int { keys.filter { $0.isActive }.count }
     private var isRefreshing: Bool { monitor.refreshingProviders.contains(provider) }
     private var canRefresh: Bool { keys.contains { $0.isActive && !$0.key.isEmpty } }
 
-    private var remainingText: String {
-        keys.isEmpty ? L10n.t(.notAvailableShort) : stat.totalRemainingDisplayText
+    private var keyQuotaText: String {
+        keys.isEmpty ? L10n.t(.notAvailableShort) : stat.keyQuotaDisplayText
     }
 
-    private var totalText: String {
-        keys.isEmpty ? L10n.t(.notAvailableShort) : stat.totalLimitDisplayText
+    private var credentialPoolText: String {
+        keys.isEmpty ? L10n.t(.noKeyConfigured) : stat.credentialPoolDisplayText
+    }
+
+    private var criticalTimeText: String {
+        keys.isEmpty ? L10n.t(.notAvailableShort) : stat.criticalTimeDisplayText
     }
 
     private var statusText: String {
@@ -1728,8 +1920,20 @@ struct ProviderQuotaMonitorRow: View {
         return L10n.t(.healthHealthy)
     }
 
-    private var statusColor: Color {
-        stat.statusBarProviderStatusColor
+    private var quotaOverviewRiskColor: Color {
+        quotaOverviewNeedsAttention ? .red : .green
+    }
+
+    private var quotaOverviewNeedsAttention: Bool {
+        guard !keys.isEmpty else { return true }
+        if keys.allSatisfy({ !$0.isActive }) { return true }
+        return keys.contains {
+            $0.isCredentialExpired
+                || $0.isUsageLimitExceeded
+                || $0.isExhausted
+                || $0.isLow
+                || $0.status == .failed
+        }
     }
 
     var body: some View {
@@ -1742,41 +1946,13 @@ struct ProviderQuotaMonitorRow: View {
                 }
                 .buttonStyle(.plain)
 
-                HStack(spacing: 7) {
-                    if let dashboard = provider.dashboardURL,
-                       let url = URL(string: dashboard) {
-                        Link(destination: url) {
-                            Image(systemName: "arrow.up.right.square")
-                                .font(.system(size: 12, weight: .semibold))
-                                .frame(width: 28, height: 28)
-                                .background(.thinMaterial, in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(provider.color)
-                        .help(L10n.t(.openDashboard))
-                    }
-
-                    if provider.supportsDashboardReauthentication {
-                        Button {
-                            showingReauth = true
-                        } label: {
-                            Image(systemName: "person.badge.key.fill")
-                                .font(.system(size: 12, weight: .semibold))
-                                .frame(width: 28, height: 28)
-                                .background(.thinMaterial, in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(provider.color)
-                        .help(L10n.t(.reauthenticate))
-                    }
-
-                    RefreshButton(
-                        isRefreshing: .constant(isRefreshing),
-                        isEnabled: canRefresh,
-                        action: { monitor.refreshProvider(provider) }
-                    )
-                    .scaleEffect(0.82)
-                }
+                ProviderQuotaActionGroup(
+                    provider: provider,
+                    isRefreshing: isRefreshing,
+                    canRefresh: canRefresh,
+                    onReauthenticate: { showingReauth = true },
+                    onRefresh: { monitor.refreshProvider(provider) }
+                )
                 .padding(.trailing, 10)
             }
 
@@ -1831,27 +2007,26 @@ struct ProviderQuotaMonitorRow: View {
                 Text(provider.providerFamilyDisplayName())
                     .font(.system(size: 13, weight: .semibold))
 
-                HStack(spacing: 12) {
-                    if let planName = provider.planTypeDisplayName() {
-                        Text(planName)
-                    }
-                    Text(L10n.format(.providerKeyCount, keyCount))
-                    Text(L10n.format(.activeCount, activeCount))
+                if let planName = provider.planTypeDisplayName() {
+                    Text(planName)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
-                .font(.caption2)
-                .foregroundStyle(.secondary)
             }
 
             Spacer(minLength: 10)
 
-            ProviderQuotaColumnValue(value: remainingText, tint: statusColor)
-                .frame(width: 94, alignment: .trailing)
+            ProviderQuotaColumnValue(value: keyQuotaText, tint: quotaOverviewRiskColor)
+                .frame(width: 104, alignment: .trailing)
 
-            ProviderQuotaColumnValue(value: totalText)
-                .frame(width: 82, alignment: .trailing)
+            ProviderQuotaColumnValue(value: credentialPoolText)
+                .frame(width: 154, alignment: .trailing)
 
-            ProviderQuotaStatusPill(text: statusText, tint: statusColor)
-                .frame(width: 100, alignment: .trailing)
+            ProviderQuotaColumnValue(value: criticalTimeText)
+                .frame(width: 150, alignment: .trailing)
+
+            ProviderQuotaStatusPill(text: statusText, tint: quotaOverviewRiskColor)
+                .frame(width: 92, alignment: .trailing)
 
             Color.clear
                 .frame(width: Self.trailingControlReserve)
@@ -1862,9 +2037,6 @@ struct ProviderQuotaMonitorRow: View {
         .contentShape(Rectangle())
     }
 
-    private var keyCount: Int {
-        keys.count
-    }
 }
 
 struct ProviderQuotaColumnValue: View {
@@ -1916,7 +2088,7 @@ struct ProviderQuotaEmptyKeyRow: View {
 struct ProviderQuotaKeyTableHeader: View {
     var body: some View {
         HStack(spacing: 10) {
-            Text(L10n.t(.apiKey))
+            Text(L10n.t(.credential))
                 .frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
 
             Text(L10n.t(.remaining))
@@ -1954,15 +2126,17 @@ struct ProviderQuotaKeyTableRow: View {
                     .frame(width: 6, height: 6)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(key.maskedKey)
+                    Text(key.managementCredentialValueText)
                         .font(.system(size: 12, weight: .medium))
                         .fontDesign(.monospaced)
                         .lineLimit(1)
 
-                    Text(key.quotaPresentation.primaryText)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    if !key.quotaRowSubtitle.isEmpty {
+                        Text(key.quotaRowSubtitle)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
             }
             .frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
@@ -2039,9 +2213,11 @@ struct DiagnosticsView: View {
     @ObservedObject var monitor: QuotaMonitor
 
     private var stats: [ProviderStats] {
-        monitor.orderedVisibleProviders.map { provider in
+        monitor.orderedVisibleProviders.compactMap { provider -> ProviderStats? in
             let keys = APIKey.sortedByCurrentQuota(monitor.apiKeys.filter { $0.provider == provider })
-            return ProviderStats(provider: provider, keys: keys)
+            let stat = ProviderStats(provider: provider, keys: keys)
+            guard !stat.credentialDiagnosticItems.isEmpty else { return nil }
+            return stat
         }
     }
 
@@ -2089,7 +2265,7 @@ struct CredentialDiagnosticProviderSection: View {
 
                     Spacer()
 
-                    Text(L10n.format(.providerKeyCount, stat.keys.count))
+                    Text(stat.diagnosticCredentialGroupCountText)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 8)
@@ -2102,12 +2278,8 @@ struct CredentialDiagnosticProviderSection: View {
                 }
 
                 VStack(spacing: 6) {
-                    if stat.credentialDiagnosticItems.isEmpty {
-                        ProviderQuotaEmptyKeyRow()
-                    } else {
-                        ForEach(stat.credentialDiagnosticItems) { item in
-                            CredentialDiagnosticRow(item: item)
-                        }
+                    ForEach(stat.credentialDiagnosticItems) { item in
+                        CredentialDiagnosticRow(item: item)
                     }
                 }
             }
@@ -2124,36 +2296,37 @@ struct CredentialDiagnosticRow: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Circle()
-                    .fill(item.status.color)
+                    .fill(item.diagnosticStatusColor)
                     .frame(width: 7, height: 7)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(key.managementDisplayName)
+                    Text(item.credentialTitle)
                         .font(.system(size: 13, weight: .semibold))
-                    Text(key.maskedKey)
+                    Text(item.credentialSubtitle)
                         .font(.caption)
-                        .fontDesign(.monospaced)
                         .foregroundStyle(.secondary)
                 }
 
                 Spacer()
 
-                DiagnosticPill(title: L10n.t(.healthStatus), value: item.healthDisplayText, tint: item.status.color)
+                DiagnosticPill(title: L10n.t(.healthStatus), value: item.diagnosticStatusText, tint: item.diagnosticStatusColor)
                 DiagnosticPill(title: L10n.t(.lastHTTPStatus), value: item.httpStatusText, tint: .secondary)
             }
 
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "text.bubble")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
+            if let connectionDiagnosticSummary = item.connectionDiagnosticSummary {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "text.bubble")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16)
 
-                Text(item.diagnosticSummary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    Text(connectionDiagnosticSummary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                Spacer()
+                    Spacer()
+                }
             }
         }
         .padding(.horizontal, 10)
@@ -2267,15 +2440,10 @@ struct AppSettingsView: View {
                     title: L10n.t(.autoRefreshInterval),
                     subtitle: L10n.t(.autoRefreshDescription)
                 ) {
-                    Picker("", selection: $appearanceStore.autoRefreshInterval) {
-                        ForEach(AutoRefreshIntervalOption.allCases) { option in
-                            Text(option.displayName)
-                                .tag(option)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(width: 170)
+                    SettingsCenteredMenuPicker(selection: $appearanceStore.autoRefreshInterval,
+                        options: AutoRefreshIntervalOption.allCases,
+                        title: \.displayName
+                    )
                 }
 
                 SettingsFootnote(
@@ -2290,15 +2458,43 @@ struct AppSettingsView: View {
                     title: L10n.t(.quotaConsumingAutoRefreshInterval),
                     subtitle: L10n.t(.quotaConsumingAutoRefreshWarning)
                 ) {
-                    Picker("", selection: $appearanceStore.quotaConsumingAutoRefreshInterval) {
-                        ForEach(QuotaConsumingAutoRefreshIntervalOption.allCases) { option in
-                            Text(option.displayName)
-                                .tag(option)
-                        }
+                    SettingsCenteredMenuPicker(selection: $appearanceStore.quotaConsumingAutoRefreshInterval,
+                        options: QuotaConsumingAutoRefreshIntervalOption.allCases,
+                        title: \.displayName
+                    )
+                }
+            }
+
+            SettingsFormSection(title: L10n.t(.settingsNetworkSection)) {
+                SettingsPreferenceRow(
+                    icon: "network",
+                    title: L10n.t(.networkProxy),
+                    subtitle: L10n.t(.networkProxyDescription)
+                ) {
+                    SettingsCenteredMenuPicker(selection: $appearanceStore.networkProxyMode,
+                        options: NetworkProxyModeOption.allCases,
+                        title: \.displayName
+                    )
+                }
+
+                if appearanceStore.networkProxyMode == .custom {
+                    SettingsDivider()
+
+                    SettingsPreferenceRow(
+                        icon: "link",
+                        title: L10n.t(.customProxyURL),
+                        subtitle: nil
+                    ) {
+                        TextField(L10n.t(.customProxyPlaceholder), text: $appearanceStore.customProxyURL)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 12, design: .monospaced))
+                            .frame(width: 250)
                     }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(width: 170)
+
+                    SettingsFootnote(
+                        icon: "info.circle",
+                        text: L10n.t(.customProxyHelp)
+                    )
                 }
             }
 
@@ -2589,6 +2785,55 @@ struct SettingsPreferenceRow<Control: View>: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+}
+
+struct SettingsCenteredMenuPicker<Option: Identifiable & Hashable>: View {
+    @Binding var selection: Option
+    let options: [Option]
+    let title: (Option) -> String
+    var width: CGFloat = 170
+
+    var body: some View {
+        Menu {
+            ForEach(options) { option in
+                Button {
+                    selection = option
+                } label: {
+                    HStack {
+                        Text(title(option))
+                        Spacer()
+                        if option == selection {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+            }
+        } label: {
+            ZStack {
+                Text(title(selection))
+                    .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                    .frame(maxWidth: .infinity, alignment: .center)
+
+                HStack {
+                    Spacer()
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .frame(width: width, height: 24)
+            .padding(.horizontal, 8)
+            .background(Color.primary.opacity(0.055), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 0.6)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(Text(title(selection)))
     }
 }
 

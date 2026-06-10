@@ -387,14 +387,17 @@ struct GlassButton: View {
 struct RefreshButton: View {
     @Binding var isRefreshing: Bool
     var isEnabled = true
+    var size: CGFloat = 32
+    var helpText: String? = nil
+    var accessibilityLabelText: String? = nil
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: "arrow.clockwise")
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: size * 0.44, weight: .semibold))
                 .foregroundColor(.primary)
-                .frame(width: 32, height: 32)
+                .frame(width: size, height: size)
                 .background(
                     Circle()
                         .fill(.thinMaterial)
@@ -410,5 +413,7 @@ struct RefreshButton: View {
         .buttonStyle(PlainButtonStyle())
         .disabled(isRefreshing || !isEnabled)
         .opacity(isEnabled ? 1 : 0.45)
+        .help(helpText ?? L10n.t(.refreshQuotaAction))
+        .accessibilityLabel(accessibilityLabelText ?? L10n.t(.refreshQuotaAction))
     }
 }

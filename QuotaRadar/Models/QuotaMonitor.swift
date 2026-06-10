@@ -81,7 +81,15 @@ class QuotaMonitor: ObservableObject {
     }
 
     var menuAttentionQuotaItems: [MenuQuotaItem] {
-        MenuQuotaItem.attentionItems(from: homeProviderStats, limit: 3, providerOrder: orderedVisibleProviders)
+        MenuQuotaItem.attentionItems(from: homeProviderStats, limit: 2, providerOrder: orderedVisibleProviders)
+    }
+
+    var menuLowQuotaItems: [MenuQuotaItem] {
+        MenuQuotaItem.lowQuotaItems(from: homeProviderStats, limit: 3, providerOrder: orderedVisibleProviders)
+    }
+
+    var menuExpiringQuotaItems: [MenuQuotaItem] {
+        MenuQuotaItem.expiringSoonItems(from: homeProviderStats, limit: 3, providerOrder: orderedVisibleProviders)
     }
 
     func moveProvider(_ provider: Provider, before targetProvider: Provider) {

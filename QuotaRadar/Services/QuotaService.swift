@@ -807,6 +807,8 @@ enum QuotaParsers {
         struct ResponseEnvelope: Decodable {
             let code: Int?
             let mccode: Int?
+            let msg: String?
+            let uiMsg: String?
             let data: OuterData?
             let Response: ResponseBody?
         }
@@ -814,6 +816,8 @@ enum QuotaParsers {
         struct OuterData: Decodable {
             let code: Int?
             let cgwerrorCode: Int?
+            let msg: String?
+            let uiMsg: String?
             let data: InnerData?
             let Response: ResponseBody?
         }
@@ -825,6 +829,7 @@ enum QuotaParsers {
         struct ResponseBody: Decodable {
             let Error: TencentCloudError?
             let PkgList: [Package]?
+            let TotalCount: FlexibleDouble?
         }
 
         struct TencentCloudError: Decodable {
@@ -872,15 +877,27 @@ enum QuotaParsers {
 
         let envelope = try JSONDecoder().decode(ResponseEnvelope.self, from: data)
         if let code = envelope.code, code != 0 {
+            if isTencentCloudUnauthorized(code: code, message: envelope.msg ?? envelope.uiMsg) {
+                throw QuotaError.unauthorized
+            }
             throw QuotaError.invalidResponse
         }
         if let mccode = envelope.mccode, mccode != 0 {
+            if isTencentCloudUnauthorized(code: mccode, message: envelope.msg ?? envelope.uiMsg) {
+                throw QuotaError.unauthorized
+            }
             throw QuotaError.invalidResponse
         }
         if let code = envelope.data?.code, code != 0 {
+            if isTencentCloudUnauthorized(code: code, message: envelope.data?.msg ?? envelope.data?.uiMsg) {
+                throw QuotaError.unauthorized
+            }
             throw QuotaError.invalidResponse
         }
         if let cgwerrorCode = envelope.data?.cgwerrorCode, cgwerrorCode != 0 {
+            if isTencentCloudUnauthorized(code: cgwerrorCode, message: envelope.data?.msg ?? envelope.data?.uiMsg) {
+                throw QuotaError.unauthorized
+            }
             throw QuotaError.invalidResponse
         }
 
@@ -895,6 +912,9 @@ enum QuotaParsers {
         }
 
         guard let packages = response.PkgList else {
+            if response.TotalCount?.value == 0 {
+                throw QuotaError.noSubscription
+            }
             throw QuotaError.invalidResponse
         }
         guard !packages.isEmpty else {
@@ -955,6 +975,17 @@ enum QuotaParsers {
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                 .joined(separator: " · ")
         )
+    }
+
+    private static func isTencentCloudUnauthorized(code: Int, message: String?) -> Bool {
+        guard code == 7 || code == 401 || code == 403 else { return false }
+        let normalizedMessage = message?.lowercased() ?? ""
+        return normalizedMessage.isEmpty
+            || normalizedMessage.contains("uin_or_skey_missing")
+            || normalizedMessage.contains("login")
+            || normalizedMessage.contains("unauthorized")
+            || normalizedMessage.contains("登录")
+            || normalizedMessage.contains("重新登录")
     }
 
     static func parseAliyunCodingPlanStatus(_ data: Data) throws -> QuotaResult {
@@ -2067,14 +2098,10 @@ private struct KimiDashboardCredential {
 }
 
 actor QuotaService {
-    private let session: URLSession
     private var lastCheck: [String: Date] = [:]
 
-    init() {
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 30
-        config.timeoutIntervalForResource = 60
-        self.session = URLSession(configuration: config)
+    private var session: URLSession {
+        URLSession(configuration: AppAppearanceStore.configuredURLSessionConfiguration())
     }
 
     func checkQuota(for key: APIKey, bypassCooldown: Bool = false) async throws -> QuotaResult {

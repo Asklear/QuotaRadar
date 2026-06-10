@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct MenuContentView: View {
-    static let menuSize = CGSize(width: 560, height: 680)
+    static let menuSize = CGSize(width: 560, height: 500)
     private static let menuGlassCornerRadius: CGFloat = 20
     private static let contentHorizontalInset: CGFloat = 22
     private static let contentTopSafeInset: CGFloat = 18
@@ -72,9 +72,11 @@ struct MenuContentView: View {
                     EmptyQuotaStateView(onOpenSettings: { openAPIKeyConfiguration() })
                     Spacer(minLength: 0)
                 } else {
-                    MenuMetricStrip(summary: monitor.menuQuotaSummary)
+                    MenuRiskSummaryCard(summary: monitor.menuQuotaSummary)
 
-                    MenuProviderOverviewCard(monitor: monitor)
+                    MenuLowQuotaItemsView(monitor: monitor)
+
+                    MenuExpiringQuotaItemsView(monitor: monitor)
 
                     MenuAttentionItemsView(monitor: monitor)
 
@@ -420,25 +422,29 @@ struct MenuSectionHeader: View {
     }
 }
 
-struct MenuMetricStrip: View {
+struct MenuRiskSummaryCard: View {
     let summary: MenuQuotaSummary
 
     var body: some View {
-        MonitorModule(spacing: 0) {
-            HStack(spacing: 0) {
-                CompactMetricItem(value: "\(summary.availableCount)", label: L10n.t(.available), valueColor: .green)
+        MonitorModule(spacing: 9) {
+            VStack(alignment: .leading, spacing: 10) {
+                MenuSectionHeader(title: L10n.t(.quotaRiskToday), detail: L10n.t(.quotaStatus))
 
-                Divider()
-                    .frame(height: 28)
-                    .background(Color.white.opacity(0.18))
+                HStack(spacing: 0) {
+                    CompactMetricItem(value: "\(summary.lowCount)", label: L10n.t(.low), valueColor: summary.lowCount > 0 ? .orange : .secondary)
 
-                CompactMetricItem(value: "\(summary.lowCount)", label: L10n.t(.low), valueColor: summary.lowCount > 0 ? .orange : .secondary)
+                    Divider()
+                        .frame(height: 28)
+                        .background(Color.white.opacity(0.18))
 
-                Divider()
-                    .frame(height: 28)
-                    .background(Color.white.opacity(0.18))
+                    CompactMetricItem(value: "\(summary.failedCount)", label: L10n.t(.failed), valueColor: summary.failedCount > 0 ? .red : .secondary)
 
-                CompactMetricItem(value: "\(summary.failedCount)", label: L10n.t(.failed), valueColor: summary.failedCount > 0 ? .red : .secondary)
+                    Divider()
+                        .frame(height: 28)
+                        .background(Color.white.opacity(0.18))
+
+                    CompactMetricItem(value: "\(summary.availableCount)", label: L10n.t(.available), valueColor: .green)
+                }
             }
         }
     }
@@ -569,6 +575,42 @@ struct MenuProviderQuotaCell: View {
 
 // MARK: - Attention Quota Items
 
+struct MenuLowQuotaItemsView: View {
+    @ObservedObject var monitor: QuotaMonitor
+
+    var body: some View {
+        if !monitor.menuLowQuotaItems.isEmpty {
+            MonitorModule(spacing: 8) {
+                VStack(alignment: .leading, spacing: 8) {
+                    MenuSectionHeader(title: L10n.t(.lowQuotaProviders), detail: L10n.t(.keyQuota))
+
+                    ForEach(monitor.menuLowQuotaItems) { item in
+                        MenuCompactQuotaItemRow(item: item)
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct MenuExpiringQuotaItemsView: View {
+    @ObservedObject var monitor: QuotaMonitor
+
+    var body: some View {
+        if !monitor.menuExpiringQuotaItems.isEmpty {
+            MonitorModule(spacing: 8) {
+                VStack(alignment: .leading, spacing: 8) {
+                    MenuSectionHeader(title: L10n.t(.expiringSoon), detail: L10n.t(.criticalTime))
+
+                    ForEach(monitor.menuExpiringQuotaItems) { item in
+                        MenuExpiringQuotaItemRow(item: item)
+                    }
+                }
+            }
+        }
+    }
+}
+
 struct MenuAttentionItemsView: View {
     @ObservedObject var monitor: QuotaMonitor
 
@@ -596,6 +638,92 @@ struct MenuAttentionItemsView: View {
                     }
                 }
             }
+        }
+    }
+}
+
+struct MenuExpiringQuotaItemRow: View {
+    let item: MenuQuotaItem
+
+    private var key: APIKey {
+        item.key
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProviderIcon(provider: item.provider, size: 20)
+
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 5) {
+                    Text(item.provider.displayName())
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .lineLimit(1)
+
+                    Text(key.statusBarCredentialLabel)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Text(key.planEndSummary)
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 6)
+
+            Image(systemName: "calendar.badge.exclamationmark")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.orange)
+                .frame(width: 24, height: 24)
+                .background(Color.orange.opacity(0.12), in: Circle())
+        }
+    }
+}
+
+struct MenuCompactQuotaItemRow: View {
+    let item: MenuQuotaItem
+
+    private var key: APIKey {
+        item.key
+    }
+
+    private var presentation: QuotaPresentation {
+        key.quotaPresentation
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProviderIcon(provider: item.provider, size: 20)
+
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 5) {
+                    Text(item.provider.displayName())
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .lineLimit(1)
+
+                    Text(key.statusBarCredentialLabel)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Text(presentation.primaryText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 6)
+
+            Text(presentation.badgeText)
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(.orange)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .frame(minWidth: 38)
+                .background(Color.orange.opacity(0.12), in: Capsule())
         }
     }
 }

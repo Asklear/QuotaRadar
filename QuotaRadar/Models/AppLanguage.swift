@@ -126,6 +126,10 @@ struct LocalizedTextDescriptor: Codable, Equatable {
             break
         }
 
+        if L10n.localizedValues(for: .cookieSaved).contains(normalized) {
+            return .localized(.cookieSaved)
+        }
+
         if let match = regexCapture(normalized, pattern: #"^([0-9]+) / ([0-9]+) monthly credits$"#) {
             return .localized(.monthlyCreditsFormat, match[0], match[1])
         }
@@ -316,6 +320,7 @@ enum L10n {
         case configureProviderOrder
         case settingsGeneralSection
         case settingsRefreshSection
+        case settingsNetworkSection
         case settingsAppearanceSection
         case statusBarTransparency
         case statusBarTransparencyDescription
@@ -333,20 +338,39 @@ enum L10n {
         case quotaConsumingAutoRefreshSixHours
         case quotaConsumingAutoRefreshTwelveHours
         case quotaConsumingAutoRefreshOneDay
+        case networkProxy
+        case networkProxyDescription
+        case networkProxySystem
+        case networkProxyDirect
+        case networkProxyCustom
+        case customProxyURL
+        case customProxyPlaceholder
+        case customProxyHelp
         case apiQuotaTitle
         case noApiKeys
         case noApiKeysMessage
         case openSettings
         case keys
         case providers
+        case quotaRiskToday
         case available
         case failed
         case needsAttention
         case noAttentionItems
         case low
+        case keyQuota
+        case credentialPool
+        case criticalTime
+        case lowQuotaProviders
+        case expiringSoon
+        case oneCredential
+        case usableCredentialCount
+        case attentionCredentialCount
         case categoryCounts
         case activeCount
         case providerKeyCount
+        case oneCredentialGroup
+        case credentialGroupCount
         case noKeyConfigured
         case openDashboard
         case updated
@@ -359,10 +383,15 @@ enum L10n {
         case provider
         case keyName
         case apiKey
+        case credential
         case apiKeyForCopy
         case apiKeyForCopyHelp
         case apiKeySaved
         case apiKeyStoredForCopyOnly
+        case invocationAPIKeySaved
+        case webLoginCredential
+        case saved
+        case includesInvocationAPIKey
         case adminCredential
         case credentialValue
         case showCredential
@@ -409,12 +438,14 @@ enum L10n {
         case refreshingProvider
         case updatedJustNow
         case failedRefresh
+        case refreshQuotaAction
         case resetDate
         case planEndsDate
         case resetsMonthlyDay1
         case noResetCycle
         case resetNotExposed
         case credentialExpired
+        case updateLoginAuthorizationAction
         case reauthenticate
         case saveCookie
         case cookieSaved
@@ -422,6 +453,13 @@ enum L10n {
         case missingRequiredCookies
         case reauthTitle
         case reauthDescription
+        case reauthSavingTo
+        case reauthWillCreate
+        case reauthMultipleCredentialHint
+        case reauthTargetCredential
+        case reauthCreateNewCredential
+        case reauthSelectTarget
+        case reauthSelectTargetBeforeSaving
         case autoCookieSaveHint
         case autoSavingCookie
         case checkingCookie
@@ -531,7 +569,8 @@ enum L10n {
     }
 
     private static let allowedSharedEnglishKeys: Set<Key> = [
-        .lastHTTPStatus
+        .lastHTTPStatus,
+        .customProxyPlaceholder
     ]
 
     static func format(_ key: Key, _ args: CVarArg..., language: AppLanguage = AppLanguageStore.shared.language) -> String {
@@ -569,16 +608,27 @@ enum L10n {
         }
     }
 
-    static func shortDateTime(_ date: Date, language: AppLanguage = AppLanguageStore.shared.language) -> String {
+    static func credentialCount(_ count: Int, language: AppLanguage = AppLanguageStore.shared.language) -> String {
+        if count == 1 {
+            return t(.oneCredential, language: language)
+        }
+        return format(.providerKeyCount, count, language: language)
+    }
+
+    static func shortDateTime(
+        _ date: Date,
+        language: AppLanguage = AppLanguageStore.shared.language,
+        includesYear: Bool = false
+    ) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: language.rawValue)
         switch language {
         case .english:
-            formatter.dateFormat = "MMM d HH:mm"
+            formatter.dateFormat = includesYear ? "MMM d, yyyy HH:mm" : "MMM d HH:mm"
         case .simplifiedChinese, .traditionalChinese, .japanese:
-            formatter.dateFormat = "M月d日 HH:mm"
+            formatter.dateFormat = includesYear ? "yyyy年M月d日 HH:mm" : "M月d日 HH:mm"
         case .korean:
-            formatter.dateFormat = "M월 d일 HH:mm"
+            formatter.dateFormat = includesYear ? "yyyy년 M월 d일 HH:mm" : "M월 d일 HH:mm"
         }
         return formatter.string(from: date)
     }
@@ -689,6 +739,13 @@ enum L10n {
             return t(.businessInvocationKeyQuotaInstruction, language: language)
         }
         return note
+    }
+
+    static func isGeneratedQuotaAuthorizationNote(_ note: String) -> Bool {
+        let normalizedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        return localizedValues(for: .dashboardSession).contains(normalizedNote)
+            || localizedValues(for: .quotaMonitoringAuthorization).contains(normalizedNote)
+            || localizedValues(for: .cookieSaved).contains(normalizedNote)
     }
 
     static func localizedValues(for key: Key) -> Set<String> {
@@ -989,6 +1046,7 @@ enum L10n {
         .configureProviderOrder: "Configure",
         .settingsGeneralSection: "General",
         .settingsRefreshSection: "Refresh",
+        .settingsNetworkSection: "Network",
         .settingsAppearanceSection: "Appearance",
         .statusBarTransparency: "Status Bar Transparency",
         .statusBarTransparencyDescription: "Adjust the frosted-glass menu transparency.",
@@ -1006,20 +1064,39 @@ enum L10n {
         .quotaConsumingAutoRefreshSixHours: "Every 6 hours",
         .quotaConsumingAutoRefreshTwelveHours: "Every 12 hours",
         .quotaConsumingAutoRefreshOneDay: "Every day",
+        .networkProxy: "Proxy",
+        .networkProxyDescription: "Choose how quota checks connect to provider APIs.",
+        .networkProxySystem: "System",
+        .networkProxyDirect: "Direct",
+        .networkProxyCustom: "Custom",
+        .customProxyURL: "Proxy URL",
+        .customProxyPlaceholder: "http://127.0.0.1:7890",
+        .customProxyHelp: "Use Custom for local proxies such as Clash or Surge. System follows macOS network settings.",
         .apiQuotaTitle: "Quota Radar",
         .noApiKeys: "No credentials",
         .noApiKeysMessage: "Import a .env file or add credentials on the Credentials page to show provider quotas here.",
         .openSettings: "Open Settings",
         .keys: "Keys",
         .providers: "Providers",
+        .quotaRiskToday: "Quota Risk Today",
         .available: "Available",
         .failed: "Failed",
         .needsAttention: "Needs Attention",
         .noAttentionItems: "No credentials need attention",
         .low: "Low",
+        .keyQuota: "Key Quota",
+        .credentialPool: "Credential Pool",
+        .criticalTime: "Critical Time",
+        .lowQuotaProviders: "Low Quota",
+        .expiringSoon: "Expiring Soon",
+        .oneCredential: "1 key",
+        .usableCredentialCount: "%d usable",
+        .attentionCredentialCount: "%d attention",
         .categoryCounts: "%d providers · %d keys",
         .activeCount: "%d active",
         .providerKeyCount: "%d keys",
+        .oneCredentialGroup: "1 credential group",
+        .credentialGroupCount: "%d credential groups",
         .noKeyConfigured: "No key configured",
         .openDashboard: "Open Dashboard",
         .updated: "Updated %@",
@@ -1032,10 +1109,15 @@ enum L10n {
         .provider: "Provider",
         .keyName: "Credential Name",
         .apiKey: "API Key",
+        .credential: "Credential",
         .apiKeyForCopy: "API Key (optional)",
         .apiKeyForCopyHelp: "Stored only for display and copying. Quota checks still use web login authorization when this provider does not expose usage through the API key.",
         .apiKeySaved: "API key saved",
         .apiKeyStoredForCopyOnly: "Stored for copying only",
+        .invocationAPIKeySaved: "Invocation API key saved",
+        .webLoginCredential: "Web login",
+        .saved: "Saved",
+        .includesInvocationAPIKey: "includes invocation key",
         .adminCredential: "API Key",
         .credentialValue: "Credential",
         .showCredential: "Show credential",
@@ -1074,7 +1156,7 @@ enum L10n {
         .featureRealtime: "Provider-level quota refresh",
         .featureGlass: "Frosted glass menu bar UI",
         .featureMenuBar: "Menu bar quick access",
-        .version: "Version 0.3.1",
+        .version: "Version 0.3.2",
         .importNoKeys: "No supported API keys found in %@.",
         .importSummary: "Imported %d new and updated %d key(s).",
         .refreshAlreadyRunning: "Refresh already running",
@@ -1082,12 +1164,14 @@ enum L10n {
         .refreshingProvider: "Refreshing %@...",
         .updatedJustNow: "Updated just now",
         .failedRefresh: "Failed to refresh %d key(s)",
+        .refreshQuotaAction: "Refresh quota",
         .resetDate: "Resets %@",
         .planEndsDate: "Plan ends %@",
         .resetsMonthlyDay1: "Resets monthly on day 1",
         .noResetCycle: "No reset cycle",
         .resetNotExposed: "Reset not exposed",
         .credentialExpired: "Credential expired",
+        .updateLoginAuthorizationAction: "Update login authorization",
         .reauthenticate: "Re-authenticate",
         .saveCookie: "Save login authorization",
         .cookieSaved: "Login authorization saved",
@@ -1095,6 +1179,13 @@ enum L10n {
         .missingRequiredCookies: "Missing required login data: %@",
         .reauthTitle: "Re-authenticate %@",
         .reauthDescription: "Log in to the provider dashboard. Quota Radar will save the required in-app login authorization automatically after login.",
+        .reauthSavingTo: "Saving to %@",
+        .reauthWillCreate: "Will create %@",
+        .reauthMultipleCredentialHint: "Multiple saved login authorizations exist for this provider. This window updates the target shown above.",
+        .reauthTargetCredential: "Save Target",
+        .reauthCreateNewCredential: "Create new authorization",
+        .reauthSelectTarget: "Select a credential",
+        .reauthSelectTargetBeforeSaving: "Select which credential to update before saving.",
         .autoCookieSaveHint: "Waiting for dashboard login. You can still save the authorization manually if needed.",
         .autoSavingCookie: "Saving web login authorization...",
         .checkingCookie: "Checking dashboard login...",
@@ -1190,6 +1281,7 @@ enum L10n {
         .configureProviderOrder: "调整顺序",
         .settingsGeneralSection: "通用",
         .settingsRefreshSection: "刷新",
+        .settingsNetworkSection: "网络",
         .settingsAppearanceSection: "外观",
         .statusBarTransparency: "状态栏透明度",
         .statusBarTransparencyDescription: "调整状态栏弹窗的磨砂玻璃透明程度。",
@@ -1207,20 +1299,39 @@ enum L10n {
         .quotaConsumingAutoRefreshSixHours: "每 6 小时",
         .quotaConsumingAutoRefreshTwelveHours: "每 12 小时",
         .quotaConsumingAutoRefreshOneDay: "每天",
+        .networkProxy: "网络代理",
+        .networkProxyDescription: "设置额度查询连接服务商接口时使用的网络路径。",
+        .networkProxySystem: "跟随系统",
+        .networkProxyDirect: "直连",
+        .networkProxyCustom: "自定义",
+        .customProxyURL: "代理地址",
+        .customProxyPlaceholder: "http://127.0.0.1:7890",
+        .customProxyHelp: "本地使用 Clash、Surge 等代理时选择自定义；跟随系统会使用 macOS 网络设置。",
         .apiQuotaTitle: "余量雷达",
         .noApiKeys: "没有凭据",
         .noApiKeysMessage: "导入 .env 文件或在凭据页添加凭据后，这里会显示各服务商的额度。",
         .openSettings: "打开设置",
         .keys: "密钥",
         .providers: "服务商",
+        .quotaRiskToday: "今日额度风险",
         .available: "可用",
         .failed: "失败",
         .needsAttention: "需要关注",
         .noAttentionItems: "暂无需要关注的凭据",
         .low: "低额度",
+        .keyQuota: "关键额度",
+        .credentialPool: "凭据池",
+        .criticalTime: "关键时间",
+        .lowQuotaProviders: "额度紧张",
+        .expiringSoon: "即将到期",
+        .oneCredential: "1 个凭据",
+        .usableCredentialCount: "%d 可用",
+        .attentionCredentialCount: "%d 需关注",
         .categoryCounts: "%d 个服务商 · %d 个密钥",
         .activeCount: "%d 个可用",
         .providerKeyCount: "%d 个密钥",
+        .oneCredentialGroup: "1 组凭据",
+        .credentialGroupCount: "%d 组凭据",
         .noKeyConfigured: "未配置密钥",
         .openDashboard: "打开控制台",
         .updated: "%@ 更新",
@@ -1233,10 +1344,15 @@ enum L10n {
         .provider: "服务商",
         .keyName: "凭据名称",
         .apiKey: "API 密钥",
+        .credential: "凭据",
         .apiKeyForCopy: "API 密钥（可选）",
         .apiKeyForCopyHelp: "仅用于保存、展示和复制。该服务商不支持用此 API 密钥查询额度时，额度监控仍使用网页登录授权。",
         .apiKeySaved: "API key 已保存",
         .apiKeyStoredForCopyOnly: "仅保存用于复制",
+        .invocationAPIKeySaved: "调用密钥已保存",
+        .webLoginCredential: "网页登录",
+        .saved: "已保存",
+        .includesInvocationAPIKey: "含调用密钥",
         .adminCredential: "API 密钥",
         .credentialValue: "凭据内容",
         .showCredential: "显示凭据",
@@ -1275,7 +1391,7 @@ enum L10n {
         .featureRealtime: "按服务商单独刷新额度",
         .featureGlass: "磨砂玻璃状态栏界面",
         .featureMenuBar: "状态栏快速访问",
-        .version: "版本 0.3.1",
+        .version: "版本 0.3.2",
         .importNoKeys: "在 %@ 中没有找到支持的 API 密钥。",
         .importSummary: "已导入 %d 个，新更新 %d 个密钥。",
         .refreshAlreadyRunning: "刷新正在进行",
@@ -1283,12 +1399,14 @@ enum L10n {
         .refreshingProvider: "正在刷新 %@...",
         .updatedJustNow: "刚刚已更新",
         .failedRefresh: "%d 个密钥刷新失败",
+        .refreshQuotaAction: "刷新额度",
         .resetDate: "%@ 重置",
         .planEndsDate: "套餐 %@ 到期",
         .resetsMonthlyDay1: "每月 1 日重置",
         .noResetCycle: "无重置周期",
         .resetNotExposed: "未公开重置时间",
         .credentialExpired: "凭据已过期",
+        .updateLoginAuthorizationAction: "更新登录授权",
         .reauthenticate: "重新认证",
         .saveCookie: "保存登录授权",
         .cookieSaved: "登录授权已保存",
@@ -1296,6 +1414,13 @@ enum L10n {
         .missingRequiredCookies: "缺少必要登录信息：%@",
         .reauthTitle: "重新认证 %@",
         .reauthDescription: "登录服务商控制台后，Quota Radar 会自动保存应用内所需的登录授权。",
+        .reauthSavingTo: "将更新 %@",
+        .reauthWillCreate: "将创建 %@",
+        .reauthMultipleCredentialHint: "该服务商已有多个登录授权，本窗口会更新上方显示的目标。",
+        .reauthTargetCredential: "保存目标",
+        .reauthCreateNewCredential: "创建新授权",
+        .reauthSelectTarget: "选择一个凭据",
+        .reauthSelectTargetBeforeSaving: "保存前请选择要更新的凭据。",
         .autoCookieSaveHint: "等待控制台登录完成；需要时仍可手动保存授权。",
         .autoSavingCookie: "正在保存网页登录授权...",
         .checkingCookie: "正在验证控制台登录...",
@@ -1400,11 +1525,29 @@ enum L10n {
         .noApiKeys: "沒有憑證",
         .noApiKeysMessage: "匯入 .env 檔案或在憑證頁新增憑證後，這裡會顯示各服務商的額度。",
         .keys: "金鑰",
+        .providers: "服務商",
+        .quotaRiskToday: "今日額度風險",
         .available: "可用",
+        .failed: "失敗",
         .needsAttention: "需要關注",
         .noAttentionItems: "暫無需要關注的憑證",
+        .low: "低額度",
+        .keyQuota: "關鍵額度",
+        .credentialPool: "憑證池",
+        .criticalTime: "關鍵時間",
+        .lowQuotaProviders: "額度緊張",
+        .expiringSoon: "即將到期",
+        .oneCredential: "1 個憑證",
+        .usableCredentialCount: "%d 可用",
+        .attentionCredentialCount: "%d 需關注",
+        .categoryCounts: "%d 個服務商 · %d 個金鑰",
+        .activeCount: "%d 個可用",
+        .providerKeyCount: "%d 個金鑰",
+        .oneCredentialGroup: "1 組憑證",
+        .credentialGroupCount: "%d 組憑證",
         .noKeyConfigured: "未配置金鑰",
         .openDashboard: "開啟控制台",
+        .refreshQuotaAction: "刷新額度",
         .disabled: "停用",
         .quotaUnavailable: "額度不可用",
         .noSubscribedPlan: "未發現訂閱套餐",
@@ -1415,6 +1558,10 @@ enum L10n {
         .apiKeyForCopyHelp: "僅用於保存、顯示和複製。若此服務商不支援用 API 金鑰查詢額度，額度監控仍使用網頁登入授權。",
         .apiKeySaved: "API key 已儲存",
         .apiKeyStoredForCopyOnly: "僅保存用於複製",
+        .invocationAPIKeySaved: "調用金鑰已保存",
+        .webLoginCredential: "網頁登入",
+        .saved: "已保存",
+        .includesInvocationAPIKey: "含調用金鑰",
         .adminCredential: "API 金鑰",
         .credentialValue: "憑證內容",
         .showCredential: "顯示憑證",
@@ -1438,8 +1585,9 @@ enum L10n {
         .moveProviderUp: "上移",
         .moveProviderDown: "下移",
         .remaining: "剩餘",
-        .version: "版本 0.3.1",
+        .version: "版本 0.3.2",
         .credentialExpired: "憑證已過期",
+        .updateLoginAuthorizationAction: "更新登入授權",
         .importedFromEnv: "從 .env 匯入",
         .importedFromClaude: "從 ~/.claude/settings.json 匯入",
         .adminCredentialRequired: "需要 API 金鑰",
@@ -1494,6 +1642,7 @@ enum L10n {
         .configureProviderOrder: "順序を調整",
         .settingsGeneralSection: "一般",
         .settingsRefreshSection: "更新",
+        .settingsNetworkSection: "ネットワーク",
         .settingsAppearanceSection: "外観",
         .statusBarTransparency: "メニューバー透明度",
         .statusBarTransparencyDescription: "メニューバーポップオーバーのフロストガラス透明度を調整します。",
@@ -1511,20 +1660,39 @@ enum L10n {
         .quotaConsumingAutoRefreshSixHours: "6 時間ごと",
         .quotaConsumingAutoRefreshTwelveHours: "12 時間ごと",
         .quotaConsumingAutoRefreshOneDay: "毎日",
+        .networkProxy: "プロキシ",
+        .networkProxyDescription: "クォータ確認がプロバイダー API へ接続する経路を選択します。",
+        .networkProxySystem: "システム",
+        .networkProxyDirect: "直接接続",
+        .networkProxyCustom: "カスタム",
+        .customProxyURL: "プロキシ URL",
+        .customProxyPlaceholder: "http://127.0.0.1:7890",
+        .customProxyHelp: "Clash や Surge などのローカルプロキシを使う場合はカスタムを選びます。システムは macOS のネットワーク設定に従います。",
         .apiQuotaTitle: "クォータレーダー",
         .noApiKeys: "認証情報がありません",
         .noApiKeysMessage: ".env をインポートするか、認証情報ページで追加すると、ここにプロバイダーのクォータが表示されます。",
         .openSettings: "設定を開く",
         .keys: "キー",
         .providers: "プロバイダー",
+        .quotaRiskToday: "今日のクォータリスク",
         .available: "利用可能",
         .failed: "失敗",
         .needsAttention: "要確認",
         .noAttentionItems: "確認が必要な認証情報はありません",
         .low: "低残量",
+        .keyQuota: "重要クォータ",
+        .credentialPool: "認証情報プール",
+        .criticalTime: "重要時刻",
+        .lowQuotaProviders: "残量わずか",
+        .expiringSoon: "期限間近",
+        .oneCredential: "1 キー",
+        .usableCredentialCount: "%d 使用可",
+        .attentionCredentialCount: "%d 要確認",
         .categoryCounts: "%d プロバイダー · %d キー",
         .activeCount: "%d 有効",
         .providerKeyCount: "%d キー",
+        .oneCredentialGroup: "1 認証情報グループ",
+        .credentialGroupCount: "%d 認証情報グループ",
         .noKeyConfigured: "キー未設定",
         .openDashboard: "ダッシュボードを開く",
         .updated: "%@ 更新",
@@ -1537,10 +1705,15 @@ enum L10n {
         .provider: "プロバイダー",
         .keyName: "認証情報名",
         .apiKey: "API キー",
+        .credential: "認証情報",
         .apiKeyForCopy: "API キー（任意）",
         .apiKeyForCopyHelp: "表示とコピーのためだけに保存します。このプロバイダーが API キーで使用量を公開しない場合、クォータ監視には Web ログイン認証を使います。",
         .apiKeySaved: "API キー保存済み",
         .apiKeyStoredForCopyOnly: "コピー用に保存済み",
+        .invocationAPIKeySaved: "呼び出し用 API キー保存済み",
+        .webLoginCredential: "Web ログイン",
+        .saved: "保存済み",
+        .includesInvocationAPIKey: "呼び出しキーあり",
         .adminCredential: "API キー",
         .credentialValue: "認証情報",
         .showCredential: "認証情報を表示",
@@ -1579,7 +1752,7 @@ enum L10n {
         .featureRealtime: "プロバイダー単位のクォータ更新",
         .featureGlass: "フロストガラスのメニューバー UI",
         .featureMenuBar: "メニューバーから素早くアクセス",
-        .version: "バージョン 0.3.1",
+        .version: "バージョン 0.3.2",
         .importNoKeys: "%@ に対応する認証情報が見つかりません。",
         .importSummary: "%d 件を新規インポートし、%d 件を更新しました。",
         .refreshAlreadyRunning: "更新中です",
@@ -1587,12 +1760,14 @@ enum L10n {
         .refreshingProvider: "%@ を更新中...",
         .updatedJustNow: "たった今更新しました",
         .failedRefresh: "%d 件のキー更新に失敗",
+        .refreshQuotaAction: "クォータを更新",
         .resetDate: "%@ にリセット",
         .planEndsDate: "プラン終了 %@",
         .resetsMonthlyDay1: "毎月 1 日にリセット",
         .noResetCycle: "リセット周期なし",
         .resetNotExposed: "リセット時刻は非公開",
         .credentialExpired: "認証情報の期限切れ",
+        .updateLoginAuthorizationAction: "ログイン認証を更新",
         .reauthenticate: "再認証",
         .saveCookie: "ログイン認証を保存",
         .cookieSaved: "ログイン認証を保存しました",
@@ -1600,6 +1775,13 @@ enum L10n {
         .missingRequiredCookies: "不足しているログイン情報: %@",
         .reauthTitle: "%@ を再認証",
         .reauthDescription: "プロバイダーのダッシュボードにログインしてください。ログイン後、Quota Radar が必要なアプリ内ログイン認証を自動保存します。",
+        .reauthSavingTo: "%@ に保存",
+        .reauthWillCreate: "%@ を作成",
+        .reauthMultipleCredentialHint: "このプロバイダーには複数のログイン認証があります。このウィンドウは上に表示された対象を更新します。",
+        .reauthTargetCredential: "保存先",
+        .reauthCreateNewCredential: "新しい認証を作成",
+        .reauthSelectTarget: "認証情報を選択",
+        .reauthSelectTargetBeforeSaving: "保存する前に更新対象の認証情報を選択してください。",
         .autoCookieSaveHint: "ダッシュボードのログイン待機中です。必要に応じて認証を手動保存できます。",
         .autoSavingCookie: "Web ログイン認証を保存中...",
         .checkingCookie: "ダッシュボードログインを確認中...",
@@ -1694,6 +1876,7 @@ enum L10n {
         .configureProviderOrder: "순서 조정",
         .settingsGeneralSection: "일반",
         .settingsRefreshSection: "새로 고침",
+        .settingsNetworkSection: "네트워크",
         .settingsAppearanceSection: "모양",
         .statusBarTransparency: "메뉴 막대 투명도",
         .statusBarTransparencyDescription: "메뉴 막대 팝오버의 반투명 효과를 조정합니다.",
@@ -1711,20 +1894,39 @@ enum L10n {
         .quotaConsumingAutoRefreshSixHours: "6시간마다",
         .quotaConsumingAutoRefreshTwelveHours: "12시간마다",
         .quotaConsumingAutoRefreshOneDay: "매일",
+        .networkProxy: "프록시",
+        .networkProxyDescription: "할당량 확인이 공급자 API에 연결하는 경로를 선택합니다.",
+        .networkProxySystem: "시스템",
+        .networkProxyDirect: "직접 연결",
+        .networkProxyCustom: "사용자화",
+        .customProxyURL: "프록시 URL",
+        .customProxyPlaceholder: "http://127.0.0.1:7890",
+        .customProxyHelp: "Clash 또는 Surge 같은 로컬 프록시는 사용자화를 선택하세요. 시스템은 macOS 네트워크 설정을 따릅니다.",
         .apiQuotaTitle: "할당량 레이더",
         .noApiKeys: "자격 증명 없음",
         .noApiKeysMessage: ".env 파일을 가져오거나 자격 증명 페이지에서 추가하면 여기에 공급자 할당량이 표시됩니다.",
         .openSettings: "설정 열기",
         .keys: "키",
         .providers: "공급자",
+        .quotaRiskToday: "오늘의 할당량 위험",
         .available: "사용 가능",
         .failed: "실패",
         .needsAttention: "확인 필요",
         .noAttentionItems: "확인이 필요한 자격 증명이 없습니다",
         .low: "낮음",
+        .keyQuota: "핵심 할당량",
+        .credentialPool: "자격 증명 풀",
+        .criticalTime: "중요 시간",
+        .lowQuotaProviders: "할당량 부족",
+        .expiringSoon: "곧 만료",
+        .oneCredential: "키 1개",
+        .usableCredentialCount: "사용 가능 %d개",
+        .attentionCredentialCount: "확인 필요 %d개",
         .categoryCounts: "공급자 %d개 · 키 %d개",
         .activeCount: "활성 %d개",
         .providerKeyCount: "키 %d개",
+        .oneCredentialGroup: "자격 증명 그룹 1개",
+        .credentialGroupCount: "자격 증명 그룹 %d개",
         .noKeyConfigured: "키가 설정되지 않음",
         .openDashboard: "대시보드 열기",
         .updated: "%@ 업데이트",
@@ -1737,10 +1939,15 @@ enum L10n {
         .provider: "공급자",
         .keyName: "자격 증명 이름",
         .apiKey: "API 키",
+        .credential: "자격 증명",
         .apiKeyForCopy: "API 키(선택 사항)",
         .apiKeyForCopyHelp: "표시와 복사용으로만 저장합니다. 이 공급자가 API 키로 사용량을 공개하지 않으면 할당량 모니터링은 웹 로그인 인증을 사용합니다.",
         .apiKeySaved: "API 키 저장됨",
         .apiKeyStoredForCopyOnly: "복사용으로 저장됨",
+        .invocationAPIKeySaved: "호출 API 키 저장됨",
+        .webLoginCredential: "웹 로그인",
+        .saved: "저장됨",
+        .includesInvocationAPIKey: "호출 키 포함",
         .adminCredential: "API 키",
         .credentialValue: "자격 증명",
         .showCredential: "자격 증명 표시",
@@ -1779,7 +1986,7 @@ enum L10n {
         .featureRealtime: "공급자별 할당량 새로 고침",
         .featureGlass: "반투명 메뉴 막대 UI",
         .featureMenuBar: "메뉴 막대 빠른 접근",
-        .version: "버전 0.3.1",
+        .version: "버전 0.3.2",
         .importNoKeys: "%@에서 지원되는 자격 증명을 찾을 수 없습니다.",
         .importSummary: "새로 %d개 가져오고 %d개 키를 업데이트했습니다.",
         .refreshAlreadyRunning: "새로 고침 중입니다",
@@ -1787,12 +1994,14 @@ enum L10n {
         .refreshingProvider: "%@ 새로 고치는 중...",
         .updatedJustNow: "방금 업데이트됨",
         .failedRefresh: "키 %d개 새로 고침 실패",
+        .refreshQuotaAction: "할당량 새로 고침",
         .resetDate: "%@ 재설정",
         .planEndsDate: "%@ 플랜 종료",
         .resetsMonthlyDay1: "매월 1일 재설정",
         .noResetCycle: "재설정 주기 없음",
         .resetNotExposed: "재설정 시간이 공개되지 않음",
         .credentialExpired: "자격 증명 만료됨",
+        .updateLoginAuthorizationAction: "로그인 인증 업데이트",
         .reauthenticate: "다시 인증",
         .saveCookie: "로그인 인증 저장",
         .cookieSaved: "로그인 인증 저장됨",
@@ -1800,6 +2009,13 @@ enum L10n {
         .missingRequiredCookies: "누락된 필수 로그인 정보: %@",
         .reauthTitle: "%@ 다시 인증",
         .reauthDescription: "공급자 대시보드에 로그인하세요. 로그인 후 Quota Radar가 필요한 앱 내 로그인 인증을 자동 저장합니다.",
+        .reauthSavingTo: "%@에 저장",
+        .reauthWillCreate: "%@ 생성 예정",
+        .reauthMultipleCredentialHint: "이 공급자에는 저장된 로그인 인증이 여러 개 있습니다. 이 창은 위에 표시된 대상을 업데이트합니다.",
+        .reauthTargetCredential: "저장 대상",
+        .reauthCreateNewCredential: "새 인증 만들기",
+        .reauthSelectTarget: "자격 증명 선택",
+        .reauthSelectTargetBeforeSaving: "저장하기 전에 업데이트할 자격 증명을 선택하세요.",
         .autoCookieSaveHint: "대시보드 로그인 대기 중입니다. 필요한 경우 인증을 수동으로 저장할 수 있습니다.",
         .autoSavingCookie: "웹 로그인 인증 저장 중...",
         .checkingCookie: "대시보드 로그인 확인 중...",

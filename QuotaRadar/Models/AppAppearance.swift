@@ -77,11 +77,32 @@ enum QuotaConsumingAutoRefreshIntervalOption: String, CaseIterable, Identifiable
     }
 }
 
+enum NetworkProxyModeOption: String, CaseIterable, Identifiable {
+    case system
+    case direct
+    case custom
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .system:
+            return L10n.t(.networkProxySystem)
+        case .direct:
+            return L10n.t(.networkProxyDirect)
+        case .custom:
+            return L10n.t(.networkProxyCustom)
+        }
+    }
+}
+
 final class AppAppearanceStore: ObservableObject {
     static let shared = AppAppearanceStore()
     static let statusBarTransparencyKey = "statusBarTransparency"
     static let autoRefreshIntervalKey = "autoRefreshInterval"
     static let quotaConsumingAutoRefreshIntervalKey = "quotaConsumingAutoRefreshInterval"
+    static let networkProxyModeKey = "networkProxyMode"
+    static let customProxyURLKey = "customProxyURL"
 
     @Published var statusBarTransparency: Double {
         didSet {
@@ -103,6 +124,18 @@ final class AppAppearanceStore: ObservableObject {
     @Published var quotaConsumingAutoRefreshInterval: QuotaConsumingAutoRefreshIntervalOption {
         didSet {
             defaults.set(quotaConsumingAutoRefreshInterval.rawValue, forKey: Self.quotaConsumingAutoRefreshIntervalKey)
+        }
+    }
+
+    @Published var networkProxyMode: NetworkProxyModeOption {
+        didSet {
+            defaults.set(networkProxyMode.rawValue, forKey: Self.networkProxyModeKey)
+        }
+    }
+
+    @Published var customProxyURL: String {
+        didSet {
+            defaults.set(customProxyURL, forKey: Self.customProxyURLKey)
         }
     }
 
@@ -129,10 +162,97 @@ final class AppAppearanceStore: ObservableObject {
         } else {
             quotaConsumingAutoRefreshInterval = .off
         }
+
+        if let rawValue = defaults.string(forKey: Self.networkProxyModeKey),
+           let mode = NetworkProxyModeOption(rawValue: rawValue) {
+            networkProxyMode = mode
+        } else {
+            networkProxyMode = .system
+        }
+
+        customProxyURL = defaults.string(forKey: Self.customProxyURLKey) ?? ""
     }
 
     private static func clamped(_ value: Double) -> Double {
         min(max(value, 0.0), 1.0)
+    }
+
+    static func configuredURLSessionConfiguration(defaults: UserDefaults = .standard) -> URLSessionConfiguration {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 30
+        config.timeoutIntervalForResource = 60
+
+        let mode = defaults.string(forKey: networkProxyModeKey)
+            .flatMap(NetworkProxyModeOption.init(rawValue:))
+            ?? .system
+
+        switch mode {
+        case .system:
+            break
+        case .direct:
+            config.connectionProxyDictionary = [:]
+        case .custom:
+            let rawURL = defaults.string(forKey: customProxyURLKey) ?? ""
+            if let endpoint = NetworkProxyEndpoint(rawURL: rawURL) {
+                config.connectionProxyDictionary = endpoint.connectionProxyDictionary
+            }
+        }
+
+        return config
+    }
+}
+
+private struct NetworkProxyEndpoint {
+    let scheme: String
+    let host: String
+    let port: Int
+
+    init?(rawURL: String) {
+        let trimmed = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let normalized = trimmed.contains("://") ? trimmed : "http://\(trimmed)"
+        guard let components = URLComponents(string: normalized),
+              let host = components.host,
+              !host.isEmpty else {
+            return nil
+        }
+
+        let scheme = (components.scheme ?? "http").lowercased()
+        self.scheme = scheme
+        self.host = host
+        self.port = components.port ?? Self.defaultPort(for: scheme)
+    }
+
+    var connectionProxyDictionary: [AnyHashable: Any] {
+        switch scheme {
+        case "sock", "socks", "socks5":
+            return [
+                "SOCKSEnable": 1,
+                "SOCKSProxy": host,
+                "SOCKSPort": port,
+            ]
+        default:
+            return [
+                "HTTPEnable": 1,
+                "HTTPProxy": host,
+                "HTTPPort": port,
+                "HTTPSEnable": 1,
+                "HTTPSProxy": host,
+                "HTTPSPort": port,
+            ]
+        }
+    }
+
+    private static func defaultPort(for scheme: String) -> Int {
+        switch scheme {
+        case "https":
+            return 443
+        case "sock", "socks", "socks5":
+            return 1080
+        default:
+            return 80
+        }
     }
 }
 

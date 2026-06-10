@@ -366,7 +366,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             case .korean:
                 return "API 사용량"
             }
-        case .claudeSubscription, .codexSubscription, .kimiSubscription:
+        case .claudeSubscription, .codexSubscription, .kimiSubscription, .opencodeGo:
             switch language {
             case .english:
                 return "Subscription"
@@ -379,7 +379,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             case .korean:
                 return "구독"
             }
-        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .deepseek, .opencodeGo:
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .deepseek:
             return nil
         }
     }
@@ -457,13 +457,13 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
 
     var color: Color {
         switch self {
-        case .tavily: return .blue
+        case .tavily: return Color(hex: "353637")
         case .brave: return .orange
-        case .serpapi: return .green
+        case .serpapi: return Color(hex: "9090F2")
         case .serper: return .mint
-        case .exa: return .pink
-        case .bocha: return .cyan
-        case .anysearch: return .purple
+        case .exa: return Color(hex: "3E5AF0")
+        case .bocha: return Color(hex: "1E7EFF")
+        case .anysearch: return Color(hex: "111111")
         case .wxmp: return .green
         case .querit: return .indigo
         case .anthropic: return Color(hex: "191919")
@@ -471,8 +471,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         case .codexAPIUsage, .codexSubscription: return Color(hex: "111827")
         case .kimiSubscription: return Color(hex: "111111")
         case .deepseek: return Color(hex: "4D6BFA") // DeepSeek blue
-        case .xfyunCodingPlan: return Color(hex: "E23B3B")
-        case .xfyunTokenPlan: return Color(hex: "C81E1E")
+        case .xfyunCodingPlan: return Color(hex: "9561F9")
+        case .xfyunTokenPlan: return Color(hex: "9561F9")
         case .volcengineCodingPlan: return Color(hex: "2F6BFF")
         case .volcengineTokenPlan: return Color(hex: "155EEF")
         case .opencodeGo: return Color(hex: "111827")
@@ -503,9 +503,9 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
 
     var homeVisibleWithoutKeys: Bool {
         switch self {
-        case .tavily, .brave, .serpapi, .bocha, .claudeSubscription, .codexSubscription, .deepseek, .aliyunCodingPlan:
+        case .tavily, .brave, .serpapi, .bocha, .anysearch, .claudeSubscription, .codexSubscription, .deepseek, .aliyunCodingPlan:
             return true
-        case .serper, .exa, .anysearch, .wxmp, .querit, .anthropic, .claudeAPIUsage, .codexAPIUsage, .kimiSubscription, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
+        case .serper, .exa, .wxmp, .querit, .anthropic, .claudeAPIUsage, .codexAPIUsage, .kimiSubscription, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
             return false
         }
     }
@@ -626,9 +626,9 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
 
     var supportsCompanionAPIKeyStorage: Bool {
         switch self {
-        case .querit, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo, .aliyunCodingPlan, .tencentCloudCodingPlan:
+        case .querit, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo, .aliyunCodingPlan, .tencentCloudCodingPlan, .claudeSubscription, .codexSubscription, .kimiSubscription:
             return true
-        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .deepseek, .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan, .tencentCloudTokenPlan:
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .claudeAPIUsage, .codexAPIUsage, .deepseek, .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan, .tencentCloudTokenPlan:
             return false
         }
     }
@@ -647,7 +647,13 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             return "ALIYUN_CODING_PLAN_API_KEY"
         case .tencentCloudCodingPlan:
             return "TENCENT_CLOUD_CODING_PLAN_API_KEY"
-        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .deepseek, .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan, .tencentCloudTokenPlan:
+        case .claudeSubscription:
+            return "ANTHROPIC_API_KEY"
+        case .codexSubscription:
+            return "OPENAI_API_KEY"
+        case .kimiSubscription:
+            return "KIMI_API_KEY"
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .claudeAPIUsage, .codexAPIUsage, .deepseek, .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan, .tencentCloudTokenPlan:
             return defaultCredentialName
         }
     }
@@ -710,9 +716,9 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         case .exa:
             return "https://dashboard.exa.ai/"
         case .bocha:
-            return nil
+            return "https://open.bochaai.com/dashboard"
         case .anysearch:
-            return nil
+            return "https://app.anysearch.ai/login"
         case .wxmp:
             return "https://www.dajiala.com/main/interface?actnav=1"
         case .querit:
@@ -1052,6 +1058,8 @@ struct MenuQuotaSummary: Equatable {
 }
 
 struct MenuQuotaItem: Identifiable, Equatable {
+    fileprivate static let expiringSoonThreshold: TimeInterval = 14 * 24 * 60 * 60
+
     let provider: Provider
     let key: APIKey
 
@@ -1087,8 +1095,50 @@ struct MenuQuotaItem: Identifiable, Equatable {
                         .filter { !$0.isStoredAPIKeyOnlyCredential }
                         .map { MenuQuotaItem(provider: stat.provider, key: $0) }
                 }
-                .filter { $0.key.isActive && $0.key.needsStatusBarAttention }
+                .filter { $0.key.isActive && $0.key.needsBlockingStatusBarAttention }
                 .sorted { shouldRankBefore($0, $1, providerOrder: providerOrder) }
+                .prefix(limit)
+        )
+    }
+
+    static func lowQuotaItems(from stats: [ProviderStats], limit: Int = 5, providerOrder: [Provider] = Provider.visibleCases) -> [MenuQuotaItem] {
+        Array(
+            stats
+                .flatMap { stat in
+                    stat.keys
+                        .filter { !$0.isStoredAPIKeyOnlyCredential }
+                        .map { MenuQuotaItem(provider: stat.provider, key: $0) }
+                }
+                .filter { $0.key.isActive && $0.key.needsLowQuotaStatusBarAttention }
+                .sorted { shouldRankBefore($0, $1, providerOrder: providerOrder) }
+                .prefix(limit)
+        )
+    }
+
+    static func expiringSoonItems(from stats: [ProviderStats], limit: Int = 5, providerOrder: [Provider] = Provider.visibleCases) -> [MenuQuotaItem] {
+        Array(
+            stats
+                .flatMap { stat in
+                    stat.keys
+                        .filter { !$0.isStoredAPIKeyOnlyCredential }
+                        .map { MenuQuotaItem(provider: stat.provider, key: $0) }
+                }
+                .filter { $0.key.isActive && $0.key.expiresSoonForStatusBar }
+                .sorted { lhs, rhs in
+                    let lhsEnd = lhs.key.visiblePlanEndsAt ?? .distantFuture
+                    let rhsEnd = rhs.key.visiblePlanEndsAt ?? .distantFuture
+                    if lhsEnd != rhsEnd {
+                        return lhsEnd < rhsEnd
+                    }
+
+                    let lhsProviderIndex = providerOrder.firstIndex(of: lhs.provider) ?? Int.max
+                    let rhsProviderIndex = providerOrder.firstIndex(of: rhs.provider) ?? Int.max
+                    if lhsProviderIndex != rhsProviderIndex {
+                        return lhsProviderIndex < rhsProviderIndex
+                    }
+
+                    return lhs.key.name.localizedStandardCompare(rhs.key.name) == .orderedAscending
+                }
                 .prefix(limit)
         )
     }
@@ -1153,6 +1203,7 @@ struct APIKey: Identifiable, Codable, Equatable {
     var provider: Provider
     var isActive: Bool = true
     var note: String? = nil
+    var linkedAuthorizationID: UUID? = nil
 
     // Quota 信息
     var remaining: Int?
@@ -1269,7 +1320,7 @@ struct APIKey: Identifiable, Codable, Equatable {
         }
 
         if isQuotaMonitoringAuthorizationCredential {
-            return L10n.t(.dashboardSession)
+            return L10n.t(.cookieSaved)
         }
 
         switch provider.capability.credentialKind {
@@ -1280,6 +1331,14 @@ struct APIKey: Identifiable, Codable, Equatable {
         case .adminCredential:
             return L10n.t(.adminCredential)
         }
+    }
+
+    var reauthTargetDisplayText: String {
+        let displayName = managementDisplayName
+        guard displayName == L10n.t(.quotaMonitoringAuthorization) else {
+            return displayName
+        }
+        return "\(displayName) · \(maskedKey)"
     }
 
     var credentialKindDisplayName: String {
@@ -1303,6 +1362,11 @@ struct APIKey: Identifiable, Codable, Equatable {
 
     var displayNote: String? {
         guard let note, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        let trimmedNote = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        if isQuotaMonitoringAuthorizationCredential,
+           L10n.isGeneratedQuotaAuthorizationNote(trimmedNote) {
             return nil
         }
         let localizedNote = L10n.localizedCredentialNote(note)
@@ -1379,7 +1443,7 @@ struct APIKey: Identifiable, Codable, Equatable {
     var quotaDisplayText: String {
         guard isActive else { return L10n.t(.disabled) }
         if isBusinessInvocationCredential { return L10n.t(.businessInvocationKeySaved) }
-        if isStoredAPIKeyOnlyCredential { return L10n.t(.apiKeySaved) }
+        if isStoredAPIKeyOnlyCredential { return L10n.t(.apiKeyStoredForCopyOnly) }
         if isUnlimitedQuota { return L10n.t(.unlimited) }
         if isUsageLimitExceeded { return L10n.t(.usageLimitExceeded) }
 
@@ -1414,6 +1478,11 @@ struct APIKey: Identifiable, Codable, Equatable {
             dataSource: quotaDataSource,
             diagnosticText: diagnosticSummary
         )
+    }
+
+    var quotaRowSubtitle: String {
+        guard quotaWindowDetails.isEmpty else { return "" }
+        return quotaPresentation.primaryText
     }
 
     private var quotaPresentationPrimaryText: String {
@@ -1486,7 +1555,28 @@ struct APIKey: Identifiable, Codable, Equatable {
     var needsStatusBarAttention: Bool {
         guard isActive, !key.isEmpty else { return false }
         guard !isStoredAPIKeyOnlyCredential else { return false }
-        return isCredentialExpired || isUsageLimitExceeded || isExhausted || isLow || status == .failed
+        return needsBlockingStatusBarAttention || needsLowQuotaStatusBarAttention
+    }
+
+    var needsBlockingStatusBarAttention: Bool {
+        guard isActive, !key.isEmpty else { return false }
+        guard !isStoredAPIKeyOnlyCredential else { return false }
+        return isCredentialExpired || isUsageLimitExceeded || isExhausted || status == .failed
+    }
+
+    var needsLowQuotaStatusBarAttention: Bool {
+        guard isActive, !key.isEmpty else { return false }
+        guard !isStoredAPIKeyOnlyCredential else { return false }
+        guard !needsBlockingStatusBarAttention else { return false }
+        return isLow
+    }
+
+    var expiresSoonForStatusBar: Bool {
+        guard isActive, !key.isEmpty else { return false }
+        guard !isStoredAPIKeyOnlyCredential else { return false }
+        guard let visiblePlanEndsAt else { return false }
+        let timeRemaining = visiblePlanEndsAt.timeIntervalSinceNow
+        return timeRemaining > 0 && timeRemaining <= MenuQuotaItem.expiringSoonThreshold
     }
 
     var resetSummary: String {
@@ -1538,7 +1628,7 @@ struct APIKey: Identifiable, Codable, Equatable {
 
     var planEndSummary: String {
         guard isActive, let visiblePlanEndsAt else { return "" }
-        return L10n.format(.planEndsDate, L10n.shortDateTime(visiblePlanEndsAt))
+        return L10n.format(.planEndsDate, L10n.shortDateTime(visiblePlanEndsAt, includesYear: true))
     }
 
     var visiblePlanEndsAt: Date? {
@@ -1658,7 +1748,7 @@ struct APIKey: Identifiable, Codable, Equatable {
             return L10n.t(.businessInvocationKeySaved)
         }
         if isStoredAPIKeyOnlyCredential {
-            return L10n.t(.apiKeySaved)
+            return L10n.t(.apiKeyStoredForCopyOnly)
         }
         if isUnsupportedQuotaCheckState {
             return quotaDisplayText
@@ -1769,13 +1859,43 @@ struct ProviderStats: Identifiable {
     }
 
     var credentialDiagnosticItems: [CredentialDiagnosticItem] {
-        sortedKeysByCurrentQuota.map { key in
-            CredentialDiagnosticItem(
+        let monitoringKeys = sortedMonitoringKeysByCurrentQuota
+        let copyOnlyKeys = sortedKeysByCurrentQuota.filter(\.isStoredAPIKeyOnlyCredential)
+        var attachedCopyOnlyIDs = Set<UUID>()
+
+        var items = monitoringKeys.map { key in
+            let companion = companionAPIKey(for: key, copyOnlyKeys: copyOnlyKeys, monitoringKeyCount: monitoringKeys.count)
+            if let companion {
+                attachedCopyOnlyIDs.insert(companion.id)
+            }
+            return CredentialDiagnosticItem(
                 key: key,
-                statusKey: key.isStoredAPIKeyOnlyCredential
-                    ? primaryMonitoringKey ?? key
-                    : key
+                statusKey: key,
+                companionAPIKey: companion
             )
+        }
+
+        let standaloneCopyOnlyItems = copyOnlyKeys
+            .filter { !attachedCopyOnlyIDs.contains($0.id) }
+            .map { key in
+                CredentialDiagnosticItem(
+                    key: key,
+                    statusKey: primaryMonitoringKey ?? key,
+                    companionAPIKey: nil
+                )
+            }
+
+        items.append(contentsOf: standaloneCopyOnlyItems)
+        return items
+    }
+
+    var diagnosticCredentialGroupCountText: String {
+        let count = credentialDiagnosticItems.count
+        switch AppLanguageStore.shared.language {
+        case .english:
+            return count == 1 ? L10n.t(.oneCredentialGroup) : L10n.format(.credentialGroupCount, count)
+        case .simplifiedChinese, .traditionalChinese, .japanese, .korean:
+            return L10n.format(.credentialGroupCount, count)
         }
     }
 
@@ -1817,6 +1937,58 @@ struct ProviderStats: Identifiable {
                 ?? L10n.quotaWindowDisplay("month", formatProviderPercent(totalRemainingPercent))
         }
         return "\(totalLimit)"
+    }
+
+    var keyQuotaDisplayText: String {
+        guard !activeCredentialKeys.isEmpty else { return L10n.t(.notAvailableShort) }
+        if hasUnlimitedQuota { return L10n.t(.unlimited) }
+        if provider.usesMoneyBalance { return totalRemainingDisplayText }
+        if usesPercentageQuota {
+            return tightestQuotaWindowDisplay ?? totalRemainingDisplayText
+        }
+        return tightestActiveMonitoringKey?.remainingBadgeText
+            ?? tightestActiveMonitoringKey?.quotaPresentation.primaryText
+            ?? totalRemainingDisplayText
+    }
+
+    var credentialPoolDisplayText: String {
+        let count = monitoredKeys.count
+        guard count > 0 else { return L10n.t(.noKeyConfigured) }
+
+        let usable = usableMonitoringCredentialCount
+        let attention = attentionMonitoringCredentialCount
+        let base = "\(L10n.credentialCount(count)) · \(L10n.format(.usableCredentialCount, usable))"
+        guard attention > 0 else { return base }
+        return "\(base) · \(L10n.format(.attentionCredentialCount, attention))"
+    }
+
+    var criticalTimeDisplayText: String {
+        guard !activeCredentialKeys.isEmpty else { return L10n.t(.notAvailableShort) }
+
+        if let reset = nextQuotaWindowResetText {
+            return reset
+        }
+
+        if let reset = activeCredentialKeys
+            .map(\.visibleQuotaResetSummary)
+            .first(where: { !$0.isEmpty }) {
+            return reset
+        }
+
+        if let planEnd = activeCredentialKeys
+            .compactMap(\.visiblePlanEndsAt)
+            .filter({ $0.timeIntervalSinceNow > 0 })
+            .min() {
+            return L10n.format(.planEndsDate, L10n.shortDateTime(planEnd, includesYear: true))
+        }
+
+        if let firstReset = activeCredentialKeys
+            .map(\.quotaResetSummary)
+            .first(where: { $0 != L10n.t(.resetNotExposed) && !$0.isEmpty }) {
+            return firstReset
+        }
+
+        return L10n.t(.resetNotExposed)
     }
 
     var overallUsage: Double {
@@ -2020,12 +2192,59 @@ struct ProviderStats: Identifiable {
         monitoredKeys.filter { $0.isActive && !$0.key.isEmpty }
     }
 
+    private var bestActiveMonitoringKey: APIKey? {
+        sortedMonitoringKeysByCurrentQuota.first { $0.isActive && !$0.key.isEmpty }
+    }
+
+    private var tightestActiveMonitoringKey: APIKey? {
+        sortedMonitoringKeysByCurrentQuota.last { $0.isActive && !$0.key.isEmpty }
+    }
+
+    private var usableMonitoringCredentialCount: Int {
+        monitoredKeys.filter { key in
+            key.isActive
+                && !key.key.isEmpty
+                && !key.isCredentialExpired
+                && !key.isUsageLimitExceeded
+                && !key.isExhausted
+                && key.status != .failed
+        }.count
+    }
+
+    private var attentionMonitoringCredentialCount: Int {
+        monitoredKeys.filter { $0.needsStatusBarAttention }.count
+    }
+
+    private var nextQuotaWindowResetText: String? {
+        activeCredentialKeys
+            .flatMap { $0.quotaWindowDetails }
+            .filter { window in
+                guard let resetAt = window.resetAt else { return false }
+                return resetAt.timeIntervalSinceNow > 0
+            }
+            .min { lhs, rhs in
+                guard let lhsDate = lhs.resetAt, let rhsDate = rhs.resetAt else { return false }
+                return lhsDate < rhsDate
+            }?
+            .resetSummary
+    }
+
     private var monitoredKeys: [APIKey] {
         keys.filter { !$0.isStoredAPIKeyOnlyCredential }
     }
 
     private var primaryMonitoringKey: APIKey? {
         sortedMonitoringKeysByCurrentQuota.first
+    }
+
+    private func companionAPIKey(for key: APIKey, copyOnlyKeys: [APIKey], monitoringKeyCount: Int) -> APIKey? {
+        if let linked = copyOnlyKeys.first(where: { $0.linkedAuthorizationID == key.id }) {
+            return linked
+        }
+        guard monitoringKeyCount == 1 else {
+            return nil
+        }
+        return copyOnlyKeys.first(where: { $0.linkedAuthorizationID == nil })
     }
 
     private var activeFiniteQuotaKeys: [APIKey] {
@@ -2054,6 +2273,7 @@ struct ProviderStats: Identifiable {
 struct CredentialDiagnosticItem: Identifiable, Equatable {
     let key: APIKey
     let statusKey: APIKey
+    let companionAPIKey: APIKey?
 
     var id: UUID { key.id }
 
@@ -2061,16 +2281,57 @@ struct CredentialDiagnosticItem: Identifiable, Equatable {
         statusKey.status
     }
 
-    var healthDisplayText: String {
-        statusKey.healthDisplayText
+    var diagnosticStatusText: String {
+        guard statusKey.isActive else { return L10n.t(.disabled) }
+        if statusKey.isCredentialExpired { return L10n.t(.expired) }
+        if statusKey.status == .failed { return L10n.t(.healthFailed) }
+        if statusKey.lastHTTPStatus == nil,
+           statusKey.lastDiagnosticMessage == nil,
+           statusKey.remaining == nil,
+           statusKey.quotaLabel == nil,
+           statusKey.quotaText == nil {
+            return L10n.t(.notChecked)
+        }
+        return L10n.t(.healthHealthy)
+    }
+
+    var diagnosticStatusColor: Color {
+        guard statusKey.isActive else { return .gray }
+        if statusKey.isCredentialExpired || statusKey.status == .failed { return .red }
+        if diagnosticStatusText == L10n.t(.notChecked) { return .gray }
+        return .green
     }
 
     var httpStatusText: String {
         statusKey.lastHTTPStatus.map(String.init) ?? L10n.t(.httpNotRequested)
     }
 
-    var diagnosticSummary: String {
-        statusKey.diagnosticSummary
+    var credentialTitle: String {
+        if key.isQuotaMonitoringAuthorizationCredential {
+            return L10n.t(.webLoginCredential)
+        }
+        return key.managementDisplayName
+    }
+
+    var credentialSubtitle: String {
+        if key.isQuotaMonitoringAuthorizationCredential {
+            if companionAPIKey != nil {
+                return "\(L10n.t(.saved)) · \(L10n.t(.includesInvocationAPIKey))"
+            }
+            return L10n.t(.saved)
+        }
+        return key.managementCredentialValueText
+    }
+
+    var connectionDiagnosticSummary: String? {
+        if statusKey.isCredentialExpired || statusKey.status == .failed {
+            return statusKey.diagnosticSummary
+        }
+        guard let httpStatus = statusKey.lastHTTPStatus,
+              !(200...299).contains(httpStatus) else {
+            return nil
+        }
+        return statusKey.diagnosticSummary
     }
 }
 

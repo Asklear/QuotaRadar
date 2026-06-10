@@ -9,10 +9,18 @@ struct DashboardReauthSheet: View {
     let provider: Provider
     let key: APIKey?
 
+    @State private var selectedAuthorizationTargetID: UUID?
     @State private var statusMessage: String?
     @State private var isSaving = false
     @State private var didAutoSave = false
     @State private var latestCapturedCredential: DashboardCapturedCredential?
+
+    init(monitor: QuotaMonitor, provider: Provider, key: APIKey?) {
+        self.monitor = monitor
+        self.provider = provider
+        self.key = key
+        _selectedAuthorizationTargetID = State(initialValue: key?.isQuotaMonitoringAuthorizationCredential == true ? key?.id : nil)
+    }
 
     private var config: DashboardReauthConfig? {
         DashboardReauthConfig(provider: provider)
@@ -30,9 +38,40 @@ struct DashboardReauthSheet: View {
                     Text(L10n.t(.reauthDescription))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    Text(reauthTargetSummary)
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    if multipleAuthorizationKeys.count > 1 {
+                        Text(L10n.t(.reauthMultipleCredentialHint))
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                            .lineLimit(2)
+                    }
                 }
 
                 Spacer()
+            }
+
+            if shouldShowAuthorizationTargetPicker {
+                Picker(L10n.t(.reauthTargetCredential), selection: $selectedAuthorizationTargetID) {
+                    if !requiresAuthorizationTargetSelection {
+                        Text(L10n.t(.reauthCreateNewCredential))
+                            .tag(Optional<UUID>.none)
+                    } else {
+                        Text(L10n.t(.reauthSelectTarget))
+                            .tag(Optional<UUID>.none)
+                    }
+
+                    ForEach(multipleAuthorizationKeys) { authorizationKey in
+                        Text(authorizationKey.reauthTargetDisplayText)
+                            .tag(Optional(authorizationKey.id))
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if let config {
@@ -90,6 +129,11 @@ struct DashboardReauthSheet: View {
 
     private func saveCookies() {
         guard let config else { return }
+        guard !requiresAuthorizationTargetSelection || selectedAuthorizationTargetID != nil else {
+            statusMessage = L10n.t(.reauthSelectTargetBeforeSaving)
+            return
+        }
+
         if let latestCapturedCredential {
             isSaving = true
             statusMessage = L10n.t(.autoSavingCookie)
@@ -119,6 +163,11 @@ struct DashboardReauthSheet: View {
 
     private func autoSaveCredential(_ credential: DashboardCapturedCredential) {
         guard !didAutoSave, !isSaving else { return }
+        guard !requiresAuthorizationTargetSelection || selectedAuthorizationTargetID != nil else {
+            latestCapturedCredential = credential
+            statusMessage = L10n.t(.reauthSelectTargetBeforeSaving)
+            return
+        }
         isSaving = true
         statusMessage = L10n.t(.autoSavingCookie)
         persistCredential(credential, allowEmptyStatus: false, dismissAfterSave: false)
@@ -165,7 +214,6 @@ struct DashboardReauthSheet: View {
             if updatedKey.name.isEmpty || updatedKey.isBusinessInvocationCredential {
                 updatedKey.name = config.defaultKeyName
             }
-            updatedKey.note = updatedKey.note ?? L10n.t(.dashboardSession)
             updatedKey.quotaLabel = L10n.t(.cookieSaved)
             updatedKey.quotaText = LocalizedTextDescriptor.localized(.cookieSaved)
             updatedKey.lastUpdated = Date()
@@ -175,7 +223,7 @@ struct DashboardReauthSheet: View {
                 name: config.defaultKeyName,
                 key: capturedCredential.reauthenticatedSecret(existingSecret: nil),
                 provider: provider,
-                note: L10n.t(.dashboardSession),
+                note: nil,
                 lastUpdated: Date(),
                 quotaText: LocalizedTextDescriptor.localized(.cookieSaved),
                 quotaLabel: L10n.t(.cookieSaved)
@@ -276,9 +324,50 @@ struct DashboardReauthSheet: View {
     }
 
     private var existingQuotaAuthorizationKey: APIKey? {
-        selectedQuotaAuthorizationKey ?? monitor.apiKeys.first {
+        if let selectedAuthorizationTargetID {
+            return monitor.apiKeys.first {
+                $0.id == selectedAuthorizationTargetID
+                    && $0.provider == provider
+                    && $0.isQuotaMonitoringAuthorizationCredential
+            }
+        }
+
+        if let selectedQuotaAuthorizationKey {
+            return selectedQuotaAuthorizationKey
+        }
+
+        if multipleAuthorizationKeys.count == 1 {
+            return multipleAuthorizationKeys.first
+        }
+
+        return nil
+    }
+
+    private var multipleAuthorizationKeys: [APIKey] {
+        monitor.apiKeys.filter {
             $0.provider == provider && $0.isQuotaMonitoringAuthorizationCredential
         }
+    }
+
+    private var reauthTargetSummary: String {
+        if let existingQuotaAuthorizationKey {
+            return L10n.format(.reauthSavingTo, existingQuotaAuthorizationKey.managementDisplayName)
+        }
+
+        if requiresAuthorizationTargetSelection {
+            return L10n.t(.reauthSelectTarget)
+        }
+
+        let defaultName = config?.defaultKeyName ?? provider.defaultCredentialName
+        return L10n.format(.reauthWillCreate, defaultName)
+    }
+
+    private var shouldShowAuthorizationTargetPicker: Bool {
+        multipleAuthorizationKeys.count > 1
+    }
+
+    private var requiresAuthorizationTargetSelection: Bool {
+        multipleAuthorizationKeys.count > 1 && selectedQuotaAuthorizationKey == nil
     }
 }
 

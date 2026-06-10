@@ -17,6 +17,7 @@ struct APIKeyStore {
         var provider: Provider
         var isActive: Bool
         var note: String?
+        var linkedAuthorizationID: UUID?
         var remaining: Int?
         var limit: Int?
         var resetAt: Date?
@@ -36,6 +37,7 @@ struct APIKeyStore {
             provider = key.provider
             isActive = key.isActive
             note = key.note
+            linkedAuthorizationID = key.linkedAuthorizationID
             remaining = key.remaining
             limit = key.limit
             resetAt = key.resetAt
@@ -74,13 +76,14 @@ struct APIKeyStore {
                 normalizedLimit = limit
             }
 
-            return APIKey(
+            var hydratedKey = APIKey(
                 id: id,
                 name: name,
                 key: secret,
                 provider: provider,
                 isActive: isActive,
                 note: note,
+                linkedAuthorizationID: linkedAuthorizationID,
                 remaining: normalizedRemaining,
                 limit: normalizedLimit,
                 resetAt: resetAt,
@@ -94,6 +97,12 @@ struct APIKeyStore {
                 usageCount: usageCount,
                 lastUsed: lastUsed
             )
+            if hydratedKey.isQuotaMonitoringAuthorizationCredential,
+               let hydratedNote = hydratedKey.note,
+               L10n.isGeneratedQuotaAuthorizationNote(hydratedNote) {
+                hydratedKey.note = nil
+            }
+            return hydratedKey
         }
     }
 

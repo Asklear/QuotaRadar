@@ -17,7 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var quotaConsumingAutoRefreshCancellable: AnyCancellable?
     private let settingsWindowFrameDefaultsKey = "QuotaRadarSettingsWindowFrame"
     private var isApplyingSettingsWindowPlacement = false
-    private let preferredSettingsContentSize = NSSize(width: 1040, height: 640)
+    private let preferredSettingsContentSize = NSSize(width: 1120, height: 640)
     private let minimumSettingsWindowSize = NSSize(width: 900, height: 600)
     private let statusPanelGap: CGFloat = 6
     private let statusPanelScreenInset: CGFloat = 10
@@ -563,6 +563,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func configureSettingsWindow(_ window: NSWindow, restoreSavedFrameIfNeeded: Bool) {
         window.minSize = minimumSettingsWindowSize
+        window.contentMinSize = minimumSettingsWindowSize
         window.collectionBehavior.insert(.moveToActiveSpace)
 
         if window.contentView?.bounds.width ?? 0 < preferredSettingsContentSize.width ||
