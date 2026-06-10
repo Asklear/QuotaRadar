@@ -122,6 +122,7 @@ enum SettingsDestination: String, CaseIterable, Identifiable, Hashable {
 
 struct SettingsSidebarView: View {
     @ObservedObject var monitor: QuotaMonitor
+    @ObservedObject private var updater = GitHubReleaseUpdater.shared
     @Binding var selection: SettingsDestination?
 
     private var configuredProviders: Int {
@@ -171,11 +172,71 @@ struct SettingsSidebarView: View {
             }
 
             Spacer()
+
+            SidebarUpdateFooter(updater: updater)
         }
         .padding(.horizontal, 12)
         .navigationTitle("Quota Radar")
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.thinMaterial)
+    }
+}
+
+struct SidebarUpdateFooter: View {
+    @ObservedObject var updater: GitHubReleaseUpdater
+
+    private var isBusy: Bool {
+        updater.isChecking || updater.isDownloading
+    }
+
+    private var statusText: String {
+        updater.statusMessage ?? L10n.t(.checkForUpdates)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
+                .overlay(Color.primary.opacity(0.08))
+
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L10n.t(.version))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Text(statusText)
+                        .font(.caption2)
+                        .foregroundStyle(isBusy ? .primary : .tertiary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+
+                Spacer(minLength: 6)
+
+                Button {
+                    updater.checkForUpdatesFromUI()
+                } label: {
+                    ZStack {
+                        if isBusy {
+                            ProgressView()
+                                .controlSize(.small)
+                                .scaleEffect(0.66)
+                        } else {
+                            Image(systemName: "arrow.down.circle")
+                                .font(.system(size: 13, weight: .semibold))
+                        }
+                    }
+                    .frame(width: 24, height: 24)
+                }
+                .buttonStyle(.plain)
+                .disabled(isBusy)
+                .help(L10n.t(.checkForUpdatesDescription))
+                .accessibilityLabel(L10n.t(.checkForUpdates))
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.bottom, 12)
     }
 }
 
@@ -2432,6 +2493,18 @@ struct AppSettingsView: View {
                 if let error = launchAtLoginStore.lastError {
                     SettingsFootnote(icon: "exclamationmark.triangle.fill", text: error, tint: .red)
                 }
+
+                SettingsDivider()
+
+                SettingsPreferenceRow(
+                    icon: "arrow.down.circle",
+                    title: L10n.t(.automaticUpdateCheck),
+                    subtitle: L10n.t(.automaticUpdateCheckDescription)
+                ) {
+                    Toggle("", isOn: $appearanceStore.automaticallyCheckForUpdates)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                }
             }
 
             SettingsFormSection(title: L10n.t(.settingsRefreshSection)) {
@@ -2870,6 +2943,8 @@ struct SettingsFootnote: View {
 // MARK: - About View
 
 struct AboutView: View {
+    @ObservedObject private var updater = GitHubReleaseUpdater.shared
+
     var body: some View {
         ModernPage(
             title: "Quota Radar",
@@ -2890,6 +2965,22 @@ struct AboutView: View {
                     }
 
                     Spacer()
+
+                    Button {
+                        updater.checkForUpdatesFromUI()
+                    } label: {
+                        HStack(spacing: 6) {
+                            if updater.isChecking || updater.isDownloading {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .scaleEffect(0.72)
+                            }
+                            Text(L10n.t(.checkForUpdates))
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(updater.isChecking || updater.isDownloading)
                 }
             }
 

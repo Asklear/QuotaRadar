@@ -49,6 +49,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         startMonitoring()
         startLanguageMonitoring()
         showManagedSettingsWindowOnLaunch()
+        GitHubReleaseUpdater.shared.checkForUpdatesIfNeededOnLaunch()
     }
 
     private func setupStatusBar() {

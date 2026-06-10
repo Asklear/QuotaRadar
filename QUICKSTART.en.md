@@ -66,15 +66,17 @@ For web-login authorization providers, prefer in-app reauthentication or paste a
 
 The `Quota Overview` page shows quota summaries for configured providers only. Providers without saved credentials do not appear as placeholders in `Quota Overview`, `Credentials`, or `Diagnostics`.
 
-The menu bar popover groups providers by `AI Search` and `LLM`, supports collapsible providers, and refreshes one provider at a time.
+The menu bar popover prioritizes today's quota risk, expiring credentials, and items needing attention, with quick refresh for individual providers.
 
 ## 6. Settings
 
-Use `Settings` to switch Simplified Chinese, Traditional Chinese, English, Japanese, and Korean; adjust menu bar popover transparency; configure launch at login; set the network proxy; and set automatic refresh intervals. Automatic refresh can also be turned off.
+Use `Settings` to switch Simplified Chinese, Traditional Chinese, English, Japanese, and Korean; adjust menu bar popover transparency; configure launch at login; enable automatic update checks; set the network proxy; and set automatic refresh intervals. Automatic refresh can also be turned off.
 
 Network proxy supports System, Direct, and Custom. Custom proxy accepts values such as `http://127.0.0.1:7890` or `socks5://127.0.0.1:7890`.
 
 To keep frequently used providers near the top, enable `Custom Provider Order`, click `Configure`, and drag provider rows. This order is shared by Quota Overview, Credentials, Diagnostics, and the menu bar popover.
+
+The lower-left corner of the main window shows the installed version and update status. When automatic update checks are enabled, the app only checks GitHub Releases. If a new version is available, Quota Radar shows release notes and does not download silently. It downloads the DMG and replaces the installed app only after you click `Download and Install`.
 
 ## 7. Local Data Locations
 

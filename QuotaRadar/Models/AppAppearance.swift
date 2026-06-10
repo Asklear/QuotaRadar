@@ -103,6 +103,7 @@ final class AppAppearanceStore: ObservableObject {
     static let quotaConsumingAutoRefreshIntervalKey = "quotaConsumingAutoRefreshInterval"
     static let networkProxyModeKey = "networkProxyMode"
     static let customProxyURLKey = "customProxyURL"
+    static let automaticallyCheckForUpdatesKey = "automaticallyCheckForUpdates"
 
     @Published var statusBarTransparency: Double {
         didSet {
@@ -139,6 +140,12 @@ final class AppAppearanceStore: ObservableObject {
         }
     }
 
+    @Published var automaticallyCheckForUpdates: Bool {
+        didSet {
+            defaults.set(automaticallyCheckForUpdates, forKey: Self.automaticallyCheckForUpdatesKey)
+        }
+    }
+
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -171,6 +178,12 @@ final class AppAppearanceStore: ObservableObject {
         }
 
         customProxyURL = defaults.string(forKey: Self.customProxyURLKey) ?? ""
+
+        if defaults.object(forKey: Self.automaticallyCheckForUpdatesKey) == nil {
+            automaticallyCheckForUpdates = true
+        } else {
+            automaticallyCheckForUpdates = defaults.bool(forKey: Self.automaticallyCheckForUpdatesKey)
+        }
     }
 
     private static func clamped(_ value: Double) -> Double {

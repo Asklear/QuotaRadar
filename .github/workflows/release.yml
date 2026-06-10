@@ -41,20 +41,18 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
-            - Claude, Codex, Kimi, and OpenCode Go subscription providers can store companion API keys for copying and management while using web login authorization for quota checks.
-            - Added network proxy settings, immediate refresh after adding or editing credentials, and safer reauthentication target selection when multiple accounts exist.
-            - Quota Overview, Credentials, and Diagnostics now show configured providers only, so empty provider placeholders no longer crowd the main window.
-            - The menu bar popover now prioritizes quota risk, low-quota providers, and items needing attention instead of rendering the full provider grid.
-            - The main quota overview uses Key Quota / Credential Pool / Critical Time / Status for clearer multi-key and multi-window monitoring.
-            - Multi-window subscription quotas no longer repeat the 5-hour/weekly/monthly text in credential rows; plan expiry dates include the year for annual plans.
+            - Added an in-app GitHub Release update entry point in the lower-left sidebar footer, showing the installed version, update status, and a manual check button.
+            - Automatic update checks now run after launch, but they only detect new versions and show release notes. Quota Radar never downloads or replaces the app silently.
+            - Confirmed installs download QuotaRadar.dmg, replace /Applications/Quota Radar.app, clear quarantine, and relaunch the app.
+            - Update checks reuse the app's network proxy settings, and fall back to the GitHub latest-release redirect if the unauthenticated GitHub API is rate-limited.
+            - Refreshed README menu bar screenshots and documentation so the screenshots, Quickstart, and Roadmap match the current risk-first menu bar popover.
 
             中文说明：
-            - Claude、Codex、Kimi、OpenCode Go 等订阅 provider 支持保存配套 API Key 便于复制和管理，额度查询仍使用网页登录授权。
-            - 新增网络代理设置；新增或编辑凭据后会立即刷新；多个账号重新认证时会明确保存目标。
-            - 额度监控、配置凭据和诊断只展示已配置 provider，未配置 provider 不再占用主界面空间。
-            - 状态栏弹窗改为额度风险、额度紧张和需要关注优先，不再展示完整 provider 网格。
-            - 主程序额度监控使用关键额度 / 凭据池 / 关键时间 / 状态，更适合多 key 和多周期监控。
-            - 多周期订阅额度不再在凭据行重复显示 5 小时/周/月文本；套餐到期日期会显示年份，适合一年期套餐。
+            - 新增应用内 GitHub Release 更新入口：主窗口左下角显示当前版本、更新状态和手动检查按钮。
+            - 支持启动后自动检查更新，但只检测新版并展示更新说明，不会静默下载或自动覆盖安装。
+            - 用户确认后才会下载 QuotaRadar.dmg、替换 /Applications/Quota Radar.app、清除 quarantine 并重新启动。
+            - 更新检查复用应用内网络代理设置；GitHub API 未认证 rate limit 时，会降级通过 latest-release 重定向解析版本和下载地址。
+            - 更新 README 状态栏截图和文档说明，让截图、Quickstart、Roadmap 与当前风险优先状态栏弹窗保持一致。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.
 

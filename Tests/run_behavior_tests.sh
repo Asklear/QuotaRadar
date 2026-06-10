@@ -50,9 +50,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.3\.2' \
+assert_match '0\.3\.3' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.3.2 should be recorded in Info.plist"
+  "Quota Radar 0.3.3 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -340,6 +340,63 @@ assert_match 'scripts/package_dmg.sh --rebuild' \
 assert_match 'softprops/action-gh-release' \
   ".github/workflows/release.yml" \
   "Release workflow should upload the DMG to GitHub Releases"
+assert_match 'final class GitHubReleaseUpdater' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "QuotaRadar should include a GitHub Release updater service"
+assert_match 'https://api\.github\.com/repos/Asklear/QuotaRadar/releases/latest' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater should check the Asklear/QuotaRadar latest GitHub Release endpoint"
+assert_match 'https://github\.com/Asklear/QuotaRadar/releases/latest' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater should fall back to the GitHub latest-release redirect when the unauthenticated API is rate limited"
+assert_match 'releases/download' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater fallback should construct the release asset download URL from the resolved release tag"
+assert_match 'QuotaRadar\.dmg' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater should select the published QuotaRadar.dmg release asset"
+assert_match 'releaseNotes' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater should preserve GitHub release notes for the update prompt"
+assert_match 'downloadAndInstall' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater should provide a download-and-install flow instead of only opening the browser"
+assert_match 'hdiutil attach' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater install flow should mount the downloaded DMG"
+assert_match 'ditto' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater install flow should copy the downloaded app bundle over the installed app"
+assert_match 'xattr -dr com\.apple\.quarantine' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater install flow should clear quarantine for trusted unsigned GitHub Release builds"
+assert_match 'open -a' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater install flow should relaunch Quota Radar after replacing the app"
+assert_match 'checkForUpdatesIfNeededOnLaunch' \
+  "QuotaRadar/AppDelegate.swift" \
+  "QuotaRadar should automatically check GitHub Releases after launch"
+assert_match 'Check for Updates' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Updater controls should have English localization"
+assert_match '检查更新' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Updater controls should have Simplified Chinese localization"
+assert_match 'L10n\.t\(\.checkForUpdates\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should expose a localized Check for Updates action"
+assert_match 'SidebarUpdateFooter' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings sidebar should keep version and update status in the lower-left footer"
+assert_match 'Text\(L10n\.t\(\.version\)\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings sidebar footer should show the installed app version"
+assert_match 'updater\.checkForUpdatesFromUI\(\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings sidebar footer should provide a manual update check action"
+assert_no_match 'SettingsFormSection\(title: L10n\.t\(\.settingsUpdateSection\)\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Update checks should not occupy a full settings content section"
 assert_match 'actions/setup-python' \
   ".github/workflows/release.yml" \
   "Release workflow should install a stable Python before installing Pillow"

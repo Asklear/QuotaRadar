@@ -43,6 +43,14 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Run screenshot QA for v0.2.2 menu bar transparency and make Chinese / English README pages use screenshots in their own language.
 - [x] Fill in the provider capability matrix as the entry point for future provider additions.
 
+## Fixed In v0.3.3
+
+- [x] Added a GitHub Release update entry point: the lower-left sidebar footer shows the version, update status, and a manual check button.
+- [x] Added automatic update checks after launch, but they only detect new versions and show release notes. They do not silently download or replace the app.
+- [x] After the user clicks `Download and Install`, Quota Radar downloads `QuotaRadar.dmg`, replaces `/Applications/Quota Radar.app`, clears quarantine, and relaunches.
+- [x] Update checks reuse the app's network proxy settings. If the unauthenticated GitHub API is rate-limited, Quota Radar falls back to the latest-release redirect to resolve the version and download URL.
+- [x] Refreshed Chinese and English README menu bar screenshots plus Quickstart / Roadmap wording, making the unsigned-release trust boundary and in-app update behavior explicit.
+
 ## Fixed In v0.3.2
 
 - [x] Claude, Codex, Kimi, and OpenCode Go subscription providers can store companion API keys. API keys are only for copying and management; quota checks still use web login authorization.

@@ -16,21 +16,19 @@ Quota Radar 是一个 macOS 状态栏应用，用来观察搜索 API 与 LLM cod
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-当前版本：`v0.3.2`。
+当前版本：`v0.3.3`。
 
 下一阶段计划见 [TODO / Roadmap](./TODO.md)。
 
 服务商凭据类型、额度来源和自动刷新限制见 [Provider Capability Matrix](./docs/provider-capabilities.md)。
 
-## v0.3.2 新特性
+## v0.3.3 新特性
 
-- Claude、Codex、Kimi 和 OpenCode Go 订阅类 provider 现在支持同时保存“额度监控授权”和可复制 API Key；额度查询仍使用网页登录授权，API Key 只用于统一管理和复制。
-- 设置页新增网络代理选项：跟随系统、直连、自定义 HTTP/SOCKS 代理。
-- 新增或编辑凭据后会立即刷新对应 provider；多个网页登录授权同时存在时，重新认证会要求明确保存目标，避免覆盖错账号。
-- 状态栏弹窗改为“今日额度风险 + 额度紧张 + 需要关注”优先，不再塞入完整 provider 网格。
-- 主程序额度监控表格改为 `关键额度 / 凭据池 / 关键时间 / 状态`，更适合多 key 和多周期订阅场景。
-- `额度监控`、`配置凭据` 和 `诊断` 只展示已经配置过凭据的 provider，未配置的 provider 不再占用主界面空间；新增 provider 仍从 `添加凭据` 入口完成。
-- 多周期订阅额度不再在凭据行重复显示 5 小时/周/月文本；套餐到期日期会显示年份，适合一年期套餐。
+- 新增应用内 GitHub Release 更新入口：主窗口左下角显示当前版本、更新状态和手动检查按钮。
+- 支持启动后自动检查更新。自动检查只会检测新版并展示更新说明，不会静默下载或自动覆盖安装。
+- 发现新版时会先展示 release notes；只有点击 `下载并安装` 后，才会下载 `QuotaRadar.dmg`、替换 `/Applications/Quota Radar.app`、清除 quarantine 并重新启动。
+- 更新检查复用应用内网络代理设置；当 GitHub API 触发未认证 rate limit 时，会降级通过 GitHub latest-release 重定向解析版本和下载地址。
+- 更新中英文 README 状态栏截图和文档说明，让截图、Quickstart、Roadmap 与当前风险优先状态栏弹窗保持一致。
 
 ## 界面预览
 
@@ -52,12 +50,13 @@ Quota Radar 是一个 macOS 状态栏应用，用来观察搜索 API 与 LLM cod
 
 ## 功能
 
-- 状态栏磨砂玻璃弹窗，按 `AI Search` 和 `LLM` 分组展示额度。
+- 状态栏磨砂玻璃弹窗优先展示今日风险、即将到期和需要关注的凭据。
 - 支持多个 provider、多个凭据，并按 provider 内剩余额度排序。
 - 主窗口的 `额度监控`、`配置凭据` 和 `诊断` 页面默认只显示已配置凭据的 provider，避免空 provider 占位。
 - 支持 API 密钥与网页登录授权两类凭据。
 - 可从 `.env` 或 `~/.claude/settings.json` 导入支持的凭据。
 - 支持开机自启动、自动刷新间隔配置，也可以完全关闭自动刷新。
+- 支持从 GitHub Release 自动检查新版，左侧栏底部显示版本号和更新状态；发现新版不会静默下载，必须确认后才会下载最新 DMG、展示更新说明并覆盖安装。
 - 真实凭据存储在 `~/Library/Application Support/QuotaRadar/secrets.json`，权限为 `0600`；偏好设置只保存 metadata。
 
 ## 支持的服务商
@@ -129,16 +128,16 @@ open build/QuotaRadar.dmg
 手动发布到 GitHub Release：
 
 ```bash
-gh release create v0.3.2 build/QuotaRadar.dmg \
-  --title "Quota Radar v0.3.2" \
+gh release create v0.3.3 build/QuotaRadar.dmg \
+  --title "Quota Radar v0.3.3" \
   --notes "Unsigned DMG for trusted users. macOS may require removing quarantine on first launch."
 ```
 
 也可以直接推送 tag，仓库的 GitHub Actions 会自动构建未签名 DMG 并上传到 Release：
 
 ```bash
-git tag v0.3.2
-git push origin v0.3.2
+git tag v0.3.3
+git push origin v0.3.3
 ```
 
 未签名 DMG 不需要 Apple Developer Program，但从 GitHub 下载后可能被 macOS Gatekeeper 拦截。只在信任该源码和 release 的情况下安装；如果提示“App 已损坏”或“无法打开”，先把 app 拖到 `/Applications`，再执行：
@@ -165,7 +164,9 @@ scripts/package_dmg.sh --rebuild --notarize
 3. 普通服务商填 API 密钥；Exa 需要 Team Management service key 和目标 API key id；Querit、Claude、Codex、Kimi、讯飞星火 coding plan、火山引擎 coding plan、OpenCode Go、阿里云/腾讯云 coding plan 可同时保存可复制 API Key 和网页登录授权。额度监控仍使用网页登录授权，API Key 只用于管理和复制。
 4. 点击单个 provider 的刷新按钮更新该 provider。
 
-在 `设置` 页面可以切换语言、调节状态栏透明度、配置开机自启动、网络代理和自动刷新间隔。自动刷新支持关闭；Brave 这类会消耗真实搜索请求的 provider 默认跳过自动刷新，只有开启“检索刷新”后才会按更长周期刷新。
+在 `设置` 页面可以切换语言、调节状态栏透明度、配置开机自启动、网络代理、自动检查更新和自动刷新间隔。自动刷新支持关闭；Brave 这类会消耗真实搜索请求的 provider 默认跳过自动刷新，只有开启“检索刷新”后才会按更长周期刷新。
+
+主窗口左下角会显示当前版本和更新状态。开启 `自动检查更新` 后，Quota Radar 只会在后台检查 GitHub Release；如果发现新版，会弹出版本说明，但不会静默下载或自动覆盖。只有点击 `下载并安装` 后，才会下载 `QuotaRadar.dmg`、替换 `/Applications/Quota Radar.app`、清除 quarantine 并重新启动。这个流程仍然基于未签名 GitHub Release，请只在信任该仓库和 release 的情况下使用。
 
 如果你希望常用 provider 排在更前面，可以在 `设置` 中开启 `自定义 Provider 顺序`，点击 `调整顺序` 后拖动 provider 行。排序会同时影响主窗口三个页面和状态栏弹窗；`AI Search` 与 `LLM` 仍保持分组。
 

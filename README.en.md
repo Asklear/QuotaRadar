@@ -16,21 +16,19 @@ Naming convention: the GitHub repository, Swift package, and DMG use `QuotaRadar
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Current version: `v0.3.2`.
+Current version: `v0.3.3`.
 
 See [TODO / Roadmap](./TODO.en.md) for the next development plan.
 
 For credential type, usage source, and automatic-refresh constraints by provider, see the [Provider Capability Matrix](./docs/provider-capabilities.en.md).
 
-## What's New In v0.3.2
+## What's New In v0.3.3
 
-- Claude, Codex, Kimi, and OpenCode Go subscription providers can now store both quota-monitoring web login authorization and a copyable API key. Quota checks still use web login authorization; API keys are kept only for management and copying.
-- Settings now include network proxy controls: system proxy, direct connection, and custom HTTP/SOCKS proxy.
-- Adding or editing a credential immediately refreshes that provider. When multiple web login authorizations exist, reauthentication requires an explicit save target so the wrong account is not overwritten.
-- The menu bar popover now prioritizes `Quota Risk Today`, low-quota providers, and items needing attention instead of a full provider grid.
-- The main quota overview table now uses `Key Quota / Credential Pool / Critical Time / Status`, which fits multi-key and multi-window subscription providers better.
-- `Quota Overview`, `Credentials`, and `Diagnostics` now show only providers with saved credentials. Unconfigured providers no longer take space in the main window; add them from `Add Credential`.
-- Multi-window subscription quotas no longer repeat the five-hour/weekly/monthly text in credential rows; plan-expiry dates include the year for annual plans.
+- Added an in-app GitHub Release update entry point: the lower-left main-window footer now shows the current version, update status, and a manual check button.
+- Added automatic update checks after launch. Automatic checks only detect new versions and show release notes; they do not silently download or replace the app.
+- When a new version is available, Quota Radar shows release notes first. It downloads `QuotaRadar.dmg`, replaces `/Applications/Quota Radar.app`, clears quarantine, and relaunches only after you click `Download and Install`.
+- Update checks reuse the app's network proxy settings. If the unauthenticated GitHub API is rate-limited, Quota Radar falls back to the GitHub latest-release redirect to resolve the version and download URL.
+- Refreshed Chinese and English README menu bar screenshots and documentation so screenshots, Quickstart, and Roadmap match the current risk-first menu bar popover.
 
 ## Screenshots
 
@@ -52,12 +50,13 @@ For credential type, usage source, and automatic-refresh constraints by provider
 
 ## Features
 
-- Frosted-glass menu bar popover grouped by `AI Search` and `LLM`.
+- Frosted-glass menu bar popover focused on today's risk, expiring credentials, and items needing attention.
 - Supports multiple providers and credentials, with credentials sorted by remaining quota inside each provider.
 - `Quota Overview`, `Credentials`, and `Diagnostics` show only providers with saved credentials, avoiding empty provider placeholders.
 - Supports API keys and web login authorizations.
 - Imports supported credentials from `.env` or `~/.claude/settings.json`.
 - Supports launch at login, configurable automatic refresh intervals, and fully disabling automatic refresh.
+- Checks GitHub Releases for new versions, with version and update status in the lower-left sidebar footer. New versions are not downloaded silently; Quota Radar downloads the latest DMG, shows release notes, and replaces the installed app only after confirmation.
 - Stores secrets in `~/Library/Application Support/QuotaRadar/secrets.json` with `0600` permissions; preferences store metadata only.
 
 ## Supported Providers
@@ -129,16 +128,16 @@ open build/QuotaRadar.dmg
 Manual GitHub Release upload:
 
 ```bash
-gh release create v0.3.2 build/QuotaRadar.dmg \
-  --title "Quota Radar v0.3.2" \
+gh release create v0.3.3 build/QuotaRadar.dmg \
+  --title "Quota Radar v0.3.3" \
   --notes "Unsigned DMG for trusted users. macOS may require removing quarantine on first launch."
 ```
 
 You can also push a tag and let GitHub Actions build the unsigned DMG and upload it to the Release:
 
 ```bash
-git tag v0.3.2
-git push origin v0.3.2
+git tag v0.3.3
+git push origin v0.3.3
 ```
 
 An unsigned DMG does not require Apple Developer Program membership, but macOS Gatekeeper may block the downloaded app. Install it only if you trust this source repository and release. If macOS says the app is damaged or cannot be opened, move the app into `/Applications` and run:
@@ -165,7 +164,9 @@ Without Developer ID signing and notarization, the DMG is suitable only for loca
 3. Use API keys for normal providers. Exa requires a Team Management service key plus the target API key id. Querit, Claude, Codex, Kimi, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, and Aliyun/Tencent Cloud Coding Plan can store both a copyable API key and web login authorization. Quota monitoring still uses web login authorization; API keys are only for management and copying.
 4. Click a provider-level refresh button to update that provider.
 
-Use `Settings` to switch language, tune menu bar transparency, configure launch at login, set the network proxy, and choose automatic refresh intervals. Automatic refresh can be disabled; providers such as Brave that consume a real search request are skipped by default and only join the longer `Search Refresh` cadence when explicitly enabled.
+Use `Settings` to switch language, tune menu bar transparency, configure launch at login, enable automatic update checks, set the network proxy, and choose automatic refresh intervals. Automatic refresh can be disabled; providers such as Brave that consume a real search request are skipped by default and only join the longer `Search Refresh` cadence when explicitly enabled.
+
+The lower-left corner of the main window shows the installed version and update status. When `Automatically Check for Updates` is enabled, Quota Radar only checks GitHub Releases in the background. If a new version is available, it shows release notes, but it does not silently download or replace the app. Only after you click `Download and Install` does it download `QuotaRadar.dmg`, replace `/Applications/Quota Radar.app`, clear quarantine, and relaunch. This still follows the unsigned GitHub Release trust model, so use it only when you trust this repository and release.
 
 To keep frequently used providers near the top, enable `Custom Provider Order` in `Settings`, click `Configure`, then drag provider rows. The order applies to all three main pages and the menu bar popover; `AI Search` and `LLM` remain grouped.
 
