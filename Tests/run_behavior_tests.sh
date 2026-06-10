@@ -50,9 +50,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.3\.1' \
+assert_match '0\.3\.2' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.3.1 should be recorded in Info.plist"
+  "Quota Radar 0.3.2 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -460,16 +460,28 @@ except IndexError:
     print("FAIL: Diagnostics view structure should be present", file=sys.stderr)
     sys.exit(1)
 
-if "monitor.orderedVisibleProviders.map" not in diagnostics:
+if "monitor.orderedVisibleProviders.compactMap" not in diagnostics:
     print("FAIL: Diagnostics should use the same custom provider order as credentials and quota monitoring", file=sys.stderr)
     sys.exit(1)
-if "guard !keys.isEmpty" in diagnostics:
-    print("FAIL: Diagnostics should not hide visible providers just because no credential is configured", file=sys.stderr)
+if "credentialDiagnosticItems.isEmpty" not in diagnostics:
+    print("FAIL: Diagnostics should hide providers that do not have any diagnostic credential group configured", file=sys.stderr)
     sys.exit(1)
-if "credentialDiagnosticItems.isEmpty" not in diagnostic_section or "ProviderQuotaEmptyKeyRow()" not in diagnostic_section:
-    print("FAIL: Diagnostics should render an explicit no-credential state for visible providers without keys", file=sys.stderr)
+if "ProviderQuotaEmptyKeyRow()" in diagnostic_section:
+    print("FAIL: Diagnostics should not render empty credential placeholder rows for providers without configured credentials", file=sys.stderr)
     sys.exit(1)
 PY
+assert_match 'diagnosticCredentialGroupCountText' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Diagnostics provider headers should count logical credential groups instead of raw saved API key records"
+assert_match 'companionAPIKey' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Diagnostics rows should explain saved invocation API keys inside the paired quota-monitoring authorization row"
+assert_match 'L10n\.t\(\.includesInvocationAPIKey\)' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Diagnostics rows should describe companion API keys tersely inside the paired authorization row"
+assert_no_match 'item\.diagnosticSummary' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Diagnostics should not render quota-oriented diagnostic summaries in the main diagnostics list"
 assert_match 'startPopoverMouseExitMonitor' \
   "QuotaRadar/AppDelegate.swift" \
   "Status bar popover should start a mouse-exit monitor when shown"
@@ -740,39 +752,21 @@ assert_no_match 'monitor.providerStats' \
 assert_no_match 'ScrollView\(showsIndicators' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar popover should not be a long scrolling dashboard"
-assert_match 'private let providerOverviewMaxHeight: CGFloat' \
+assert_match 'MenuRiskSummaryCard' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar provider overview should have a fixed height budget so many providers cannot overflow the popover"
-assert_match 'MenuBoundedScrollRegion' \
+  "Status bar popover should lead with a risk summary instead of a dense provider grid"
+assert_no_match 'MenuProviderOverviewCard\(monitor: monitor\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar provider overview should scroll inside its own compact region instead of growing the full popover"
-assert_match '\.frame\(maxHeight: providerOverviewMaxHeight' \
+  "Status bar popover should not render the full provider grid in the primary menu view"
+assert_match 'MenuRiskSummaryCard\(summary: monitor\.menuQuotaSummary\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar provider overview scroll region should enforce the provider height budget"
-assert_match 'MenuProviderOverviewCard' \
-  "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar popover should include provider-level quota statistics instead of only expired or low API keys"
-assert_match 'ForEach\(monitor\.homeCategoryStats\)' \
-  "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar provider overview should be grouped by AI Search and LLM provider categories"
-assert_match 'MenuProviderQuotaCell' \
-  "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar provider overview should render compact per-provider quota cells"
+  "Status bar risk summary should be driven by QuotaMonitor.menuQuotaSummary"
 assert_no_match 'ForEach\(monitor\.homeProviderStats\) \{ stat in' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar home view should not render a flat provider list"
-assert_match 'MenuMetricStrip' \
-  "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar popover should show available, low-quota, and failed counts instead of provider/key totals"
 assert_match 'struct MonitorModule<Content: View>' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar popover should use lightweight monitoring modules instead of large dashboard cards"
-assert_match 'struct MenuMetricStrip' \
-  "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar popover should use a compact metric strip"
-assert_match 'MenuMetricStrip\(summary: monitor\.menuQuotaSummary\)' \
-  "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar summary metrics should be rendered as a compact strip"
 assert_match 'struct MenuSectionHeader' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar sections should use a consistent compact monitoring header"
@@ -782,12 +776,84 @@ assert_match 'MenuAttentionItemsView' \
 assert_match 'ForEach\(monitor\.menuAttentionQuotaItems' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar attention rows should come from QuotaMonitor.menuAttentionQuotaItems"
+assert_match 'MenuLowQuotaItemsView' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should reserve space for low-quota providers, not only expired or exhausted credentials"
+assert_match 'ForEach\(monitor\.menuLowQuotaItems' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar low-quota rows should come from QuotaMonitor.menuLowQuotaItems"
+assert_match 'MenuExpiringQuotaItemsView' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should reserve space for credentials whose plan or balance expires soon"
+assert_match 'ForEach\(monitor\.menuExpiringQuotaItems' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar expiring-soon rows should come from QuotaMonitor.menuExpiringQuotaItems"
 assert_no_match 'StatItem\(value: "\\\\\(totalProviders\\\\\)", label: L10n\.t\(\.providers\)\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar summary should not spend prime space on provider totals"
 assert_no_match 'StatItem\(value: "\\\\\(totalKeys\\\\\)", label: L10n\.t\(\.keys\)\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar summary should not spend prime space on credential totals"
+assert_match 'L10n\.t\(\.keyQuota\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview table should use a user-oriented key quota column instead of ambiguous Remaining/Total headers"
+assert_match 'L10n\.t\(\.credentialPool\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview table should expose credential-pool state for providers with multiple keys"
+assert_match 'L10n\.t\(\.criticalTime\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview table should label reset or plan-end timing as critical time"
+assert_no_match 'L10n\.t\(\.nextTime\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview table should not keep the old next-time label"
+assert_no_match 'Text\(L10n\.t\(\.total\)\).*?ProviderQuotaMonitorTableHeader' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview table header should not use the ambiguous Total label for mixed provider types"
+assert_match 'quotaOverviewRiskColor' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview provider rows should use a dedicated green/red risk color instead of provider or status-spectrum colors"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
+try:
+    providers_view = source.split("struct ProvidersView: View", 1)[1].split("struct ProviderSettingsCategorySection", 1)[0]
+except IndexError:
+    print("FAIL: Quota overview view structure should be present", file=sys.stderr)
+    sys.exit(1)
+
+if "monitor.orderedVisibleProviders.compactMap" not in providers_view:
+    print("FAIL: Quota overview should preserve custom provider order while hiding providers without configured monitoring credentials", file=sys.stderr)
+    sys.exit(1)
+if "sortedMonitoringKeysByCurrentQuota.isEmpty" not in providers_view:
+    print("FAIL: Quota overview should hide providers that do not have any quota-monitoring credential configured", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    provider_summary = source.split("private var providerSummaryRow: some View", 1)[1].split("ProviderQuotaColumnValue", 1)[0]
+except IndexError:
+    print("FAIL: Provider quota summary row should be present", file=sys.stderr)
+    sys.exit(1)
+
+if "providerKeyCount" in provider_summary or "activeCount" in provider_summary:
+    print("FAIL: Provider quota left column should not duplicate credential-pool key and usable counts", file=sys.stderr)
+    sys.exit(1)
+if "provider.planTypeDisplayName()" not in provider_summary:
+    print("FAIL: Provider quota left column should still keep the optional provider plan label", file=sys.stderr)
+    sys.exit(1)
+try:
+    provider_row = source.split("struct ProviderQuotaMonitorRow: View", 1)[1].split("struct ProviderQuotaColumnValue", 1)[0]
+except IndexError:
+    print("FAIL: Provider quota monitor row should be present", file=sys.stderr)
+    sys.exit(1)
+if "stat.statusBarProviderStatusColor" in provider_row:
+    print("FAIL: Quota overview provider rows should not reuse blue/orange status-bar colors for key quota and status", file=sys.stderr)
+    sys.exit(1)
+if "quotaOverviewRiskColor" not in provider_row:
+    print("FAIL: Quota overview provider rows should use the dedicated green/red risk color", file=sys.stderr)
+    sys.exit(1)
+PY
 assert_match 'statusBarCredentialLabel' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar rows should use a safe credential label instead of rendering raw cookie JSON"
@@ -983,9 +1049,9 @@ assert_match 'hostingController\.view\.wantsLayer = true' \
 assert_match 'backgroundColor = NSColor\.clear\.cgColor' \
   "QuotaRadar/AppDelegate.swift" \
   "Status bar hosting view should not paint an opaque background over the frosted glass"
-assert_match 'menuSize = CGSize\(width: 560, height: 680\)' \
+assert_match 'menuSize = CGSize\(width: 560, height: 500\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar summary popover should be wide enough to fit provider-level quota statistics without scrolling"
+  "Status bar risk popover should stay wide enough for concise rows while avoiding unused dashboard height"
 provider_overview_column_count="$(awk '
   /private let columns = \[/ { inside = 1; count = 0; next }
   inside && /\]/ { print count; exit }
@@ -1174,6 +1240,12 @@ assert_no_match 'frame\(width: 124, alignment: \.trailing\)' \
 assert_match 'ProviderQuotaTimingColumn\(key: key, updatedText: updatedText\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings API key rows should render update, reset, and plan-expiry timing through a dedicated column"
+assert_match 'key\.quotaRowSubtitle' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings quota key rows should use a row subtitle that can suppress duplicated multi-window quotas"
+assert_no_match 'Text\(key\.quotaPresentation\.primaryText\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings quota key rows should not repeat multi-window quota text when structured cycle details are rendered below"
 assert_match 'minimumScaleFactor\(0\.62\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings API key timing text should scale enough to avoid clipping localized reset and expiry strings"
@@ -1225,6 +1297,9 @@ assert_match 'var visibleQuotaResetSummary: String' \
 assert_match 'var planEndSummary: String' \
   "QuotaRadar/Models/APIKey.swift" \
   "Package expiry should have its own presentation text"
+assert_match 'shortDateTime\(visiblePlanEndsAt, includesYear: true\)' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Package expiry should include the year so annual subscriptions are unambiguous"
 assert_match 'L10n\.t\(\.noResetCycle' \
   "QuotaRadar/Models/APIKey.swift" \
   "Money-balance providers should make clear that quota does not reset on a cycle"
@@ -1255,22 +1330,28 @@ except IndexError:
     print("FAIL: Credential configuration view structure should be present", file=sys.stderr)
     sys.exit(1)
 
-if "monitor.orderedVisibleProviders.map" not in keys_view:
-    print("FAIL: Credential configuration should show the same custom provider order as quota monitoring and diagnostics", file=sys.stderr)
+if "monitor.orderedVisibleProviders.compactMap" not in keys_view:
+    print("FAIL: Credential configuration should preserve custom provider order while hiding providers without saved credentials", file=sys.stderr)
     sys.exit(1)
-if "guard !providerKeys.isEmpty" in keys_view:
-    print("FAIL: Credential configuration should not hide visible providers that have no saved credentials yet", file=sys.stderr)
+if "guard !providerKeys.isEmpty" not in keys_view:
+    print("FAIL: Credential configuration should hide providers that have no saved credentials yet", file=sys.stderr)
     sys.exit(1)
-if "stat.sortedKeysByCurrentQuota.isEmpty" not in provider_rows or "ProviderQuotaEmptyKeyRow()" not in provider_rows:
-    print("FAIL: Credential configuration should show an explicit empty provider state instead of a blank expanded panel", file=sys.stderr)
+if "ProviderQuotaEmptyKeyRow()" in provider_rows:
+    print("FAIL: Credential configuration should not render empty placeholder rows for providers without saved credentials", file=sys.stderr)
     sys.exit(1)
 PY
 assert_match 'Provider\.categoryDisplayOrder\.compactMap' \
   "QuotaRadar/Views/SettingsView.swift" \
   "API Keys tab should use the shared AI Search then LLM category order"
-assert_match 'NavigationSplitView' \
+assert_no_match 'NavigationSplitView' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Main window should use the current macOS sidebar/content split view instead of an older tab-only layout"
+  "Main window should not use NavigationSplitView because it can compress the sidebar below usable width"
+assert_match 'HStack\(spacing: 0\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Main window should use a fixed sidebar plus flexible content layout"
+assert_match 'GeometryReader' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Main window should manually allocate sidebar and content widths instead of letting fixed provider columns compress the sidebar"
 assert_no_match '\.frame\(minWidth: 820, minHeight: 580\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Main window must not keep the old narrow minimum size because the sidebar plus provider content gets squeezed"
@@ -1280,12 +1361,30 @@ assert_no_match '\.frame\(minWidth: 1040, minHeight: 640\)' \
 assert_match '\.frame\(minWidth: 900, minHeight: 600\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Main window should allow horizontal resizing below the default width while preserving usable provider panels"
-assert_match 'preferredSettingsContentSize = NSSize\(width: 1040, height: 640\)' \
+assert_match 'private static let sidebarWidth: CGFloat = 220' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Main window sidebar should be wide enough for localized navigation labels"
+assert_no_match 'maxWidth: 160' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Main window sidebar content must not keep the old narrow 160-point cap inside the wider column"
+assert_match '\.frame\(width: Self\.sidebarWidth, height: geometry\.size\.height, alignment: \.topLeading\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Main window sidebar should keep a fixed usable width when the split view is resized"
+assert_match '\.fixedSize\(horizontal: true, vertical: false\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Main window sidebar should resist horizontal compression when the provider table is narrow"
+assert_match '\.layoutPriority\(1\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Main window sidebar should have higher layout priority than the provider table"
+assert_match 'preferredSettingsContentSize = NSSize\(width: 1120, height: 640\)' \
   "QuotaRadar/AppDelegate.swift" \
-  "Main window should still open at the comfortable default width"
+  "Main window should open wide enough for the broader sidebar and quota table"
 assert_match 'minimumSettingsWindowSize = NSSize\(width: 900, height: 600\)' \
   "QuotaRadar/AppDelegate.swift" \
   "Main window minimum size should allow users to resize horizontally below the default width"
+assert_match 'window\.contentMinSize = minimumSettingsWindowSize' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Main window should enforce the same minimum content size at the AppKit window layer"
 assert_no_match 'window\.setContentSize\(NSSize\(width: 640, height: 560\)\)' \
   "QuotaRadar/AppDelegate.swift" \
   "Settings window creation must not force the modern SettingsView into the old narrow 640x560 window"
@@ -1385,6 +1484,20 @@ assert_match '@State private var isExpanded = false' \
 assert_match 'ProviderQuotaKeyTableHeader' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Expanded provider quota rows should show a stable table header for key details"
+python3 - <<'PY'
+from pathlib import Path
+import re
+import sys
+
+source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
+match = re.search(r"struct ProviderQuotaKeyTableHeader: View \{.*?\n\}", source, re.S)
+if not match:
+    print("FAIL: Provider quota key table header should exist", file=sys.stderr)
+    sys.exit(1)
+if "L10n.t(.apiKey)" in match.group(0):
+    print("FAIL: Quota monitor expanded tables should say Credential instead of API Key for cookie-backed providers", file=sys.stderr)
+    sys.exit(1)
+PY
 assert_match 'ProviderQuotaKeyTableRow' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Expanded provider quota rows should render key details in table-like rows"
@@ -1463,6 +1576,18 @@ assert_match 'QuotaConsumingAutoRefreshIntervalOption' \
 assert_match 'quotaConsumingAutoRefreshInterval' \
   "QuotaRadar/Models/AppAppearance.swift" \
   "Quota-consuming automatic refresh should be persisted separately from normal free refresh"
+assert_match 'NetworkProxyModeOption' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "Settings should expose a finite network proxy mode model"
+assert_match 'customProxyURL' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "Settings should persist a custom proxy URL for users who need a local proxy such as 127.0.0.1:7890"
+assert_match 'configuredURLSessionConfiguration' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "Quota requests should be able to build URLSession configuration from the saved proxy setting"
+assert_match '"sock", "socks", "socks5"' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "Custom proxy URLs should support SOCKS aliases such as sock:// and socks5://"
 assert_match 'LaunchAtLoginStore' \
   "QuotaRadar/Models/AppAppearance.swift" \
   "QuotaRadar should expose a launch-at-login setting"
@@ -1481,12 +1606,18 @@ assert_match 'SettingsFormSection' \
 assert_match 'SettingsPreferenceRow' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings should use compact preference rows with right-aligned controls"
-assert_match 'Picker\("", selection: \$appearanceStore\.autoRefreshInterval' \
+assert_match 'SettingsCenteredMenuPicker\(selection: \$appearanceStore\.autoRefreshInterval' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Automatic refresh picker should hide the long label from the control row"
-assert_match 'Picker\("", selection: \$appearanceStore\.quotaConsumingAutoRefreshInterval' \
+  "Automatic refresh selection should use the centered settings menu control"
+assert_match 'SettingsCenteredMenuPicker\(selection: \$appearanceStore\.quotaConsumingAutoRefreshInterval' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Quota-consuming refresh picker should hide the long label from the control row"
+  "Quota-consuming refresh selection should use the centered settings menu control"
+assert_match 'SettingsCenteredMenuPicker\(selection: \$appearanceStore\.networkProxyMode' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Network proxy selection should use the centered settings menu control"
+assert_no_match 'Picker\("", selection: \$appearanceStore\.(autoRefreshInterval|quotaConsumingAutoRefreshInterval|networkProxyMode)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings menu selections should not use the default left-biased Picker label"
 assert_match '\.frame\(width: 170\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings picker controls should use a fixed compact width"
@@ -1499,6 +1630,15 @@ assert_match 'L10n\.t\(\.autoRefreshBraveWarning' \
 assert_match 'L10n\.t\(\.quotaConsumingAutoRefreshWarning' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Quota-consuming auto refresh settings should warn that real search quota will be spent"
+assert_match 'SettingsFormSection\(title: L10n\.t\(\.settingsNetworkSection\)\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should group network proxy controls separately from refresh and appearance"
+assert_match 'SettingsCenteredMenuPicker\(selection: \$appearanceStore\.networkProxyMode' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should let users select system, direct, or custom proxy behavior with centered selected text"
+assert_match 'TextField\(L10n\.t\(\.customProxyPlaceholder\), text: \$appearanceStore\.customProxyURL\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should let users enter a local proxy URL without editing environment variables"
 assert_no_match 'Text\(L10n\.t\(\.apiKeyConfiguration\)\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Credentials page must not repeat the same Credential Configuration title in the top page header and local panel"
@@ -1598,6 +1738,15 @@ assert_match 'NSPasteboard\.general' \
 assert_match 'Image\(systemName: "doc\.on\.doc"\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Credential rows should use the standard copy icon instead of text-heavy buttons"
+assert_match 'CredentialRowActionGroup' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Credential rows should use one fixed action group so status, enabled, copy, and edit stay in the same order"
+assert_match 'copyActionSlot' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Credential rows should reserve the copy column even when dashboard login authorizations are not copyable"
+assert_match 'statusPillWidth: CGFloat = 126' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Credential rows should give status labels a stable width before the enabled toggle"
 assert_match 'L10n\.t\(\.copyCredential\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Credential copy button tooltip should be localized"
@@ -1610,9 +1759,24 @@ assert_match 'supportsCompanionAPIKeyStorage' \
 assert_match 'copyableAPIKeyCredentialName' \
   "QuotaRadar/Models/APIKey.swift" \
   "Providers that use dashboard quota authorization should expose a stable default API-key storage name"
+assert_match 'linkedAuthorizationID' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Copyable API-key records should be linkable to the web-login authorization that monitors their quota"
+assert_match 'linkedAuthorizationID = key\.linkedAuthorizationID' \
+  "QuotaRadar/Services/APIKeyStore.swift" \
+  "Credential metadata should persist the API-key to web-login authorization link"
 assert_match 'companionAPIKey' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Add Credential should let users store a user-facing API key together with dashboard quota authorization when useful"
+assert_match 'linkedAuthorizationID: newKey\.id' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Add Credential should bind the optional API key to the newly saved web-login authorization"
+assert_match 'linkedAuthorizationID = authorizationKey\.id' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Edit Credential should keep companion API keys bound to the edited web-login authorization"
+assert_match 'monitor\.refreshProvider\(provider\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Saving a quota-monitoring credential should immediately refresh that provider instead of waiting for manual or automatic refresh"
 assert_match 'key\.isStoredAPIKeyOnlyCredential' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "Quota refresh should skip API-key-only records that are stored for copying but cannot query quota"
@@ -1742,6 +1906,21 @@ assert_match 'reauthenticatedSecret' \
 assert_no_match 'updatedKey\.key = cookieHeader' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication must not overwrite JSON dashboard credentials with a raw Cookie header"
+assert_match 'reauthTargetSummary' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should show which saved credential/account will be updated"
+assert_match 'L10n\.format\(\.reauthSavingTo' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should localize the account/credential save target"
+assert_match 'multipleAuthorizationKeys\.count > 1' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should warn when multiple credentials exist for the same provider"
+assert_match 'Picker\(L10n\.t\(\.reauthTargetCredential\), selection: \$selectedAuthorizationTargetID\)' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should require an explicit target when multiple web-login authorizations exist"
+assert_match 'guard !requiresAuthorizationTargetSelection \|\| selectedAuthorizationTargetID != nil' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication must not silently overwrite the first credential when multiple targets exist"
 assert_match 'validateAndPersistCredential' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should validate captured credentials before saving and closing"
@@ -1787,12 +1966,30 @@ assert_match 'DashboardReauthSheet' \
 assert_match 'if provider\.supportsDashboardReauthentication' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Add Credential should expose provider-level dashboard reauthentication before a cookie credential exists"
+assert_match 'ProviderQuotaActionGroup' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota monitor rows should use a dedicated action group instead of adding loose provider actions to unrelated credential forms"
+assert_match 'ProviderDashboardJumpButton\(provider: provider, size: size\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota monitor rows should use the shared dashboard jump action instead of an unlabelled loose icon"
+assert_match 'ProviderReauthenticationButton\(provider: provider, size: size' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota monitor rows should use the shared reauthentication action with a clear professional tooltip"
+assert_match 'accessibilityLabelText: L10n\.t\(\.refreshQuotaAction\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota monitor refresh action should expose a localized clear accessibility label"
 assert_match 'DashboardReauthSheet\(monitor: monitor, provider: provider, key: nil\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Add Credential reauthentication should create or update provider cookie credentials through the same flow as Volcengine"
 python3 - <<'PY'
 from pathlib import Path
 import sys
+
+settings_source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
+add_detail_source = settings_source.split("struct AddCredentialDetailPane: View", 1)[1].split("struct EditKeySheet: View", 1)[0]
+if "ProviderDashboardJumpButton" in add_detail_source:
+    print("FAIL: Add Credential detail pane should not show dashboard jump actions; quota monitor rows own those actions", file=sys.stderr)
+    sys.exit(1)
 
 source = Path("QuotaRadar/Views/DashboardReauthView.swift").read_text()
 if "existingQuotaAuthorizationKey" not in source:
@@ -2407,10 +2604,14 @@ require(Provider.codexAPIUsage.providerFamilyDisplayName(language: .english) == 
 require(Provider.codexSubscription.planTypeDisplayName(language: .english) == "Subscription", "Codex subscription should expose Subscription as second-level plan name")
 require(Provider.kimiSubscription.providerFamilyDisplayName(language: .english) == "Kimi", "Kimi subscription should expose Kimi as provider family")
 require(Provider.kimiSubscription.planTypeDisplayName(language: .simplifiedChinese) == "订阅", "Kimi subscription should expose a localized subscription plan name")
+require(Provider.opencodeGo.planTypeDisplayName(language: .english) == "Subscription", "OpenCode Go should expose Subscription as second-level plan name")
+require(Provider.opencodeGo.planTypeDisplayName(language: .simplifiedChinese) == "订阅", "OpenCode Go should expose a localized subscription plan name")
 require(Provider.tavily.planTypeDisplayName(language: .simplifiedChinese) == nil, "Plain AI Search providers should not expose a second-level plan name")
 require(Provider.kimiSubscription.dashboardURL == "https://www.kimi.com/membership/subscription?tab=quota", "Kimi subscription should open the membership quota page")
 require(Provider.tencentCloudCodingPlan.dashboardURL == "https://console.cloud.tencent.com/tokenhub/codingplan", "Tencent Cloud Coding Plan should open the TokenHub Coding Plan page")
 require(Provider.tencentCloudTokenPlan.dashboardURL == "https://console.cloud.tencent.com/tokenhub/tokenplan", "Tencent Cloud Token Plan should open the TokenHub Token Plan page")
+require(Provider.bocha.dashboardURL == "https://open.bochaai.com/dashboard", "Bocha should expose its official dashboard jump link")
+require(Provider.anysearch.dashboardURL == "https://app.anysearch.ai/login", "AnySearch should expose the official app login jump link from its website")
 require(Provider.xfyunCodingPlan.supportsQuotaQuery, "XFYun Coding Plan should support dashboard quota checks")
 require(!Provider.xfyunTokenPlan.supportsQuotaQuery, "XFYun Token Plan should not claim quota checks until a usage API is implemented")
 require(Provider.volcengineCodingPlan.supportsQuotaQuery, "Volcengine Coding Plan should support dashboard quota checks")
@@ -2452,6 +2653,12 @@ require(Provider.kimiSubscription.capability.canTestConnection, "Kimi subscripti
 require(Provider.querit.supportsQuotaQuery, "Querit should support dashboard-cookie quota checks through the user account endpoint")
 require(Provider.querit.capability.resetCycle == .notExposed, "Querit account endpoint exposes monthly usage but no reset/end date")
 require(Provider.querit.supportsCompanionAPIKeyStorage, "Querit should allow storing an optional API key separately from dashboard authorization")
+require(Provider.claudeSubscription.supportsCompanionAPIKeyStorage, "Claude subscription should allow saving an optional API key separately from web login authorization")
+require(Provider.claudeSubscription.copyableAPIKeyCredentialName == "ANTHROPIC_API_KEY", "Claude subscription companion API key should use the familiar Anthropic API key name")
+require(Provider.codexSubscription.supportsCompanionAPIKeyStorage, "Codex subscription should allow saving an optional API key separately from web login authorization")
+require(Provider.codexSubscription.copyableAPIKeyCredentialName == "OPENAI_API_KEY", "Codex subscription companion API key should use the familiar OpenAI API key name")
+require(Provider.kimiSubscription.supportsCompanionAPIKeyStorage, "Kimi subscription should allow saving an optional API key separately from web login authorization")
+require(Provider.kimiSubscription.copyableAPIKeyCredentialName == "KIMI_API_KEY", "Kimi subscription companion API key should use the familiar Kimi API key name")
 require(Provider.serper.capability.resetCycle == .notExposed, "Serper account endpoint exposes credit balance but no reset/end date")
 require(Provider.exa.supportsQuotaQuery, "Exa should support usage checks when a service API key and API key id are configured")
 require(Provider.exa.localizedUnsupportedQuotaLabel(language: .simplifiedChinese) == "需要 API 密钥", "Exa plain search keys should ask for an API key without confusing admin credential wording")
@@ -2462,6 +2669,7 @@ require(Provider.tavily.homeVisibleWithoutKeys, "Tavily should appear as an AI S
 require(Provider.brave.homeVisibleWithoutKeys, "Brave should appear as an AI Search home placeholder before a key is configured")
 require(Provider.serpapi.homeVisibleWithoutKeys, "SerpAPI should appear as an AI Search home placeholder before a key is configured")
 require(Provider.bocha.homeVisibleWithoutKeys, "Bocha should appear as an AI Search home placeholder before a key is configured")
+require(Provider.anysearch.homeVisibleWithoutKeys, "AnySearch should appear as an AI Search home placeholder so its dashboard jump is visible before a key is configured")
 require(Provider.claudeSubscription.homeVisibleWithoutKeys, "Claude should appear as an LLM home placeholder before a key is configured")
 require(Provider.codexSubscription.homeVisibleWithoutKeys, "Codex should appear as an LLM home placeholder before a key is configured")
 require(Provider.deepseek.homeVisibleWithoutKeys, "DeepSeek should appear as an LLM home placeholder before a key is configured")
@@ -2576,6 +2784,8 @@ require(multiXfyunStat.totalLimitDisplayText == "month 84%", "Coding Plan provid
 require(multiXfyunStat.totalRemainingDisplayText == "week 64.4%", "Coding Plan provider remaining should use the tightest quota cycle across credentials")
 require(multiXfyunStat.statusBarProviderQuotaText == "5h 88% · week 64.4% · month 84%", "Status bar coding-plan quota text should show the tightest value for each quota cycle across credentials")
 require(multiXfyunStat.statusBarProviderBadgeText == "week 64.4%", "Status bar coding-plan badge should use the tightest quota cycle across credentials")
+require(multiXfyunStat.keyQuotaDisplayText == "week 64.4%", "Quota overview key quota should surface the tightest subscription/coding-plan window")
+require(multiXfyunStat.credentialPoolDisplayText == "2 keys · 2 usable", "Quota overview credential pool should summarize monitoring credentials, not quota windows")
 let xfyunCompanionAPIKey = APIKey(
     name: "XFYUN_CODING_PLAN_API_KEY",
     key: "xfyun-api-redacted",
@@ -2598,13 +2808,62 @@ require(
     xfyunWithCompanionStat.sortedMonitoringKeysByCurrentQuota.map { $0.name } == ["XFYUN_CODING_PLAN_COOKIE"],
     "Provider quota detail rows should not duplicate copy-only companion API keys"
 )
+require(xfyunWithCompanionStat.credentialPoolDisplayText == "1 key · 1 usable", "Provider credential pool should exclude copy-only companion API keys")
+let multiBraveStat = ProviderStats(
+    provider: .brave,
+    keys: [
+        APIKey(name: "BRAVE_API_KEY", key: "brave-a", provider: .brave, remaining: 920, limit: 1000),
+        APIKey(name: "BRAVE_API_KEY_2", key: "brave-b", provider: .brave, remaining: 0, limit: 1000)
+    ]
+)
+require(multiBraveStat.keyQuotaDisplayText == "0 left", "Quota overview key quota should show the tightest key for API-key pools")
+require(multiBraveStat.credentialPoolDisplayText == "2 keys · 1 usable · 1 attention", "Quota overview credential pool should show attention count for exhausted keys")
+let menuSplitStats = [
+    ProviderStats(provider: .tavily, keys: [
+        APIKey(name: "TAVILY_EMPTY", key: "tvly-empty", provider: .tavily, remaining: 0, limit: 1000),
+        APIKey(name: "TAVILY_LOW", key: "tvly-low", provider: .tavily, remaining: 42, limit: 1000),
+        APIKey(name: "TAVILY_OK", key: "tvly-ok", provider: .tavily, remaining: 650, limit: 1000)
+    ])
+]
+require(MenuQuotaItem.attentionItems(from: menuSplitStats, limit: 5).map { $0.key.name } == ["TAVILY_EMPTY"], "Status bar attention items should focus on exhausted, failed, or expired credentials")
+require(MenuQuotaItem.lowQuotaItems(from: menuSplitStats, limit: 5).map { $0.key.name } == ["TAVILY_LOW"], "Status bar low-quota items should separately surface providers that are still usable but tight")
+let soonPlanEnd = Date().addingTimeInterval(5 * 24 * 60 * 60)
+let laterPlanEnd = Date().addingTimeInterval(20 * 24 * 60 * 60)
+let expiredPlanEnd = Date().addingTimeInterval(-1 * 24 * 60 * 60)
+let expiringStats = [
+    ProviderStats(provider: .xfyunCodingPlan, keys: [
+        APIKey(name: "XFYUN_SOON", key: "cookie-soon", provider: .xfyunCodingPlan, remaining: 6000, limit: 10000, planEndsAt: soonPlanEnd),
+        APIKey(name: "XFYUN_LATER", key: "cookie-later", provider: .xfyunCodingPlan, remaining: 6000, limit: 10000, planEndsAt: laterPlanEnd),
+        APIKey(name: "XFYUN_EXPIRED", key: "cookie-expired", provider: .xfyunCodingPlan, remaining: 6000, limit: 10000, planEndsAt: expiredPlanEnd)
+    ])
+]
+require(MenuQuotaItem.expiringSoonItems(from: expiringStats, limit: 5).map { $0.key.name } == ["XFYUN_SOON"], "Status bar expiring-soon items should show only future plan or balance expiries within 14 days")
 let companionDiagnostic = xfyunWithCompanionStat.credentialDiagnosticItems.first {
     $0.key.name == "XFYUN_CODING_PLAN_API_KEY"
 }
-require(companionDiagnostic != nil, "Diagnostics should still include copy-only companion API keys for editing context")
-require(companionDiagnostic!.healthDisplayText == "Healthy", "Companion API-key diagnostics should reuse the paired quota-monitoring authorization health state")
-require(companionDiagnostic!.httpStatusText == "200", "Companion API-key diagnostics should reuse the paired quota-monitoring authorization HTTP status")
+require(companionDiagnostic == nil, "Diagnostics should merge copy-only companion API keys into the paired quota-monitoring authorization instead of rendering a second diagnostic row")
+let mergedCompanionDiagnostic = xfyunWithCompanionStat.credentialDiagnosticItems.first {
+    $0.key.name == "XFYUN_CODING_PLAN_COOKIE"
+}
+require(mergedCompanionDiagnostic != nil, "Diagnostics should keep the quota-monitoring authorization as the primary diagnostic row")
+require(mergedCompanionDiagnostic!.companionAPIKey?.name == "XFYUN_CODING_PLAN_API_KEY", "Diagnostics should attach the copyable invocation API key to the authorization diagnostic row")
+require(mergedCompanionDiagnostic!.credentialTitle == "Web login", "Diagnostics should use a concise web-login label instead of repeating quota-monitoring authorization")
+require(mergedCompanionDiagnostic!.credentialSubtitle == "Saved · includes invocation key", "Diagnostics should summarize saved login plus API key without repeating saved authorization wording")
+require(mergedCompanionDiagnostic!.diagnosticStatusText == "Healthy", "Merged companion API-key diagnostics should use connection health, not quota status")
+require(mergedCompanionDiagnostic!.httpStatusText == "200", "Merged companion API-key diagnostics should use the quota-monitoring authorization HTTP status")
+require(mergedCompanionDiagnostic!.connectionDiagnosticSummary == nil, "Healthy diagnostics should not repeat quota display content in the diagnostics page")
+require(xfyunWithCompanionStat.diagnosticCredentialGroupCountText == "1 credential group", "Diagnostics provider header should count linked authorization plus API key as one credential group")
 AppLanguageStore.shared.language = .simplifiedChinese
+require(xfyunWithCompanionStat.diagnosticCredentialGroupCountText == "1 组凭据", "Diagnostics provider header should localize credential group counts")
+require(mergedCompanionDiagnostic!.credentialTitle == "网页登录", "Diagnostics web-login label should localize")
+require(mergedCompanionDiagnostic!.credentialSubtitle == "已保存 · 含调用密钥", "Diagnostics compact companion summary should localize")
+let kimiUnknownQuotaDiagnostic = CredentialDiagnosticItem(
+    key: APIKey(name: "KIMI_SESSION", key: "cookie", provider: .kimiSubscription, lastHTTPStatus: 200, quotaLabel: "Quota unavailable"),
+    statusKey: APIKey(name: "KIMI_SESSION", key: "cookie", provider: .kimiSubscription, lastHTTPStatus: 200, quotaLabel: "Quota unavailable"),
+    companionAPIKey: nil
+)
+require(kimiUnknownQuotaDiagnostic.diagnosticStatusText == "正常", "Diagnostics should not show quota-unavailable text as the connection status")
+require(kimiUnknownQuotaDiagnostic.connectionDiagnosticSummary == nil, "Diagnostics should not repeat quota-unavailable content in the diagnostic message")
 require(xfyunStat.totalLimitDisplayText == "月 89.7%", "Coding Plan provider total should localize the monthly period label in Simplified Chinese")
 require(xfyunStat.totalRemainingDisplayText == "周 79.3%", "Coding Plan provider remaining should localize the lowest remaining period label in Simplified Chinese")
 let localizedWindowResetDate = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 6, day: 8, hour: 23, minute: 30, second: 0))!
@@ -2708,26 +2967,41 @@ require(generatedAliyunKey.isStoredAPIKeyOnlyCredential, "Aliyun Coding Plan bus
 require(generatedAliyunKey.copyableCredentialValue == "sk-sp-redacted", "Business API keys should be copyable even when quota monitoring uses web login authorization")
 let generatedXfyunCookie = APIKey(name: "XFYUN_CODING_PLAN_COOKIE", key: "ssoSessionId=redacted-session; account_id=123456", provider: .xfyunCodingPlan)
 require(generatedXfyunCookie.managementDisplayName == "额度监控授权", "XFYun dashboard-cookie rows should identify quota monitoring authorization instead of an API key")
-require(generatedXfyunCookie.managementCredentialValueText == "网页登录授权", "XFYun dashboard-cookie rows should not show even a masked cookie value")
+require(generatedXfyunCookie.managementCredentialValueText == "登录授权已保存", "XFYun dashboard-cookie rows should show a saved authorization state instead of a raw cookie or credential-type label")
 require(generatedXfyunCookie.copyableCredentialValue == nil, "Dashboard-cookie quota authorizations must not be copyable")
 let generatedXfyunAPIKey = APIKey(name: "XFYUN_CODING_PLAN_API_KEY", key: "xfyun-api-redacted", provider: .xfyunCodingPlan)
 require(generatedXfyunAPIKey.isStoredAPIKeyOnlyCredential, "XFYun Coding Plan API keys should be stored separately from quota-monitoring authorization")
 require(generatedXfyunAPIKey.managementDisplayName == "API 密钥", "XFYun API-key-only records should show the API key label")
 require(generatedXfyunAPIKey.managementCredentialValueText == "xfyu••••cted", "XFYun API-key-only records should show a masked API key value")
-require(generatedXfyunAPIKey.quotaDisplayText == "API key 已保存", "API-key-only records should not pretend quota is unavailable")
+require(generatedXfyunAPIKey.quotaDisplayText == "仅保存用于复制", "API-key-only records should explain that they are copy-only instead of repeating that the API key was saved")
+require(generatedXfyunAPIKey.healthDisplayText == "仅保存用于复制", "API-key-only rows should not show the redundant API key saved status")
 require(generatedXfyunAPIKey.diagnosticSummary == "仅保存用于复制", "API-key-only records should explain that they are not quota-monitoring credentials")
 require(generatedXfyunAPIKey.copyableCredentialValue == "xfyun-api-redacted", "API-key-only records should be copyable")
 let generatedQueritCookie = APIKey(name: "QUERIT_COOKIE", key: "osduss=redacted; passOsRefreshTk=redacted", provider: .querit)
 require(generatedQueritCookie.managementDisplayName == "额度监控授权", "Querit dashboard-cookie rows should identify quota monitoring authorization")
-require(generatedQueritCookie.managementCredentialValueText == "网页登录授权", "Querit dashboard-cookie rows should not show even a masked cookie value")
+require(generatedQueritCookie.managementCredentialValueText == "登录授权已保存", "Querit dashboard-cookie rows should show a saved authorization state")
 require(generatedQueritCookie.copyableCredentialValue == nil, "Querit dashboard authorization must not be copyable")
 let generatedQueritAPIKey = APIKey(name: "QUERIT_API_KEY", key: "querit-api-redacted", provider: .querit)
 require(generatedQueritAPIKey.isStoredAPIKeyOnlyCredential, "Querit API keys should be stored separately from quota-monitoring authorization")
 require(generatedQueritAPIKey.managementDisplayName == "API 密钥", "Querit optional API-key records should show the API key label")
 require(generatedQueritAPIKey.copyableCredentialValue == "querit-api-redacted", "Querit optional API-key records should be copyable")
+let generatedClaudeSubscriptionAPIKey = APIKey(name: "ANTHROPIC_API_KEY", key: "sk-ant-redacted", provider: .claudeSubscription)
+require(generatedClaudeSubscriptionAPIKey.isStoredAPIKeyOnlyCredential, "Claude subscription API keys should be stored separately from web login authorization")
+require(generatedClaudeSubscriptionAPIKey.managementDisplayName == "API 密钥", "Claude subscription API-key-only records should show the API key label")
+require(generatedClaudeSubscriptionAPIKey.copyableCredentialValue == "sk-ant-redacted", "Claude subscription API-key-only records should be copyable")
+let generatedCodexSubscriptionAPIKey = APIKey(name: "OPENAI_API_KEY", key: "sk-openai-redacted", provider: .codexSubscription)
+require(generatedCodexSubscriptionAPIKey.isStoredAPIKeyOnlyCredential, "Codex subscription API keys should be stored separately from web login authorization")
+require(generatedCodexSubscriptionAPIKey.managementDisplayName == "API 密钥", "Codex subscription API-key-only records should show the API key label")
+require(generatedCodexSubscriptionAPIKey.copyableCredentialValue == "sk-openai-redacted", "Codex subscription API-key-only records should be copyable")
+let generatedKimiSubscriptionAPIKey = APIKey(name: "KIMI_API_KEY", key: "sk-kimi-redacted", provider: .kimiSubscription)
+require(generatedKimiSubscriptionAPIKey.isStoredAPIKeyOnlyCredential, "Kimi subscription API keys should be stored separately from web login authorization")
+require(generatedKimiSubscriptionAPIKey.managementDisplayName == "API 密钥", "Kimi subscription API-key-only records should show the API key label")
+require(generatedKimiSubscriptionAPIKey.copyableCredentialValue == "sk-kimi-redacted", "Kimi subscription API-key-only records should be copyable")
 let generatedOpenCodeCookie = APIKey(name: "OPENCODE_GO_COOKIE", key: #"{"cookie":"auth=redacted-cookie","workspaceID":"wrk_123"}"#, provider: .opencodeGo)
-require(generatedOpenCodeCookie.managementCredentialValueText == "网页登录授权", "OpenCode Go dashboard-cookie rows should not show serialized credential values")
+require(generatedOpenCodeCookie.managementCredentialValueText == "登录授权已保存", "OpenCode Go dashboard-cookie rows should not show serialized credential values")
 require(generatedOpenCodeCookie.copyableCredentialValue == nil, "OpenCode Go web login authorization should not be copyable")
+let legacyDashboardNote = APIKey(name: "ALIYUN_CODING_PLAN_COOKIE", key: "login=redacted", provider: .aliyunCodingPlan, note: "网页登录授权")
+require(legacyDashboardNote.displayNote == nil, "Legacy dashboard authorization notes should not leak a stale localized credential-type label")
 let generatedTencentCodingKey = APIKey(name: "TENCENT_CLOUD_CODING_PLAN_API_KEY", key: "sk-sp-redacted", provider: .tencentCloudCodingPlan)
 require(generatedTencentCodingKey.managementCredentialValueText == "sk-s••••cted", "Tencent Cloud Coding Plan rows should show a masked business key value")
 require(generatedTencentCodingKey.copyableCredentialValue == "sk-sp-redacted", "Tencent Cloud Coding Plan business keys should be copyable")
@@ -2756,6 +3030,17 @@ let localizedResetKey = APIKey(
 require(localizedResetKey.resetSummary.contains("月"), "Reset dates should be localized in Simplified Chinese instead of fixed English month names")
 require(!localizedResetKey.resetSummary.contains("Jun"), "Reset dates should not leak English month names in Simplified Chinese")
 require(localizedResetKey.visibleQuotaResetSummary == localizedResetKey.quotaResetSummary, "Visible reset summary should keep real provider reset timestamps")
+require(localizedResetKey.quotaRowSubtitle == localizedResetKey.quotaPresentation.primaryText, "Single-value quota rows should keep their compact quota subtitle")
+let annualPlanEndDate = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2027, month: 6, day: 28, hour: 17, minute: 48, second: 58))!
+let annualPlanEndKey = APIKey(
+    name: "XFYUN_CODING_PLAN_COOKIE",
+    key: "cookie",
+    provider: .xfyunCodingPlan,
+    planEndsAt: annualPlanEndDate
+)
+require(L10n.shortDateTime(annualPlanEndDate, includesYear: true).contains("2027"), "Year-aware date formatting should include the year")
+require(!L10n.shortDateTime(annualPlanEndDate).contains("2027"), "Normal reset/update timestamps should remain compact by default")
+require(annualPlanEndKey.planEndSummary.contains("2027"), "Annual package expiry should include the year")
 let codexWindowResetKey = APIKey(
     name: "CODEX_SUBSCRIPTION_SESSION",
     key: "cookie",
@@ -2767,6 +3052,7 @@ let codexWindowResetKey = APIKey(
     ])
 )
 require(codexWindowResetKey.visibleQuotaResetSummary == "", "Codex subscription should not duplicate reset timing above the plan expiry column")
+require(codexWindowResetKey.quotaRowSubtitle == "", "Codex subscription should not repeat multi-window quota text in the compact credential row")
 require(codexWindowResetKey.quotaWindowDetails.count == 2, "Codex subscription should keep reset timing attached to the five-hour and weekly quota rows")
 require(codexWindowResetKey.quotaWindowDetails.allSatisfy { $0.detailValueText != nil }, "Codex subscription quota rows should expose reset timing per window")
 let claudeWindowResetKey = APIKey(
@@ -2780,6 +3066,7 @@ let claudeWindowResetKey = APIKey(
     ])
 )
 require(claudeWindowResetKey.visibleQuotaResetSummary == "", "Claude subscription should not duplicate 5h/week reset timing in the last-updated timing column")
+require(claudeWindowResetKey.quotaRowSubtitle == "", "Claude subscription should not repeat multi-window quota text in the compact credential row")
 require(claudeWindowResetKey.quotaWindowDetails.count == 2, "Claude subscription should keep reset timing attached to the five-hour and weekly quota rows")
 let planOnlyKey = APIKey(
     name: "XFYUN_CODING_PLAN_COOKIE",
@@ -2822,8 +3109,9 @@ let volcengineDisplayKey = APIKey(
     ])
 )
 require(volcengineDisplayKey.quotaWindowDetails.map { $0.name } == ["5h", "week", "month"], "Volcengine quota window details should include five-hour quota even when that window has no reset timestamp")
+require(volcengineDisplayKey.quotaRowSubtitle == "", "Volcengine should not repeat multi-window quota text above the quota-window detail rows")
 require(volcengineDisplayKey.visibleQuotaResetSummary == "", "Volcengine should not show the monthly reset as a top-level reset when it is also the package end")
-require(volcengineDisplayKey.planEndSummary == L10n.format(.planEndsDate, L10n.shortDateTime(localizedResetDate)), "Volcengine should present the monthly reset timestamp as package expiry in compact timing rows")
+require(volcengineDisplayKey.planEndSummary == L10n.format(.planEndsDate, L10n.shortDateTime(localizedResetDate, includesYear: true)), "Volcengine should present the monthly reset timestamp as package expiry in compact timing rows")
 require(volcengineDisplayKey.quotaPresentation.resetText == "", "Volcengine quota presentation should avoid duplicating package expiry as reset timing")
 require(volcengineDisplayKey.quotaPresentation.planEndText == volcengineDisplayKey.planEndSummary, "Volcengine quota presentation should expose derived package expiry")
 let opencodeStat = ProviderStats(
@@ -2853,7 +3141,8 @@ let opencodeDisplayKey = APIKey(
     ])
 )
 require(opencodeDisplayKey.visibleQuotaResetSummary == "", "OpenCode Go should not show the monthly reset as a top-level reset when it is also the package end")
-require(opencodeDisplayKey.planEndSummary == L10n.format(.planEndsDate, L10n.shortDateTime(localizedResetDate)), "OpenCode Go should present the monthly reset timestamp as package expiry in compact timing rows")
+require(opencodeDisplayKey.quotaRowSubtitle == "", "OpenCode Go should not repeat multi-window quota text above the quota-window detail rows")
+require(opencodeDisplayKey.planEndSummary == L10n.format(.planEndsDate, L10n.shortDateTime(localizedResetDate, includesYear: true)), "OpenCode Go should present the monthly reset timestamp as package expiry in compact timing rows")
 require(opencodeDisplayKey.quotaPresentation.resetText == "", "OpenCode Go quota presentation should avoid duplicating package expiry as reset timing")
 require(opencodeDisplayKey.quotaPresentation.planEndText == opencodeDisplayKey.planEndSummary, "OpenCode Go quota presentation should expose derived package expiry")
 let exposedUnknownKey = APIKey(
@@ -3113,6 +3402,11 @@ require(AppLanguage.korean.displayName == "한국어", "Korean language option s
 require(L10n.t(.providersTab, language: .english) == "Quota Overview", "English quota overview tab title should be available")
 require(L10n.t(.providersHeader, language: .english) == "Quota Overview", "English quota overview page title should match the navigation")
 require(L10n.t(.apiQuotaTitle, language: .english) == "Quota Radar", "English menu bar title should express active quota monitoring instead of a bland API quota label")
+require(L10n.t(.criticalTime, language: .english) == "Critical Time", "English quota overview timing column should use Critical Time")
+require(L10n.t(.criticalTime, language: .simplifiedChinese) == "关键时间", "Chinese quota overview timing column should use 关键时间")
+require(L10n.t(.lowQuotaProviders, language: .simplifiedChinese) == "额度紧张", "Chinese status bar low-quota section should have a clear localized label")
+require(L10n.t(.expiringSoon, language: .english) == "Expiring Soon", "English status bar expiring-soon section should be localized")
+require(L10n.t(.expiringSoon, language: .simplifiedChinese) == "即将到期", "Chinese status bar expiring-soon section should be localized")
 require(AIQuoteLibrary.quotes.count >= 50, "Built-in AI quote library should include about 50 concise quotes")
 for language in AppLanguage.allCases {
     let localizedQuotes = AIQuoteLibrary.quotes.map { $0.text(language: language) }
@@ -3578,6 +3872,27 @@ AppLanguageStore.shared.language = .simplifiedChinese
 require(structuredMetadata[0].quotaDisplayText == "850 / 1000 月度积分", "APIKey quota display should prefer structured descriptors over persisted English labels")
 AppLanguageStore.shared.language = .english
 
+let legacyDashboardNoteID = UUID()
+let legacyDashboardNoteJSON = """
+[{
+  "id":"\(legacyDashboardNoteID.uuidString)",
+  "name":"ALIYUN_CODING_PLAN_COOKIE",
+  "provider":"Aliyun Coding Plan",
+  "isActive":true,
+  "note":"网页登录授权",
+  "usageCount":0
+}]
+"""
+let legacyDashboardNoteDefaults = UserDefaults(suiteName: "QuotaRadarLegacyDashboardNoteTests.\(UUID().uuidString)")!
+legacyDashboardNoteDefaults.set(Data(legacyDashboardNoteJSON.utf8), forKey: "apiKeyMetadata")
+let legacyDashboardNoteStore = APIKeyStore(defaults: legacyDashboardNoteDefaults, secretStore: secretStore)
+let loadedLegacyDashboardNotes = legacyDashboardNoteStore.load()
+require(loadedLegacyDashboardNotes.count == 1, "APIKeyStore should load legacy dashboard authorization metadata")
+require(loadedLegacyDashboardNotes[0].note == nil, "APIKeyStore should strip generated web-login notes from legacy metadata")
+require(loadedLegacyDashboardNotes[0].displayNote == nil, "English credential rows should not show stale Chinese web-login notes")
+require(loadedLegacyDashboardNotes[0].managementDisplayName == "Quota monitoring authorization", "Legacy dashboard authorization names should render in the current English language")
+require(loadedLegacyDashboardNotes[0].managementCredentialValueText == "Login authorization saved", "Legacy dashboard authorization values should render in the current English language")
+
 let queritAPIKeyID = UUID()
 let validQueritID = UUID()
 let queritMetadata = """
@@ -3887,6 +4202,26 @@ require(tencentCodingPlan.quotaText?.quotaWindows.first(where: { $0.name == "mon
 require(tencentCodingPlan.resetAt != nil, "Tencent Cloud Coding Plan should expose the tightest quota window reset timestamp")
 require(tencentCodingPlan.planEndsAt != nil, "Tencent Cloud Coding Plan should expose the package EndTime as the plan end date")
 
+do {
+    _ = try QuotaParsers.parseTencentCloudCodingPlanDescribePkg(Data("""
+{"code":0,"data":{"code":0,"cgwerrorCode":0,"data":{"Response":{"RequestId":"request-redacted","TotalCount":0}}},"mccode":0}
+""".utf8))
+    fail("Tencent Cloud Coding Plan should report noSubscription when DescribePkg returns zero packages without PkgList")
+} catch QuotaError.noSubscription {
+} catch {
+    fail("Tencent Cloud Coding Plan zero-package response should throw noSubscription, got \(error)")
+}
+
+do {
+    _ = try QuotaParsers.parseTencentCloudCodingPlanDescribePkg(Data("""
+{"code":7,"mccode":7,"msg":"登录态验证失败，请重新登录(UIN_OR_SKEY_MISSING)","uiMsg":"登录态验证失败，请重新登录"}
+""".utf8))
+    fail("Tencent Cloud Coding Plan login-state failures should be reported as unauthorized")
+} catch QuotaError.unauthorized {
+} catch {
+    fail("Tencent Cloud Coding Plan login-state failure should throw unauthorized, got \(error)")
+}
+
 let claudeOrganizationID = try! QuotaParsers.parseClaudeOrganizationID(Data("""
 [{"uuid":"org-redacted","name":"Personal","active":true}]
 """.utf8))
@@ -3991,7 +4326,7 @@ require(tencentTokenPlan.quotaText?.key == .tokenQuotaFormat, "Tencent Cloud Tok
 
 SWIFT
 
-swiftc QuotaRadar/Models/AppLanguage.swift QuotaRadar/Models/APIKey.swift QuotaRadar/Services/QuotaService.swift "$TMP_DIR/main.swift" -o "$TMP_DIR/quota-parser-test"
+swiftc QuotaRadar/Models/AppLanguage.swift QuotaRadar/Models/APIKey.swift QuotaRadar/Models/AppAppearance.swift QuotaRadar/Services/QuotaService.swift "$TMP_DIR/main.swift" -o "$TMP_DIR/quota-parser-test"
 "$TMP_DIR/quota-parser-test"
 
 echo "== SwiftPM build =="
