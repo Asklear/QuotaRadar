@@ -4,8 +4,9 @@ use serde_json::Value;
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_store::{Store, StoreExt};
 
-use crate::domain::{default_provider_order, AppSettings};
+use crate::domain::{default_provider_order, AppSettings, CredentialView};
 
+const CREDENTIALS_KEY: &str = "credentials";
 const SETTINGS_KEY: &str = "settings";
 const SETTINGS_STORE_PATH: &str = "settings.json";
 
@@ -78,6 +79,23 @@ pub fn load_settings(store: &impl MetadataStore) -> Result<AppSettings, String> 
 pub fn save_settings(store: &impl MetadataStore, settings: &AppSettings) -> Result<(), String> {
     let value = serde_json::to_value(settings).map_err(|error| error.to_string())?;
     store.set_value(SETTINGS_KEY, value);
+    store.save()
+}
+
+pub fn load_credentials(store: &impl MetadataStore) -> Result<Vec<CredentialView>, String> {
+    let Some(value) = store.get_value(CREDENTIALS_KEY) else {
+        return Ok(Vec::new());
+    };
+
+    serde_json::from_value(value).map_err(|error| error.to_string())
+}
+
+pub fn save_credentials(
+    store: &impl MetadataStore,
+    credentials: &[CredentialView],
+) -> Result<(), String> {
+    let value = serde_json::to_value(credentials).map_err(|error| error.to_string())?;
+    store.set_value(CREDENTIALS_KEY, value);
     store.save()
 }
 

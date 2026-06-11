@@ -5,6 +5,7 @@ import type { CredentialView } from "../shared/types";
 
 interface CredentialRowProps {
   credential: CredentialView;
+  onCopy?: (credential: CredentialView) => void;
 }
 
 function credentialKindLabel(kind: CredentialView["kind"]) {
@@ -21,7 +22,7 @@ function credentialKindLabel(kind: CredentialView["kind"]) {
   }
 }
 
-export function CredentialRow({ credential }: CredentialRowProps) {
+export function CredentialRow({ credential, onCopy }: CredentialRowProps) {
   const statusTone = credentialNeedsAttention(credential) ? "attention" : "healthy";
 
   return (
@@ -46,7 +47,7 @@ export function CredentialRow({ credential }: CredentialRowProps) {
         {credential.copyable ? (
           <span className="credential-action-slot">
             <span data-testid="credential-action">Copy</span>
-            <button aria-label={`Copy ${credential.name}`}>
+            <button aria-label={`Copy ${credential.name}`} onClick={() => onCopy?.(credential)}>
               <Copy size={14} />
             </button>
           </span>

@@ -1,17 +1,18 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::QuotaWindow;
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum CredentialKind {
     ApiKey,
     DashboardCookie,
     AdminCredential,
+    #[serde(rename = "storedAPIKeyOnly", alias = "storedApiKeyOnly")]
     StoredApiKeyOnly,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum CredentialStatus {
     Healthy,
@@ -26,7 +27,7 @@ pub enum CredentialStatus {
     ManualRefreshOnly,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct CredentialView {
     pub id: String,

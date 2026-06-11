@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, Plus } from "lucide-react";
 import { CredentialEditorDialog } from "../credentials/CredentialEditorDialog";
 import { ProviderCredentialGroup } from "../credentials/ProviderCredentialGroup";
+import { copyCredentialValue, createCredential, isTauriRuntime, listCredentials } from "../lib/tauriClient";
 import { mockCredentials, providerRegistry } from "../shared/mockData";
-import type { CredentialView, ProviderDefinition } from "../shared/types";
+import type { CredentialInput, CredentialView, ProviderDefinition } from "../shared/types";
 
 interface CredentialsPageProps {
   providers?: ProviderDefinition[];
@@ -12,16 +13,57 @@ interface CredentialsPageProps {
 
 export function CredentialsPage({ providers = providerRegistry, credentials = mockCredentials }: CredentialsPageProps) {
   const [editorOpen, setEditorOpen] = useState(false);
+  const [visibleCredentials, setVisibleCredentials] = useState(credentials);
+
+  useEffect(() => {
+    if (!isTauriRuntime()) {
+      setVisibleCredentials(credentials);
+      return;
+    }
+
+    let cancelled = false;
+
+    void listCredentials().then((storedCredentials) => {
+      if (!cancelled) {
+        setVisibleCredentials(storedCredentials.length > 0 ? storedCredentials : credentials);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [credentials]);
+
   const configuredProviders = useMemo(
     () =>
       providers
         .map((provider) => ({
           provider,
-          credentials: credentials.filter((credential) => credential.providerId === provider.id),
+          credentials: visibleCredentials.filter((credential) => credential.providerId === provider.id),
         }))
         .filter((group) => group.credentials.length > 0),
-    [credentials, providers],
+    [providers, visibleCredentials],
   );
+
+  async function handleSaveCredential(input: CredentialInput) {
+    const saved = await createCredential(input);
+
+    if (isTauriRuntime()) {
+      const storedCredentials = await listCredentials();
+      setVisibleCredentials(storedCredentials.length > 0 ? storedCredentials : [saved]);
+      return;
+    }
+
+    setVisibleCredentials((currentCredentials) => {
+      const nextCredentials = currentCredentials.filter((credential) => credential.id !== saved.id);
+      return [...nextCredentials, saved];
+    });
+  }
+
+  async function handleCopyCredential(credential: CredentialView) {
+    const secret = await copyCredentialValue(credential.id);
+    await navigator.clipboard?.writeText(secret);
+  }
 
   return (
     <div className="credentials-page">
@@ -48,10 +90,20 @@ export function CredentialsPage({ providers = providerRegistry, credentials = mo
       </section>
       <div className="credential-provider-list">
         {configuredProviders.map((group) => (
-          <ProviderCredentialGroup key={group.provider.id} provider={group.provider} credentials={group.credentials} />
+          <ProviderCredentialGroup
+            key={group.provider.id}
+            provider={group.provider}
+            credentials={group.credentials}
+            onCopyCredential={handleCopyCredential}
+          />
         ))}
       </div>
-      <CredentialEditorDialog open={editorOpen} onClose={() => setEditorOpen(false)} />
+      <CredentialEditorDialog
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        onSave={handleSaveCredential}
+        providers={providers}
+      />
     </div>
   );
 }

@@ -41,4 +41,20 @@ describe("CredentialsPage", () => {
     expect(screen.getByLabelText("API key")).toHaveAttribute("type", "password");
     expect(screen.getByText("Web login authorization")).toBeInTheDocument();
   });
+
+  it("adds a copy-safe API key credential from the editor", async () => {
+    render(<CredentialsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Credential" }));
+    fireEvent.change(screen.getByPlaceholderText("Tavily Credential"), {
+      target: { value: "Tavily Test Key" },
+    });
+    fireEvent.change(screen.getByLabelText("API key"), {
+      target: { value: "tvly-local-test-value" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+
+    expect(await screen.findByText("Tavily Test Key")).toBeInTheDocument();
+    expect(screen.getByText("tvly••••alue")).toBeInTheDocument();
+  });
 });

@@ -6,9 +6,10 @@ import { CredentialRow } from "./CredentialRow";
 interface ProviderCredentialGroupProps {
   provider: ProviderDefinition;
   credentials: CredentialView[];
+  onCopyCredential?: (credential: CredentialView) => void;
 }
 
-export function ProviderCredentialGroup({ provider, credentials }: ProviderCredentialGroupProps) {
+export function ProviderCredentialGroup({ provider, credentials, onCopyCredential }: ProviderCredentialGroupProps) {
   const [expanded, setExpanded] = useState(true);
   const activeCount = credentials.filter((credential) => credential.active).length;
   const credentialLabel = credentials.length === 1 ? "credential" : "credentials";
@@ -34,7 +35,7 @@ export function ProviderCredentialGroup({ provider, credentials }: ProviderCrede
       {expanded ? (
         <div className="credential-row-list">
           {credentials.map((credential) => (
-            <CredentialRow key={credential.id} credential={credential} />
+            <CredentialRow key={credential.id} credential={credential} onCopy={onCopyCredential} />
           ))}
         </div>
       ) : null}

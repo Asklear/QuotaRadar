@@ -62,6 +62,16 @@ export interface CredentialView {
   linkedAuthorizationId?: string;
 }
 
+export interface CredentialInput {
+  id: string;
+  providerId: string;
+  name: string;
+  kind: CredentialKind;
+  secret: string;
+  linkedAuthorizationId?: string;
+  note?: string;
+}
+
 export interface ProviderStats {
   provider: ProviderDefinition;
   credentials: CredentialView[];
