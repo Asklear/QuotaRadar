@@ -8,7 +8,7 @@
 
 Quota Radar is a macOS menu bar app for monitoring search API and LLM coding-plan quota status without repeatedly logging in to provider dashboards.
 
-Quota Radar currently supports macOS, with macOS 14.0 as the minimum supported version.
+The stable Quota Radar app currently supports macOS, with macOS 14.0 as the minimum supported version. A cross-platform Tauri desktop app is being developed under `apps/desktop-tauri` for future macOS / Windows / Linux support; it is a preview development track, not a replacement for the Swift macOS release yet.
 
 Naming convention: the GitHub repository, Swift package, and DMG use `QuotaRadar`; the macOS app display name and app bundle use `Quota Radar`.
 
@@ -101,6 +101,8 @@ XFYun Spark Token Plan currently looks like seat/count quota, Aliyun Token Plan 
 
 ## Build And Install
 
+### Stable macOS App
+
 ```bash
 ./install.sh --bundle-only --rebuild
 open 'build/Quota Radar.app'
@@ -115,6 +117,22 @@ Install into `/Applications`:
 `./install.sh` reuses the existing `build/Quota Radar.app` by default. Use `--rebuild` when you need a fresh build.
 
 See [Quickstart](./QUICKSTART.en.md) for the full flow.
+
+### Tauri Cross-Platform Preview
+
+The Tauri app is the cross-platform implementation track for the current macOS UI, credential model, and provider refresh logic. It now has source safety checks, frontend tests, Rust provider tests, and a three-platform CI preview build. Signed installers, updater artifacts, and formal distribution remain follow-up work.
+
+```bash
+bash scripts/check_tauri_sources.sh
+cd apps/desktop-tauri
+pnpm install
+pnpm test -- --run
+pnpm typecheck
+cargo test --manifest-path src-tauri/Cargo.toml
+pnpm tauri build --no-bundle --ci
+```
+
+`--no-bundle` validates that the Tauri desktop app compiles without producing Windows/Linux installers. Packaging rules will be handled separately in a later release task.
 
 ## DMG Packaging And Gatekeeper
 

@@ -7,6 +7,8 @@
 
 这张表是新增 provider 的准入入口：先明确凭据类型、额度来源、重置周期和是否会消耗真实额度，再决定是否接入 UI、自动刷新和连通性测试。
 
+当前 Swift macOS App 仍是稳定发布线；`apps/desktop-tauri` 中的 Tauri 版本是跨平台预览实现，也必须沿用这张矩阵的 provider 准入、凭据展示和安全边界。所有 Tauri 测试、截图和文档示例都只能使用脱敏或 fixture 数据，不能保存真实 API Key、Bearer token 或 Cookie。
+
 ## AI Search
 
 | Provider | Category | 凭据类型 | 额度来源 | 重置/窗口 | 检查消耗额度 | 诊断端点 | 备注 |
@@ -50,7 +52,7 @@
 ```env
 VOLCENGINE_CODING_PLAN_COOKIE='{"cookie":"<cookie-header-value>","csrfToken":"<csrf-token>","projectName":"default"}'
 OPENCODE_GO_COOKIE='{"cookie":"<cookie-header-value>","workspaceID":"wrk_example","serverID":"server-example","serverInstance":"server-fn:11"}'
-KIMI_SUBSCRIPTION_SESSION='{"accessToken":"<bearer-token>","cookie":"kimi-auth=<cookie-token>","deviceID":"<x-msh-device-id>","sessionID":"<x-msh-session-id>"}'
+KIMI_SUBSCRIPTION_SESSION='{"accessToken":"<redacted-access-token>","cookieHeader":"<redacted-kimi-auth-cookie-header>","deviceID":"<x-msh-device-id>","sessionID":"<x-msh-session-id>"}'
 ```
 
 阿里云 Coding Plan 和腾讯云 Coding Plan 的业务调用 API Key 可以保存和展示，但额度监控使用网页登录授权。阿里云 Coding Plan 通过控制台订阅实例接口查询套餐；如果账号没有套餐会显示“未发现订阅套餐”，有有效套餐时会显示 5 小时/周/月请求次数窗口、窗口重置时间和套餐到期时间，按讯飞星火和腾讯云同口径显示剩余次数/总次数。

@@ -8,7 +8,7 @@
 
 Quota Radar 是一个 macOS 状态栏应用，用来观察搜索 API 与 LLM coding plan 的额度状态，减少反复登录各家后台查询额度的成本。
 
-当前支持 macOS，最低版本为 macOS 14.0。
+当前稳定版支持 macOS，最低版本为 macOS 14.0。跨平台 Tauri 桌面版正在 `apps/desktop-tauri` 中开发，用于后续支持 macOS / Windows / Linux；当前属于预览开发分支，还不是替代 Swift macOS 版的正式发布包。
 
 命名约定：GitHub 仓库、Swift package 和 DMG 使用 `QuotaRadar`；macOS App 显示名和 bundle 名使用 `Quota Radar`。
 
@@ -101,6 +101,8 @@ Kimi 使用网页登录授权，不把模型调用 API Key 当成额度凭据。
 
 ## 构建与安装
 
+### macOS 稳定版
+
 ```bash
 ./install.sh --bundle-only --rebuild
 open 'build/Quota Radar.app'
@@ -115,6 +117,22 @@ open 'build/Quota Radar.app'
 `./install.sh` 默认复用已有 `build/Quota Radar.app`，需要重新构建时使用 `--rebuild`。
 
 更多步骤见 [快速启动](./QUICKSTART.md)。
+
+### Tauri 跨平台预览
+
+Tauri 版本用于跨平台复刻当前 macOS App 的 UI、凭据模型和 provider 刷新逻辑。它已有源码安全扫描、前端测试、Rust provider 测试和三平台 CI 预览构建；安装包签名、自动更新和正式分发仍放在后续任务中。
+
+```bash
+bash scripts/check_tauri_sources.sh
+cd apps/desktop-tauri
+pnpm install
+pnpm test -- --run
+pnpm typecheck
+cargo test --manifest-path src-tauri/Cargo.toml
+pnpm tauri build --no-bundle --ci
+```
+
+`--no-bundle` 只验证 Tauri 桌面应用能编译，不生成 Windows/Linux 安装包；正式打包规则会在后续 release 任务中单独处理。
 
 ## DMG 打包与 Gatekeeper
 

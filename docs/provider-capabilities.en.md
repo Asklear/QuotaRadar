@@ -7,6 +7,8 @@
 
 This matrix is the entry point for adding providers: define credential type, usage source, reset cycle, and whether checks consume real quota before wiring UI, automatic refresh, and connection tests.
 
+The Swift macOS app remains the stable release track. The Tauri app under `apps/desktop-tauri` is the cross-platform preview implementation and must follow the same provider admission, credential-display, and safety boundaries in this matrix. Tauri tests, screenshots, and documentation examples must use redacted or fixture data only, never real API keys, bearer tokens, or cookies.
+
 ## AI Search
 
 | Provider | Category | Credential Type | Usage Source | Reset / Window | Check Consumes Quota | Diagnostic Endpoint | Notes |
@@ -50,7 +52,7 @@ Web login authorization providers can be re-authenticated in app, or configured 
 ```env
 VOLCENGINE_CODING_PLAN_COOKIE='{"cookie":"<cookie-header-value>","csrfToken":"<csrf-token>","projectName":"default"}'
 OPENCODE_GO_COOKIE='{"cookie":"<cookie-header-value>","workspaceID":"wrk_example","serverID":"server-example","serverInstance":"server-fn:11"}'
-KIMI_SUBSCRIPTION_SESSION='{"accessToken":"<bearer-token>","cookie":"kimi-auth=<cookie-token>","deviceID":"<x-msh-device-id>","sessionID":"<x-msh-session-id>"}'
+KIMI_SUBSCRIPTION_SESSION='{"accessToken":"<redacted-access-token>","cookieHeader":"<redacted-kimi-auth-cookie-header>","deviceID":"<x-msh-device-id>","sessionID":"<x-msh-session-id>"}'
 ```
 
 Aliyun Coding Plan and Tencent Cloud Coding Plan business invocation keys can be stored and shown, but quota monitoring uses web login authorizations. Aliyun Coding Plan queries the dashboard subscription-instance API; accounts without a package show "No subscribed plan", while valid packages show five-hour/weekly/monthly request-count windows, reset times, and package expiry. Quota Radar renders those remaining/total counts with the same model used for XFYun Spark and Tencent Cloud.
