@@ -22,5 +22,11 @@
   "category.llm": "LLM",
   "action.openDashboard": "后台",
   "action.reauthorize": "重新认证",
-  "action.refresh": "刷新"
+  "action.refresh": "刷新",
+  "tray.quote": "让额度焦虑可见，但不喧闹。",
+  "tray.low": "紧张",
+  "tray.failed": "失败",
+  "tray.available": "可用",
+  "tray.expiringSoon": "即将到期",
+  "tray.needsAttention": "需要关注"
 }

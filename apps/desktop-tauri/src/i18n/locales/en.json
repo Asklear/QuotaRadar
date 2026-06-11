@@ -22,5 +22,11 @@
   "category.llm": "LLM",
   "action.openDashboard": "Dashboard",
   "action.reauthorize": "Reauthorize",
-  "action.refresh": "Refresh"
+  "action.refresh": "Refresh",
+  "tray.quote": "Keep quota anxiety visible, not loud.",
+  "tray.low": "Low",
+  "tray.failed": "Failed",
+  "tray.available": "Available",
+  "tray.expiringSoon": "Expiring Soon",
+  "tray.needsAttention": "Needs Attention"
 }

@@ -1,6 +1,7 @@
 @import "./tokens.css";
 @import "./shell.css";
 @import "./tables.css";
+@import "./tray.css";
 
 * {
   box-sizing: border-box;

@@ -22,5 +22,11 @@
   "category.llm": "LLM",
   "action.openDashboard": "管理画面",
   "action.reauthorize": "再認証",
-  "action.refresh": "更新"
+  "action.refresh": "更新",
+  "tray.quote": "クォータ不安を見える化し、騒がしくしない。",
+  "tray.low": "残量少",
+  "tray.failed": "失敗",
+  "tray.available": "利用可能",
+  "tray.expiringSoon": "まもなく期限切れ",
+  "tray.needsAttention": "要確認"
 }

@@ -22,5 +22,11 @@
   "category.llm": "LLM",
   "action.openDashboard": "대시보드",
   "action.reauthorize": "재인증",
-  "action.refresh": "새로 고침"
+  "action.refresh": "새로 고침",
+  "tray.quote": "할당량 불안을 조용히 보이게 합니다.",
+  "tray.low": "부족",
+  "tray.failed": "실패",
+  "tray.available": "사용 가능",
+  "tray.expiringSoon": "곧 만료",
+  "tray.needsAttention": "확인 필요"
 }

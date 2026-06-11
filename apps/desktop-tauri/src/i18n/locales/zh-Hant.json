@@ -22,5 +22,11 @@
   "category.llm": "LLM",
   "action.openDashboard": "後台",
   "action.reauthorize": "重新認證",
-  "action.refresh": "重新整理"
+  "action.refresh": "重新整理",
+  "tray.quote": "讓額度焦慮可見，但不喧鬧。",
+  "tray.low": "緊張",
+  "tray.failed": "失敗",
+  "tray.available": "可用",
+  "tray.expiringSoon": "即將到期",
+  "tray.needsAttention": "需要關注"
 }
