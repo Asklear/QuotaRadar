@@ -1,14 +1,19 @@
 import { DiagnosticProviderSection } from "../diagnostics/DiagnosticProviderSection";
 import { mockCredentials, providerRegistry } from "../shared/mockData";
-import type { ProviderCategory } from "../shared/types";
+import type { CredentialView, ProviderCategory, ProviderDefinition } from "../shared/types";
 
 const categoryOrder: ProviderCategory[] = ["AI Search", "LLM"];
 
-export function DiagnosticsPage() {
-  const groups = providerRegistry
+interface DiagnosticsPageProps {
+  providers?: ProviderDefinition[];
+  credentials?: CredentialView[];
+}
+
+export function DiagnosticsPage({ providers = providerRegistry, credentials = mockCredentials }: DiagnosticsPageProps) {
+  const groups = providers
     .map((provider) => ({
       provider,
-      credentials: mockCredentials.filter((credential) => credential.providerId === provider.id),
+      credentials: credentials.filter((credential) => credential.providerId === provider.id),
     }))
     .filter((group) => group.credentials.length > 0);
 

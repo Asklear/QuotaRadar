@@ -78,3 +78,8 @@ export interface MenuSummary {
   failedCount: number;
   totalActiveCount: number;
 }
+
+export interface AppState {
+  providers: ProviderDefinition[];
+  credentials: CredentialView[];
+}

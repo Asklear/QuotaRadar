@@ -3,9 +3,14 @@ import { RiskSummaryCard } from "./RiskSummaryCard";
 import { TrayHeader } from "./TrayHeader";
 import { mockCredentials } from "../shared/mockData";
 import { buildMenuSummary } from "../shared/selectors";
+import type { CredentialView } from "../shared/types";
 
-export function TrayPopover() {
-  const summary = buildMenuSummary(mockCredentials);
+interface TrayPopoverProps {
+  credentials?: CredentialView[];
+}
+
+export function TrayPopover({ credentials = mockCredentials }: TrayPopoverProps) {
+  const summary = buildMenuSummary(credentials);
 
   return (
     <div
@@ -15,7 +20,7 @@ export function TrayPopover() {
     >
       <TrayHeader />
       <RiskSummaryCard summary={summary} />
-      <AttentionList credentials={mockCredentials} />
+      <AttentionList credentials={credentials} />
     </div>
   );
 }

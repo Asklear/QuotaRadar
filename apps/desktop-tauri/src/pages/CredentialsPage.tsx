@@ -3,18 +3,24 @@ import { Download, Plus } from "lucide-react";
 import { CredentialEditorDialog } from "../credentials/CredentialEditorDialog";
 import { ProviderCredentialGroup } from "../credentials/ProviderCredentialGroup";
 import { mockCredentials, providerRegistry } from "../shared/mockData";
+import type { CredentialView, ProviderDefinition } from "../shared/types";
 
-export function CredentialsPage() {
+interface CredentialsPageProps {
+  providers?: ProviderDefinition[];
+  credentials?: CredentialView[];
+}
+
+export function CredentialsPage({ providers = providerRegistry, credentials = mockCredentials }: CredentialsPageProps) {
   const [editorOpen, setEditorOpen] = useState(false);
   const configuredProviders = useMemo(
     () =>
-      providerRegistry
+      providers
         .map((provider) => ({
           provider,
-          credentials: mockCredentials.filter((credential) => credential.providerId === provider.id),
+          credentials: credentials.filter((credential) => credential.providerId === provider.id),
         }))
         .filter((group) => group.credentials.length > 0),
-    [],
+    [credentials, providers],
   );
 
   return (
