@@ -1615,8 +1615,11 @@ Production HTTP refresh status:
 - Volcengine Coding Plan: Done. The provider posts `ProjectName` to
   `GetCodingPlanUsage` with saved console login cookie, CSRF token, and optional
   web id.
-- Aliyun Coding Plan, Tencent Cloud Coding Plan, and Querit: Pending production
-  HTTP transport.
+- Aliyun Coding Plan: Done. The provider calls the Bailian BroadScope gateway
+  `queryCodingPlanInstanceInfoV2` endpoint with saved console login cookies and
+  parses request-count windows, reset times, no-subscription state, and package
+  expiry.
+- Tencent Cloud Coding Plan and Querit: Pending production HTTP transport.
 
 - [ ] **Step 3: Preserve credential semantics**
 

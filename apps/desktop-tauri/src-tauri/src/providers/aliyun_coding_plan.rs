@@ -3,7 +3,12 @@ use serde_json::Value;
 
 use crate::domain::QuotaWindow;
 
-use super::{ProviderClient, ProviderCredential, ProviderError, QuotaSnapshot};
+use super::{
+    ProviderClient, ProviderCredential, ProviderError, ProviderHttpRequest, ProviderTransport,
+    QuotaSnapshot,
+};
+
+const ALIYUN_CODING_PLAN_GATEWAY_URL: &str = "https://bailian-cs.console.aliyun.com/data/api.json?action=BroadScopeAspnGateway&product=sfm_bailian&api=zeldaEasy.broadscope-bailian.codingPlan.queryCodingPlanInstanceInfoV2&_v=undefined";
 
 const ALIYUN_INSTANCE_INFO_FIXTURE: &str = r#"{
   "code": "200",
@@ -194,6 +199,38 @@ impl ProviderClient for AliyunCodingPlanProvider {
         false
     }
 
+    fn check_quota(
+        &self,
+        credential: ProviderCredential,
+        transport: &dyn ProviderTransport,
+    ) -> Result<QuotaSnapshot, ProviderError> {
+        if credential.provider_id != self.provider_id() {
+            return Err(ProviderError::Unsupported(format!(
+                "credential belongs to {}",
+                credential.provider_id
+            )));
+        }
+
+        let aliyun_credential = AliyunCredential::from_secret(&credential.secret)?;
+        let response = transport.send(
+            ProviderHttpRequest::get(ALIYUN_CODING_PLAN_GATEWAY_URL)
+                .header("Accept", "application/json, text/plain, */*")
+                .header("Cookie", &aliyun_credential.cookie_header)
+                .header("Referer", "https://bailian.console.aliyun.com/"),
+        )?;
+        if response.status == 401 || response.status == 403 {
+            return Err(aliyun_login_required());
+        }
+        if response.status != 200 {
+            return Err(ProviderError::QuotaUnavailable(format!(
+                "Aliyun coding plan endpoint returned HTTP {}",
+                response.status
+            )));
+        }
+
+        parse_aliyun_coding_plan(&response.body)
+    }
+
     fn check_fixture_quota(
         &self,
         credential: ProviderCredential,
@@ -202,7 +239,9 @@ impl ProviderClient for AliyunCodingPlanProvider {
     }
 }
 
-struct AliyunCredential;
+struct AliyunCredential {
+    cookie_header: String,
+}
 
 impl AliyunCredential {
     fn from_secret(secret: &str) -> Result<Self, ProviderError> {
@@ -228,7 +267,9 @@ impl AliyunCredential {
             .unwrap_or_else(|| trimmed.to_string());
 
         if cookie.contains("login_aliyunid_ticket=") && cookie.contains("cna=") {
-            Ok(Self)
+            Ok(Self {
+                cookie_header: cookie,
+            })
         } else {
             Err(aliyun_login_required())
         }
@@ -303,16 +344,16 @@ fn parse_aliyun_coding_plan(value: &str) -> Result<QuotaSnapshot, ProviderError>
 }
 
 fn aliyun_payload(envelope: &Value) -> Option<Value> {
-    if envelope.get("hasCodingPlan").and_then(Value::as_bool).is_some()
+    if envelope
+        .get("hasCodingPlan")
+        .and_then(Value::as_bool)
+        .is_some()
         || envelope.get("codingPlanInfo").is_some()
     {
         return Some(envelope.clone());
     }
 
-    let inner = envelope
-        .get("data")?
-        .get("DataV2")?
-        .get("data")?;
+    let inner = envelope.get("data")?.get("DataV2")?.get("data")?;
     if inner.get("success").and_then(Value::as_bool) == Some(false) {
         return None;
     }
@@ -374,10 +415,16 @@ fn parse_instance_infos(instance_infos: &[Value]) -> Result<QuotaSnapshot, Provi
 }
 
 fn aliyun_quota_info(instance: &Value) -> Option<Value> {
-    ["codingPlanQuotaInfo", "quotaInfo", "usageDetail", "codingPlanUsageDTO", "codingPlanUsage"]
-        .iter()
-        .find_map(|key| instance.get(*key).cloned())
-        .filter(Value::is_object)
+    [
+        "codingPlanQuotaInfo",
+        "quotaInfo",
+        "usageDetail",
+        "codingPlanUsageDTO",
+        "codingPlanUsage",
+    ]
+    .iter()
+    .find_map(|key| instance.get(*key).cloned())
+    .filter(Value::is_object)
 }
 
 fn aliyun_instance_windows(quota_info: &Value) -> Vec<QuotaWindow> {
@@ -508,8 +555,20 @@ fn aliyun_usage_windows(coding_plan_info: &Value) -> Vec<QuotaWindow> {
             object_window(
                 "5h",
                 source,
-                &["perFiveHour", "PerFiveHour", "rp5h", "fiveHour", "five_hour", "rolling"],
-                &["rp5hLeft", "rp5hRemaining", "perFiveHourLeft", "fiveHourLeft"],
+                &[
+                    "perFiveHour",
+                    "PerFiveHour",
+                    "rp5h",
+                    "fiveHour",
+                    "five_hour",
+                    "rolling",
+                ],
+                &[
+                    "rp5hLeft",
+                    "rp5hRemaining",
+                    "perFiveHourLeft",
+                    "fiveHourLeft",
+                ],
                 &["rp5hLimit", "perFiveHourLimit", "fiveHourLimit"],
                 &["rp5hUsage", "perFiveHourUsage", "fiveHourUsage"],
             ),
@@ -517,7 +576,13 @@ fn aliyun_usage_windows(coding_plan_info: &Value) -> Vec<QuotaWindow> {
                 "week",
                 source,
                 &["perWeek", "PerWeek", "rpw", "week", "weekly"],
-                &["rpwLeft", "rpwRemaining", "perWeekLeft", "weekLeft", "weeklyLeft"],
+                &[
+                    "rpwLeft",
+                    "rpwRemaining",
+                    "perWeekLeft",
+                    "weekLeft",
+                    "weeklyLeft",
+                ],
                 &["rpwLimit", "perWeekLimit", "weekLimit", "weeklyLimit"],
                 &["rpwUsage", "perWeekUsage", "weekUsage", "weeklyUsage"],
             ),
@@ -525,9 +590,25 @@ fn aliyun_usage_windows(coding_plan_info: &Value) -> Vec<QuotaWindow> {
                 "month",
                 source,
                 &["perMonth", "PerMonth", "package", "month", "monthly"],
-                &["packageLeft", "packageRemaining", "perMonthLeft", "monthLeft", "monthlyLeft"],
-                &["packageLimit", "perMonthLimit", "monthLimit", "monthlyLimit"],
-                &["packageUsage", "perMonthUsage", "monthUsage", "monthlyUsage"],
+                &[
+                    "packageLeft",
+                    "packageRemaining",
+                    "perMonthLeft",
+                    "monthLeft",
+                    "monthlyLeft",
+                ],
+                &[
+                    "packageLimit",
+                    "perMonthLimit",
+                    "monthLimit",
+                    "monthlyLimit",
+                ],
+                &[
+                    "packageUsage",
+                    "perMonthUsage",
+                    "monthUsage",
+                    "monthlyUsage",
+                ],
             ),
         ]
         .into_iter()
@@ -582,12 +663,7 @@ fn object_window(
     Some(count_window(name, remaining.max(0.0), limit, None))
 }
 
-fn count_window(
-    name: &str,
-    remaining: f64,
-    limit: f64,
-    reset_at: Option<String>,
-) -> QuotaWindow {
+fn count_window(name: &str, remaining: f64, limit: f64, reset_at: Option<String>) -> QuotaWindow {
     let safe_remaining = remaining.max(0.0).min(limit.max(0.0));
     let percent = if limit > 0.0 {
         round_percent(safe_remaining / limit * 100.0)
@@ -679,7 +755,11 @@ fn timestamp_value_to_iso(value: Option<&Value>) -> Option<String> {
         .as_i64()
         .or_else(|| value.as_f64().map(|number| number as i64))
         .or_else(|| value.as_str()?.parse::<i64>().ok())?;
-    let seconds = if raw > 10_000_000_000 { raw / 1000 } else { raw };
+    let seconds = if raw > 10_000_000_000 {
+        raw / 1000
+    } else {
+        raw
+    };
     let date_time: DateTime<Utc> = DateTime::from_timestamp(seconds, 0)?;
     Some(date_time.to_rfc3339_opts(SecondsFormat::Secs, true))
 }
@@ -687,7 +767,11 @@ fn timestamp_value_to_iso(value: Option<&Value>) -> Option<String> {
 fn first_number(value: &Value, keys: &[&str]) -> Option<f64> {
     keys.iter()
         .find_map(|key| value.get(*key))
-        .and_then(|value| value.as_f64().or_else(|| value.as_str()?.parse::<f64>().ok()))
+        .and_then(|value| {
+            value
+                .as_f64()
+                .or_else(|| value.as_str()?.parse::<f64>().ok())
+        })
 }
 
 fn round_percent(value: f64) -> f64 {
