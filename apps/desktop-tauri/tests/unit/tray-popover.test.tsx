@@ -32,4 +32,11 @@ describe("TrayPopover", () => {
     expect(screen.getAllByTestId("expiring-item").length).toBeLessThanOrEqual(3);
     expect(screen.getAllByTestId("needs-attention-item").length).toBeLessThanOrEqual(2);
   });
+
+  it("keeps expiring dates compact", () => {
+    render(<TrayPopover />);
+    for (const item of screen.getAllByTestId("expiring-item")) {
+      expect(item).not.toHaveTextContent("T");
+    }
+  });
 });

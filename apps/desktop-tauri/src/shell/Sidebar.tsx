@@ -37,7 +37,7 @@ export function Sidebar() {
       <div className="sidebar-metrics" aria-label="Quota summary">
         <div className="sidebar-metric">
           <span>{mockCredentials.length}</span>
-          <small>Credentials</small>
+          <small>Creds</small>
         </div>
         <div className="sidebar-metric">
           <span>{stats.length}</span>

@@ -112,6 +112,7 @@
 
 .numeric-cell {
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .status-pill {
@@ -124,6 +125,7 @@
   color: var(--qr-color-healthy);
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .status-pill[data-tone="attention"] {

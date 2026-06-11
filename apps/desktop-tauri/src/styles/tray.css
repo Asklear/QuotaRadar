@@ -1,3 +1,12 @@
+.tray-preview {
+  display: grid;
+  min-width: var(--qr-tray-width);
+  min-height: var(--qr-tray-height);
+  place-items: center;
+  padding: 24px;
+  background: #e9eaee;
+}
+
 .tray-popover {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr);

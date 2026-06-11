@@ -20,6 +20,25 @@ function formatPercent(value: number) {
   return `${Math.round(value * 10) / 10}%`;
 }
 
+function formatCompactDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const currentYear = new Date().getFullYear();
+  const includeYear = date.getFullYear() !== currentYear;
+
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: includeYear ? "numeric" : undefined,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
 function tightestWindow(credentials: CredentialView[]): QuotaWindow | undefined {
   return credentials
     .flatMap((credential) => credential.quotaWindows)
@@ -57,7 +76,7 @@ function credentialPoolText(credentials: CredentialView[]) {
 function criticalTimeText(credentials: CredentialView[]) {
   const window = tightestWindow(activeCredentials(credentials));
   if (window?.resetAt) {
-    return window.resetAt;
+    return formatCompactDateTime(window.resetAt);
   }
 
   const planEnd = activeCredentials(credentials)
@@ -65,11 +84,11 @@ function criticalTimeText(credentials: CredentialView[]) {
     .filter((value): value is string => Boolean(value))
     .sort()[0];
 
-  return planEnd ?? "N/A";
+  return planEnd ? formatCompactDateTime(planEnd) : "N/A";
 }
 
 function statusText(credentials: CredentialView[]) {
-  return credentials.some(credentialNeedsAttention) ? "Needs attention" : "Available";
+  return credentials.some(credentialNeedsAttention) ? "Attention" : "Available";
 }
 
 export function buildProviderStats(

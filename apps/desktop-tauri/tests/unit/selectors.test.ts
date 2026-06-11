@@ -20,4 +20,10 @@ describe("provider selectors", () => {
     expect(summary.lowCount).toBeGreaterThanOrEqual(1);
     expect(summary.availableCount).toBeGreaterThanOrEqual(1);
   });
+
+  it("formats provider critical time for compact table display", () => {
+    const stats = buildProviderStats(providerRegistry, mockCredentials);
+    const tavily = stats.find((stat) => stat.provider.id === "tavily");
+    expect(tavily?.criticalTimeText).not.toContain("T");
+  });
 });

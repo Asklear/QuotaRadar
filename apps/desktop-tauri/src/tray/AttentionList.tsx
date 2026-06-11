@@ -21,6 +21,35 @@ function sortByPlanEnd(left: CredentialView, right: CredentialView) {
   return (left.planEndsAt ?? "").localeCompare(right.planEndsAt ?? "");
 }
 
+function formatCompactDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const includeYear = date.getFullYear() !== new Date().getFullYear();
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+    year: includeYear ? "numeric" : undefined,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
+function attentionReason(credential: CredentialView) {
+  if (isAttentionStatus(credential.status)) {
+    return credential.status;
+  }
+
+  if (isLowCredential(credential)) {
+    return "low quota";
+  }
+
+  return credential.status;
+}
+
 export function AttentionList({ credentials }: AttentionListProps) {
   const active = credentials.filter((credential) => credential.active);
   const lowCredentials = active
@@ -48,7 +77,7 @@ export function AttentionList({ credentials }: AttentionListProps) {
         {expiringCredentials.map((credential) => (
           <div key={credential.id} className="attention-item" data-testid="expiring-item">
             <span>{credential.name}</span>
-            <small>{credential.planEndsAt}</small>
+            <small>{credential.planEndsAt ? formatCompactDateTime(credential.planEndsAt) : ""}</small>
           </div>
         ))}
       </section>
@@ -57,7 +86,7 @@ export function AttentionList({ credentials }: AttentionListProps) {
         {needsAttention.map((credential) => (
           <div key={credential.id} className="attention-item" data-testid="needs-attention-item">
             <span>{credential.name}</span>
-            <small>{credential.status}</small>
+            <small>{attentionReason(credential)}</small>
           </div>
         ))}
       </section>
