@@ -1,5 +1,7 @@
 use super::{
-    serpapi::SerpApiProvider, ProviderClient, ProviderCredential, ProviderError,
+    http::{MockProviderTransport, ProviderHttpResponse},
+    serpapi::SerpApiProvider,
+    ProviderClient, ProviderCredential, ProviderError,
 };
 
 #[test]
@@ -34,10 +36,7 @@ fn serpapi_unauthorized_fixture_maps_to_credential_error() {
 fn serpapi_missing_quota_fixture_maps_to_quota_unavailable() {
     let client = SerpApiProvider::default();
     let error = client
-        .check_quota_unavailable_fixture(ProviderCredential::fake_api_key(
-            "serpapi",
-            "serp-test",
-        ))
+        .check_quota_unavailable_fixture(ProviderCredential::fake_api_key("serpapi", "serp-test"))
         .expect_err("missing quota fixture should fail");
 
     assert!(matches!(
@@ -54,4 +53,29 @@ fn serpapi_network_failure_maps_to_network_error() {
         error,
         ProviderError::Network(message) if message.contains("request timed out")
     ));
+}
+
+#[test]
+fn serpapi_live_quota_uses_account_endpoint_transport() {
+    let client = SerpApiProvider::default();
+    let transport = MockProviderTransport::responding(ProviderHttpResponse {
+        status: 200,
+        body: r#"{"account":{"total_searches_left":99,"monthly_searches_limit":100,"reset_at":"2026-07-01T00:00:00Z"}}"#.to_string(),
+    });
+
+    let snapshot = client
+        .check_quota(
+            ProviderCredential::fake_api_key("serpapi", "serp-live"),
+            &transport,
+        )
+        .expect("live response should parse");
+
+    assert_eq!(snapshot.remaining, Some(99.0));
+    assert_eq!(snapshot.limit, Some(100.0));
+    let requests = transport.requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(
+        requests[0].url,
+        "https://serpapi.com/account.json?api_key=serp-live"
+    );
 }

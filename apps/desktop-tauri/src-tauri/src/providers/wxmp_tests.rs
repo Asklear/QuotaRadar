@@ -1,4 +1,8 @@
-use super::{wxmp::WxmpProvider, ProviderClient, ProviderCredential, ProviderError};
+use super::{
+    http::{MockProviderTransport, ProviderHttpResponse},
+    wxmp::WxmpProvider,
+    ProviderClient, ProviderCredential, ProviderError,
+};
 
 #[test]
 fn wxmp_fixture_parses_cny_balance_snapshot() {
@@ -44,10 +48,7 @@ fn wxmp_unauthorized_fixture_maps_to_credential_error() {
 fn wxmp_missing_balance_fixture_maps_to_quota_unavailable() {
     let client = WxmpProvider::default();
     let error = client
-        .check_quota_unavailable_fixture(ProviderCredential::fake_api_key(
-            "wxmp",
-            "wechat-test",
-        ))
+        .check_quota_unavailable_fixture(ProviderCredential::fake_api_key("wxmp", "wechat-test"))
         .expect_err("missing balance fixture should fail");
 
     assert!(matches!(
@@ -64,4 +65,30 @@ fn wxmp_network_failure_maps_to_network_error() {
         error,
         ProviderError::Network(message) if message.contains("request timed out")
     ));
+}
+
+#[test]
+fn wxmp_live_quota_uses_form_balance_endpoint_transport() {
+    let client = WxmpProvider::default();
+    let transport = MockProviderTransport::responding(ProviderHttpResponse {
+        status: 200,
+        body: r#"{"code":0,"remain_money":"6.66"}"#.to_string(),
+    });
+
+    let snapshot = client
+        .check_quota(
+            ProviderCredential::fake_api_key("wxmp", "wechat-live-test"),
+            &transport,
+        )
+        .expect("live response should parse");
+
+    assert_eq!(snapshot.remaining, Some(6.66));
+    let requests = transport.requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].method, "POST");
+    assert_eq!(
+        requests[0].url,
+        "https://www.dajiala.com/fbmain/monitor/v3/get_remain_money"
+    );
+    assert_eq!(requests[0].body.as_deref(), Some("key=wechat-live-test"));
 }

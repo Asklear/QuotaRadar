@@ -2,7 +2,10 @@ use serde::Deserialize;
 
 use crate::domain::QuotaWindow;
 
-use super::{ProviderClient, ProviderCredential, ProviderError, QuotaSnapshot};
+use super::{
+    ProviderClient, ProviderCredential, ProviderError, ProviderHttpRequest, ProviderTransport,
+    QuotaSnapshot,
+};
 
 const SERPAPI_USAGE_FIXTURE: &str = r#"{
   "account": {
@@ -70,6 +73,35 @@ impl ProviderClient for SerpApiProvider {
         false
     }
 
+    fn check_quota(
+        &self,
+        credential: ProviderCredential,
+        transport: &dyn ProviderTransport,
+    ) -> Result<QuotaSnapshot, ProviderError> {
+        if credential.provider_id != self.provider_id() {
+            return Err(ProviderError::Unsupported(format!(
+                "credential belongs to {}",
+                credential.provider_id
+            )));
+        }
+
+        let response = transport.send(ProviderHttpRequest::get(&format!(
+            "https://serpapi.com/account.json?api_key={}",
+            credential.secret
+        )))?;
+        if response.status == 401 || response.status == 403 {
+            return parse_serpapi_usage(401, &response.body);
+        }
+        if response.status != 200 {
+            return Err(ProviderError::QuotaUnavailable(format!(
+                "SerpAPI account endpoint returned HTTP {}",
+                response.status
+            )));
+        }
+
+        parse_serpapi_usage(response.status, &response.body)
+    }
+
     fn check_fixture_quota(
         &self,
         credential: ProviderCredential,
@@ -97,7 +129,9 @@ fn parse_serpapi_usage(http_status: u16, value: &str) -> Result<QuotaSnapshot, P
 
     if http_status == 401 {
         return Err(ProviderError::Unauthorized(
-            response.error.unwrap_or_else(|| "Invalid API key".to_string()),
+            response
+                .error
+                .unwrap_or_else(|| "Invalid API key".to_string()),
         ));
     }
 

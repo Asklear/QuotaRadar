@@ -22,8 +22,22 @@ impl ProviderHttpRequest {
         }
     }
 
+    pub fn post(url: &str) -> Self {
+        Self {
+            method: "POST".to_string(),
+            url: url.to_string(),
+            headers: Vec::new(),
+            body: None,
+        }
+    }
+
     pub fn header(mut self, name: &str, value: &str) -> Self {
         self.headers.push((name.to_string(), value.to_string()));
+        self
+    }
+
+    pub fn body(mut self, body: &str) -> Self {
+        self.body = Some(body.to_string());
         self
     }
 }

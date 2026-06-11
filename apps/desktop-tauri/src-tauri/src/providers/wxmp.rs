@@ -1,6 +1,9 @@
 use serde::Deserialize;
 
-use super::{ProviderClient, ProviderCredential, ProviderError, QuotaSnapshot};
+use super::{
+    ProviderClient, ProviderCredential, ProviderError, ProviderHttpRequest, ProviderTransport,
+    QuotaSnapshot,
+};
 
 const WXMP_BALANCE_FIXTURE: &str = r#"{
   "code": 0,
@@ -74,6 +77,36 @@ impl ProviderClient for WxmpProvider {
 
     fn consumes_quota_on_check(&self) -> bool {
         false
+    }
+
+    fn check_quota(
+        &self,
+        credential: ProviderCredential,
+        transport: &dyn ProviderTransport,
+    ) -> Result<QuotaSnapshot, ProviderError> {
+        if credential.provider_id != self.provider_id() {
+            return Err(ProviderError::Unsupported(format!(
+                "credential belongs to {}",
+                credential.provider_id
+            )));
+        }
+
+        let response = transport.send(
+            ProviderHttpRequest::post("https://www.dajiala.com/fbmain/monitor/v3/get_remain_money")
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .body(&format!("key={}", credential.secret)),
+        )?;
+        if response.status == 401 || response.status == 403 {
+            return parse_wxmp_balance(response.status, &response.body);
+        }
+        if response.status != 200 {
+            return Err(ProviderError::QuotaUnavailable(format!(
+                "WeChat Search balance endpoint returned HTTP {}",
+                response.status
+            )));
+        }
+
+        parse_wxmp_balance(response.status, &response.body)
     }
 
     fn check_fixture_quota(

@@ -1,6 +1,9 @@
 use serde::Deserialize;
 
-use super::{ProviderClient, ProviderCredential, ProviderError, QuotaSnapshot};
+use super::{
+    ProviderClient, ProviderCredential, ProviderError, ProviderHttpRequest, ProviderTransport,
+    QuotaSnapshot,
+};
 
 const SERPER_USAGE_FIXTURE: &str = r#"{
   "balance": 2400,
@@ -73,6 +76,35 @@ impl ProviderClient for SerperProvider {
 
     fn consumes_quota_on_check(&self) -> bool {
         false
+    }
+
+    fn check_quota(
+        &self,
+        credential: ProviderCredential,
+        transport: &dyn ProviderTransport,
+    ) -> Result<QuotaSnapshot, ProviderError> {
+        if credential.provider_id != self.provider_id() {
+            return Err(ProviderError::Unsupported(format!(
+                "credential belongs to {}",
+                credential.provider_id
+            )));
+        }
+
+        let response = transport.send(
+            ProviderHttpRequest::get("https://google.serper.dev/account")
+                .header("X-API-KEY", &credential.secret),
+        )?;
+        if response.status == 401 || response.status == 403 {
+            return parse_serper_account(response.status, &response.body);
+        }
+        if response.status != 200 {
+            return Err(ProviderError::QuotaUnavailable(format!(
+                "Serper account endpoint returned HTTP {}",
+                response.status
+            )));
+        }
+
+        parse_serper_account(response.status, &response.body)
     }
 
     fn check_fixture_quota(

@@ -1,4 +1,8 @@
-use super::{bocha::BochaProvider, ProviderClient, ProviderCredential, ProviderError};
+use super::{
+    bocha::BochaProvider,
+    http::{MockProviderTransport, ProviderHttpResponse},
+    ProviderClient, ProviderCredential, ProviderError,
+};
 
 #[test]
 fn bocha_fixture_parses_cny_balance_snapshot() {
@@ -33,10 +37,7 @@ fn bocha_unauthorized_fixture_maps_to_credential_error() {
 fn bocha_invalid_success_fixture_maps_to_quota_unavailable() {
     let client = BochaProvider::default();
     let error = client
-        .check_quota_unavailable_fixture(ProviderCredential::fake_api_key(
-            "bocha",
-            "bocha-test",
-        ))
+        .check_quota_unavailable_fixture(ProviderCredential::fake_api_key("bocha", "bocha-test"))
         .expect_err("invalid quota fixture should fail");
 
     assert!(matches!(
@@ -53,4 +54,29 @@ fn bocha_network_failure_maps_to_network_error() {
         error,
         ProviderError::Network(message) if message.contains("request timed out")
     ));
+}
+
+#[test]
+fn bocha_live_quota_uses_balance_endpoint_transport() {
+    let client = BochaProvider::default();
+    let transport = MockProviderTransport::responding(ProviderHttpResponse {
+        status: 200,
+        body: r#"{"success":true,"code":"200","data":{"remaining":88.8}}"#.to_string(),
+    });
+
+    let snapshot = client
+        .check_quota(
+            ProviderCredential::fake_api_key("bocha", "bocha-live-test"),
+            &transport,
+        )
+        .expect("live response should parse");
+
+    assert_eq!(snapshot.remaining, Some(88.8));
+    let requests = transport.requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].url, "https://api.bochaai.com/v1/fund/remaining");
+    assert!(requests[0].headers.contains(&(
+        "Authorization".to_string(),
+        "Bearer bocha-live-test".to_string()
+    )));
 }
