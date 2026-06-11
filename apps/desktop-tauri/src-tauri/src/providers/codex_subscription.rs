@@ -4,7 +4,13 @@ use serde_json::Value;
 
 use crate::domain::QuotaWindow;
 
-use super::{ProviderClient, ProviderCredential, ProviderError, QuotaSnapshot};
+use super::{
+    ProviderClient, ProviderCredential, ProviderError, ProviderHttpRequest, ProviderTransport,
+    QuotaSnapshot,
+};
+
+const CODEX_SESSION_URL: &str = "https://chatgpt.com/api/auth/session";
+const CODEX_WHAM_USAGE_URL: &str = "https://chatgpt.com/backend-api/wham/usage";
 
 const CODEX_WHAM_USAGE_FIXTURE: &str = r#"{
   "plan_type": "pro",
@@ -91,6 +97,64 @@ impl ProviderClient for CodexSubscriptionProvider {
         false
     }
 
+    fn check_quota(
+        &self,
+        credential: ProviderCredential,
+        transport: &dyn ProviderTransport,
+    ) -> Result<QuotaSnapshot, ProviderError> {
+        if credential.provider_id != self.provider_id() {
+            return Err(ProviderError::Unsupported(format!(
+                "credential belongs to {}",
+                credential.provider_id
+            )));
+        }
+
+        let codex_credential = CodexCredential::from_secret(&credential.secret)?;
+        let session_response = transport.send(codex_session_request(&codex_credential))?;
+        if session_response.status == 401 || session_response.status == 403 {
+            return Err(codex_login_required());
+        }
+        if session_response.status != 200 {
+            return Err(ProviderError::Unauthorized(format!(
+                "ChatGPT session endpoint returned HTTP {}",
+                session_response.status
+            )));
+        }
+
+        let session = parse_codex_session(&session_response.body)?;
+        let usage_response = transport.send(codex_authorized_request(
+            CODEX_WHAM_USAGE_URL,
+            &session.access_token,
+        ))?;
+        if usage_response.status == 401 || usage_response.status == 403 {
+            return Err(codex_login_required());
+        }
+        if usage_response.status != 200 {
+            return Err(ProviderError::QuotaUnavailable(format!(
+                "Codex usage endpoint returned HTTP {}",
+                usage_response.status
+            )));
+        }
+
+        let lifecycle_response = if let Some(account_id) = session.account_id.as_deref() {
+            let url =
+                format!("https://chatgpt.com/backend-api/subscriptions?account_id={account_id}");
+            let response = transport.send(codex_authorized_request(&url, &session.access_token))?;
+            if response.status == 401 || response.status == 403 {
+                return Err(codex_login_required());
+            }
+            if response.status == 200 {
+                Some(response.body)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        parse_codex_subscription_usage(&usage_response.body, lifecycle_response.as_deref())
+    }
+
     fn check_fixture_quota(
         &self,
         credential: ProviderCredential,
@@ -103,7 +167,9 @@ impl ProviderClient for CodexSubscriptionProvider {
     }
 }
 
-struct CodexCredential;
+struct CodexCredential {
+    cookie_header: String,
+}
 
 impl CodexCredential {
     fn from_secret(secret: &str) -> Result<Self, ProviderError> {
@@ -129,11 +195,30 @@ impl CodexCredential {
             .unwrap_or_else(|| trimmed.to_string());
 
         if contains_chatgpt_session_cookie(&candidate) {
-            Ok(Self)
+            Ok(Self {
+                cookie_header: candidate,
+            })
         } else {
             Err(codex_login_required())
         }
     }
+}
+
+struct CodexSession {
+    access_token: String,
+    account_id: Option<String>,
+}
+
+fn codex_session_request(credential: &CodexCredential) -> ProviderHttpRequest {
+    ProviderHttpRequest::get(CODEX_SESSION_URL)
+        .header("Accept", "application/json")
+        .header("Cookie", &credential.cookie_header)
+}
+
+fn codex_authorized_request(url: &str, access_token: &str) -> ProviderHttpRequest {
+    ProviderHttpRequest::get(url)
+        .header("Accept", "application/json")
+        .header("Authorization", &format!("Bearer {access_token}"))
 }
 
 fn codex_login_required() -> ProviderError {
@@ -144,15 +229,40 @@ fn contains_chatgpt_session_cookie(value: &str) -> bool {
     value.contains("__Secure-next-auth.session-token") || value.contains("__search-next-auth")
 }
 
+fn parse_codex_session(value: &str) -> Result<CodexSession, ProviderError> {
+    let parsed: Value =
+        serde_json::from_str(value).map_err(|error| ProviderError::Parse(error.to_string()))?;
+    let access_token = first_string(
+        &parsed,
+        &[
+            "accessToken",
+            "access_token",
+            "sessionAccessToken",
+            "session_access_token",
+        ],
+    )
+    .ok_or_else(codex_login_required)?;
+    let account_id = first_string(&parsed, &["account_id", "accountId"]).or_else(|| {
+        parsed
+            .get("account")
+            .and_then(|account| first_string(account, &["id", "account_id", "accountId"]))
+    });
+
+    Ok(CodexSession {
+        access_token,
+        account_id,
+    })
+}
+
 fn parse_codex_subscription_usage(
     usage_value: &str,
     lifecycle_value: Option<&str>,
 ) -> Result<QuotaSnapshot, ProviderError> {
-    let usage: CodexUsageResponse =
-        serde_json::from_str(usage_value).map_err(|error| ProviderError::Parse(error.to_string()))?;
-    let rate_limit = usage.rate_limit.ok_or_else(|| {
-        ProviderError::QuotaUnavailable("Codex usage is unavailable".to_string())
-    })?;
+    let usage: CodexUsageResponse = serde_json::from_str(usage_value)
+        .map_err(|error| ProviderError::Parse(error.to_string()))?;
+    let rate_limit = usage
+        .rate_limit
+        .ok_or_else(|| ProviderError::QuotaUnavailable("Codex usage is unavailable".to_string()))?;
 
     let mut windows = Vec::new();
     if let Some(primary_window) = rate_limit.primary_window {
@@ -249,7 +359,10 @@ fn codex_percent_quota_window(
 
 fn parse_codex_subscription_lifecycle(value: &str) -> Option<String> {
     let parsed = serde_json::from_str::<Value>(value).ok()?;
-    first_string(&parsed, &["active_until", "current_period_end", "expires_at"])
+    first_string(
+        &parsed,
+        &["active_until", "current_period_end", "expires_at"],
+    )
 }
 
 fn quota_window_name(seconds: Option<i64>) -> Option<&'static str> {

@@ -1601,9 +1601,12 @@ Production HTTP refresh status:
 - Kimi Subscription: Done. The provider calls membership and billing usage
   endpoints with saved web-login authorization and merges subscription balance,
   5-hour quota, weekly quota, reset times, and plan expiry.
-- Codex Subscription, Claude Subscription, OpenCode Go, XFYun Spark Coding
-  Plan, Volcengine Coding Plan, Aliyun Coding Plan, Tencent Cloud Coding Plan,
-  and Querit: Pending production HTTP transport.
+- Codex Subscription: Done. The provider resolves the ChatGPT web session,
+  calls the WHAM usage endpoint, and reads subscription lifecycle expiry with
+  the session account id.
+- Claude Subscription, OpenCode Go, XFYun Spark Coding Plan, Volcengine Coding
+  Plan, Aliyun Coding Plan, Tencent Cloud Coding Plan, and Querit: Pending
+  production HTTP transport.
 
 - [ ] **Step 3: Preserve credential semantics**
 
