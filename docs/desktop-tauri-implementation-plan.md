@@ -1619,7 +1619,10 @@ Production HTTP refresh status:
   `queryCodingPlanInstanceInfoV2` endpoint with saved console login cookies and
   parses request-count windows, reset times, no-subscription state, and package
   expiry.
-- Tencent Cloud Coding Plan and Querit: Pending production HTTP transport.
+- Tencent Cloud Coding Plan: Done. The provider calls the console `DescribePkg`
+  endpoint with saved console login cookies, numeric UIN values, and computed
+  CSRF code.
+- Querit: Pending production HTTP transport.
 
 - [ ] **Step 3: Preserve credential semantics**
 

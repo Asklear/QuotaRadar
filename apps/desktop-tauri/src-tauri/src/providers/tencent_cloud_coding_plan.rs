@@ -3,7 +3,12 @@ use serde_json::Value;
 
 use crate::domain::QuotaWindow;
 
-use super::{ProviderClient, ProviderCredential, ProviderError, QuotaSnapshot};
+use super::{
+    ProviderClient, ProviderCredential, ProviderError, ProviderHttpRequest, ProviderTransport,
+    QuotaSnapshot,
+};
+
+const TENCENT_CLOUD_CODING_PLAN_CAPI_URL: &str = "https://console.cloud.tencent.com/cgi/capi";
 
 const TENCENT_CLOUD_CODING_PLAN_FIXTURE: &str = r#"{
   "code": 0,
@@ -115,6 +120,33 @@ impl ProviderClient for TencentCloudCodingPlanProvider {
         false
     }
 
+    fn check_quota(
+        &self,
+        credential: ProviderCredential,
+        transport: &dyn ProviderTransport,
+    ) -> Result<QuotaSnapshot, ProviderError> {
+        if credential.provider_id != self.provider_id() {
+            return Err(ProviderError::Unsupported(format!(
+                "credential belongs to {}",
+                credential.provider_id
+            )));
+        }
+
+        let tencent_credential = TencentCloudCredential::from_secret(&credential.secret)?;
+        let response = transport.send(tencent_cloud_describe_pkg_request(&tencent_credential))?;
+        if response.status == 401 || response.status == 403 {
+            return Err(tencent_login_required());
+        }
+        if response.status != 200 {
+            return Err(ProviderError::QuotaUnavailable(format!(
+                "Tencent Cloud coding plan endpoint returned HTTP {}",
+                response.status
+            )));
+        }
+
+        parse_tencent_cloud_coding_plan(&response.body)
+    }
+
     fn check_fixture_quota(
         &self,
         credential: ProviderCredential,
@@ -123,7 +155,12 @@ impl ProviderClient for TencentCloudCodingPlanProvider {
     }
 }
 
-struct TencentCloudCredential;
+struct TencentCloudCredential {
+    cookie_header: String,
+    csrf_token: String,
+    uin: String,
+    owner_uin: String,
+}
 
 impl TencentCloudCredential {
     fn from_secret(secret: &str) -> Result<Self, ProviderError> {
@@ -132,11 +169,12 @@ impl TencentCloudCredential {
             return Err(tencent_login_required());
         }
 
-        let cookie = serde_json::from_str::<Value>(trimmed)
-            .ok()
+        let parsed = serde_json::from_str::<Value>(trimmed).ok();
+        let cookie = parsed
+            .as_ref()
             .and_then(|value| {
                 first_string(
-                    &value,
+                    value,
                     &[
                         "cookie",
                         "cookieHeader",
@@ -148,12 +186,84 @@ impl TencentCloudCredential {
             })
             .unwrap_or_else(|| trimmed.to_string());
 
-        if cookie.contains("uin=") && (cookie.contains("skey=") || cookie.contains("p_skey=")) {
-            Ok(Self)
-        } else {
-            Err(tencent_login_required())
-        }
+        let uin = parsed
+            .as_ref()
+            .and_then(|value| first_string(value, &["uin", "UIN"]))
+            .or_else(|| cookie_value(&cookie, "uin"))
+            .and_then(|value| numeric_tencent_cookie(&value))
+            .ok_or_else(tencent_login_required)?;
+        let owner_uin = parsed
+            .as_ref()
+            .and_then(|value| first_string(value, &["ownerUin", "owneruin", "owner_uin"]))
+            .or_else(|| cookie_value(&cookie, "ownerUin"))
+            .and_then(|value| numeric_tencent_cookie(&value))
+            .unwrap_or_else(|| uin.clone());
+        let csrf_token = parsed
+            .as_ref()
+            .and_then(|value| first_string(value, &["skey", "p_skey", "pSkey", "csrfToken"]))
+            .or_else(|| cookie_value(&cookie, "skey"))
+            .or_else(|| cookie_value(&cookie, "p_skey"))
+            .filter(|value| !value.trim().is_empty())
+            .ok_or_else(tencent_login_required)?;
+
+        Ok(Self {
+            cookie_header: cookie,
+            csrf_token,
+            uin,
+            owner_uin,
+        })
     }
+}
+
+fn tencent_cloud_describe_pkg_request(credential: &TencentCloudCredential) -> ProviderHttpRequest {
+    let timestamp_ms = Utc::now().timestamp_millis();
+    let csrf_code = tencent_cloud_csrf_code(&credential.csrf_token);
+    let url = format!(
+        "{TENCENT_CLOUD_CODING_PLAN_CAPI_URL}?cmd=DescribePkg&action=delegate&serviceType=hunyuan&secure=1&version=3&json=1&dictId=3216&sts=1&t={timestamp_ms}&uin={}&ownerUin={}&csrfCode={csrf_code}",
+        credential.uin, credential.owner_uin
+    );
+
+    ProviderHttpRequest::post(&url)
+        .header("Accept", "application/json, text/plain, */*")
+        .header("Content-Type", "application/json")
+        .header("Cookie", &credential.cookie_header)
+        .header("Origin", "https://console.cloud.tencent.com")
+        .header("Referer", "https://console.cloud.tencent.com/tokenhub/codingplan")
+        .header("User-Agent", "Mozilla/5.0")
+        .body(
+            r#"{"regionId":1,"serviceType":"hunyuan","cmd":"DescribePkg","data":{"Version":"2023-09-01","Language":"zh-CN"}}"#,
+        )
+}
+
+fn numeric_tencent_cookie(value: &str) -> Option<String> {
+    let digits = value
+        .chars()
+        .filter(|character| character.is_ascii_digit())
+        .collect::<String>();
+    if digits.is_empty() {
+        None
+    } else {
+        Some(digits)
+    }
+}
+
+fn tencent_cloud_csrf_code(token: &str) -> String {
+    let mut hash: u32 = 5381;
+    for unit in token.encode_utf16() {
+        hash = hash.wrapping_add(hash << 5).wrapping_add(u32::from(unit));
+    }
+    (hash & 0x7fff_ffff).to_string()
+}
+
+fn cookie_value(cookie_header: &str, name: &str) -> Option<String> {
+    cookie_header.split(';').find_map(|part| {
+        let (key, value) = part.trim().split_once('=')?;
+        if key == name {
+            Some(value.to_string())
+        } else {
+            None
+        }
+    })
 }
 
 fn tencent_login_required() -> ProviderError {
@@ -174,7 +284,9 @@ fn parse_tencent_cloud_coding_plan(value: &str) -> Result<QuotaSnapshot, Provide
         .and_then(|data| data.get("Response"))
         .or_else(|| envelope.get("data").and_then(|data| data.get("Response")))
         .or_else(|| envelope.get("Response"))
-        .ok_or_else(|| ProviderError::QuotaUnavailable("Tencent Cloud quota is unavailable".to_string()))?;
+        .ok_or_else(|| {
+            ProviderError::QuotaUnavailable("Tencent Cloud quota is unavailable".to_string())
+        })?;
 
     if response.get("Error").is_some() {
         return Err(ProviderError::QuotaUnavailable(
@@ -206,11 +318,17 @@ fn parse_tencent_cloud_coding_plan(value: &str) -> Result<QuotaSnapshot, Provide
                 .unwrap_or(false)
                 && package.get("UsageDetail").is_some()
         })
-        .or_else(|| packages.iter().find(|package| package.get("UsageDetail").is_some()))
-        .ok_or_else(|| ProviderError::QuotaUnavailable("Tencent Cloud quota is unavailable".to_string()))?;
-    let usage = package
-        .get("UsageDetail")
-        .ok_or_else(|| ProviderError::QuotaUnavailable("Tencent Cloud quota is unavailable".to_string()))?;
+        .or_else(|| {
+            packages
+                .iter()
+                .find(|package| package.get("UsageDetail").is_some())
+        })
+        .ok_or_else(|| {
+            ProviderError::QuotaUnavailable("Tencent Cloud quota is unavailable".to_string())
+        })?;
+    let usage = package.get("UsageDetail").ok_or_else(|| {
+        ProviderError::QuotaUnavailable("Tencent Cloud quota is unavailable".to_string())
+    })?;
 
     let windows = order_windows(
         [
@@ -364,7 +482,11 @@ fn local_datetime_value_to_iso(value: Option<&Value>) -> Option<String> {
 fn first_number(value: &Value, keys: &[&str]) -> Option<f64> {
     keys.iter()
         .find_map(|key| value.get(*key))
-        .and_then(|value| value.as_f64().or_else(|| value.as_str()?.parse::<f64>().ok()))
+        .and_then(|value| {
+            value
+                .as_f64()
+                .or_else(|| value.as_str()?.parse::<f64>().ok())
+        })
 }
 
 fn round_percent(value: f64) -> f64 {

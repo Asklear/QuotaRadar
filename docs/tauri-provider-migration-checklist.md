@@ -35,7 +35,7 @@ implemented and verified in `apps/desktop-tauri`.
 | Volcengine Coding Plan | LLM | Web login plus optional API key | Done | Production HTTP refresh for Ark coding plan usage windows and reset timestamps. |
 | OpenCode Go | LLM | Web login plus optional API key | Done | Production HTTP refresh replays dashboard server function usage windows. |
 | Aliyun Coding Plan | LLM | Web login plus optional API key | Done | Production HTTP refresh for Bailian coding plan instance info and legacy usage-detail shapes. |
-| Tencent Cloud Coding Plan | LLM | Web login plus optional API key | Done | Fixture-first parser migration for `DescribePkg` usage windows, empty packages, and login-state failures. |
+| Tencent Cloud Coding Plan | LLM | Web login plus optional API key | Done | Production HTTP refresh for console `DescribePkg` usage windows, reset timestamps, package expiry, empty packages, and login-state failures. |
 | Tencent Cloud Token Plan | LLM | Cloud API credential | Hidden or pending | Swift has a parser, but this is not currently part of the visible provider set. |
 | XFYun Spark Token Plan | LLM | Unknown | Hidden/pending | Swift intentionally hides it from visible providers. |
 | Volcengine Token Plan | LLM | Unknown | Hidden/pending | Swift intentionally hides it from visible providers. |
@@ -99,7 +99,7 @@ the shared credential and refresh model is stable.
 | XFYun Spark Coding Plan | `ssoSessionId`, `tenantToken`, `atp-auth-token`, `account_id` | `GET https://maas.xfyun.cn/api/v1/gpt-finetune/coding-plan/list?page=1&size=6` | Optional coding plan API key. |
 | Volcengine Coding Plan | `digest`, `AccountID`, `csrfToken` | `POST https://console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/GetCodingPlanUsage?` | Optional coding plan API key. |
 | OpenCode Go | `auth` | `GET https://opencode.ai/_server?id=...&args=...` | Optional OpenCode Go API key. |
-| Aliyun Coding Plan | `login_aliyunid_ticket`, `aliyun_lang`, `cna` | Fetch Bailian `secToken`, then BroadScope coding-plan gateway API. | Optional coding plan API key. |
+| Aliyun Coding Plan | `login_aliyunid_ticket`, `aliyun_lang`, `cna` | Bailian BroadScope coding-plan gateway API. | Optional coding plan API key. |
 | Tencent Cloud Coding Plan | `uin`, `skey` | Console `DescribePkg` endpoint with computed CSRF code. | Optional coding plan API key. |
 
 ### Cookie/OAuth Migration Rules
@@ -137,7 +137,9 @@ the shared credential and refresh model is stable.
   `queryCodingPlanInstanceInfoV2` endpoint with saved console login cookies and
   parses request-count windows, reset times, no-subscription state, and package
   expiry.
-- Pending: Tencent Cloud Coding Plan and Querit.
+- Done: Tencent Cloud Coding Plan calls the console `DescribePkg` endpoint with
+  saved console login cookies, numeric UIN values, and computed CSRF code.
+- Pending: Querit.
 
 ## Phase 3: Configuration And Legacy Migration
 
