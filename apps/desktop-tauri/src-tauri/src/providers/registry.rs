@@ -2,7 +2,7 @@ use crate::domain::ProviderDefinition;
 
 use super::{
     anysearch::AnySearchProvider, bocha::BochaProvider, brave::BraveProvider,
-    deepseek::DeepSeekProvider, serpapi::SerpApiProvider,
+    deepseek::DeepSeekProvider, exa::ExaProvider, serpapi::SerpApiProvider,
     serper::SerperProvider, tavily::TavilyProvider, wxmp::WxmpProvider, ProviderClient,
 };
 
@@ -12,6 +12,7 @@ pub fn provider_clients() -> Vec<Box<dyn ProviderClient>> {
         Box::<BraveProvider>::default(),
         Box::<SerpApiProvider>::default(),
         Box::<SerperProvider>::default(),
+        Box::<ExaProvider>::default(),
         Box::<BochaProvider>::default(),
         Box::<AnySearchProvider>::default(),
         Box::<WxmpProvider>::default(),
@@ -61,6 +62,14 @@ pub fn visible_provider_definitions() -> Vec<ProviderDefinition> {
             false,
         ),
         ProviderDefinition::new_ai_search(
+            "exa",
+            "Exa",
+            "Exa",
+            "exa",
+            "https://dashboard.exa.ai/",
+            false,
+        ),
+        ProviderDefinition::new_ai_search(
             "bocha",
             "Bocha",
             "Bocha",
@@ -101,6 +110,7 @@ pub fn visible_provider_ids() -> Vec<&'static str> {
         "brave",
         "serpapi",
         "serper",
+        "exa",
         "bocha",
         "anysearch",
         "wxmp",
