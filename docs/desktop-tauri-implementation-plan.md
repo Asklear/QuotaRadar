@@ -1607,9 +1607,10 @@ Production HTTP refresh status:
 - Claude Subscription: Done. The provider discovers the active Claude
   organization, calls the organization usage endpoint, and reads subscription
   details for plan expiry.
-- OpenCode Go, XFYun Spark Coding Plan, Volcengine Coding Plan, Aliyun Coding
-  Plan, Tencent Cloud Coding Plan, and Querit: Pending production HTTP
-  transport.
+- OpenCode Go: Done. The provider replays the dashboard `_server` request with
+  the saved cookie, workspace id, server id, and server instance.
+- XFYun Spark Coding Plan, Volcengine Coding Plan, Aliyun Coding Plan, Tencent
+  Cloud Coding Plan, and Querit: Pending production HTTP transport.
 
 - [ ] **Step 3: Preserve credential semantics**
 

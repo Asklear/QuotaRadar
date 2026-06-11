@@ -3,11 +3,15 @@ use serde_json::Value;
 
 use crate::domain::QuotaWindow;
 
-use super::{ProviderClient, ProviderCredential, ProviderError, QuotaSnapshot};
+use super::{
+    ProviderClient, ProviderCredential, ProviderError, ProviderHttpRequest, ProviderTransport,
+    QuotaSnapshot,
+};
 
 const OPENCODE_GO_USAGE_FIXTURE: &str = r#";0x00000129;((self.$R=self.$R||{})["server-fn:11"]=[],($R=>$R[0]={mine:!0,useBalance:!1,rollingUsage:$R[1]={status:"ok",resetInSec:16946,usagePercent:2},weeklyUsage:$R[2]={status:"ok",resetInSec:547976,usagePercent:50},monthlyUsage:$R[3]={status:"ok",resetInSec:2204389,usagePercent:75}})($R["server-fn:11"]))"#;
 
-const OPENCODE_GO_AUTH_REDIRECT_FIXTURE: &str = r#";0x00000000;location.href="/auth/authorize?redirect=%2Fworkspace%2Fwrk_placeholder""#;
+const OPENCODE_GO_AUTH_REDIRECT_FIXTURE: &str =
+    r#";0x00000000;location.href="/auth/authorize?redirect=%2Fworkspace%2Fwrk_placeholder""#;
 
 const OPENCODE_GO_MISSING_USAGE_FIXTURE: &str = r#";0x00000129;((self.$R=self.$R||{})["server-fn:11"]=[],($R=>$R[0]={mine:!0,useBalance:!1})($R["server-fn:11"]))"#;
 
@@ -55,6 +59,34 @@ impl ProviderClient for OpenCodeGoProvider {
         false
     }
 
+    fn check_quota(
+        &self,
+        credential: ProviderCredential,
+        transport: &dyn ProviderTransport,
+    ) -> Result<QuotaSnapshot, ProviderError> {
+        if credential.provider_id != self.provider_id() {
+            return Err(ProviderError::Unsupported(format!(
+                "credential belongs to {}",
+                credential.provider_id
+            )));
+        }
+
+        let opencode_credential = OpenCodeGoCredential::from_secret(&credential.secret)?;
+        let request = opencode_server_request(&opencode_credential)?;
+        let response = transport.send(request)?;
+        if response.status == 401 || response.status == 403 {
+            return Err(opencode_login_required());
+        }
+        if response.status != 200 {
+            return Err(ProviderError::QuotaUnavailable(format!(
+                "OpenCode Go server function returned HTTP {}",
+                response.status
+            )));
+        }
+
+        parse_opencode_go_usage(&response.body)
+    }
+
     fn check_fixture_quota(
         &self,
         credential: ProviderCredential,
@@ -63,7 +95,12 @@ impl ProviderClient for OpenCodeGoProvider {
     }
 }
 
-struct OpenCodeGoCredential;
+struct OpenCodeGoCredential {
+    cookie_header: String,
+    workspace_id: Option<String>,
+    server_id: Option<String>,
+    server_instance: Option<String>,
+}
 
 impl OpenCodeGoCredential {
     fn from_secret(secret: &str) -> Result<Self, ProviderError> {
@@ -72,11 +109,12 @@ impl OpenCodeGoCredential {
             return Err(opencode_login_required());
         }
 
-        let cookie = serde_json::from_str::<Value>(trimmed)
-            .ok()
+        let parsed = serde_json::from_str::<Value>(trimmed).ok();
+        let cookie = parsed
+            .as_ref()
             .and_then(|value| {
                 first_string(
-                    &value,
+                    value,
                     &[
                         "cookie",
                         "cookieHeader",
@@ -90,11 +128,87 @@ impl OpenCodeGoCredential {
             .unwrap_or_else(|| trimmed.to_string());
 
         if cookie.contains("auth=") {
-            Ok(Self)
+            Ok(Self {
+                cookie_header: cookie,
+                workspace_id: parsed.as_ref().and_then(|value| {
+                    first_string(
+                        value,
+                        &["workspaceID", "workspaceId", "workspace_id", "workspace"],
+                    )
+                }),
+                server_id: parsed.as_ref().and_then(|value| {
+                    first_string(value, &["serverID", "serverId", "server_id", "server"])
+                }),
+                server_instance: parsed.as_ref().and_then(|value| {
+                    first_string(
+                        value,
+                        &[
+                            "serverInstance",
+                            "server_instance",
+                            "xServerInstance",
+                            "x_server_instance",
+                        ],
+                    )
+                }),
+            })
         } else {
             Err(opencode_login_required())
         }
     }
+}
+
+fn opencode_server_request(
+    credential: &OpenCodeGoCredential,
+) -> Result<ProviderHttpRequest, ProviderError> {
+    let workspace_id = credential.workspace_id.as_deref().ok_or_else(|| {
+        ProviderError::Unsupported("OpenCode Go workspace id is required".to_string())
+    })?;
+    let server_id = credential.server_id.as_deref().ok_or_else(|| {
+        ProviderError::Unsupported("OpenCode Go server id is required".to_string())
+    })?;
+    let server_instance = credential.server_instance.as_deref().ok_or_else(|| {
+        ProviderError::Unsupported("OpenCode Go server instance is required".to_string())
+    })?;
+    let args = serde_json::json!({
+        "t": {
+            "t": 9,
+            "i": 0,
+            "l": 1,
+            "a": [
+                {
+                    "t": 1,
+                    "s": workspace_id
+                }
+            ],
+            "o": 0
+        },
+        "f": 31,
+        "m": []
+    });
+    let encoded_args = percent_encode_component(&args.to_string());
+    let url = format!("https://opencode.ai/_server?id={server_id}&args={encoded_args}");
+
+    Ok(ProviderHttpRequest::get(&url)
+        .header("Accept", "*/*")
+        .header("Cookie", &credential.cookie_header)
+        .header(
+            "Referer",
+            &format!("https://opencode.ai/workspace/{workspace_id}"),
+        )
+        .header("x-server-id", server_id)
+        .header("x-server-instance", server_instance))
+}
+
+fn percent_encode_component(value: &str) -> String {
+    value
+        .bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (byte as char).to_string()
+            }
+            _ => format!("%{byte:02X}"),
+        })
+        .collect()
 }
 
 fn opencode_login_required() -> ProviderError {

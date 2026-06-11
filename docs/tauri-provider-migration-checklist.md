@@ -33,7 +33,7 @@ implemented and verified in `apps/desktop-tauri`.
 | Kimi Subscription | LLM | Web login plus optional API key | Done | Production HTTP refresh for membership plus billing usage; parser also covers OAuth usage shape and plan expiry. |
 | XFYun Spark Coding Plan | LLM | Web login plus optional API key | Done | Fixture-first parser migration for coding plan list usage windows and package expiry. |
 | Volcengine Coding Plan | LLM | Web login plus optional API key | Done | Fixture-first parser migration for Ark coding plan usage windows and reset timestamps. |
-| OpenCode Go | LLM | Web login plus optional API key | Done | Fixture-first parser migration for dashboard server function usage windows. |
+| OpenCode Go | LLM | Web login plus optional API key | Done | Production HTTP refresh replays dashboard server function usage windows. |
 | Aliyun Coding Plan | LLM | Web login plus optional API key | Done | Fixture-first parser migration for Bailian instance info and legacy usage-detail shapes. |
 | Tencent Cloud Coding Plan | LLM | Web login plus optional API key | Done | Fixture-first parser migration for `DescribePkg` usage windows, empty packages, and login-state failures. |
 | Tencent Cloud Token Plan | LLM | Cloud API credential | Hidden or pending | Swift has a parser, but this is not currently part of the visible provider set. |
@@ -125,8 +125,11 @@ the shared credential and refresh model is stable.
 - Done: Claude Subscription discovers the active organization, calls
   organization usage, and fetches subscription details with the saved Claude web
   login cookie.
-- Pending: OpenCode Go, XFYun Spark Coding Plan, Volcengine Coding Plan, Aliyun
-  Coding Plan, Tencent Cloud Coding Plan, and Querit.
+- Done: OpenCode Go replays the dashboard `_server` request with saved cookie,
+  workspace id, server id, and server instance to parse rolling, weekly, and
+  monthly quota windows.
+- Pending: XFYun Spark Coding Plan, Volcengine Coding Plan, Aliyun Coding Plan,
+  Tencent Cloud Coding Plan, and Querit.
 
 ## Phase 3: Configuration And Legacy Migration
 
