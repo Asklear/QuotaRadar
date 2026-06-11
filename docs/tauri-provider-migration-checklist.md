@@ -22,11 +22,11 @@ implemented and verified in `apps/desktop-tauri`.
 | Brave | AI Search | API key | Done | Search probe consumes one request; automatic refresh must stay opt-in. |
 | SerpAPI | AI Search | API key | Done | `GET https://serpapi.com/account.json?api_key=...`. |
 | DeepSeek | LLM | API key | Done | Money balance provider, CNY display. |
-| Serper | AI Search | API key | Next | Account endpoint returns credits. |
-| Bocha | AI Search | API key | Next | Money balance provider, CNY display. |
-| AnySearch | AI Search | API key placeholder | Next | No remote quota; current Swift policy is unlimited/free. |
-| WeChat Search | AI Search | API key | Next | Money balance provider, CNY display. |
-| Exa | AI Search | Admin credential | Next | Plain Exa search key is insufficient; requires service key plus target API key id. |
+| Serper | AI Search | API key | Done | Account endpoint returns credits. |
+| Bocha | AI Search | API key | Done | Money balance provider, CNY display. |
+| AnySearch | AI Search | API key placeholder | Done | No remote quota; current Swift policy is unlimited/free. |
+| WeChat Search | AI Search | API key | Done | Money balance provider, CNY display. |
+| Exa | AI Search | Admin credential | Done | Plain Exa search key is insufficient; requires service key plus target API key id. |
 | Querit | AI Search | Web login plus optional API key | Pending cookie/OAuth phase | Dashboard account endpoint. |
 | Claude Subscription | LLM | Web login plus optional API key | Pending cookie/OAuth phase | Subscription quota via `claude.ai` organization endpoints. |
 | Codex Subscription | LLM | Web login plus optional API key | Pending cookie/OAuth phase | Subscription quota via ChatGPT session and WHAM endpoints. |
@@ -141,4 +141,3 @@ Swift stores metadata and secrets separately:
 - `git diff --check`
 - Sensitive scan for API keys, bearer tokens, cookies, and screenshots before
   every commit.
-
