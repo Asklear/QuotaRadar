@@ -120,5 +120,6 @@ fn parse_serper_account(http_status: u16, value: &str) -> Result<QuotaSnapshot, 
         quota_label: Some("credits".to_string()),
         quota_windows: vec![],
         reset_at: None,
+        plan_ends_at: None,
     })
 }

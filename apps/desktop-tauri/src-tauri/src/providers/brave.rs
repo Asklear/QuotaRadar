@@ -78,5 +78,6 @@ fn parse_brave_usage(value: &str) -> Result<QuotaSnapshot, ProviderError> {
             &usage.monthly_requests.reset_at,
         )],
         reset_at: Some(usage.monthly_requests.reset_at),
+        plan_ends_at: None,
     })
 }

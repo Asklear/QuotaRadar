@@ -127,5 +127,6 @@ fn parse_serpapi_usage(http_status: u16, value: &str) -> Result<QuotaSnapshot, P
         quota_label: Some("searches".to_string()),
         quota_windows: vec![QuotaWindow::percent("month", percent, &reset_at)],
         reset_at: Some(reset_at),
+        plan_ends_at: None,
     })
 }

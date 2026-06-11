@@ -3,6 +3,7 @@ pub mod bocha;
 pub mod brave;
 pub mod deepseek;
 pub mod exa;
+pub mod kimi_subscription;
 pub mod registry;
 pub mod serpapi;
 pub mod serper;
@@ -19,6 +20,8 @@ mod bocha_tests;
 mod brave_tests;
 #[cfg(test)]
 mod exa_tests;
+#[cfg(test)]
+mod kimi_subscription_tests;
 #[cfg(test)]
 mod serpapi_tests;
 #[cfg(test)]
@@ -52,6 +55,7 @@ pub struct QuotaSnapshot {
     pub quota_label: Option<String>,
     pub quota_windows: Vec<QuotaWindow>,
     pub reset_at: Option<String>,
+    pub plan_ends_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -60,6 +64,7 @@ pub enum ProviderError {
     Unsupported(String),
     Unauthorized(String),
     QuotaUnavailable(String),
+    NoSubscribedPlan(String),
     Network(String),
 }
 
@@ -70,6 +75,7 @@ impl std::fmt::Display for ProviderError {
             Self::Unsupported(message) => write!(formatter, "Provider unsupported: {message}"),
             Self::Unauthorized(message) => write!(formatter, "Provider authorization failed: {message}"),
             Self::QuotaUnavailable(message) => write!(formatter, "Provider quota unavailable: {message}"),
+            Self::NoSubscribedPlan(message) => write!(formatter, "Provider has no subscribed plan: {message}"),
             Self::Network(message) => write!(formatter, "Provider network failed: {message}"),
         }
     }

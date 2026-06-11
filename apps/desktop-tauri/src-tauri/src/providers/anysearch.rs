@@ -31,6 +31,7 @@ impl ProviderClient for AnySearchProvider {
             quota_label: Some("free usage".to_string()),
             quota_windows: vec![],
             reset_at: None,
+            plan_ends_at: None,
         })
     }
 }

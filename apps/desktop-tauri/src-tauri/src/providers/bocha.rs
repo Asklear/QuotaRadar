@@ -123,5 +123,6 @@ fn parse_bocha_balance(http_status: u16, value: &str) -> Result<QuotaSnapshot, P
         quota_label: Some("CNY".to_string()),
         quota_windows: vec![],
         reset_at: None,
+        plan_ends_at: None,
     })
 }

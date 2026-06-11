@@ -95,6 +95,7 @@ fn apply_quota_snapshot(
     credential.quota_label = snapshot.quota_label;
     credential.quota_windows = snapshot.quota_windows;
     credential.reset_at = snapshot.reset_at;
+    credential.plan_ends_at = snapshot.plan_ends_at;
     credential.last_updated = Some(checked_at);
     credential.last_http_status = Some(200);
     credential.diagnostic_message = None;

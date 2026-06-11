@@ -72,5 +72,6 @@ fn parse_deepseek_balance(value: &str) -> Result<QuotaSnapshot, ProviderError> {
         quota_label: Some("CNY".to_string()),
         quota_windows: vec![QuotaWindow::percent("month", percent, &usage.balance.reset_at)],
         reset_at: Some(usage.balance.reset_at),
+        plan_ends_at: None,
     })
 }

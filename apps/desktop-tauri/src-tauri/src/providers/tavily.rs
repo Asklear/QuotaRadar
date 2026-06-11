@@ -79,5 +79,6 @@ fn parse_tavily_usage(value: &str) -> Result<QuotaSnapshot, ProviderError> {
             &usage.monthly_credits.reset_at,
         )],
         reset_at: Some(usage.monthly_credits.reset_at),
+        plan_ends_at: None,
     })
 }
