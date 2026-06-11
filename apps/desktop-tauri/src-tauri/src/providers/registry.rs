@@ -2,9 +2,9 @@ use crate::domain::ProviderDefinition;
 
 use super::{
     anysearch::AnySearchProvider, bocha::BochaProvider, brave::BraveProvider,
-    deepseek::DeepSeekProvider, exa::ExaProvider, kimi_subscription::KimiSubscriptionProvider,
-    serpapi::SerpApiProvider, serper::SerperProvider, tavily::TavilyProvider,
-    wxmp::WxmpProvider, ProviderClient,
+    codex_subscription::CodexSubscriptionProvider, deepseek::DeepSeekProvider, exa::ExaProvider,
+    kimi_subscription::KimiSubscriptionProvider, serpapi::SerpApiProvider,
+    serper::SerperProvider, tavily::TavilyProvider, wxmp::WxmpProvider, ProviderClient,
 };
 
 pub fn provider_clients() -> Vec<Box<dyn ProviderClient>> {
@@ -18,6 +18,7 @@ pub fn provider_clients() -> Vec<Box<dyn ProviderClient>> {
         Box::<AnySearchProvider>::default(),
         Box::<WxmpProvider>::default(),
         Box::<DeepSeekProvider>::default(),
+        Box::<CodexSubscriptionProvider>::default(),
         Box::<KimiSubscriptionProvider>::default(),
     ]
 }
@@ -104,6 +105,14 @@ pub fn visible_provider_definitions() -> Vec<ProviderDefinition> {
             "https://platform.deepseek.com/usage",
         ),
         ProviderDefinition::new_llm(
+            "codex",
+            "Codex",
+            "OpenAI",
+            "Subscription",
+            "codex",
+            "https://chatgpt.com/codex",
+        ),
+        ProviderDefinition::new_llm(
             "kimi",
             "Kimi",
             "Moonshot",
@@ -125,6 +134,7 @@ pub fn visible_provider_ids() -> Vec<&'static str> {
         "anysearch",
         "wxmp",
         "deepseek",
+        "codex",
         "kimi",
     ]
 }

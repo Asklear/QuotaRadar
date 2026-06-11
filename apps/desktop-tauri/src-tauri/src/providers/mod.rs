@@ -1,6 +1,7 @@
 pub mod anysearch;
 pub mod bocha;
 pub mod brave;
+pub mod codex_subscription;
 pub mod deepseek;
 pub mod exa;
 pub mod kimi_subscription;
@@ -18,6 +19,8 @@ mod anysearch_tests;
 mod bocha_tests;
 #[cfg(test)]
 mod brave_tests;
+#[cfg(test)]
+mod codex_subscription_tests;
 #[cfg(test)]
 mod exa_tests;
 #[cfg(test)]
