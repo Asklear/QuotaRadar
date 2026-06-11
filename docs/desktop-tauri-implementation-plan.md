@@ -1556,10 +1556,10 @@ Recommended order:
 2. Codex subscription. Done in `feat: add Codex subscription desktop provider`.
 3. Claude subscription. Done in `feat: add Claude subscription desktop provider`.
 4. OpenCode Go. Done in `feat: add OpenCode Go desktop provider`.
-5. XFYun Spark coding plan.
-6. Volcengine coding plan.
-7. Aliyun coding plan.
-8. Tencent Cloud coding plan.
+5. XFYun Spark coding plan. Done in `feat: add XFYun coding plan desktop provider`.
+6. Volcengine coding plan. Done in `feat: add Volcengine coding plan desktop provider`.
+7. Aliyun coding plan. Done in `feat: add Aliyun coding plan desktop provider`.
+8. Tencent Cloud coding plan. Done in `feat: add Tencent Cloud coding plan desktop provider`.
 
 - [ ] **Step 3: Preserve credential semantics**
 

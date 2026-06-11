@@ -31,11 +31,11 @@ implemented and verified in `apps/desktop-tauri`.
 | Claude Subscription | LLM | Web login plus optional API key | Done | Fixture-first parser migration for organization discovery, usage windows, and subscription details. |
 | Codex Subscription | LLM | Web login plus optional API key | Done | Fixture-first parser migration for ChatGPT session/WHAM usage and subscription lifecycle. |
 | Kimi Subscription | LLM | Web login plus optional API key | Done | Fixture-first parser migration for membership, billing usage, OAuth usage shape, and plan expiry. |
-| XFYun Spark Coding Plan | LLM | Web login plus optional API key | Pending cookie/OAuth phase | Coding plan list endpoint. |
-| Volcengine Coding Plan | LLM | Web login plus optional API key | Pending cookie/OAuth phase | Ark coding plan usage endpoint. |
+| XFYun Spark Coding Plan | LLM | Web login plus optional API key | Done | Fixture-first parser migration for coding plan list usage windows and package expiry. |
+| Volcengine Coding Plan | LLM | Web login plus optional API key | Done | Fixture-first parser migration for Ark coding plan usage windows and reset timestamps. |
 | OpenCode Go | LLM | Web login plus optional API key | Done | Fixture-first parser migration for dashboard server function usage windows. |
-| Aliyun Coding Plan | LLM | Web login plus optional API key | Pending cookie/OAuth phase | Bailian coding plan gateway endpoint. |
-| Tencent Cloud Coding Plan | LLM | Web login plus optional API key | Pending cookie/OAuth phase | `DescribePkg` console endpoint. |
+| Aliyun Coding Plan | LLM | Web login plus optional API key | Done | Fixture-first parser migration for Bailian instance info and legacy usage-detail shapes. |
+| Tencent Cloud Coding Plan | LLM | Web login plus optional API key | Done | Fixture-first parser migration for `DescribePkg` usage windows, empty packages, and login-state failures. |
 | Tencent Cloud Token Plan | LLM | Cloud API credential | Hidden or pending | Swift has a parser, but this is not currently part of the visible provider set. |
 | XFYun Spark Token Plan | LLM | Unknown | Hidden/pending | Swift intentionally hides it from visible providers. |
 | Volcengine Token Plan | LLM | Unknown | Hidden/pending | Swift intentionally hides it from visible providers. |
