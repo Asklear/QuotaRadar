@@ -5,7 +5,7 @@ use super::{
     claude_subscription::ClaudeSubscriptionProvider, codex_subscription::CodexSubscriptionProvider,
     deepseek::DeepSeekProvider, exa::ExaProvider, kimi_subscription::KimiSubscriptionProvider,
     opencode_go::OpenCodeGoProvider, serpapi::SerpApiProvider, serper::SerperProvider, tavily::TavilyProvider,
-    wxmp::WxmpProvider, ProviderClient,
+    wxmp::WxmpProvider, xfyun_coding_plan::XfyunCodingPlanProvider, ProviderClient,
 };
 
 pub fn provider_clients() -> Vec<Box<dyn ProviderClient>> {
@@ -23,6 +23,7 @@ pub fn provider_clients() -> Vec<Box<dyn ProviderClient>> {
         Box::<CodexSubscriptionProvider>::default(),
         Box::<KimiSubscriptionProvider>::default(),
         Box::<OpenCodeGoProvider>::default(),
+        Box::<XfyunCodingPlanProvider>::default(),
     ]
 }
 
@@ -139,6 +140,14 @@ pub fn visible_provider_definitions() -> Vec<ProviderDefinition> {
             "opencode",
             "https://opencode.ai/docs/zh-cn/go",
         ),
+        ProviderDefinition::new_llm(
+            "xfyun_coding_plan",
+            "XFYun Spark",
+            "XFYun Spark",
+            "Coding Plan",
+            "xfyun",
+            "https://maas.xfyun.cn/packageSubscription",
+        ),
     ]
 }
 
@@ -157,5 +166,6 @@ pub fn visible_provider_ids() -> Vec<&'static str> {
         "codex",
         "kimi",
         "opencode_go",
+        "xfyun_coding_plan",
     ]
 }

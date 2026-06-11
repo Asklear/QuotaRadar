@@ -12,6 +12,7 @@ pub mod serpapi;
 pub mod serper;
 pub mod tavily;
 pub mod wxmp;
+pub mod xfyun_coding_plan;
 
 use crate::domain::QuotaWindow;
 
@@ -39,6 +40,8 @@ mod serper_tests;
 mod tests;
 #[cfg(test)]
 mod wxmp_tests;
+#[cfg(test)]
+mod xfyun_coding_plan_tests;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProviderCredential {
