@@ -30,7 +30,7 @@ implemented and verified in `apps/desktop-tauri`.
 | Querit | AI Search | Web login plus optional API key | Pending cookie/OAuth phase | Dashboard account endpoint. |
 | Claude Subscription | LLM | Web login plus optional API key | Done | Fixture-first parser migration for organization discovery, usage windows, and subscription details. |
 | Codex Subscription | LLM | Web login plus optional API key | Done | Fixture-first parser migration for ChatGPT session/WHAM usage and subscription lifecycle. |
-| Kimi Subscription | LLM | Web login plus optional API key | Done | Fixture-first parser migration for membership, billing usage, OAuth usage shape, and plan expiry. |
+| Kimi Subscription | LLM | Web login plus optional API key | Done | Production HTTP refresh for membership plus billing usage; parser also covers OAuth usage shape and plan expiry. |
 | XFYun Spark Coding Plan | LLM | Web login plus optional API key | Done | Fixture-first parser migration for coding plan list usage windows and package expiry. |
 | Volcengine Coding Plan | LLM | Web login plus optional API key | Done | Fixture-first parser migration for Ark coding plan usage windows and reset timestamps. |
 | OpenCode Go | LLM | Web login plus optional API key | Done | Fixture-first parser migration for dashboard server function usage windows. |
@@ -112,6 +112,16 @@ the shared credential and refresh model is stable.
   provider expansion/order state.
 - Private console endpoints need fixtures that represent valid subscription,
   no subscribed plan, expired login, and shape drift.
+
+### Cookie/OAuth Production Transport Coverage
+
+- Done: Kimi Subscription requests `MembershipService/GetSubscription` and
+  `BillingService/GetUsages` with the saved access token and optional browser
+  session headers, then merges subscription balance, 5-hour quota, weekly quota,
+  reset times, and plan expiry through the shared parser.
+- Pending: Codex Subscription, Claude Subscription, OpenCode Go, XFYun Spark
+  Coding Plan, Volcengine Coding Plan, Aliyun Coding Plan, Tencent Cloud Coding
+  Plan, and Querit.
 
 ## Phase 3: Configuration And Legacy Migration
 

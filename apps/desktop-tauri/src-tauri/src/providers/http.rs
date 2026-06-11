@@ -146,15 +146,19 @@ impl ProviderTransport for ReqwestProviderTransport {
 #[cfg(test)]
 #[derive(Default)]
 pub struct MockProviderTransport {
-    response: std::sync::Mutex<Option<Result<ProviderHttpResponse, ProviderError>>>,
+    responses: std::sync::Mutex<Vec<Result<ProviderHttpResponse, ProviderError>>>,
     requests: std::sync::Mutex<Vec<ProviderHttpRequest>>,
 }
 
 #[cfg(test)]
 impl MockProviderTransport {
     pub fn responding(response: ProviderHttpResponse) -> Self {
+        Self::responding_many(vec![response])
+    }
+
+    pub fn responding_many(responses: Vec<ProviderHttpResponse>) -> Self {
         Self {
-            response: std::sync::Mutex::new(Some(Ok(response))),
+            responses: std::sync::Mutex::new(responses.into_iter().map(Ok).rev().collect()),
             requests: std::sync::Mutex::new(Vec::new()),
         }
     }
@@ -168,10 +172,10 @@ impl MockProviderTransport {
 impl ProviderTransport for MockProviderTransport {
     fn send(&self, request: ProviderHttpRequest) -> Result<ProviderHttpResponse, ProviderError> {
         self.requests.lock().expect("requests lock").push(request);
-        self.response
+        self.responses
             .lock()
-            .expect("response lock")
-            .take()
+            .expect("responses lock")
+            .pop()
             .expect("mock response should be configured")
     }
 }

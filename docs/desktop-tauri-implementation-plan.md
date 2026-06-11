@@ -1596,6 +1596,15 @@ Recommended order:
 7. Aliyun coding plan. Done in `feat: add Aliyun coding plan desktop provider`.
 8. Tencent Cloud coding plan. Done in `feat: add Tencent Cloud coding plan desktop provider`.
 
+Production HTTP refresh status:
+
+- Kimi Subscription: Done. The provider calls membership and billing usage
+  endpoints with saved web-login authorization and merges subscription balance,
+  5-hour quota, weekly quota, reset times, and plan expiry.
+- Codex Subscription, Claude Subscription, OpenCode Go, XFYun Spark Coding
+  Plan, Volcengine Coding Plan, Aliyun Coding Plan, Tencent Cloud Coding Plan,
+  and Querit: Pending production HTTP transport.
+
 - [ ] **Step 3: Preserve credential semantics**
 
 Every provider must support:

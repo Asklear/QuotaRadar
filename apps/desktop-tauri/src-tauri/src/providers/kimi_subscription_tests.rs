@@ -1,11 +1,13 @@
 use super::{
-    kimi_subscription::KimiSubscriptionProvider, ProviderClient, ProviderCredential, ProviderError,
+    http::{MockProviderTransport, ProviderHttpResponse},
+    kimi_subscription::KimiSubscriptionProvider,
+    ProviderClient, ProviderCredential, ProviderError,
 };
 
 fn kimi_credential() -> ProviderCredential {
     ProviderCredential::fake_api_key(
         "kimi",
-        r#"{"accessToken":"access-token-placeholder","deviceID":"device-placeholder","sessionID":"session-placeholder","trafficID":"traffic-placeholder"}"#,
+        r#"{"accessToken":"tok1","cookie":"session-cookie-placeholder","deviceID":"device-placeholder","sessionID":"session-placeholder","trafficID":"traffic-placeholder"}"#,
     )
 }
 
@@ -19,7 +21,10 @@ fn kimi_fixture_parses_coding_usage_windows_and_plan_end() {
     assert_eq!(snapshot.provider_id, "kimi");
     assert_eq!(snapshot.remaining, None);
     assert_eq!(snapshot.limit, None);
-    assert_eq!(snapshot.remaining_badge_text, "5h 96% · week 78% · month 8.4%");
+    assert_eq!(
+        snapshot.remaining_badge_text,
+        "5h 96% · week 78% · month 8.4%"
+    );
     assert_eq!(snapshot.quota_label.as_deref(), Some("subscription"));
     assert_eq!(
         snapshot.plan_ends_at.as_deref(),
@@ -47,8 +52,14 @@ fn kimi_oauth_usage_shape_is_supported_without_subscription_balance() {
 
     assert_eq!(snapshot.remaining_badge_text, "5h 75% · week 30%");
     assert_eq!(snapshot.quota_windows.len(), 2);
-    assert_eq!(snapshot.quota_windows[0].remaining_text.as_deref(), Some("750 / 1000"));
-    assert_eq!(snapshot.quota_windows[1].remaining_text.as_deref(), Some("300 / 1000"));
+    assert_eq!(
+        snapshot.quota_windows[0].remaining_text.as_deref(),
+        Some("750 / 1000")
+    );
+    assert_eq!(
+        snapshot.quota_windows[1].remaining_text.as_deref(),
+        Some("300 / 1000")
+    );
 }
 
 #[test]
@@ -88,4 +99,70 @@ fn kimi_quota_unknown_fixture_maps_to_quota_unavailable() {
         error,
         ProviderError::QuotaUnavailable(message) if message.contains("Kimi quota")
     ));
+}
+
+#[test]
+fn kimi_live_quota_uses_membership_and_billing_transports() {
+    let client = KimiSubscriptionProvider::default();
+    let transport = MockProviderTransport::responding_many(vec![
+        ProviderHttpResponse::new(
+            200,
+            r#"{"subscribed":true,"balances":[{"type":"SUBSCRIPTION","unit":"UNIT_CREDIT","amountUsedRatio":0.25,"expireTime":"2026-07-01T00:00:00Z"}]}"#,
+        ),
+        ProviderHttpResponse::new(
+            200,
+            r#"{"usages":[{"scope":"FEATURE_CODING","limits":[{"name":"5h","detail":{"limit":1000,"remaining":800,"resetAt":"2026-06-12T12:00:00Z"}},{"name":"week","detail":{"limit":1000,"remaining":500,"resetAt":"2026-06-15T00:00:00Z"}}]}]}"#,
+        ),
+    ]);
+
+    let snapshot = client
+        .check_quota(kimi_credential(), &transport)
+        .expect("live Kimi responses should parse");
+
+    assert_eq!(
+        snapshot.remaining_badge_text,
+        "5h 80% · week 50% · month 75%"
+    );
+    assert_eq!(
+        snapshot.plan_ends_at.as_deref(),
+        Some("2026-07-01T00:00:00Z")
+    );
+
+    let requests = transport.requests();
+    assert_eq!(requests.len(), 2);
+    assert_eq!(requests[0].method, "POST");
+    assert_eq!(
+        requests[0].url,
+        "https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscription"
+    );
+    assert_eq!(requests[0].body.as_deref(), Some("{}"));
+    assert_eq!(requests[1].method, "POST");
+    assert_eq!(
+        requests[1].url,
+        "https://www.kimi.com/apiv2/kimi.gateway.billing.v1.BillingService/GetUsages"
+    );
+    assert_eq!(
+        requests[1].body.as_deref(),
+        Some(r#"{"scope":["FEATURE_CODING"]}"#)
+    );
+    assert!(requests[0].headers.contains(&(
+        "Authorization".to_string(),
+        "Bearer tok1".to_string()
+    )));
+    assert!(requests[0].headers.contains(&(
+        "Cookie".to_string(),
+        format!("{}=session-cookie-placeholder", "kimi-auth")
+    )));
+    assert!(requests[0].headers.contains(&(
+        "x-msh-device-id".to_string(),
+        "device-placeholder".to_string()
+    )));
+    assert!(requests[0].headers.contains(&(
+        "x-msh-session-id".to_string(),
+        "session-placeholder".to_string()
+    )));
+    assert!(requests[0].headers.contains(&(
+        "x-traffic-id".to_string(),
+        "traffic-placeholder".to_string()
+    )));
 }
