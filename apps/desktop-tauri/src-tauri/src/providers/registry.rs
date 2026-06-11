@@ -1,8 +1,8 @@
 use crate::domain::ProviderDefinition;
 
 use super::{
-    bocha::BochaProvider, brave::BraveProvider, deepseek::DeepSeekProvider,
-    serpapi::SerpApiProvider,
+    anysearch::AnySearchProvider, bocha::BochaProvider, brave::BraveProvider,
+    deepseek::DeepSeekProvider, serpapi::SerpApiProvider,
     serper::SerperProvider, tavily::TavilyProvider, ProviderClient,
 };
 
@@ -13,6 +13,7 @@ pub fn provider_clients() -> Vec<Box<dyn ProviderClient>> {
         Box::<SerpApiProvider>::default(),
         Box::<SerperProvider>::default(),
         Box::<BochaProvider>::default(),
+        Box::<AnySearchProvider>::default(),
         Box::<DeepSeekProvider>::default(),
     ]
 }
@@ -66,6 +67,14 @@ pub fn visible_provider_definitions() -> Vec<ProviderDefinition> {
             "https://open.bochaai.com/dashboard",
             false,
         ),
+        ProviderDefinition::new_ai_search(
+            "anysearch",
+            "AnySearch",
+            "AnySearch",
+            "anysearch",
+            "https://app.anysearch.ai/login",
+            false,
+        ),
         ProviderDefinition::new_llm(
             "deepseek",
             "DeepSeek",
@@ -78,5 +87,13 @@ pub fn visible_provider_definitions() -> Vec<ProviderDefinition> {
 }
 
 pub fn visible_provider_ids() -> Vec<&'static str> {
-    vec!["tavily", "brave", "serpapi", "serper", "bocha", "deepseek"]
+    vec![
+        "tavily",
+        "brave",
+        "serpapi",
+        "serper",
+        "bocha",
+        "anysearch",
+        "deepseek",
+    ]
 }
