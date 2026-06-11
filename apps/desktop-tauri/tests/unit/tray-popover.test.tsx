@@ -1,5 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { TrayPopover } from "../../src/tray/TrayPopover";
 
 describe("TrayPopover", () => {
@@ -38,5 +38,14 @@ describe("TrayPopover", () => {
     for (const item of screen.getAllByTestId("expiring-item")) {
       expect(item).not.toHaveTextContent("T");
     }
+  });
+
+  it("requests close when the pointer leaves the popover", () => {
+    const onRequestClose = vi.fn();
+
+    render(<TrayPopover onRequestClose={onRequestClose} />);
+    fireEvent.pointerLeave(screen.getByTestId("tray-popover"));
+
+    expect(onRequestClose).toHaveBeenCalledOnce();
   });
 });
