@@ -1,0 +1,16 @@
+{
+  "app.name": "Quota Radar",
+  "app.subtitle": "API クォータ",
+  "nav.quotaMonitoring": "クォータ監視",
+  "nav.credentials": "認証情報",
+  "nav.diagnostics": "診断",
+  "nav.settings": "設定",
+  "status.available": "利用可能",
+  "status.low": "残量少",
+  "status.failed": "失敗",
+  "status.healthy": "正常",
+  "quota.keyQuota": "重要クォータ",
+  "quota.credentialPool": "認証情報プール",
+  "quota.criticalTime": "重要時刻",
+  "quota.status": "状態"
+}

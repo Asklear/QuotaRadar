@@ -1,0 +1,16 @@
+{
+  "app.name": "Quota Radar",
+  "app.subtitle": "API Quota",
+  "nav.quotaMonitoring": "Quota Monitoring",
+  "nav.credentials": "Credentials",
+  "nav.diagnostics": "Diagnostics",
+  "nav.settings": "Settings",
+  "status.available": "Available",
+  "status.low": "Low",
+  "status.failed": "Failed",
+  "status.healthy": "Healthy",
+  "quota.keyQuota": "Key Quota",
+  "quota.credentialPool": "Credential Pool",
+  "quota.criticalTime": "Critical Time",
+  "quota.status": "Status"
+}

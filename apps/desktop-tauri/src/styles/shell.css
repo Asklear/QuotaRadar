@@ -1,0 +1,42 @@
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--qr-sidebar-width) minmax(0, 1fr);
+  min-width: var(--qr-main-min-width);
+  min-height: var(--qr-main-min-height);
+}
+
+.app-sidebar {
+  padding: 18px 14px;
+  border-right: 1px solid var(--qr-color-border);
+  background: rgba(246, 246, 248, 0.86);
+}
+
+.app-brand {
+  display: grid;
+  gap: 3px;
+  padding: 6px 8px 18px;
+}
+
+.app-brand-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.app-brand-subtitle {
+  color: var(--qr-color-muted);
+  font-size: 12px;
+}
+
+.app-main {
+  padding: 24px;
+}
+
+.app-panel {
+  min-height: 220px;
+  padding: 20px;
+  border: 1px solid var(--qr-color-border);
+  border-radius: var(--qr-radius-panel);
+  background: var(--qr-color-surface);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.08);
+}

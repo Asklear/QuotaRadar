@@ -1,0 +1,17 @@
+:root {
+  --qr-sidebar-width: 220px;
+  --qr-main-min-width: 900px;
+  --qr-main-min-height: 600px;
+  --qr-tray-width: 560px;
+  --qr-tray-height: 500px;
+  --qr-radius-panel: 12px;
+  --qr-radius-popover: 20px;
+  --qr-color-healthy: #34c759;
+  --qr-color-attention: #ff3b30;
+  --qr-color-warning: #ff9f0a;
+  --qr-color-text: #1d1d1f;
+  --qr-color-muted: #6e6e73;
+  --qr-color-surface: rgba(255, 255, 255, 0.72);
+  --qr-color-border: rgba(60, 60, 67, 0.16);
+  --qr-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+}

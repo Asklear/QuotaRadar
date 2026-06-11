@@ -1,0 +1,16 @@
+{
+  "app.name": "Quota Radar",
+  "app.subtitle": "API 할당량",
+  "nav.quotaMonitoring": "할당량 모니터링",
+  "nav.credentials": "자격 증명",
+  "nav.diagnostics": "진단",
+  "nav.settings": "설정",
+  "status.available": "사용 가능",
+  "status.low": "부족",
+  "status.failed": "실패",
+  "status.healthy": "정상",
+  "quota.keyQuota": "핵심 할당량",
+  "quota.credentialPool": "자격 증명 풀",
+  "quota.criticalTime": "중요 시간",
+  "quota.status": "상태"
+}

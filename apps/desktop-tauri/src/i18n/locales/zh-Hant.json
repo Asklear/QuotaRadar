@@ -1,0 +1,16 @@
+{
+  "app.name": "Quota Radar",
+  "app.subtitle": "API 額度",
+  "nav.quotaMonitoring": "額度監控",
+  "nav.credentials": "配置憑據",
+  "nav.diagnostics": "診斷",
+  "nav.settings": "設定",
+  "status.available": "可用",
+  "status.low": "緊張",
+  "status.failed": "失敗",
+  "status.healthy": "正常",
+  "quota.keyQuota": "關鍵額度",
+  "quota.credentialPool": "憑據池",
+  "quota.criticalTime": "關鍵時間",
+  "quota.status": "狀態"
+}
