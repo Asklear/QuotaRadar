@@ -9,6 +9,7 @@ pub mod exa;
 pub mod http;
 pub mod kimi_subscription;
 pub mod opencode_go;
+pub mod querit;
 pub mod registry;
 pub mod serpapi;
 pub mod serper;
@@ -42,6 +43,8 @@ mod exa_tests;
 mod kimi_subscription_tests;
 #[cfg(test)]
 mod opencode_go_tests;
+#[cfg(test)]
+mod querit_tests;
 #[cfg(test)]
 mod serpapi_tests;
 #[cfg(test)]

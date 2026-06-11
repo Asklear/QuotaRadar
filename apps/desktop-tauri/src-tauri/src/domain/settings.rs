@@ -69,6 +69,7 @@ pub fn default_provider_order() -> Vec<String> {
         "bocha",
         "anysearch",
         "wxmp",
+        "querit",
         "deepseek",
         "claude",
         "codex",

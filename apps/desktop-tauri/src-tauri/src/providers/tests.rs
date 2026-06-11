@@ -10,6 +10,7 @@ fn visible_provider_registry_excludes_pending_providers() {
 
     assert!(visible_ids.contains(&"tavily"));
     assert!(visible_ids.contains(&"deepseek"));
+    assert!(visible_ids.contains(&"querit"));
     assert!(!visible_ids.contains(&"aliyun-token-plan"));
     assert!(!visible_ids.contains(&"tencent-token-plan"));
 }
@@ -20,6 +21,7 @@ fn tavily_and_deepseek_are_registered_provider_clients() {
 
     assert!(registered_ids.contains(&"tavily"));
     assert!(registered_ids.contains(&"deepseek"));
+    assert!(registered_ids.contains(&"querit"));
 }
 
 #[test]

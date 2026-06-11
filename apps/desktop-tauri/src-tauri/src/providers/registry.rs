@@ -5,8 +5,8 @@ use super::{
     bocha::BochaProvider, brave::BraveProvider, claude_subscription::ClaudeSubscriptionProvider,
     codex_subscription::CodexSubscriptionProvider, deepseek::DeepSeekProvider, exa::ExaProvider,
     kimi_subscription::KimiSubscriptionProvider, opencode_go::OpenCodeGoProvider,
-    serpapi::SerpApiProvider, serper::SerperProvider, tavily::TavilyProvider,
-    tencent_cloud_coding_plan::TencentCloudCodingPlanProvider,
+    querit::QueritProvider, serpapi::SerpApiProvider, serper::SerperProvider,
+    tavily::TavilyProvider, tencent_cloud_coding_plan::TencentCloudCodingPlanProvider,
     volcengine_coding_plan::VolcengineCodingPlanProvider, wxmp::WxmpProvider,
     xfyun_coding_plan::XfyunCodingPlanProvider, ProviderClient,
 };
@@ -21,6 +21,7 @@ pub fn provider_clients() -> Vec<Box<dyn ProviderClient>> {
         Box::<BochaProvider>::default(),
         Box::<AnySearchProvider>::default(),
         Box::<WxmpProvider>::default(),
+        Box::<QueritProvider>::default(),
         Box::<DeepSeekProvider>::default(),
         Box::<ClaudeSubscriptionProvider>::default(),
         Box::<CodexSubscriptionProvider>::default(),
@@ -106,6 +107,17 @@ pub fn visible_provider_definitions() -> Vec<ProviderDefinition> {
             "https://www.dajiala.com/main/interface?actnav=1",
             false,
         ),
+        ProviderDefinition {
+            supports_reauth: true,
+            ..ProviderDefinition::new_ai_search(
+                "querit",
+                "Querit",
+                "Querit",
+                "querit",
+                "https://www.querit.ai/en/dashboard/usage",
+                false,
+            )
+        },
         ProviderDefinition::new_llm(
             "deepseek",
             "DeepSeek",
@@ -191,6 +203,7 @@ pub fn visible_provider_ids() -> Vec<&'static str> {
         "bocha",
         "anysearch",
         "wxmp",
+        "querit",
         "deepseek",
         "claude",
         "codex",

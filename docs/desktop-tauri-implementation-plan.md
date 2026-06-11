@@ -1622,7 +1622,9 @@ Production HTTP refresh status:
 - Tencent Cloud Coding Plan: Done. The provider calls the console `DescribePkg`
   endpoint with saved console login cookies, numeric UIN values, and computed
   CSRF code.
-- Querit: Pending production HTTP transport.
+- Querit: Done. The provider calls the dashboard account endpoint with saved
+  web login cookies and parses monthly request usage; when the endpoint omits a
+  plan limit, it reports usage without inventing a fake quota total.
 
 - [ ] **Step 3: Preserve credential semantics**
 

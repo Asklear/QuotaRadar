@@ -27,6 +27,10 @@ fn default_settings_include_stable_provider_order_and_refresh_policy() {
         .provider_order
         .iter()
         .any(|provider_id| provider_id == "aliyun_coding_plan"));
+    assert!(settings
+        .provider_order
+        .iter()
+        .any(|provider_id| provider_id == "querit"));
 }
 
 #[test]

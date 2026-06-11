@@ -27,7 +27,7 @@ implemented and verified in `apps/desktop-tauri`.
 | AnySearch | AI Search | API key placeholder | Done | No remote quota; current Swift policy is unlimited/free. |
 | WeChat Search | AI Search | API key | Done | Money balance provider, CNY display. |
 | Exa | AI Search | Admin credential | Done | Plain Exa search key is insufficient; requires service key plus target API key id. |
-| Querit | AI Search | Web login plus optional API key | Pending cookie/OAuth phase | Dashboard account endpoint. |
+| Querit | AI Search | Web login plus optional API key | Done | Production HTTP refresh for dashboard account monthly request usage; when plan limit is absent, reports usage without fake quota totals. |
 | Claude Subscription | LLM | Web login plus optional API key | Done | Production HTTP refresh discovers organization, usage windows, and subscription details. |
 | Codex Subscription | LLM | Web login plus optional API key | Done | Production HTTP refresh resolves ChatGPT session, WHAM usage windows, and subscription lifecycle. |
 | Kimi Subscription | LLM | Web login plus optional API key | Done | Production HTTP refresh for membership plus billing usage; parser also covers OAuth usage shape and plan expiry. |
@@ -139,7 +139,10 @@ the shared credential and refresh model is stable.
   expiry.
 - Done: Tencent Cloud Coding Plan calls the console `DescribePkg` endpoint with
   saved console login cookies, numeric UIN values, and computed CSRF code.
-- Pending: Querit.
+- Done: Querit calls the dashboard account endpoint with saved web login
+  cookies and parses monthly request usage; if the endpoint omits a plan limit,
+  it reports usage without inventing a large quota number.
+- Pending: none for the currently visible cookie/OAuth provider set.
 
 ## Phase 3: Configuration And Legacy Migration
 
