@@ -1609,7 +1609,7 @@ now covers:
 - dashboard authorization credentials plus linked copyable companion API keys.
 - the one-way QuotaBar migration marker.
 
-- [ ] **Step 2: Add macOS startup IO**
+- [x] **Step 2: Add macOS startup IO**
 
 Read without logging secrets:
 
@@ -1618,8 +1618,9 @@ Read without logging secrets:
 - `~/Library/Application Support/QuotaRadar/secrets.json`
 - `~/Library/Application Support/QuotaBar/secrets.json`
 
-Then invoke the migration core once during Tauri startup and write a Tauri-side
-completion marker.
+The Tauri setup path now invokes the migration core once during macOS startup
+and writes a Tauri-side completion marker so later launches do not overwrite
+user edits in the Tauri app.
 
 - [ ] **Step 3: Verify**
 

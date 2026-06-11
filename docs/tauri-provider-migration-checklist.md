@@ -106,10 +106,10 @@ Status:
 - Done: fixture-first migration core for Swift-shaped credential metadata,
   secret maps, key settings, provider order, Swift `Date` numeric values,
   companion API-key links, and QuotaBar one-way migration markers.
-- Pending: startup IO that reads macOS preference plists for
+- Done: startup IO that reads macOS preference plists for
   `com.gaorongvc.quotaradar` and `com.gaorongvc.quotabar`, reads the Swift
-  `secrets.json` files, invokes the migration core once, and writes the
-  completion marker.
+  `secrets.json` files, invokes the migration core during Tauri setup, and
+  writes the completion marker.
 
 Swift stores metadata and secrets separately:
 
@@ -161,16 +161,17 @@ Swift stores metadata and secrets separately:
   metadata, and secrets are ignored so old data cannot overwrite newer Tauri
   edits.
 
-### Pending Startup IO
+### Startup IO
 
-- Add a macOS-only reader for `~/Library/Preferences/com.gaorongvc.quotaradar.plist`
+- MacOS-only reader for `~/Library/Preferences/com.gaorongvc.quotaradar.plist`
   and `~/Library/Preferences/com.gaorongvc.quotabar.plist`.
-- Decode `apiKeyMetadata` data values from those plists and pass their JSON
+- Decodes `apiKeyMetadata` data values from those plists and passes their JSON
   bytes to the migration core.
-- Read `~/Library/Application Support/QuotaRadar/secrets.json` and
+- Reads `~/Library/Application Support/QuotaRadar/secrets.json` and
   `~/Library/Application Support/QuotaBar/secrets.json` without logging secret
   contents.
-- Persist a Tauri-side migration marker after successful import.
+- Persists a Tauri-side migration marker after successful import so later
+  launches do not overwrite user edits in the Tauri app.
 
 ## Verification Checklist
 

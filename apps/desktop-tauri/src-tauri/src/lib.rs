@@ -5,7 +5,7 @@ pub mod providers;
 pub mod scheduler;
 pub mod storage;
 
-use tauri::Manager;
+use tauri::{AppHandle, Manager, Runtime};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,6 +19,7 @@ pub fn run() {
             let salt_path = app.path().app_local_data_dir()?.join("stronghold-salt.bin");
             app.handle()
                 .plugin(tauri_plugin_stronghold::Builder::with_argon2(&salt_path).build())?;
+            run_swift_configuration_migration(app.handle());
             platform::tray::setup_tray_shell(app.handle())?;
             Ok(())
         })
@@ -45,3 +46,34 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running Quota Radar Tauri application");
 }
+
+#[cfg(target_os = "macos")]
+fn run_swift_configuration_migration<R: Runtime>(app: &AppHandle<R>) {
+    use storage::{
+        metadata_store::TauriMetadataStore,
+        migration_io::{migrate_swift_configuration_from_paths, SwiftMigrationFilePaths},
+        secret_store::TauriSecretVault,
+    };
+
+    let Ok(home_dir) = app.path().home_dir() else {
+        eprintln!("Quota Radar Swift configuration migration skipped: home directory unavailable");
+        return;
+    };
+    let Ok(metadata_store) = TauriMetadataStore::open(app) else {
+        eprintln!("Quota Radar Swift configuration migration skipped: metadata store unavailable");
+        return;
+    };
+    let Ok(secret_vault) = TauriSecretVault::open(app) else {
+        eprintln!("Quota Radar Swift configuration migration skipped: secret store unavailable");
+        return;
+    };
+    let paths = SwiftMigrationFilePaths::for_home(home_dir);
+    if let Err(error) =
+        migrate_swift_configuration_from_paths(&metadata_store, &secret_vault, &paths)
+    {
+        eprintln!("Quota Radar Swift configuration migration skipped: {error}");
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn run_swift_configuration_migration<R: Runtime>(_app: &AppHandle<R>) {}
