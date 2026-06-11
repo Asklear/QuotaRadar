@@ -1,6 +1,8 @@
 @import "./tokens.css";
 @import "./shell.css";
 @import "./credentials.css";
+@import "./diagnostics.css";
+@import "./settings.css";
 @import "./tables.css";
 @import "./tray.css";
 
