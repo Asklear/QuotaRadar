@@ -1,10 +1,11 @@
 use crate::domain::ProviderDefinition;
 
 use super::{
-    anysearch::AnySearchProvider, bocha::BochaProvider, brave::BraveProvider,
-    claude_subscription::ClaudeSubscriptionProvider, codex_subscription::CodexSubscriptionProvider,
-    deepseek::DeepSeekProvider, exa::ExaProvider, kimi_subscription::KimiSubscriptionProvider,
-    opencode_go::OpenCodeGoProvider, serpapi::SerpApiProvider, serper::SerperProvider, tavily::TavilyProvider,
+    aliyun_coding_plan::AliyunCodingPlanProvider, anysearch::AnySearchProvider,
+    bocha::BochaProvider, brave::BraveProvider, claude_subscription::ClaudeSubscriptionProvider,
+    codex_subscription::CodexSubscriptionProvider, deepseek::DeepSeekProvider, exa::ExaProvider,
+    kimi_subscription::KimiSubscriptionProvider, opencode_go::OpenCodeGoProvider,
+    serpapi::SerpApiProvider, serper::SerperProvider, tavily::TavilyProvider,
     volcengine_coding_plan::VolcengineCodingPlanProvider, wxmp::WxmpProvider,
     xfyun_coding_plan::XfyunCodingPlanProvider, ProviderClient,
 };
@@ -26,6 +27,7 @@ pub fn provider_clients() -> Vec<Box<dyn ProviderClient>> {
         Box::<OpenCodeGoProvider>::default(),
         Box::<XfyunCodingPlanProvider>::default(),
         Box::<VolcengineCodingPlanProvider>::default(),
+        Box::<AliyunCodingPlanProvider>::default(),
     ]
 }
 
@@ -158,6 +160,14 @@ pub fn visible_provider_definitions() -> Vec<ProviderDefinition> {
             "volcengine",
             "https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement",
         ),
+        ProviderDefinition::new_llm(
+            "aliyun_coding_plan",
+            "Aliyun",
+            "Aliyun",
+            "Coding Plan",
+            "aliyun",
+            "https://bailian.console.aliyun.com/cn-beijing?tab=model#/efm/coding_plan",
+        ),
     ]
 }
 
@@ -178,5 +188,6 @@ pub fn visible_provider_ids() -> Vec<&'static str> {
         "opencode_go",
         "xfyun_coding_plan",
         "volcengine_coding_plan",
+        "aliyun_coding_plan",
     ]
 }

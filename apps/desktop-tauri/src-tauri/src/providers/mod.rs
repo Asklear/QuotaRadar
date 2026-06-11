@@ -1,4 +1,5 @@
 pub mod anysearch;
+pub mod aliyun_coding_plan;
 pub mod bocha;
 pub mod brave;
 pub mod claude_subscription;
@@ -17,6 +18,8 @@ pub mod xfyun_coding_plan;
 
 use crate::domain::QuotaWindow;
 
+#[cfg(test)]
+mod aliyun_coding_plan_tests;
 #[cfg(test)]
 mod anysearch_tests;
 #[cfg(test)]
