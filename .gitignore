@@ -21,3 +21,8 @@ test-results/
 
 DerivedData/
 .worktrees/
+
+apps/desktop-tauri/node_modules/
+apps/desktop-tauri/dist/
+apps/desktop-tauri/src-tauri/gen/
+apps/desktop-tauri/src-tauri/target/
