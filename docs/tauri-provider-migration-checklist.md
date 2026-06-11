@@ -28,7 +28,7 @@ implemented and verified in `apps/desktop-tauri`.
 | WeChat Search | AI Search | API key | Done | Money balance provider, CNY display. |
 | Exa | AI Search | Admin credential | Done | Plain Exa search key is insufficient; requires service key plus target API key id. |
 | Querit | AI Search | Web login plus optional API key | Pending cookie/OAuth phase | Dashboard account endpoint. |
-| Claude Subscription | LLM | Web login plus optional API key | Done | Fixture-first parser migration for organization discovery, usage windows, and subscription details. |
+| Claude Subscription | LLM | Web login plus optional API key | Done | Production HTTP refresh discovers organization, usage windows, and subscription details. |
 | Codex Subscription | LLM | Web login plus optional API key | Done | Production HTTP refresh resolves ChatGPT session, WHAM usage windows, and subscription lifecycle. |
 | Kimi Subscription | LLM | Web login plus optional API key | Done | Production HTTP refresh for membership plus billing usage; parser also covers OAuth usage shape and plan expiry. |
 | XFYun Spark Coding Plan | LLM | Web login plus optional API key | Done | Fixture-first parser migration for coding plan list usage windows and package expiry. |
@@ -122,9 +122,11 @@ the shared credential and refresh model is stable.
 - Done: Codex Subscription resolves the ChatGPT web session access token, calls
   `backend-api/wham/usage`, and uses the session account id for subscription
   lifecycle expiry.
-- Pending: Claude Subscription, OpenCode Go, XFYun Spark Coding Plan,
-  Volcengine Coding Plan, Aliyun Coding Plan, Tencent Cloud Coding Plan, and
-  Querit.
+- Done: Claude Subscription discovers the active organization, calls
+  organization usage, and fetches subscription details with the saved Claude web
+  login cookie.
+- Pending: OpenCode Go, XFYun Spark Coding Plan, Volcengine Coding Plan, Aliyun
+  Coding Plan, Tencent Cloud Coding Plan, and Querit.
 
 ## Phase 3: Configuration And Legacy Migration
 

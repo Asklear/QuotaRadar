@@ -2,7 +2,12 @@ use serde_json::Value;
 
 use crate::domain::QuotaWindow;
 
-use super::{ProviderClient, ProviderCredential, ProviderError, QuotaSnapshot};
+use super::{
+    ProviderClient, ProviderCredential, ProviderError, ProviderHttpRequest, ProviderTransport,
+    QuotaSnapshot,
+};
+
+const CLAUDE_ORGANIZATIONS_URL: &str = "https://claude.ai/api/organizations";
 
 const CLAUDE_ORGANIZATIONS_FIXTURE: &str = r#"[
   {
@@ -116,6 +121,59 @@ impl ProviderClient for ClaudeSubscriptionProvider {
         false
     }
 
+    fn check_quota(
+        &self,
+        credential: ProviderCredential,
+        transport: &dyn ProviderTransport,
+    ) -> Result<QuotaSnapshot, ProviderError> {
+        if credential.provider_id != self.provider_id() {
+            return Err(ProviderError::Unsupported(format!(
+                "credential belongs to {}",
+                credential.provider_id
+            )));
+        }
+
+        let claude_credential = ClaudeCredential::from_secret(&credential.secret)?;
+        let organizations_response =
+            transport.send(claude_request(CLAUDE_ORGANIZATIONS_URL, &claude_credential))?;
+        if organizations_response.status == 401 || organizations_response.status == 403 {
+            return Err(claude_login_required());
+        }
+        if organizations_response.status != 200 {
+            return Err(ProviderError::QuotaUnavailable(format!(
+                "Claude organizations endpoint returned HTTP {}",
+                organizations_response.status
+            )));
+        }
+
+        let organization_id = parse_claude_organization_id(&organizations_response.body)?;
+        let usage_url = format!("https://claude.ai/api/organizations/{organization_id}/usage");
+        let usage_response = transport.send(claude_request(&usage_url, &claude_credential))?;
+        if usage_response.status == 401 || usage_response.status == 403 {
+            return Err(claude_login_required());
+        }
+        if usage_response.status != 200 {
+            return Err(ProviderError::QuotaUnavailable(format!(
+                "Claude usage endpoint returned HTTP {}",
+                usage_response.status
+            )));
+        }
+
+        let details_url =
+            format!("https://claude.ai/api/organizations/{organization_id}/subscription_details");
+        let details_response = transport.send(claude_request(&details_url, &claude_credential))?;
+        if details_response.status == 401 || details_response.status == 403 {
+            return Err(claude_login_required());
+        }
+        let details_value = if details_response.status == 200 {
+            Some(details_response.body)
+        } else {
+            None
+        };
+
+        parse_claude_subscription_usage(&usage_response.body, details_value.as_deref())
+    }
+
     fn check_fixture_quota(
         &self,
         credential: ProviderCredential,
@@ -129,7 +187,9 @@ impl ProviderClient for ClaudeSubscriptionProvider {
     }
 }
 
-struct ClaudeCredential;
+struct ClaudeCredential {
+    cookie_header: String,
+}
 
 impl ClaudeCredential {
     fn from_secret(secret: &str) -> Result<Self, ProviderError> {
@@ -139,14 +199,15 @@ impl ClaudeCredential {
         }
 
         if let Ok(value) = serde_json::from_str::<Value>(trimmed) {
-            if first_string(&value, &["sessionKey", "session_key"])
-                .map(|value| !value.trim().is_empty())
-                .unwrap_or(false)
-            {
-                return Ok(Self);
+            if let Some(session_key) = first_string(&value, &["sessionKey", "session_key"]) {
+                if !session_key.trim().is_empty() {
+                    return Ok(Self {
+                        cookie_header: normalized_claude_session_cookie(session_key),
+                    });
+                }
             }
 
-            if first_string(
+            if let Some(cookie_header) = first_string(
                 &value,
                 &[
                     "cookie",
@@ -155,22 +216,37 @@ impl ClaudeCredential {
                     "dashboard_cookie",
                     "authorizationCookie",
                 ],
-            )
-            .map(|value| value.contains("sessionKey="))
-            .unwrap_or(false)
-            {
-                return Ok(Self);
+            ) {
+                if cookie_header.contains("sessionKey=") {
+                    return Ok(Self { cookie_header });
+                }
             }
 
             return Err(claude_login_required());
         }
 
         if trimmed.contains("sessionKey=") {
-            Ok(Self)
+            Ok(Self {
+                cookie_header: trimmed.to_string(),
+            })
         } else {
             Err(claude_login_required())
         }
     }
+}
+
+fn normalized_claude_session_cookie(value: String) -> String {
+    if value.contains('=') {
+        value
+    } else {
+        format!("{}={value}", "sessionKey")
+    }
+}
+
+fn claude_request(url: &str, credential: &ClaudeCredential) -> ProviderHttpRequest {
+    ProviderHttpRequest::get(url)
+        .header("Accept", "application/json")
+        .header("Cookie", &credential.cookie_header)
 }
 
 fn claude_login_required() -> ProviderError {
@@ -181,19 +257,21 @@ fn parse_claude_subscription_usage(
     usage_value: &str,
     details_value: Option<&str>,
 ) -> Result<QuotaSnapshot, ProviderError> {
-    let parsed: Value =
-        serde_json::from_str(usage_value).map_err(|error| ProviderError::Parse(error.to_string()))?;
+    let parsed: Value = serde_json::from_str(usage_value)
+        .map_err(|error| ProviderError::Parse(error.to_string()))?;
     let usage = parsed.get("usage").unwrap_or(&parsed);
     let mut windows = Vec::new();
 
-    if let Some(window) = usage.get("five_hour").and_then(|value| {
-        claude_usage_window("5h", value)
-    }) {
+    if let Some(window) = usage
+        .get("five_hour")
+        .and_then(|value| claude_usage_window("5h", value))
+    {
         windows.push(window);
     }
-    if let Some(window) = usage.get("seven_day").and_then(|value| {
-        claude_usage_window("week", value)
-    }) {
+    if let Some(window) = usage
+        .get("seven_day")
+        .and_then(|value| claude_usage_window("week", value))
+    {
         windows.push(window);
     }
 
@@ -285,11 +363,17 @@ fn parse_claude_organization_id(value: &str) -> Result<String, ProviderError> {
     candidates
         .iter()
         .find(|candidate| candidate.is_active == Some(true))
-        .or_else(|| candidates.iter().find(|candidate| candidate.is_default == Some(true)))
+        .or_else(|| {
+            candidates
+                .iter()
+                .find(|candidate| candidate.is_default == Some(true))
+        })
         .or_else(|| candidates.first())
         .and_then(|candidate| candidate.id.clone())
         .filter(|id| !id.trim().is_empty())
-        .ok_or_else(|| ProviderError::QuotaUnavailable("Claude organization is unavailable".to_string()))
+        .ok_or_else(|| {
+            ProviderError::QuotaUnavailable("Claude organization is unavailable".to_string())
+        })
 }
 
 #[derive(Debug, Clone)]
@@ -319,8 +403,14 @@ fn claude_organization_candidates(value: &Value) -> Vec<ClaudeOrganizationCandid
     if id.is_some() {
         candidates.push(ClaudeOrganizationCandidate {
             id,
-            is_active: object.get("active").or_else(|| object.get("is_active")).and_then(Value::as_bool),
-            is_default: object.get("default").or_else(|| object.get("is_default")).and_then(Value::as_bool),
+            is_active: object
+                .get("active")
+                .or_else(|| object.get("is_active"))
+                .and_then(Value::as_bool),
+            is_default: object
+                .get("default")
+                .or_else(|| object.get("is_default"))
+                .and_then(Value::as_bool),
         });
     }
 
@@ -363,7 +453,11 @@ fn format_percent(value: f64) -> String {
 fn first_number(value: &Value, keys: &[&str]) -> Option<f64> {
     keys.iter()
         .find_map(|key| value.get(*key))
-        .and_then(|value| value.as_f64().or_else(|| value.as_str()?.parse::<f64>().ok()))
+        .and_then(|value| {
+            value
+                .as_f64()
+                .or_else(|| value.as_str()?.parse::<f64>().ok())
+        })
 }
 
 fn first_string(value: &Value, keys: &[&str]) -> Option<String> {
