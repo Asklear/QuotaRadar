@@ -1,3 +1,4 @@
+pub mod bocha;
 pub mod brave;
 pub mod deepseek;
 pub mod registry;
@@ -7,6 +8,8 @@ pub mod tavily;
 
 use crate::domain::QuotaWindow;
 
+#[cfg(test)]
+mod bocha_tests;
 #[cfg(test)]
 mod brave_tests;
 #[cfg(test)]
