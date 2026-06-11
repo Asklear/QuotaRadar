@@ -1,6 +1,7 @@
 pub mod commands;
 pub mod domain;
 pub mod platform;
+pub mod providers;
 pub mod scheduler;
 pub mod storage;
 
@@ -27,6 +28,7 @@ pub fn run() {
             commands::credentials::create_credential,
             commands::credentials::delete_credential,
             commands::credentials::list_credentials,
+            commands::providers::list_provider_definitions,
             commands::credentials::set_credential_active,
             commands::credentials::update_credential,
             commands::settings::get_settings,
