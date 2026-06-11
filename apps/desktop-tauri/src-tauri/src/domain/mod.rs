@@ -8,6 +8,9 @@ pub use credential::{CredentialKind, CredentialStatus, CredentialView};
 pub use provider::{ProviderCategory, ProviderDefinition};
 pub use quota::QuotaWindow;
 use serde::Serialize;
+pub use settings::{
+    default_provider_order, AppSettings, ProxyMode, ProxySettings, RefreshInterval,
+};
 
 #[cfg(test)]
 mod tests;

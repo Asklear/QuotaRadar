@@ -152,6 +152,11 @@
   padding: 0 10px;
 }
 
+.provider-order-header-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
 .provider-order-header button {
   width: 30px;
   padding: 0;
@@ -187,7 +192,7 @@
 
 .provider-order-item {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
   min-height: 34px;
@@ -206,6 +211,22 @@
 .provider-order-item small {
   color: var(--qr-color-muted);
   font-size: 11px;
+}
+
+.provider-order-move-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.provider-order-move-actions button {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid rgba(60, 60, 67, 0.12);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.68);
+  padding: 0;
 }
 
 .provider-order-footer {
