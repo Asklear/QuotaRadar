@@ -5,7 +5,8 @@ use super::{
     claude_subscription::ClaudeSubscriptionProvider, codex_subscription::CodexSubscriptionProvider,
     deepseek::DeepSeekProvider, exa::ExaProvider, kimi_subscription::KimiSubscriptionProvider,
     opencode_go::OpenCodeGoProvider, serpapi::SerpApiProvider, serper::SerperProvider, tavily::TavilyProvider,
-    wxmp::WxmpProvider, xfyun_coding_plan::XfyunCodingPlanProvider, ProviderClient,
+    volcengine_coding_plan::VolcengineCodingPlanProvider, wxmp::WxmpProvider,
+    xfyun_coding_plan::XfyunCodingPlanProvider, ProviderClient,
 };
 
 pub fn provider_clients() -> Vec<Box<dyn ProviderClient>> {
@@ -24,6 +25,7 @@ pub fn provider_clients() -> Vec<Box<dyn ProviderClient>> {
         Box::<KimiSubscriptionProvider>::default(),
         Box::<OpenCodeGoProvider>::default(),
         Box::<XfyunCodingPlanProvider>::default(),
+        Box::<VolcengineCodingPlanProvider>::default(),
     ]
 }
 
@@ -148,6 +150,14 @@ pub fn visible_provider_definitions() -> Vec<ProviderDefinition> {
             "xfyun",
             "https://maas.xfyun.cn/packageSubscription",
         ),
+        ProviderDefinition::new_llm(
+            "volcengine_coding_plan",
+            "Volcengine",
+            "Volcengine",
+            "Coding Plan",
+            "volcengine",
+            "https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement",
+        ),
     ]
 }
 
@@ -167,5 +177,6 @@ pub fn visible_provider_ids() -> Vec<&'static str> {
         "kimi",
         "opencode_go",
         "xfyun_coding_plan",
+        "volcengine_coding_plan",
     ]
 }

@@ -11,6 +11,7 @@ pub mod registry;
 pub mod serpapi;
 pub mod serper;
 pub mod tavily;
+pub mod volcengine_coding_plan;
 pub mod wxmp;
 pub mod xfyun_coding_plan;
 
@@ -38,6 +39,8 @@ mod serpapi_tests;
 mod serper_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod volcengine_coding_plan_tests;
 #[cfg(test)]
 mod wxmp_tests;
 #[cfg(test)]
