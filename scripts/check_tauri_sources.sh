@@ -5,9 +5,14 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT_DIR"
 
 fail() {
+  if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+    echo "::error::$1" >&2
+  fi
   echo "FAIL: $1" >&2
   exit 1
 }
+
+trap 'code=$?; if [[ $code -ne 0 && "${GITHUB_ACTIONS:-}" == "true" ]]; then echo "::error::Tauri source safety script exited with code $code near line $LINENO" >&2; fi' ERR
 
 if command -v python3 >/dev/null 2>&1; then
   PYTHON_CMD=(python3)
@@ -17,6 +22,10 @@ elif command -v py >/dev/null 2>&1; then
   PYTHON_CMD=(py -3)
 else
   fail "Python 3 is required for Tauri source safety checks"
+fi
+
+if [[ "${GITHUB_ACTIONS:-}" == "true" ]]; then
+  echo "::notice::Tauri source safety preflight: pwd=$PWD python=${PYTHON_CMD[*]} rg=$(command -v rg || echo missing)"
 fi
 
 assert_no_match() {
