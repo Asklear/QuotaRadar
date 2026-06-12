@@ -71,7 +71,7 @@ jobs:
         run: pnpm typecheck
 
       - name: Test Rust backend
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        run: bash ../../scripts/run_tauri_cargo_tests.sh
 
       - name: Build Tauri desktop preview
         run: pnpm tauri build --no-bundle --ci
