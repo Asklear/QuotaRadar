@@ -226,7 +226,7 @@ if bundle.get("targets") != "all":
     sys.exit("FAIL: Tauri bundle targets must be 'all' so each OS builds its native package set")
 
 icons = set(bundle.get("icon", []))
-required_icons = {"icons/icon.png", "icons/icon.icns"}
+required_icons = {"icons/icon.png", "icons/icon.icns", "icons/icon.ico"}
 missing_icons = sorted(required_icons - icons)
 if missing_icons:
     sys.exit(f"FAIL: Tauri bundle config is missing icon paths: {missing_icons}")
