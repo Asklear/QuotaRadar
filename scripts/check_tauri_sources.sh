@@ -13,14 +13,60 @@ assert_no_match() {
   local pattern="$1"
   local message="$2"
   shift 2
-  if rg -n --hidden \
-    --glob '!apps/desktop-tauri/dist/**' \
-    --glob '!apps/desktop-tauri/node_modules/**' \
-    --glob '!apps/desktop-tauri/src-tauri/target/**' \
-    --glob '!apps/desktop-tauri/src-tauri/gen/**' \
-    --glob '!apps/desktop-tauri/tests/e2e/screenshots/**' \
-    --glob '!apps/desktop-tauri/tests/e2e/artifacts/**' \
-    "$pattern" "$@" >/tmp/quotaradar-tauri-source-match.txt; then
+
+  if command -v rg >/dev/null 2>&1; then
+    rg -n --hidden \
+      --glob '!apps/desktop-tauri/dist/**' \
+      --glob '!apps/desktop-tauri/node_modules/**' \
+      --glob '!apps/desktop-tauri/src-tauri/target/**' \
+      --glob '!apps/desktop-tauri/src-tauri/gen/**' \
+      --glob '!apps/desktop-tauri/tests/e2e/screenshots/**' \
+      --glob '!apps/desktop-tauri/tests/e2e/artifacts/**' \
+      "$pattern" "$@" >/tmp/quotaradar-tauri-source-match.txt || true
+  else
+    python3 - "$pattern" "$@" >/tmp/quotaradar-tauri-source-match.txt <<'PY'
+import re
+import sys
+from pathlib import Path
+
+pattern = re.compile(sys.argv[1])
+paths = [Path(arg) for arg in sys.argv[2:]]
+excluded_prefixes = tuple(Path(path) for path in (
+    "apps/desktop-tauri/dist",
+    "apps/desktop-tauri/node_modules",
+    "apps/desktop-tauri/src-tauri/target",
+    "apps/desktop-tauri/src-tauri/gen",
+    "apps/desktop-tauri/tests/e2e/screenshots",
+    "apps/desktop-tauri/tests/e2e/artifacts",
+))
+
+def is_excluded(path: Path) -> bool:
+    parts = path.parts
+    return any(parts[:len(prefix.parts)] == prefix.parts for prefix in excluded_prefixes)
+
+def iter_files(path: Path):
+    if not path.exists() or is_excluded(path):
+        return
+    if path.is_file():
+        yield path
+        return
+    for child in path.rglob("*"):
+        if child.is_file() and not is_excluded(child):
+            yield child
+
+for root in paths:
+    for file_path in iter_files(root):
+        try:
+            lines = file_path.read_text(errors="ignore").splitlines()
+        except OSError:
+            continue
+        for line_number, line in enumerate(lines, 1):
+            if pattern.search(line):
+                print(f"{file_path}:{line_number}:{line}")
+PY
+  fi
+
+  if [[ -s /tmp/quotaradar-tauri-source-match.txt ]]; then
     cat /tmp/quotaradar-tauri-source-match.txt >&2
     fail "$message"
   fi
@@ -30,7 +76,28 @@ assert_match() {
   local pattern="$1"
   local path="$2"
   local message="$3"
-  if ! rg -n -- "$pattern" "$path" >/dev/null; then
+
+  if command -v rg >/dev/null 2>&1; then
+    rg -n -- "$pattern" "$path" >/tmp/quotaradar-tauri-source-match.txt || true
+  else
+    python3 - "$pattern" "$path" >/tmp/quotaradar-tauri-source-match.txt <<'PY'
+import re
+import sys
+from pathlib import Path
+
+pattern = re.compile(sys.argv[1])
+path = Path(sys.argv[2])
+if path.exists():
+    try:
+        for line_number, line in enumerate(path.read_text(errors="ignore").splitlines(), 1):
+            if pattern.search(line):
+                print(f"{path}:{line_number}:{line}")
+    except OSError:
+        pass
+PY
+  fi
+
+  if [[ ! -s /tmp/quotaradar-tauri-source-match.txt ]]; then
     fail "$message"
   fi
 }
