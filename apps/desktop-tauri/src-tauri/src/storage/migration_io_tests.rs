@@ -154,10 +154,13 @@ fn swift_preferences_plist(language: &str, metadata_base64: &str) -> String {
 }
 
 fn temp_root(name: &str) -> PathBuf {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("test clock")
+        .as_nanos();
     let root = std::env::temp_dir().join(format!(
-        "quotaradar-{name}-{}-{}",
+        "quotaradar-{name}-{}-{unique}",
         std::process::id(),
-        std::thread::current().name().unwrap_or("test")
     ));
     fs::remove_dir_all(&root).ok();
     fs::create_dir_all(&root).expect("temp root");
