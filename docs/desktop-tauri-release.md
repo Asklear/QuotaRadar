@@ -18,6 +18,24 @@ The Tauri preview does not enable automatic installation from GitHub Releases ye
 
 This avoids a misleading flow where users believe the app can safely replace itself while the updater has no signing key, endpoint manifest, or verified asset policy.
 
+## Local macOS app signing
+
+For long-running local QA on macOS, build the app bundle and apply ad-hoc signing:
+
+```bash
+cd apps/desktop-tauri
+pnpm tauri build --bundles app
+pnpm sign:mac
+```
+
+The `pnpm sign:mac` command runs `scripts/sign_tauri_macos_app.sh`, which signs `apps/desktop-tauri/src-tauri/target/release/bundle/macos/Quota Radar.app` with an ad-hoc identity and then runs:
+
+```bash
+codesign --verify --deep --strict "apps/desktop-tauri/src-tauri/target/release/bundle/macos/Quota Radar.app"
+```
+
+This is only for local preview stability. It does not replace Developer ID signing, notarization, or signed updater manifests.
+
 ## GitHub Release asset names
 
 When formal packaging is enabled, release assets should use stable names:
@@ -33,7 +51,7 @@ Updater manifests must be generated from the same signed artifacts. The app must
 
 ## Signing status
 
-- macOS: unsigned preview only. Notarized distribution requires an Apple Developer ID certificate and notarization workflow.
+- macOS: unsigned preview only for distribution. Local app bundles can be ad-hoc signed with `pnpm sign:mac`; notarized distribution still requires an Apple Developer ID certificate and notarization workflow.
 - Windows: unsigned preview only. SmartScreen-friendly distribution requires a code-signing certificate.
 - Linux: package signatures are not configured yet.
 

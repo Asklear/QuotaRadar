@@ -8,12 +8,15 @@ This checklist is the gate for deciding whether the Tauri desktop app is close e
 - Stable release track: Swift macOS app
 - Local platform checked: macOS arm64
 - Windows/Linux screenshot QA: pending real runner or device screenshots
-- Visual QA on 2026-06-12: local main-window and tray-popover screenshots showed no obvious top clipping, sidebar overlap, or action-button displacement. A later real macOS bundle check confirmed the Swift-shared app mark, provider icon assets, and fixed-size menu bar popover, while also exposing a remaining main-window initial-placement issue on multi-display setups.
+- Visual QA on 2026-06-12: local main-window and tray-popover screenshots showed no obvious top clipping, sidebar overlap, or action-button displacement. A later real macOS bundle check confirmed the Swift-shared app mark, provider icon assets, and fixed-size menu bar popover, while also exposing a main-window initial-placement issue on multi-display setups.
+- Stability hardening on 2026-06-13: the Tauri preview repairs off-screen main-window frames, prefers the current interaction display when no valid user frame exists, excludes generated Rust/Playwright artifacts from Vite watch, and provides local macOS ad-hoc signing plus `/tmp/quotaradar-tauri-qa...` screenshot QA commands.
 - Latest local verification commands:
   - `pnpm test -- --run`
   - `pnpm typecheck`
   - `cargo test --manifest-path apps/desktop-tauri/src-tauri/Cargo.toml`
-  - `pnpm tauri build`
+  - `pnpm tauri build --bundles app`
+  - `pnpm sign:mac`
+  - `scripts/qa_tauri_macos_screenshots.sh`
   - `bash scripts/check_tauri_sources.sh`
 
 ## Feature parity
@@ -21,7 +24,7 @@ This checklist is the gate for deciding whether the Tauri desktop app is close e
 | Area | Required behavior | Status | Notes |
 | --- | --- | --- | --- |
 | Tray popover | Risk-first menu bar surface with quota risk summary and attention list | Partial | Mock route and real macOS bundle QA cover fixed popover size and top clipping. Needs native tray positioning QA on Windows/Linux and more dark/transparent menu-bar checks. |
-| Main quota monitoring | Provider-first quota table with configured providers only | Partial | Mock UI and selectors cover configured-provider filtering and provider summaries. Swift-shared app/provider icons are now in place. Needs multi-display window-placement fix before broader preview. |
+| Main quota monitoring | Provider-first quota table with configured providers only | Partial | Mock UI and selectors cover configured-provider filtering and provider summaries. Swift-shared app/provider icons are now in place. Main-window placement now repairs off-screen saved frames; still needs repeated real multi-display QA before broader preview. |
 | Credentials | Provider-aware credential management, copy only for copyable API keys | Partial | Unit/integration tests cover credential creation, copyability, web authorization shell, and stored companion API keys. |
 | Diagnostics | Shows configured providers only, concise health/HTTP state, no duplicated quota rows | Partial | Mock diagnostics exist; needs real Tauri state verification with stored credentials. |
 | Settings | Language, launch at login, update checks, refresh intervals, costly refresh, proxy, transparency, provider order | Partial | Unit/integration tests cover settings contracts and provider ordering. Needs native autostart and proxy QA per OS. |
@@ -30,16 +33,19 @@ This checklist is the gate for deciding whether the Tauri desktop app is close e
 | Secret safety | No real secrets in source/tests/docs/screenshots; web login authorization is not copyable | Pass in source checks | Safety script scans source/docs and asserts dashboard authorization is not copyable. |
 | Costly refresh | Brave and other costly checks are skipped by normal automatic refresh | Pass in backend tests | Scheduler and provider tests cover costly refresh policy. |
 | Update/install | No silent update until signed artifacts and manifests exist | Pass in backend/config checks | Commands return informational pending state; release doc records unsigned boundary. |
-| Platform caveats | macOS, Windows, Linux package/update differences documented | Partial | Release doc covers target package names and signing gaps. Needs CI artifact policy later. |
+| Platform caveats | macOS, Windows, Linux package/update differences documented | Partial | Release doc covers target package names, unsigned preview boundaries, local macOS ad-hoc signing, and signing gaps. Needs CI artifact policy later. |
 
 ## Screenshot QA matrix
 
-Screenshots are generated under `apps/desktop-tauri/tests/e2e/screenshots/` and must remain ignored unless explicitly chosen as masked documentation assets.
+Playwright screenshots are generated under `apps/desktop-tauri/tests/e2e/screenshots/` and must remain ignored unless explicitly chosen as masked documentation assets. Real macOS bundle screenshots must be generated outside the repository with `scripts/qa_tauri_macos_screenshots.sh`; the default output path is `/tmp/quotaradar-tauri-qa-YYYYMMDD-HHMMSS`.
 
 | Platform | Scenario | Command or route | Status | Notes |
 | --- | --- | --- | --- | --- |
 | macOS arm64 | Default language main window | `pnpm test:e2e -- main-window.spec.ts` | Pass locally | Captures `main-window.png`; verifies sidebar/content separation. |
 | macOS arm64 | Tray popover route | `pnpm test:e2e -- tray-popover.spec.ts` | Pass locally | Captures `tray-popover.png`; verifies `560 x 500` surface. |
+| macOS arm64 | Real bundle main window and menu bar popover | `scripts/qa_tauri_macos_screenshots.sh` | Required before preview handoff | Writes `main-window-screen.png`, `menu-bar-popover-screen.png`, and `window-state.txt` under `/tmp/quotaradar-tauri-qa...`; do not commit these files. |
+| macOS arm64 | External display placement | `scripts/qa_tauri_macos_screenshots.sh` with an external display attached | Required when hardware is available | Confirm the main window stays on the current interaction display unless the user has saved a visible frame on another display. |
+| macOS arm64 | Dark mode and transparent menu bar contrast | Manual pass plus `scripts/qa_tauri_macos_screenshots.sh` | Pending if current desktop is not representative | The script records a checklist item because it does not automatically toggle system appearance. |
 | macOS arm64 | Narrow minimum window | `main-window.spec.ts` layout assertion | Partial | Tests sidebar/content separation; add explicit minimum viewport regression if defects appear. |
 | macOS arm64 | Simplified Chinese | Not automated yet | Pending | Needs route or mock setting hook for language-specific screenshot. |
 | macOS arm64 | Fixture-heavy configured account | Current mock credentials | Partial | Mock data includes AI Search and LLM providers, low quota, expired login, CNY balances, subscription windows. |

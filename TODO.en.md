@@ -58,10 +58,10 @@ The `feat/tauri-multiplatform` branch now has the baseline shell, mock UI, provi
 - [x] Switched the Tauri main-window mark, menu-bar popover mark, and provider rows to icon assets shared with the Swift app, avoiding first-letter placeholders and mixed icon styles.
 - [x] Changed the Tauri macOS menu bar icon to template artwork and added click debouncing so mouse down/up events do not immediately open and close the popover.
 - [x] Ran Playwright and real macOS screenshot QA for the Tauri main window, menu bar popover, provider icons, and fixed 560 x 500 popover surface.
-- [ ] Fix the Tauri main window sometimes opening on an external display or negative-coordinate screen: initial opening should prefer the user's current interaction display and remember position only after the user moves it.
-- [ ] Exclude `src-tauri/target` from the Tauri dev server watch scope so Rust build symlinks do not trigger Vite watcher `ELOOP`.
-- [ ] Add a stable local ad-hoc signing / packaging step for the Tauri app bundle so manual builds do not require a separate `codesign --verify` repair.
-- [ ] Add screenshot QA for macOS dark mode, transparent menu bars, external displays, and different scaling factors for the menu bar icon and popover.
+- [x] Fix the Tauri main window sometimes opening on an external display or negative-coordinate screen: initial opening prefers the user's current interaction display, saved frames are used only after user movement, and off-screen saved frames are repaired automatically.
+- [x] Exclude `src-tauri/target`, `dist`, `node_modules`, and Playwright artifacts from the Tauri dev server watch scope so Rust build symlinks do not trigger Vite watcher `ELOOP`.
+- [x] Add a stable local ad-hoc signing / packaging step for the Tauri app bundle; `pnpm sign:mac` now runs `codesign --verify --deep --strict` after signing.
+- [x] Add a real macOS bundle screenshot QA script that writes to `/tmp/quotaradar-tauri-qa...`; dark mode, transparent menu bars, external displays, and scaling factors remain checklist items to verify on the current hardware.
 - [ ] Run the first Windows / Linux screenshot QA pass for the main window, tray / system-tray entry, fonts, shadows, minimum size, and provider icon rendering.
 - [ ] Script the Tauri provider-icon asset sync so updates in the Swift asset catalog are not forgotten in the Tauri public directory.
 - [ ] Before the Tauri version becomes an official preview, finish real credential migration regression checks: old Swift local config, `~/.claude/settings.json` import, Stronghold / store metadata compatibility, and secret-safety scans.
