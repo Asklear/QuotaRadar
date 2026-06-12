@@ -3,6 +3,7 @@ use super::tray::{
     should_accept_tray_click, tray_anchor_position, tray_icon_spec, tray_window_spec,
     TrayIconSource, TrayRect, TrayToggleState, WorkArea,
 };
+use super::window::{choose_main_window_frame, DisplayArea, MainWindowFrame};
 use std::time::{Duration, Instant};
 use tauri::tray::{MouseButton, MouseButtonState};
 
@@ -140,4 +141,126 @@ fn tray_anchor_position_stays_inside_the_active_display() {
 
     assert_eq!(position.x, 0.0);
     assert_eq!(position.y, 0.0);
+}
+
+#[test]
+fn main_window_without_saved_frame_opens_on_interaction_display() {
+    let interaction_display = DisplayArea {
+        x: 1440.0,
+        y: 0.0,
+        width: 1512.0,
+        height: 982.0,
+    };
+
+    let frame = choose_main_window_frame(
+        None,
+        interaction_display,
+        &[interaction_display],
+        1120.0,
+        640.0,
+    );
+
+    assert_eq!(
+        frame,
+        MainWindowFrame {
+            x: 1636.0,
+            y: 171.0,
+            width: 1120.0,
+            height: 640.0
+        }
+    );
+}
+
+#[test]
+fn main_window_preserves_saved_negative_display_frame_when_visible() {
+    let primary = DisplayArea {
+        x: 0.0,
+        y: 0.0,
+        width: 1512.0,
+        height: 982.0,
+    };
+    let external_left = DisplayArea {
+        x: -1920.0,
+        y: 0.0,
+        width: 1920.0,
+        height: 1080.0,
+    };
+    let saved = MainWindowFrame {
+        x: -1493.0,
+        y: 133.0,
+        width: 1120.0,
+        height: 640.0,
+    };
+
+    let frame = choose_main_window_frame(
+        Some(saved),
+        primary,
+        &[primary, external_left],
+        1120.0,
+        640.0,
+    );
+
+    assert_eq!(frame, saved);
+}
+
+#[test]
+fn main_window_repairs_offscreen_saved_frame_to_interaction_display() {
+    let interaction_display = DisplayArea {
+        x: 0.0,
+        y: 25.0,
+        width: 1440.0,
+        height: 875.0,
+    };
+    let disconnected_display_frame = MainWindowFrame {
+        x: -1493.0,
+        y: 133.0,
+        width: 1120.0,
+        height: 640.0,
+    };
+
+    let frame = choose_main_window_frame(
+        Some(disconnected_display_frame),
+        interaction_display,
+        &[interaction_display],
+        1120.0,
+        640.0,
+    );
+
+    assert_eq!(
+        frame,
+        MainWindowFrame {
+            x: 160.0,
+            y: 142.5,
+            width: 1120.0,
+            height: 640.0
+        }
+    );
+}
+
+#[test]
+fn main_window_frame_keeps_size_but_anchors_when_display_is_smaller_than_window() {
+    let interaction_display = DisplayArea {
+        x: 10.0,
+        y: 20.0,
+        width: 900.0,
+        height: 620.0,
+    };
+
+    let frame = choose_main_window_frame(
+        None,
+        interaction_display,
+        &[interaction_display],
+        1120.0,
+        640.0,
+    );
+
+    assert_eq!(
+        frame,
+        MainWindowFrame {
+            x: 10.0,
+            y: 20.0,
+            width: 1120.0,
+            height: 640.0
+        }
+    );
 }

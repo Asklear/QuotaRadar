@@ -5,7 +5,7 @@ pub mod providers;
 pub mod scheduler;
 pub mod storage;
 
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager, RunEvent, Runtime};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -21,6 +21,7 @@ pub fn run() {
                 .plugin(tauri_plugin_stronghold::Builder::with_argon2(&salt_path).build())?;
             run_swift_configuration_migration(app.handle());
             platform::tray::setup_tray_shell(app.handle())?;
+            platform::window::setup_main_window(app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -43,8 +44,13 @@ pub fn run() {
             commands::updates::download_and_install_update,
             commands::updates::get_update_state
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running Quota Radar Tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building Quota Radar Tauri application")
+        .run(|app_handle, event| {
+            if matches!(event, RunEvent::Reopen { .. }) {
+                let _ = platform::window::reopen_main_window(app_handle);
+            }
+        });
 }
 
 #[cfg(target_os = "macos")]
