@@ -13,7 +13,7 @@ status=${PIPESTATUS[0]}
 set -e
 
 if [[ "$status" -ne 0 && "${GITHUB_ACTIONS:-}" == "true" ]]; then
-  summary="$(grep -E 'FAILED|failures:|---- |panicked at|assertion|error:' "$LOG_FILE" | tail -n 30 | tr '\n' ' ')"
+  summary="$({ grep -E 'FAILED|failures:|---- |panicked at|assertion|error:' "$LOG_FILE" || true; } | tail -n 30 | tr '\n' ' ')"
   if [[ -z "$summary" ]]; then
     summary="$(tail -n 30 "$LOG_FILE" | tr '\n' ' ')"
   fi
