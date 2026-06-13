@@ -668,9 +668,12 @@ assert_match 'configureAutoRefreshTimer' \
 assert_match 'configureQuotaConsumingAutoRefreshTimer' \
   "QuotaRadar/AppDelegate.swift" \
   "Quota-consuming automatic refresh should use a separate long-cadence timer"
-assert_match 'Timer\.publish\(every: interval' \
+assert_match 'automaticRefreshDueCheckInterval\(for: interval\)' \
   "QuotaRadar/AppDelegate.swift" \
-  "Auto refresh timer should use the configured interval"
+  "Auto refresh timers should poll for due providers instead of restarting the full interval after every app launch"
+assert_no_match 'Timer\.publish\(every: interval' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Auto refresh timers should not wait a full new configured interval after launch when a provider is almost due"
 assert_no_match 'Timer\.publish\(every: 300' \
   "QuotaRadar/AppDelegate.swift" \
   "Auto refresh timer should not be hardcoded to five minutes"
