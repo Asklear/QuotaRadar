@@ -51,6 +51,11 @@ impl ProviderClient for BraveProvider {
                 "Brave API key is unauthorized".to_string(),
             ));
         }
+        if response.status == 422 {
+            return Err(ProviderError::Unauthorized(
+                "Brave API key is invalid".to_string(),
+            ));
+        }
         if response.status != 200 {
             return Err(ProviderError::QuotaUnavailable(format!(
                 "Brave Search endpoint returned HTTP {}",
@@ -104,28 +109,47 @@ fn parse_brave_usage(value: &str) -> Result<QuotaSnapshot, ProviderError> {
 fn parse_brave_rate_limit_headers(
     response: &ProviderHttpResponse,
 ) -> Result<QuotaSnapshot, ProviderError> {
-    let remaining = header_number(
+    let remaining_values = header_numbers(
         response,
         &[
             "X-RateLimit-Requests-Left",
             "RateLimit-Remaining",
             "X-RateLimit-Remaining",
         ],
-    )
-    .ok_or_else(|| {
-        ProviderError::QuotaUnavailable("Brave monthly request headers are unavailable".to_string())
-    })?;
-    let limit = header_number(
+    );
+    let limit_values = header_numbers(
         response,
         &[
             "X-RateLimit-Requests-Limit",
             "RateLimit-Limit",
             "X-RateLimit-Limit",
         ],
-    )
-    .ok_or_else(|| {
-        ProviderError::QuotaUnavailable("Brave monthly request headers are unavailable".to_string())
-    })?;
+    );
+
+    if remaining_values.is_empty() || limit_values.is_empty() {
+        return Err(ProviderError::QuotaUnavailable(
+            "Brave monthly request headers are unavailable".to_string(),
+        ));
+    }
+
+    let count = remaining_values.len().min(limit_values.len());
+    let policy_windows = header_value(response, &["X-RateLimit-Policy", "RateLimit-Policy"])
+        .map(parse_brave_policy_windows)
+        .unwrap_or_default();
+    let index = if policy_windows.len() >= count {
+        policy_windows
+            .iter()
+            .take(count)
+            .enumerate()
+            .max_by_key(|(_, window_seconds)| *window_seconds)
+            .map(|(index, _)| index)
+            .unwrap_or(count - 1)
+    } else {
+        count - 1
+    };
+
+    let remaining = remaining_values[index].max(0.0);
+    let limit = limit_values[index].max(remaining);
     let reset_at = header_value(
         response,
         &[
@@ -134,15 +158,19 @@ fn parse_brave_rate_limit_headers(
             "X-RateLimit-Reset",
         ],
     )
-    .and_then(parse_reset_header)
+    .and_then(|value| parse_brave_reset_header(value, index))
     .unwrap_or_else(next_month_start_utc);
+
+    if limit <= 0.0 {
+        return Ok(brave_unknown_quota_snapshot(reset_at));
+    }
 
     Ok(brave_snapshot(remaining, limit, reset_at))
 }
 
 fn brave_snapshot(remaining: f64, limit: f64, reset_at: String) -> QuotaSnapshot {
     let percent = if limit > 0.0 {
-        remaining / limit * 100.0
+        ((remaining / limit * 100.0) * 100.0).round() / 100.0
     } else {
         0.0
     };
@@ -159,12 +187,64 @@ fn brave_snapshot(remaining: f64, limit: f64, reset_at: String) -> QuotaSnapshot
     }
 }
 
-fn header_number(response: &ProviderHttpResponse, names: &[&str]) -> Option<f64> {
-    header_value(response, names).and_then(|value| value.parse::<f64>().ok())
+fn brave_unknown_quota_snapshot(reset_at: String) -> QuotaSnapshot {
+    QuotaSnapshot {
+        provider_id: "brave".to_string(),
+        remaining: None,
+        limit: None,
+        remaining_badge_text: "OK".to_string(),
+        quota_label: Some("quota hidden".to_string()),
+        quota_windows: vec![],
+        reset_at: Some(reset_at),
+        plan_ends_at: None,
+    }
+}
+
+fn header_numbers(response: &ProviderHttpResponse, names: &[&str]) -> Vec<f64> {
+    header_value(response, names)
+        .map(parse_comma_separated_numbers)
+        .unwrap_or_default()
+}
+
+fn parse_comma_separated_numbers(value: &str) -> Vec<f64> {
+    value
+        .split(',')
+        .filter_map(|part| part.trim().parse::<f64>().ok())
+        .collect()
+}
+
+fn parse_brave_policy_windows(value: &str) -> Vec<i64> {
+    value
+        .split(',')
+        .filter_map(|part| {
+            part.split(';').find_map(|segment| {
+                segment
+                    .trim()
+                    .strip_prefix("w=")
+                    .and_then(|window| window.parse::<i64>().ok())
+            })
+        })
+        .collect()
 }
 
 fn header_value<'a>(response: &'a ProviderHttpResponse, names: &[&str]) -> Option<&'a str> {
     names.iter().find_map(|name| response.header(name))
+}
+
+fn parse_brave_reset_header(value: &str, selected_index: usize) -> Option<String> {
+    let parts: Vec<&str> = value.split(',').map(str::trim).collect();
+    if parts.len() > 1 {
+        return parts
+            .get(selected_index)
+            .and_then(|part| parse_reset_seconds_from_now(part));
+    }
+
+    parse_reset_header(value)
+}
+
+fn parse_reset_seconds_from_now(value: &str) -> Option<String> {
+    let seconds = value.trim().parse::<i64>().ok()?.max(0);
+    Some((chrono::Utc::now() + chrono::Duration::seconds(seconds)).to_rfc3339())
 }
 
 fn parse_reset_header(value: &str) -> Option<String> {

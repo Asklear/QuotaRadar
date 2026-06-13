@@ -69,6 +69,58 @@ fn brave_live_quota_uses_search_probe_rate_limit_headers() {
 }
 
 #[test]
+fn brave_live_quota_selects_monthly_window_from_comma_separated_rate_limit_headers() {
+    let client = BraveProvider::default();
+    let transport = MockProviderTransport::responding(
+        ProviderHttpResponse::new(200, r#"{"type":"search","web":{"results":[]}}"#)
+            .with_header("x-ratelimit-limit", "1, 2000")
+            .with_header("x-ratelimit-remaining", "0, 1981")
+            .with_header("x-ratelimit-reset", "1, 1540435")
+            .with_header("x-ratelimit-policy", "1;w=1, 2000;w=2592000"),
+    );
+
+    let snapshot = client
+        .check_quota(
+            ProviderCredential::fake_api_key("brave", "BSA-live-test"),
+            &transport,
+        )
+        .expect("comma separated rate-limit headers should parse");
+
+    assert_eq!(snapshot.remaining, Some(1981.0));
+    assert_eq!(snapshot.limit, Some(2000.0));
+    assert_eq!(snapshot.remaining_badge_text, "1981 / 2000");
+    assert_eq!(snapshot.quota_windows[0].name, "month");
+    assert_eq!(snapshot.quota_windows[0].percent_remaining, Some(99.05));
+    assert!(snapshot.reset_at.is_some());
+}
+
+#[test]
+fn brave_live_quota_with_zero_monthly_window_reports_usable_unknown_quota() {
+    let client = BraveProvider::default();
+    let transport = MockProviderTransport::responding(
+        ProviderHttpResponse::new(200, r#"{"type":"search","web":{"results":[]}}"#)
+            .with_header("x-ratelimit-limit", "50, 0")
+            .with_header("x-ratelimit-remaining", "49, 0")
+            .with_header("x-ratelimit-reset", "1, 931196")
+            .with_header("x-ratelimit-policy", "50;w=1, 0;w=2678400"),
+    );
+
+    let snapshot = client
+        .check_quota(
+            ProviderCredential::fake_api_key("brave", "BSA-live-test"),
+            &transport,
+        )
+        .expect("HTTP 200 with hidden monthly quota should remain usable");
+
+    assert_eq!(snapshot.remaining, None);
+    assert_eq!(snapshot.limit, None);
+    assert_eq!(snapshot.remaining_badge_text, "OK");
+    assert_eq!(snapshot.quota_label.as_deref(), Some("quota hidden"));
+    assert!(snapshot.quota_windows.is_empty());
+    assert!(snapshot.reset_at.is_some());
+}
+
+#[test]
 fn brave_live_quota_maps_unauthorized_status() {
     let client = BraveProvider::default();
     let transport = MockProviderTransport::responding(ProviderHttpResponse::new(401, "{}"));
@@ -83,5 +135,27 @@ fn brave_live_quota_maps_unauthorized_status() {
     assert!(matches!(
         error,
         ProviderError::Unauthorized(message) if message.contains("Brave")
+    ));
+}
+
+#[test]
+fn brave_live_quota_maps_invalid_subscription_token_to_authorization_error() {
+    let client = BraveProvider::default();
+    let transport = MockProviderTransport::responding(ProviderHttpResponse::new(
+        422,
+        r#"{"type":"ErrorResponse","error":{"code":"SUBSCRIPTION_TOKEN_INVALID","detail":"The provided subscription token is invalid."}}"#,
+    ));
+
+    let error = client
+        .check_quota(
+            ProviderCredential::fake_api_key("brave", "BSA-live-test"),
+            &transport,
+        )
+        .expect_err("422 invalid subscription token should fail");
+
+    assert!(matches!(
+        error,
+        ProviderError::Unauthorized(message)
+            if message.contains("invalid") && message.contains("Brave")
     ));
 }
