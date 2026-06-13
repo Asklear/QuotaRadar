@@ -16,11 +16,18 @@ Quota Radar 是一个 macOS 状态栏应用，用来观察搜索 API 与 LLM cod
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-当前版本：`v0.3.3`。
+当前版本：`v0.3.4`。
 
 下一阶段计划见 [TODO / Roadmap](./TODO.md)。
 
 服务商凭据类型、额度来源和自动刷新限制见 [Provider Capability Matrix](./docs/provider-capabilities.md)。
+
+## v0.3.4 修复
+
+- 修复 Brave 手动刷新或消耗额度自动刷新时，遇到 `402/422/429` 等状态响应后界面看起来没有更新的问题。
+- Brave 返回用量耗尽时会明确显示为额度已用尽；无效 key 会保留真实 HTTP 状态，方便诊断。
+- 自动刷新改为按每个凭据保存的 `lastUpdated` 判断是否到期；重启应用后不会重新从 24 小时开始等待。
+- 对 Brave 这类会消耗真实搜索请求的 provider，应用会定期检查是否到期，但只有超过配置周期后才真正发起请求，避免浪费额度。
 
 ## v0.3.3 新特性
 
@@ -128,16 +135,16 @@ open build/QuotaRadar.dmg
 手动发布到 GitHub Release：
 
 ```bash
-gh release create v0.3.3 build/QuotaRadar.dmg \
-  --title "Quota Radar v0.3.3" \
+gh release create v0.3.4 build/QuotaRadar.dmg \
+  --title "Quota Radar v0.3.4" \
   --notes "Unsigned DMG for trusted users. macOS may require removing quarantine on first launch."
 ```
 
 也可以直接推送 tag，仓库的 GitHub Actions 会自动构建未签名 DMG 并上传到 Release：
 
 ```bash
-git tag v0.3.3
-git push origin v0.3.3
+git tag v0.3.4
+git push origin v0.3.4
 ```
 
 未签名 DMG 不需要 Apple Developer Program，但从 GitHub 下载后可能被 macOS Gatekeeper 拦截。只在信任该源码和 release 的情况下安装；如果提示“App 已损坏”或“无法打开”，先把 app 拖到 `/Applications`，再执行：

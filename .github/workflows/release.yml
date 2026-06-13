@@ -41,18 +41,16 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
-            - Added an in-app GitHub Release update entry point in the lower-left sidebar footer, showing the installed version, update status, and a manual check button.
-            - Automatic update checks now run after launch, but they only detect new versions and show release notes. Quota Radar never downloads or replaces the app silently.
-            - Confirmed installs download QuotaRadar.dmg, replace /Applications/Quota Radar.app, clear quarantine, and relaunch the app.
-            - Update checks reuse the app's network proxy settings, and fall back to the GitHub latest-release redirect if the unauthenticated GitHub API is rate-limited.
-            - Refreshed README menu bar screenshots and documentation so the screenshots, Quickstart, and Roadmap match the current risk-first menu bar popover.
+            - Fixed Brave refresh state handling when Brave returns usage-limit, invalid-key, rate-limit, or hidden quota-header responses.
+            - Brave usage-limit responses now persist as exhausted quota, and invalid keys keep the provider HTTP status for diagnostics.
+            - Automatic refresh now uses each credential's persisted lastUpdated timestamp, so restarting the app no longer restarts the full refresh interval.
+            - Providers such as Brave that consume real search requests are checked for due status periodically, but Quota Radar only sends the provider request after the configured interval has elapsed.
 
             中文说明：
-            - 新增应用内 GitHub Release 更新入口：主窗口左下角显示当前版本、更新状态和手动检查按钮。
-            - 支持启动后自动检查更新，但只检测新版并展示更新说明，不会静默下载或自动覆盖安装。
-            - 用户确认后才会下载 QuotaRadar.dmg、替换 /Applications/Quota Radar.app、清除 quarantine 并重新启动。
-            - 更新检查复用应用内网络代理设置；GitHub API 未认证 rate limit 时，会降级通过 latest-release 重定向解析版本和下载地址。
-            - 更新 README 状态栏截图和文档说明，让截图、Quickstart、Roadmap 与当前风险优先状态栏弹窗保持一致。
+            - 修复 Brave 在返回额度用尽、无效 key、限流或隐藏 quota header 时刷新状态没有正确更新的问题。
+            - Brave 用量耗尽会保存为额度已用尽；无效 key 会保留 provider HTTP 状态，方便诊断。
+            - 自动刷新改为按每个凭据持久化的 lastUpdated 判断是否到期，重启应用不会重新从完整周期开始等待。
+            - 对 Brave 这类会消耗真实搜索请求的 provider，应用会周期性检查是否到期，但只有超过用户配置周期后才真正请求 provider。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.
 

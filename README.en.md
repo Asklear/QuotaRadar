@@ -16,11 +16,18 @@ Naming convention: the GitHub repository, Swift package, and DMG use `QuotaRadar
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Current version: `v0.3.3`.
+Current version: `v0.3.4`.
 
 See [TODO / Roadmap](./TODO.en.md) for the next development plan.
 
 For credential type, usage source, and automatic-refresh constraints by provider, see the [Provider Capability Matrix](./docs/provider-capabilities.en.md).
+
+## Fixed In v0.3.4
+
+- Fixed Brave manual refresh and quota-consuming automatic refresh appearing to do nothing when Brave returns `402`, `422`, `429`, or hidden quota headers.
+- Brave usage-limit responses now show exhausted quota clearly, and invalid keys preserve the provider HTTP status for diagnostics.
+- Automatic refresh now uses each credential's persisted `lastUpdated` timestamp to decide whether it is due, so restarting the app no longer restarts the full 24-hour wait.
+- For providers such as Brave that consume real search requests, Quota Radar polls for due checks but only sends the provider request after the configured interval has elapsed.
 
 ## What's New In v0.3.3
 
@@ -128,16 +135,16 @@ open build/QuotaRadar.dmg
 Manual GitHub Release upload:
 
 ```bash
-gh release create v0.3.3 build/QuotaRadar.dmg \
-  --title "Quota Radar v0.3.3" \
+gh release create v0.3.4 build/QuotaRadar.dmg \
+  --title "Quota Radar v0.3.4" \
   --notes "Unsigned DMG for trusted users. macOS may require removing quarantine on first launch."
 ```
 
 You can also push a tag and let GitHub Actions build the unsigned DMG and upload it to the Release:
 
 ```bash
-git tag v0.3.3
-git push origin v0.3.3
+git tag v0.3.4
+git push origin v0.3.4
 ```
 
 An unsigned DMG does not require Apple Developer Program membership, but macOS Gatekeeper may block the downloaded app. Install it only if you trust this source repository and release. If macOS says the app is damaged or cannot be opened, move the app into `/Applications` and run:

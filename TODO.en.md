@@ -43,6 +43,13 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Run screenshot QA for v0.2.2 menu bar transparency and make Chinese / English README pages use screenshots in their own language.
 - [x] Fill in the provider capability matrix as the entry point for future provider additions.
 
+## Fixed In v0.3.4
+
+- [x] Fixed Brave manual refresh and quota-consuming automatic refresh appearing unchanged when Brave returns `402`, `422`, `429`, or hidden quota headers.
+- [x] Brave usage-limit responses are persisted as exhausted quota; invalid keys preserve the real provider HTTP status for diagnostics.
+- [x] Automatic refresh now uses each credential's persisted `lastUpdated` timestamp to decide whether it is due, so restarting the app does not restart the full interval.
+- [x] Providers such as Brave that consume real search requests are polled for due status, but Quota Radar only sends the provider request after the configured interval has elapsed.
+
 ## Fixed In v0.3.3
 
 - [x] Added a GitHub Release update entry point: the lower-left sidebar footer shows the version, update status, and a manual check button.
