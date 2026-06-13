@@ -435,7 +435,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         refreshDueAutomaticProviders(interval: interval)
 
-        autoRefreshCancellable = Timer.publish(every: interval, on: .main, in: .common)
+        autoRefreshCancellable = Timer.publish(every: automaticRefreshDueCheckInterval(for: interval), on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 self?.refreshDueAutomaticProviders(interval: interval)
@@ -453,11 +453,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         refreshDueQuotaConsumingProviders(interval: interval)
 
-        quotaConsumingAutoRefreshCancellable = Timer.publish(every: interval, on: .main, in: .common)
+        quotaConsumingAutoRefreshCancellable = Timer.publish(every: automaticRefreshDueCheckInterval(for: interval), on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
                 self?.refreshDueQuotaConsumingProviders(interval: interval)
             }
+    }
+
+    private func automaticRefreshDueCheckInterval(for interval: TimeInterval) -> TimeInterval {
+        min(interval, 15 * 60)
     }
 
     @MainActor
