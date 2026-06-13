@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../../src/App";
+import { formatCompactDateTime } from "../../src/i18n";
 import { mockSettings, mockUpdateState } from "../../src/lib/tauriClient";
 import type { AppState, CredentialView, ProviderDefinition } from "../../src/shared/types";
 
@@ -105,7 +106,9 @@ describe("refresh provider flow", () => {
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("refresh_provider", { providerId: "tavily", mode: "manual" }));
     fireEvent.click(screen.getByText("Tavily"));
 
-    expect(await screen.findByText(/Jun 11.*12:30/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(formatCompactDateTime(refreshedCredential.lastUpdated!, "en")),
+    ).toBeInTheDocument();
     expect(screen.getByText("920 / 1000")).toBeInTheDocument();
   });
 
