@@ -63,7 +63,7 @@ The `feat/tauri-multiplatform` branch now has the baseline shell, mock UI, provi
 - [x] Add a stable local ad-hoc signing / packaging step for the Tauri app bundle; `pnpm sign:mac` now runs `codesign --verify --deep --strict` after signing.
 - [x] Add a real macOS bundle screenshot QA script that writes to `/tmp/quotaradar-tauri-qa...`; dark mode, transparent menu bars, external displays, and scaling factors remain checklist items to verify on the current hardware.
 - [ ] Run the first Windows / Linux screenshot QA pass for the main window, tray / system-tray entry, fonts, shadows, minimum size, and provider icon rendering.
-- [ ] Script the Tauri provider-icon asset sync so updates in the Swift asset catalog are not forgotten in the Tauri public directory.
+- [x] Script the Tauri provider-icon asset sync so updates in the Swift asset catalog are not forgotten in the Tauri public directory.
 - [ ] Before the Tauri version becomes an official preview, finish real credential migration regression checks: old Swift local config, `~/.claude/settings.json` import, Stronghold / store metadata compatibility, and secret-safety scans.
 
 ## Fixed In v0.3.2

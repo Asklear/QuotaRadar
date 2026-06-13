@@ -12,6 +12,7 @@
     "test:e2e:update": "playwright test --update-snapshots",
     "test:watch": "vitest",
     "sign:mac": "../../scripts/sign_tauri_macos_app.sh",
+    "sync:provider-icons": "../../scripts/sync_tauri_provider_icons.sh",
     "package:mac:local": "pnpm tauri build --bundles app && pnpm sign:mac",
     "qa:screenshots:mac": "../../scripts/qa_tauri_macos_screenshots.sh",
     "tauri": "tauri"

@@ -251,10 +251,42 @@ qa_script = Path("scripts/qa_tauri_macos_screenshots.sh")
 if not qa_script.exists():
     sys.exit("FAIL: Tauri macOS screenshot QA script is required")
 
+icon_sync_script = Path("scripts/sync_tauri_provider_icons.sh")
+if not icon_sync_script.exists():
+    sys.exit("FAIL: Tauri provider icon sync script is required")
+
+swift_icon_root = Path("QuotaRadar/Assets.xcassets/ProviderIcons")
+tauri_icon_root = Path("apps/desktop-tauri/public/provider-icons")
+swift_icons = {
+    icon_path.parent.stem: icon_path
+    for icon_path in swift_icon_root.glob("*.iconset/icon_32x32@2x.png")
+}
+tauri_icons = {icon_path.stem: icon_path for icon_path in tauri_icon_root.glob("*.png")}
+missing_tauri_icons = sorted(set(swift_icons) - set(tauri_icons))
+extra_tauri_icons = sorted(set(tauri_icons) - set(swift_icons))
+if missing_tauri_icons or extra_tauri_icons:
+    sys.exit(
+        "FAIL: Tauri provider icons must match Swift provider iconsets; "
+        f"missing={missing_tauri_icons} extra={extra_tauri_icons}"
+    )
+
+drifted_icons = sorted(
+    name
+    for name, swift_path in swift_icons.items()
+    if tauri_icons[name].read_bytes() != swift_path.read_bytes()
+)
+if drifted_icons:
+    sys.exit(
+        "FAIL: Tauri provider icons are out of sync with Swift assets; "
+        f"run scripts/sync_tauri_provider_icons.sh. drifted={drifted_icons}"
+    )
+
 package_json = json.loads(Path("apps/desktop-tauri/package.json").read_text(encoding="utf-8"))
 scripts = package_json.get("scripts", {})
 if "sign:mac" not in scripts:
     sys.exit("FAIL: Tauri package.json must expose a sign:mac command")
+if scripts.get("sync:provider-icons") != "../../scripts/sync_tauri_provider_icons.sh":
+    sys.exit("FAIL: Tauri package.json must expose sync:provider-icons for provider icon sync")
 
 for required in ("scripts/sign_tauri_macos_app.sh", "codesign --verify --deep --strict"):
     if required not in release_text:
