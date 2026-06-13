@@ -17,6 +17,22 @@ describe("QuotaMonitoringPage", () => {
     }
   });
 
+  it("uses compact disclosure rows instead of a browser-style provider table", () => {
+    const { container } = render(<QuotaMonitoringPage />);
+
+    expect(container.querySelector(".provider-table")).not.toBeInTheDocument();
+    expect(container.querySelector(".provider-list")).toBeInTheDocument();
+
+    const tavilyRow = screen.getByRole("button", { name: /Tavily.*92%/ });
+    expect(tavilyRow).toHaveClass("provider-row-card");
+    expect(tavilyRow).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(tavilyRow);
+
+    expect(tavilyRow).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("provider-detail-tavily")).toHaveClass("provider-detail-panel");
+  });
+
   it("hides providers with no configured credentials", () => {
     render(<QuotaMonitoringPage />);
     expect(screen.queryByText("Exa")).not.toBeInTheDocument();

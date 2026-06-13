@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import { ExternalLink, RefreshCw, RotateCcw } from "lucide-react";
 import { ProviderIcon } from "../components/ProviderIcon";
 import { StatusPill } from "../components/StatusPill";
@@ -36,69 +37,95 @@ export function ProviderQuotaRow({
   ]
     .filter(Boolean)
     .join(" · ");
+  const rowLabel = [
+    stat.provider.displayName,
+    stat.keyQuotaText,
+    stat.credentialPoolText,
+    stat.criticalTimeText,
+    stat.statusText,
+  ].join(" ");
+
+  function handleKeyboardToggle(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onToggle();
+    }
+  }
 
   return (
-    <>
-      <tr className="provider-row" data-expanded={expanded} onClick={onToggle}>
-        <td>
-          <div className="provider-cell">
-            <ProviderIcon provider={stat.provider} />
-            <div>
-              <div className="provider-name">{stat.provider.displayName}</div>
-              {subtitle ? <div className="provider-subtitle">{subtitle}</div> : null}
-              {stat.provider.quotaCheckConsumesSearchQuota ? (
-                <div className="provider-warning">{t("quota.refreshConsumesSearchQuota")}</div>
-              ) : null}
-            </div>
+    <div className="provider-row-shell" data-expanded={expanded} role="row">
+      <div
+        className="provider-row-card"
+        role="button"
+        tabIndex={0}
+        aria-expanded={expanded}
+        aria-label={rowLabel}
+        onClick={onToggle}
+        onKeyDown={handleKeyboardToggle}
+      >
+        <div className="provider-cell">
+          <ProviderIcon provider={stat.provider} />
+          <div className="provider-title-block">
+            <div className="provider-name">{stat.provider.displayName}</div>
+            {subtitle ? <div className="provider-subtitle">{subtitle}</div> : null}
+            {stat.provider.quotaCheckConsumesSearchQuota ? (
+              <div className="provider-warning">{t("quota.refreshConsumesSearchQuota")}</div>
+            ) : null}
           </div>
-        </td>
-        <td className="numeric-cell">{stat.keyQuotaText}</td>
-        <td className="numeric-cell">{stat.credentialPoolText}</td>
-        <td className="numeric-cell">{stat.criticalTimeText}</td>
-        <td>
+        </div>
+
+        <div className="provider-metric numeric-cell" data-priority="primary">
+          <small>{t("quota.keyQuota")}</small>
+          <strong>{stat.keyQuotaText}</strong>
+        </div>
+        <div className="provider-metric numeric-cell">
+          <small>{t("quota.credentialPool")}</small>
+          <strong>{stat.credentialPoolText}</strong>
+        </div>
+        <div className="provider-metric numeric-cell">
+          <small>{t("quota.criticalTime")}</small>
+          <strong>{stat.criticalTimeText}</strong>
+        </div>
+        <div className="provider-status-slot">
           <StatusPill tone={tone} label={stat.statusText} />
-        </td>
-        <td>
-          <div className="quota-actions" onClick={(event) => event.stopPropagation()}>
-            {stat.provider.dashboardUrl ? (
-              <button aria-label={`${stat.provider.displayName} ${t("action.openDashboard")}`}>
-                <ExternalLink size={14} />
-              </button>
-            ) : null}
-            {stat.provider.supportsReauth ? (
-              <button
-                aria-label={[
-                  stat.provider.displayName,
-                  t("action.reauthorize"),
-                  reauthorizationLabel,
-                ].filter(Boolean).join(" ")}
-                onClick={() => {
-                  void onStartWebAuthorization?.(stat.provider.id, reauthorizationTarget?.id);
-                }}
-              >
-                <RotateCcw size={14} />
-              </button>
-            ) : null}
-            {stat.provider.supportsRefresh ? (
-              <button
-                aria-label={`${stat.provider.displayName} ${t("action.refresh")}`}
-                onClick={() => {
-                  void onRefreshProvider?.(stat.provider.id);
-                }}
-              >
-                <RefreshCw size={14} />
-              </button>
-            ) : null}
-          </div>
-        </td>
-      </tr>
+        </div>
+        <div className="quota-actions" onClick={(event) => event.stopPropagation()}>
+          {stat.provider.dashboardUrl ? (
+            <button aria-label={`${stat.provider.displayName} ${t("action.openDashboard")}`}>
+              <ExternalLink size={14} />
+            </button>
+          ) : null}
+          {stat.provider.supportsReauth ? (
+            <button
+              aria-label={[
+                stat.provider.displayName,
+                t("action.reauthorize"),
+                reauthorizationLabel,
+              ].filter(Boolean).join(" ")}
+              onClick={() => {
+                void onStartWebAuthorization?.(stat.provider.id, reauthorizationTarget?.id);
+              }}
+            >
+              <RotateCcw size={14} />
+            </button>
+          ) : null}
+          {stat.provider.supportsRefresh ? (
+            <button
+              aria-label={`${stat.provider.displayName} ${t("action.refresh")}`}
+              onClick={() => {
+                void onRefreshProvider?.(stat.provider.id);
+              }}
+            >
+              <RefreshCw size={14} />
+            </button>
+          ) : null}
+        </div>
+      </div>
       {expanded ? (
-        <tr className="provider-detail-row">
-          <td colSpan={6}>
-            <CredentialDetailTable credentials={stat.credentials} />
-          </td>
-        </tr>
+        <div className="provider-detail-panel" data-testid={`provider-detail-${stat.provider.id}`}>
+          <CredentialDetailTable credentials={stat.credentials} />
+        </div>
       ) : null}
-    </>
+    </div>
   );
 }

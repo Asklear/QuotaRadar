@@ -52,8 +52,8 @@ export function AttentionList({ credentials }: AttentionListProps) {
   const needsAttention = active.filter(credentialNeedsAttention).slice(0, 2);
 
   return (
-    <div className="attention-grid">
-      <section className="attention-section">
+    <div className="attention-stack">
+      <section className="attention-section monitor-module">
         <h2>{t("tray.low")}</h2>
         {lowCredentials.map((credential) => (
           <div key={credential.id} className="attention-item" data-testid="low-quota-item">
@@ -62,7 +62,7 @@ export function AttentionList({ credentials }: AttentionListProps) {
           </div>
         ))}
       </section>
-      <section className="attention-section">
+      <section className="attention-section monitor-module">
         <h2>{t("tray.expiringSoon")}</h2>
         {expiringCredentials.map((credential) => (
           <div key={credential.id} className="attention-item" data-testid="expiring-item">
@@ -71,7 +71,7 @@ export function AttentionList({ credentials }: AttentionListProps) {
           </div>
         ))}
       </section>
-      <section className="attention-section attention-section-wide">
+      <section className="attention-section monitor-module">
         <h2>{t("tray.needsAttention")}</h2>
         {needsAttention.map((credential) => (
           <div key={credential.id} className="attention-item" data-testid="needs-attention-item">

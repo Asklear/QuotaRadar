@@ -27,6 +27,15 @@ describe("TrayPopover", () => {
     expect(summary.getByText("Available")).toBeInTheDocument();
   });
 
+  it("uses a compact native-monitor surface instead of a dashboard card grid", () => {
+    const { container } = render(<TrayPopover />);
+
+    expect(screen.getByTestId("tray-popover")).toHaveAttribute("data-style", "glass-modules");
+    expect(container.querySelector(".monitor-module")).toBeInTheDocument();
+    expect(container.querySelector(".attention-grid")).not.toBeInTheDocument();
+    expect(container.querySelector(".attention-stack")).toBeInTheDocument();
+  });
+
   it("limits attention lists for menu bar density", () => {
     render(<TrayPopover />);
     expect(screen.getAllByTestId("low-quota-item").length).toBeLessThanOrEqual(3);

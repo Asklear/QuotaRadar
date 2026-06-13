@@ -18,18 +18,16 @@ export function ProviderQuotaTable({
   const [expandedProviderId, setExpandedProviderId] = useState<string | null>(null);
 
   return (
-    <table className="provider-table">
-      <thead>
-        <tr>
-          <th>{t("quota.provider")}</th>
-          <th>{t("quota.keyQuota")}</th>
-          <th>{t("quota.credentialPool")}</th>
-          <th>{t("quota.criticalTime")}</th>
-          <th>{t("quota.status")}</th>
-          <th>{t("quota.actions")}</th>
-        </tr>
-      </thead>
-      <tbody>
+    <div className="provider-list" role="table">
+      <div className="provider-list-header" role="row">
+        <span>{t("quota.provider")}</span>
+        <span>{t("quota.keyQuota")}</span>
+        <span>{t("quota.credentialPool")}</span>
+        <span>{t("quota.criticalTime")}</span>
+        <span>{t("quota.status")}</span>
+        <span>{t("quota.actions")}</span>
+      </div>
+      <div className="provider-list-body" role="rowgroup">
         {stats.map((stat) => (
           <ProviderQuotaRow
             key={stat.provider.id}
@@ -42,7 +40,7 @@ export function ProviderQuotaTable({
             onStartWebAuthorization={onStartWebAuthorization}
           />
         ))}
-      </tbody>
-    </table>
+      </div>
+    </div>
   );
 }

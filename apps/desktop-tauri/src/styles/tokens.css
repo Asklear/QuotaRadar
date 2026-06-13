@@ -11,7 +11,13 @@
   --qr-color-warning: #ff9f0a;
   --qr-color-text: #1d1d1f;
   --qr-color-muted: #6e6e73;
-  --qr-color-surface: rgba(255, 255, 255, 0.72);
+  --qr-color-tertiary: rgba(60, 60, 67, 0.54);
+  --qr-color-surface: rgba(255, 255, 255, 0.66);
+  --qr-color-surface-strong: rgba(255, 255, 255, 0.82);
+  --qr-color-surface-soft: rgba(255, 255, 255, 0.42);
   --qr-color-border: rgba(60, 60, 67, 0.16);
+  --qr-color-hairline: rgba(60, 60, 67, 0.08);
+  --qr-material-shadow: 0 16px 44px rgba(0, 0, 0, 0.075);
+  --qr-material-shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.055);
   --qr-font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
 }
