@@ -402,9 +402,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self?.configureQuotaConsumingAutoRefreshTimer()
             }
             .store(in: &cancellables)
-
-        // 首次刷新
-        quotaMonitor.refreshAll(mode: .automatic)
     }
 
     private func startLanguageMonitoring() {
@@ -436,10 +433,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
+        refreshDueAutomaticProviders(interval: interval)
+
         autoRefreshCancellable = Timer.publish(every: interval, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
-                self?.quotaMonitor.refreshAll(mode: .automatic)
+                self?.refreshDueAutomaticProviders(interval: interval)
             }
     }
 
@@ -452,11 +451,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
+        refreshDueQuotaConsumingProviders(interval: interval)
+
         quotaConsumingAutoRefreshCancellable = Timer.publish(every: interval, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
-                self?.quotaMonitor.refreshQuotaConsumingProviders(mode: .quotaConsumingAutomatic)
+                self?.refreshDueQuotaConsumingProviders(interval: interval)
             }
+    }
+
+    @MainActor
+    private func refreshDueAutomaticProviders(interval: TimeInterval) {
+        quotaMonitor.refreshProvidersDueForAutomaticRefresh(interval: interval, consumesSearchQuota: false, mode: .automatic)
+    }
+
+    @MainActor
+    private func refreshDueQuotaConsumingProviders(interval: TimeInterval) {
+        quotaMonitor.refreshProvidersDueForAutomaticRefresh(interval: interval, consumesSearchQuota: true, mode: .quotaConsumingAutomatic)
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

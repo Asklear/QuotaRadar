@@ -641,12 +641,27 @@ assert_match 'case quotaConsumingAutomatic' \
 assert_match 'func refreshQuotaConsumingProviders\(mode: RefreshMode = \.quotaConsumingAutomatic\)' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "Quota-consuming providers should be refreshed by their own long-cadence timer"
-assert_match 'quotaMonitor\.refreshAll\(mode: \.automatic\)' \
+assert_match 'func providersDueForAutomaticRefresh' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose provider-level due checks based on persisted last refresh timestamps"
+assert_match 'key\.lastUpdated == nil' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Automatic refresh due checks should refresh credentials that have never been checked"
+assert_match 'now\.timeIntervalSince\(lastUpdated\) >= interval' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Automatic refresh due checks should use lastUpdated instead of resetting cadence on app launch"
+assert_match 'quotaMonitor\.refreshProvidersDueForAutomaticRefresh\(interval: interval, consumesSearchQuota: false, mode: \.automatic\)' \
   "QuotaRadar/AppDelegate.swift" \
-  "Background timer refreshes should use automatic mode"
-assert_match 'quotaMonitor\.refreshQuotaConsumingProviders\(mode: \.quotaConsumingAutomatic\)' \
+  "Background timer refreshes should refresh only providers whose persisted last refresh is due"
+assert_match 'quotaMonitor\.refreshProvidersDueForAutomaticRefresh\(interval: interval, consumesSearchQuota: true, mode: \.quotaConsumingAutomatic\)' \
   "QuotaRadar/AppDelegate.swift" \
-  "A separate timer should refresh quota-consuming providers only when explicitly enabled"
+  "Quota-consuming automatic refresh should catch up after restart when the saved last refresh is older than the configured interval"
+assert_no_match 'quotaMonitor\.refreshAll\(mode: \.automatic\)' \
+  "QuotaRadar/AppDelegate.swift" \
+  "AppDelegate should not blindly refresh every normal provider on every launch"
+assert_no_match 'quotaMonitor\.refreshQuotaConsumingProviders\(mode: \.quotaConsumingAutomatic\)' \
+  "QuotaRadar/AppDelegate.swift" \
+  "AppDelegate should not wait a full new interval after every launch before refreshing quota-consuming providers"
 assert_match 'configureAutoRefreshTimer' \
   "QuotaRadar/AppDelegate.swift" \
   "Background quota refresh cadence should be configurable instead of hardcoded"
@@ -2635,6 +2650,30 @@ let emptyMasked = APIKey(name: "EMPTY", key: "", provider: .tavily).maskedKey
 require(emptyMasked == "No key value", "APIKey.maskedKey should label missing secrets")
 require(Provider.brave.quotaCheckConsumesSearchQuota, "Brave quota checks use real search requests and must not run in automatic polling")
 require(!Provider.tavily.quotaCheckConsumesSearchQuota, "Tavily usage endpoint should be safe for automatic polling")
+let automaticRefreshNow = Date(timeIntervalSince1970: 1_800_000_000)
+let dueAutomaticProviders = Provider.providersDueForAutomaticRefresh(
+    in: [
+        APIKey(name: "TAVILY_RECENT", key: "tvly-recent", provider: .tavily, lastUpdated: automaticRefreshNow.addingTimeInterval(-60)),
+        APIKey(name: "SERPAPI_STALE", key: "serp-stale", provider: .serpapi, lastUpdated: automaticRefreshNow.addingTimeInterval(-20 * 60)),
+        APIKey(name: "BRAVE_STALE", key: "brave-stale", provider: .brave, lastUpdated: automaticRefreshNow.addingTimeInterval(-25 * 60 * 60)),
+        APIKey(name: "QUERIT_API_KEY", key: "querit-copy", provider: .querit, lastUpdated: automaticRefreshNow.addingTimeInterval(-20 * 60)),
+    ],
+    interval: 15 * 60,
+    consumesSearchQuota: false,
+    now: automaticRefreshNow
+)
+require(dueAutomaticProviders == [.serpapi], "Normal automatic refresh should use persisted lastUpdated and exclude costly/copy-only providers")
+let dueQuotaConsumingProviders = Provider.providersDueForAutomaticRefresh(
+    in: [
+        APIKey(name: "BRAVE_RECENT", key: "brave-recent", provider: .brave, lastUpdated: automaticRefreshNow.addingTimeInterval(-60 * 60)),
+        APIKey(name: "BRAVE_STALE", key: "brave-stale", provider: .brave, lastUpdated: automaticRefreshNow.addingTimeInterval(-25 * 60 * 60)),
+        APIKey(name: "TAVILY_STALE", key: "tvly-stale", provider: .tavily, lastUpdated: automaticRefreshNow.addingTimeInterval(-25 * 60 * 60)),
+    ],
+    interval: 24 * 60 * 60,
+    consumesSearchQuota: true,
+    now: automaticRefreshNow
+)
+require(dueQuotaConsumingProviders == [.brave], "Quota-consuming automatic refresh should catch up stale Brave keys after restart without including normal providers")
 require(Provider.xfyunCodingPlan.category == "LLM", "XFYun Coding Plan should be grouped as an LLM quota provider")
 require(Provider.xfyunTokenPlan.category == "LLM", "XFYun Token Plan should be grouped as an LLM quota provider")
 require(Provider.volcengineCodingPlan.category == "LLM", "Volcengine Coding Plan should be grouped as an LLM quota provider")

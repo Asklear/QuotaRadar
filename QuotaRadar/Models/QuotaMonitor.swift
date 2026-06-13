@@ -130,6 +130,34 @@ class QuotaMonitor: ObservableObject {
         refresh(targetProviders: providers, mode: mode)
     }
 
+    func refreshProvidersDueForAutomaticRefresh(
+        interval: TimeInterval,
+        consumesSearchQuota: Bool,
+        mode: RefreshMode
+    ) {
+        let providers = Self.providersDueForAutomaticRefresh(
+            in: apiKeys,
+            interval: interval,
+            consumesSearchQuota: consumesSearchQuota
+        )
+        guard !providers.isEmpty else { return }
+        refresh(targetProviders: providers, mode: mode)
+    }
+
+    static func providersDueForAutomaticRefresh(
+        in keys: [APIKey],
+        interval: TimeInterval,
+        consumesSearchQuota: Bool,
+        now: Date = Date()
+    ) -> Set<Provider> {
+        Provider.providersDueForAutomaticRefresh(
+            in: keys,
+            interval: interval,
+            consumesSearchQuota: consumesSearchQuota,
+            now: now
+        )
+    }
+
     private func refresh(targetProviders: Set<Provider>?, mode: RefreshMode) {
         guard !isRefreshing else {
             if mode == .manual {

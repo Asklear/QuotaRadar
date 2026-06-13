@@ -66,6 +66,32 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         orderedVisibleCases(from: rawValues.compactMap { Provider(rawValue: $0) })
     }
 
+    static func providersDueForAutomaticRefresh(
+        in keys: [APIKey],
+        interval: TimeInterval,
+        consumesSearchQuota: Bool,
+        now: Date = Date()
+    ) -> Set<Provider> {
+        guard interval > 0 else { return [] }
+
+        return Set(keys.compactMap { key in
+            guard visibleCases.contains(key.provider),
+                  key.isActive,
+                  !key.key.isEmpty,
+                  !key.isStoredAPIKeyOnlyCredential,
+                  key.provider.quotaCheckConsumesSearchQuota == consumesSearchQuota else {
+                return nil
+            }
+
+            if key.lastUpdated == nil {
+                return key.provider
+            }
+
+            guard let lastUpdated = key.lastUpdated else { return nil }
+            return now.timeIntervalSince(lastUpdated) >= interval ? key.provider : nil
+        })
+    }
+
     static let categoryDisplayOrder = ["AI Search", "LLM"]
 
     func displayName(language: AppLanguage = AppLanguageStore.shared.language) -> String {
