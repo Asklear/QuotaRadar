@@ -132,6 +132,69 @@ enum QuotaParsers {
         )
     }
 
+    static func parseBraveHTTPResponse(
+        statusCode: Int,
+        limitHeader: String?,
+        remainingHeader: String?,
+        resetHeader: String?,
+        policyHeader: String?,
+        knownRemaining: Int?,
+        knownLimit: Int?
+    ) throws -> QuotaResult {
+        if statusCode == 401 || statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+
+        if statusCode == 422 {
+            throw QuotaError.invalidAPIKey(statusCode: statusCode)
+        }
+
+        if statusCode == 429 {
+            let resetAt = parseCommaSeparatedInts(resetHeader).last.map {
+                Date(timeIntervalSinceNow: TimeInterval(max(0, $0)))
+            }
+            throw QuotaError.rateLimited(resetAt: resetAt)
+        }
+
+        if statusCode == 402 {
+            return QuotaResult(
+                remaining: 0,
+                limit: max(knownLimit ?? 0, knownRemaining ?? 0),
+                resetAt: nil,
+                quotaLabel: "Usage limit exceeded",
+                quotaText: LocalizedTextDescriptor.localized(.usageLimitExceeded),
+                httpStatus: statusCode,
+                diagnosticMessage: "Brave returned HTTP 402 usage limit exceeded.",
+                diagnosticText: LocalizedTextDescriptor.localized(.braveUsageLimitDiagnostic)
+            )
+        }
+
+        guard (200...299).contains(statusCode) else {
+            throw QuotaError.invalidResponse
+        }
+
+        var result = try parseBraveRateLimit(
+            limitHeader: limitHeader,
+            remainingHeader: remainingHeader,
+            resetHeader: resetHeader,
+            policyHeader: policyHeader
+        )
+        result = applyKnownBraveMonthlyQuotaIfNeeded(
+            result,
+            knownRemaining: knownRemaining,
+            knownLimit: knownLimit
+        )
+        result.httpStatus = statusCode
+        if result.quotaLabel == "Search OK · monthly quota not exposed" {
+            result.diagnosticMessage = "Search works, but Brave did not expose monthly quota for this key."
+            result.diagnosticText = LocalizedTextDescriptor.localized(.braveQuotaUnknownDiagnostic)
+        } else {
+            result.diagnosticMessage = "Search works and Brave returned quota headers."
+            result.diagnosticText = LocalizedTextDescriptor.localized(.braveQuotaHeadersDiagnostic)
+        }
+        return result
+    }
+
     static func applyKnownBraveMonthlyQuotaIfNeeded(
         _ result: QuotaResult,
         knownRemaining: Int?,
@@ -1898,6 +1961,7 @@ enum QuotaError: Error, LocalizedError {
     case networkError(Error)
     case rateLimited(resetAt: Date?)
     case unauthorized
+    case invalidAPIKey(statusCode: Int)
     case notSupported
     case noSubscription
     case cooldown
@@ -1918,6 +1982,8 @@ enum QuotaError: Error, LocalizedError {
         case .rateLimited:
             return .localized(.quotaErrorRateLimited)
         case .unauthorized:
+            return .localized(.quotaErrorInvalidAPIKey)
+        case .invalidAPIKey:
             return .localized(.quotaErrorInvalidAPIKey)
         case .notSupported:
             return .localized(.quotaCheckNotSupportedDiagnostic)
@@ -1965,6 +2031,8 @@ enum QuotaError: Error, LocalizedError {
         switch self {
         case .unauthorized:
             return 401
+        case .invalidAPIKey(let statusCode):
+            return statusCode
         case .rateLimited:
             return 429
         case .invalidResponse, .networkError, .notSupported, .noSubscription, .cooldown:
@@ -2217,38 +2285,15 @@ actor QuotaService {
             throw QuotaError.invalidResponse
         }
 
-        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
-            throw QuotaError.unauthorized
-        }
-
-        var result = try QuotaParsers.parseBraveRateLimit(
+        return try QuotaParsers.parseBraveHTTPResponse(
+            statusCode: httpResponse.statusCode,
             limitHeader: httpResponse.value(forHTTPHeaderField: "X-RateLimit-Limit"),
             remainingHeader: httpResponse.value(forHTTPHeaderField: "X-RateLimit-Remaining"),
             resetHeader: httpResponse.value(forHTTPHeaderField: "X-RateLimit-Reset"),
-            policyHeader: httpResponse.value(forHTTPHeaderField: "X-RateLimit-Policy")
+            policyHeader: httpResponse.value(forHTTPHeaderField: "X-RateLimit-Policy"),
+            knownRemaining: key.remaining,
+            knownLimit: key.limit
         )
-        if httpResponse.statusCode == 402 {
-            result.httpStatus = httpResponse.statusCode
-            result.quotaLabel = "Usage limit exceeded"
-            result.quotaText = LocalizedTextDescriptor.localized(.usageLimitExceeded)
-            result.diagnosticMessage = "Brave returned HTTP 402 usage limit exceeded."
-            result.diagnosticText = LocalizedTextDescriptor.localized(.braveUsageLimitDiagnostic)
-        } else {
-            result = QuotaParsers.applyKnownBraveMonthlyQuotaIfNeeded(
-                result,
-                knownRemaining: key.remaining,
-                knownLimit: key.limit
-            )
-            result.httpStatus = httpResponse.statusCode
-            if result.quotaLabel == "Search OK · monthly quota not exposed" {
-                result.diagnosticMessage = "Search works, but Brave did not expose monthly quota for this key."
-                result.diagnosticText = LocalizedTextDescriptor.localized(.braveQuotaUnknownDiagnostic)
-            } else {
-                result.diagnosticMessage = "Search works and Brave returned quota headers."
-                result.diagnosticText = LocalizedTextDescriptor.localized(.braveQuotaHeadersDiagnostic)
-            }
-        }
-        return result
     }
 
     /// SerpAPI: 有专门的 account endpoint

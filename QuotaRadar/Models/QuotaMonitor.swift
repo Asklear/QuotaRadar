@@ -240,7 +240,7 @@ class QuotaMonitor: ObservableObject {
                         key.limit = nil
                         key.resetAt = nil
                         key.planEndsAt = nil
-                        key.lastHTTPStatus = 401
+                        key.lastHTTPStatus = (error as? QuotaError)?.httpStatus ?? 401
                         if key.provider.supportsDashboardReauthentication {
                             key.quotaLabel = L10n.t(.credentialExpired)
                             key.quotaText = LocalizedTextDescriptor.localized(.credentialExpired)
@@ -252,6 +252,18 @@ class QuotaMonitor: ObservableObject {
                         key.lastDiagnosticText = key.provider.supportsDashboardReauthentication
                             ? LocalizedTextDescriptor.localized(.credentialExpired)
                             : LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
+                        key.lastUpdated = Date()
+                        failedKeys.append(key.name)
+                    } else if case QuotaError.invalidAPIKey = error {
+                        key.remaining = nil
+                        key.limit = nil
+                        key.resetAt = nil
+                        key.planEndsAt = nil
+                        key.lastHTTPStatus = (error as? QuotaError)?.httpStatus
+                        key.quotaLabel = error.localizedDescription
+                        key.quotaText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
+                        key.lastDiagnosticMessage = error.localizedDescription
+                        key.lastDiagnosticText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
                         key.lastUpdated = Date()
                         failedKeys.append(key.name)
                     } else {

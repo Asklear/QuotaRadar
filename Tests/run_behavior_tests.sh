@@ -4082,6 +4082,36 @@ require(braveKnownManualQuota.remaining == 999, "Known Brave monthly quotas shou
 require(braveKnownManualQuota.limit == 1000, "Known Brave monthly quota limit should be preserved when Brave hides the monthly header")
 require(braveKnownManualQuota.quotaLabel == "999 / 1000 monthly requests", "Known Brave monthly quotas should display the known manual limit")
 require(braveKnownManualQuota.quotaText?.key == .monthlyRequestsFormat, "Known Brave monthly quota should carry a structured request quota descriptor")
+let braveUsageLimitedResponse = try! QuotaParsers.parseBraveHTTPResponse(
+    statusCode: 402,
+    limitHeader: nil,
+    remainingHeader: nil,
+    resetHeader: nil,
+    policyHeader: nil,
+    knownRemaining: 1000,
+    knownLimit: 1000
+)
+require(braveUsageLimitedResponse.httpStatus == 402, "Brave HTTP 402 responses without quota headers should preserve the provider HTTP status")
+require(braveUsageLimitedResponse.remaining == 0, "Brave HTTP 402 responses should update the key to an exhausted state")
+require(braveUsageLimitedResponse.limit == 1000, "Brave HTTP 402 responses should preserve the last known monthly quota limit")
+require(braveUsageLimitedResponse.quotaText?.key == .usageLimitExceeded, "Brave HTTP 402 responses should use a structured usage-limit descriptor")
+do {
+    _ = try QuotaParsers.parseBraveHTTPResponse(
+        statusCode: 422,
+        limitHeader: nil,
+        remainingHeader: nil,
+        resetHeader: nil,
+        policyHeader: nil,
+        knownRemaining: nil,
+        knownLimit: nil
+    )
+    fail("Brave HTTP 422 invalid subscription tokens should throw an invalid-key error")
+} catch let error as QuotaError {
+    require(error.httpStatus == 422, "Brave HTTP 422 invalid subscription tokens should preserve the provider HTTP status")
+    require(error.errorDescription == "Invalid API key", "Brave HTTP 422 invalid subscription tokens should render as an invalid API key")
+} catch {
+    fail("Brave HTTP 422 invalid subscription tokens should throw QuotaError")
+}
 
 let serp = try! QuotaParsers.parseSerpApiAccount(Data("""
 {"searches_per_month":250,"plan_searches_left":0,"extra_credits":5,"total_searches_left":5,"this_month_usage":250}
