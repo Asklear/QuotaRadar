@@ -4,6 +4,7 @@ import type {
   AppSettings,
   AppState,
   CapturedWebAuthorization,
+  CredentialImportSummary,
   CredentialInput,
   CredentialView,
   RefreshMode,
@@ -141,6 +142,18 @@ export async function copyCredentialValue(credentialId: string): Promise<string>
   }
 
   return invoke<string>("copy_credential_value", { credentialId });
+}
+
+export async function importClaudeSettings(): Promise<CredentialImportSummary> {
+  if (!isTauriRuntime()) {
+    return {
+      added: 0,
+      updated: 0,
+      credentials: mockCredentials,
+    };
+  }
+
+  return invoke<CredentialImportSummary>("import_claude_settings");
 }
 
 export async function refreshProvider(providerId: string, mode: RefreshMode = "manual"): Promise<AppState> {

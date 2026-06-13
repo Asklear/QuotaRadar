@@ -57,4 +57,14 @@ describe("CredentialsPage", () => {
     expect(await screen.findByText("Tavily Test Key")).toBeInTheDocument();
     expect(screen.getByText("tvly••••alue")).toBeInTheDocument();
   });
+
+  it("shows import feedback when importing Claude settings", async () => {
+    render(<CredentialsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Import Claude settings" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Import complete:");
+    expect(screen.getByRole("status")).toHaveTextContent("added 0");
+    expect(screen.getByRole("status")).toHaveTextContent("updated 0");
+  });
 });

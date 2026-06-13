@@ -3,7 +3,13 @@ import { Download, Plus } from "lucide-react";
 import { CredentialEditorDialog } from "../credentials/CredentialEditorDialog";
 import { ProviderCredentialGroup } from "../credentials/ProviderCredentialGroup";
 import { useTranslate } from "../i18n";
-import { copyCredentialValue, createCredential, isTauriRuntime, listCredentials } from "../lib/tauriClient";
+import {
+  copyCredentialValue,
+  createCredential,
+  importClaudeSettings,
+  isTauriRuntime,
+  listCredentials,
+} from "../lib/tauriClient";
 import { mockCredentials, providerRegistry } from "../shared/mockData";
 import type { CredentialInput, CredentialView, ProviderDefinition } from "../shared/types";
 
@@ -16,6 +22,8 @@ export function CredentialsPage({ providers = providerRegistry, credentials = mo
   const t = useTranslate();
   const [editorOpen, setEditorOpen] = useState(false);
   const [visibleCredentials, setVisibleCredentials] = useState(credentials);
+  const [importing, setImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState<{ tone: "success" | "error"; text: string }>();
 
   useEffect(() => {
     if (!isTauriRuntime()) {
@@ -67,6 +75,28 @@ export function CredentialsPage({ providers = providerRegistry, credentials = mo
     await navigator.clipboard?.writeText(secret);
   }
 
+  async function handleImportClaudeSettings() {
+    setImporting(true);
+    setImportStatus(undefined);
+    try {
+      const summary = await importClaudeSettings();
+      setVisibleCredentials((currentCredentials) =>
+        summary.credentials.length > 0 ? summary.credentials : currentCredentials,
+      );
+      setImportStatus({
+        tone: "success",
+        text: `${t("credentials.importSuccess")} ${t("credentials.importAdded")} ${summary.added}, ${t("credentials.importUpdated")} ${summary.updated}.`,
+      });
+    } catch (error) {
+      setImportStatus({
+        tone: "error",
+        text: `${t("credentials.importFailed")} ${error instanceof Error ? error.message : String(error)}`,
+      });
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div className="credentials-page">
       <section className="credential-action-panel">
@@ -84,12 +114,17 @@ export function CredentialsPage({ providers = providerRegistry, credentials = mo
             <Plus size={15} />
             {t("credentials.add")}
           </button>
-          <button>
+          <button onClick={handleImportClaudeSettings} disabled={importing}>
             <Download size={15} />
-            {t("credentials.importEnv")}
+            {importing ? t("credentials.importing") : t("credentials.importClaudeSettings")}
           </button>
         </div>
       </section>
+      {importStatus ? (
+        <div className="credential-import-status" data-tone={importStatus.tone} role="status" aria-live="polite">
+          {importStatus.text}
+        </div>
+      ) : null}
       <div className="credential-provider-list">
         {configuredProviders.map((group) => (
           <ProviderCredentialGroup

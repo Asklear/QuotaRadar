@@ -29,6 +29,7 @@ pub fn run() {
             commands::credentials::copy_credential_value,
             commands::credentials::create_credential,
             commands::credentials::delete_credential,
+            commands::credentials::import_claude_settings,
             commands::credentials::list_credentials,
             commands::auth::save_web_authorization,
             commands::auth::start_web_authorization,

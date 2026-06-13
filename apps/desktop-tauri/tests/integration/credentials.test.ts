@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   copyCredentialValue,
   createCredential,
+  importClaudeSettings,
   listCredentials,
 } from "../../src/lib/tauriClient";
 import type { CredentialInput } from "../../src/shared/types";
@@ -90,6 +91,34 @@ describe("credential commands", () => {
       credentialId: "tavily-test",
     });
     expect(secret).toBe("tvly-real-secret-value");
+  });
+
+  it("imports Claude settings through Tauri in desktop runtime", async () => {
+    setTauriRuntime(true);
+    vi.mocked(invoke).mockResolvedValue({
+      added: 1,
+      updated: 1,
+      credentials: [
+        {
+          id: "imported-claude-anthropic-api-key",
+          providerId: "claude",
+          name: "ANTHROPIC_API_KEY",
+          kind: "storedAPIKeyOnly",
+          maskedValue: "anth••••alue",
+          copyable: true,
+          active: true,
+          status: "notChecked",
+          remainingBadgeText: "API key saved",
+          quotaWindows: [],
+        },
+      ],
+    });
+
+    const summary = await importClaudeSettings();
+
+    expect(invoke).toHaveBeenCalledWith("import_claude_settings");
+    expect(summary.added).toBe(1);
+    expect(JSON.stringify(summary)).not.toContain("anthropic-example-value");
   });
 
   it("does not expose mock web login authorization secrets outside Tauri runtime", async () => {

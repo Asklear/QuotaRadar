@@ -1,8 +1,13 @@
-use tauri::{AppHandle, Runtime};
+use std::fs;
+
+use tauri::{AppHandle, Manager, Runtime};
 
 use crate::{
     domain::CredentialView,
     storage::{
+        credential_importer::{
+            import_claude_settings_content, import_credentials_into_store, CredentialImportSummary,
+        },
         metadata_store::{load_credentials, save_credentials, TauriMetadataStore},
         secret_store::{
             build_credential_metadata, copy_secret_value as copy_secret_value_from_vault,
@@ -93,4 +98,27 @@ pub fn copy_credential_value<R: Runtime>(
         .ok_or_else(|| "Credential was not found".to_string())?;
 
     copy_secret_value_from_vault(&secret_vault, &credential.id, credential.copyable)
+}
+
+#[tauri::command]
+pub fn import_claude_settings<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<CredentialImportSummary, String> {
+    let metadata_store = TauriMetadataStore::open(&app)?;
+    let secret_vault = TauriSecretVault::open(&app)?;
+    let settings_path = app
+        .path()
+        .home_dir()
+        .map_err(|error| error.to_string())?
+        .join(".claude")
+        .join("settings.json");
+    let content = fs::read_to_string(&settings_path).map_err(|error| {
+        format!(
+            "Could not read Claude settings file {}: {error}",
+            settings_path.display()
+        )
+    })?;
+    let imported = import_claude_settings_content(&content)?;
+
+    import_credentials_into_store(&metadata_store, &secret_vault, imported)
 }

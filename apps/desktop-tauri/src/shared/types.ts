@@ -72,6 +72,12 @@ export interface CredentialInput {
   note?: string;
 }
 
+export interface CredentialImportSummary {
+  added: number;
+  updated: number;
+  credentials: CredentialView[];
+}
+
 export interface WebAuthorizationSession {
   providerId: string;
   targetCredentialId?: string;

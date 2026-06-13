@@ -155,6 +155,9 @@ Status:
   `com.gaorongvc.quotaradar` and `com.gaorongvc.quotabar`, reads the Swift
   `secrets.json` files, invokes the migration core during Tauri setup, and
   writes the completion marker.
+- Done: `~/.claude/settings.json` import path that reuses Swift-style
+  environment detection, imports only visible provider credentials, merges by
+  provider/name, and keeps raw secret values out of metadata.
 
 Swift stores metadata and secrets separately:
 
@@ -205,6 +208,9 @@ Swift stores metadata and secrets separately:
 - If the QuotaBar migration marker is already present, legacy QuotaBar defaults,
   metadata, and secrets are ignored so old data cannot overwrite newer Tauri
   edits.
+- Claude settings import parses the `env` object, ignores placeholders and
+  unsupported variables, stores raw values in the secret vault, and returns a
+  summary with added/updated counts for the credentials page.
 
 ### Startup IO
 
