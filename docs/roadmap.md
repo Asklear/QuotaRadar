@@ -24,9 +24,10 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Add menu-bar-to-main-window handoff QA for low quota, expiring plan, attention/failure, and recent consumption signals.
 - [x] Compress expanded provider account rows around four durable facts: plan, remaining quota, reset/expiry, and last update.
 - [x] Add release QA summaries under `build/visual-qa/summary.txt` and `build/visual-qa/summary.json`, including behavior test status, screenshot dimensions, and focused-signal highlight counts.
-- [ ] Verify the release bundle outside the development tree, preferably from `/Applications/Quota Radar.app` or the generated DMG.
-- [ ] Smoke-refresh Volcengine, Claude, Codex, and XFYun Spark with current local credentials before tagging.
-- [ ] Merge the feature branch back to `main`, rerun behavior and visual QA on `main`, then cut the release tag.
+- [x] Verify the release bundle outside the development tree from the generated DMG installed into `/Applications/Quota Radar.app`.
+- [x] Smoke-refresh Volcengine, Claude, Codex, and XFYun Spark with current local credentials before tagging.
+- [x] Merge the feature branch back to `main`, then rerun behavior and visual QA on `main`.
+- [x] Prepare the `v0.3.5` release notes, version metadata, and unsigned DMG workflow for tagging.
 
 ## Completed In v0.2.0
 
