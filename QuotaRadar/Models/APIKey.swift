@@ -410,6 +410,30 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    func accountPlanFallbackDisplayName(language: AppLanguage = AppLanguageStore.shared.language) -> String? {
+        switch self {
+        case .claudeSubscription, .codexSubscription, .kimiSubscription:
+            return displayName(language: language)
+        case .opencodeGo:
+            switch language {
+            case .english:
+                return "OpenCode Go Subscription"
+            case .simplifiedChinese:
+                return "OpenCode Go 订阅"
+            case .traditionalChinese:
+                return "OpenCode Go 訂閱"
+            case .japanese:
+                return "OpenCode Go サブスクリプション"
+            case .korean:
+                return "OpenCode Go 구독"
+            }
+        case .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
+            return displayName(language: language)
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .claudeAPIUsage, .codexAPIUsage, .deepseek:
+            return planTypeDisplayName(language: language)
+        }
+    }
+
     /// Asset catalog name for custom icon
     var iconAssetName: String {
         switch self {
@@ -1081,6 +1105,48 @@ struct MenuQuotaSummary: Equatable {
         lowCount = activeKeys.filter { $0.isLow || $0.isExhausted }.count
         failedCount = activeKeys.filter { $0.status == .failed || $0.isCredentialExpired }.count
     }
+
+    var statusItemShortText: String? {
+        if failedCount > 0 {
+            return L10n.format(.statusItemFailedCount, failedCount)
+        }
+        if lowCount > 0 {
+            return L10n.format(.statusItemLowCount, lowCount)
+        }
+        return nil
+    }
+}
+
+enum MenuSignalReason: String, Codable, Equatable {
+    case lowQuota
+    case exhausted
+    case expiringSoon
+    case failed
+    case credentialExpired
+    case stale
+    case recentActivity
+    case unknown
+
+    var displayText: String {
+        switch self {
+        case .lowQuota:
+            return L10n.t(.lowQuotaProviders)
+        case .exhausted:
+            return L10n.t(.usageLimitExceeded)
+        case .expiringSoon:
+            return L10n.t(.expiringSoon)
+        case .failed:
+            return L10n.t(.failed)
+        case .credentialExpired:
+            return L10n.t(.credentialExpired)
+        case .stale:
+            return L10n.t(.notChecked)
+        case .recentActivity:
+            return L10n.t(.recentProviderUsage)
+        case .unknown:
+            return L10n.t(.quotaStatus)
+        }
+    }
 }
 
 struct MenuQuotaItem: Identifiable, Equatable {
@@ -1088,6 +1154,7 @@ struct MenuQuotaItem: Identifiable, Equatable {
 
     let provider: Provider
     let key: APIKey
+    var providerSignalCount: Int = 1
 
     var id: UUID { key.id }
 
@@ -1097,6 +1164,46 @@ struct MenuQuotaItem: Identifiable, Equatable {
 
     var canRefresh: Bool {
         key.isActive && !key.key.isEmpty
+    }
+
+    var statusBarAccountContextLabel: String? {
+        var parts: [String] = []
+        if let contextLabel = key.statusBarAccountContextLabel {
+            parts.append(contextLabel)
+        }
+        if providerSignalCount > 1 {
+            parts.append(L10n.format(.statusBarAccountCount, providerSignalCount))
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    func withProviderSignalCount(_ count: Int) -> MenuQuotaItem {
+        MenuQuotaItem(provider: provider, key: key, providerSignalCount: max(1, count))
+    }
+
+    var signalReason: MenuSignalReason {
+        if key.isCredentialExpired {
+            return .credentialExpired
+        }
+        if key.isUsageLimitExceeded || key.isExhausted {
+            return .exhausted
+        }
+        if key.status == .failed {
+            return .failed
+        }
+        if key.expiresSoonForStatusBar {
+            return .expiringSoon
+        }
+        if key.isLow {
+            return .lowQuota
+        }
+        if key.lastUpdated == nil {
+            return .stale
+        }
+        if key.usageCount > 0 || key.lastUsed != nil {
+            return .recentActivity
+        }
+        return .unknown
     }
 
     static func topItems(from stats: [ProviderStats], limit: Int = 5, providerOrder: [Provider] = Provider.visibleCases) -> [MenuQuotaItem] {
@@ -1236,10 +1343,12 @@ struct APIKey: Identifiable, Codable, Equatable {
     var limit: Int?
     var resetAt: Date?
     var planEndsAt: Date?
+    var planDisplayName: String?
     var lastUpdated: Date?
     var lastHTTPStatus: Int?
     var lastDiagnosticMessage: String?
     var lastDiagnosticText: LocalizedTextDescriptor?
+    var consecutiveFailureCount: Int = 0
     var quotaText: LocalizedTextDescriptor?
     var quotaLabel: String?
 
@@ -1295,8 +1404,17 @@ struct APIKey: Identifiable, Codable, Equatable {
            limit == Int.max {
             return true
         }
-        return provider == .exa
-            && quotaLabel?.range(of: #"^[A-Z]{3} [0-9]+(?:\.[0-9]+)? used$"#, options: .regularExpression) != nil
+        if provider == .exa,
+           quotaLabel?.range(of: #"^[A-Z]{3} [0-9]+(?:\.[0-9]+)? used$"#, options: .regularExpression) != nil {
+            return true
+        }
+        if provider == .querit {
+            if quotaText?.key == .monthlyRequestsUsedFormat { return true }
+            if quotaLabel?.range(of: #"^[0-9]+ monthly requests used$"#, options: .regularExpression) != nil {
+                return true
+            }
+        }
+        return false
     }
 
     var isUsageLimitExceeded: Bool {
@@ -1365,6 +1483,54 @@ struct APIKey: Identifiable, Codable, Equatable {
             return displayName
         }
         return "\(displayName) · \(maskedKey)"
+    }
+
+    var realPlanDisplayName: String? {
+        Self.normalizedPlanDisplayName(planDisplayName)
+    }
+
+    var effectivePlanDisplayName: String? {
+        realPlanDisplayName ?? provider.accountPlanFallbackDisplayName()
+    }
+
+    var accountDisplayTitle: String {
+        if isBusinessInvocationCredential || isStoredAPIKeyOnlyCredential {
+            return managementDisplayName
+        }
+
+        if let effectivePlanDisplayName {
+            return effectivePlanDisplayName
+        }
+
+        return managementDisplayName
+    }
+
+    var accountDisplaySubtitle: String? {
+        var parts: [String] = []
+        let title = accountDisplayTitle
+
+        if !usesGeneratedCredentialName, name != title {
+            parts.append(name)
+        }
+
+        if isQuotaMonitoringAuthorizationCredential {
+            if parts.isEmpty {
+                parts.append(L10n.t(.dashboardSession))
+            }
+        } else {
+            let valueText = managementCredentialValueText
+            if valueText != title {
+                parts.append(valueText)
+            }
+        }
+
+        if let note = displayNote,
+           note != title,
+           !parts.contains(note) {
+            parts.append(note)
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     var credentialKindDisplayName: String {
@@ -1466,12 +1632,30 @@ struct APIKey: Identifiable, Codable, Equatable {
         value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
     }
 
+    static func normalizedPlanDisplayName(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let collapsed = value
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !collapsed.isEmpty, collapsed.count <= 80 else { return nil }
+        let lowercased = collapsed.lowercased()
+        guard !["normal", "valid", "active", "invalid", "true", "false"].contains(lowercased) else {
+            return nil
+        }
+        guard collapsed.range(of: #"^\d+$"#, options: .regularExpression) == nil else {
+            return nil
+        }
+        return collapsed
+    }
+
     var quotaDisplayText: String {
         guard isActive else { return L10n.t(.disabled) }
         if isBusinessInvocationCredential { return L10n.t(.businessInvocationKeySaved) }
         if isStoredAPIKeyOnlyCredential { return L10n.t(.apiKeyStoredForCopyOnly) }
         if isUnlimitedQuota { return L10n.t(.unlimited) }
         if isUsageLimitExceeded { return L10n.t(.usageLimitExceeded) }
+        if isUsableWithUnknownQuota { return L10n.t(.usableUnknownQuota) }
 
         if let quotaText {
             return quotaText.render()
@@ -1480,8 +1664,6 @@ struct APIKey: Identifiable, Codable, Equatable {
         if let quotaLabel, !quotaLabel.isEmpty {
             return L10n.localizedQuotaLabel(quotaLabel)
         }
-
-        if isUsableWithUnknownQuota { return L10n.t(.usableUnknownQuota) }
 
         if let remaining, let limit, limit > 0 {
             return "\(remaining) / \(limit)"
@@ -1513,6 +1695,9 @@ struct APIKey: Identifiable, Codable, Equatable {
 
     private var quotaPresentationPrimaryText: String {
         if isUsableWithUnknownQuota {
+            guard provider == .brave else {
+                return L10n.t(.usableUnknownQuota)
+            }
             switch AppLanguageStore.shared.language {
             case .english:
                 return "Search OK · monthly quota not exposed"
@@ -1576,6 +1761,35 @@ struct APIKey: Identifiable, Codable, Equatable {
         if isBusinessInvocationCredential { return maskedKey }
         if isStoredAPIKeyOnlyCredential { return maskedKey }
         return provider.capability.credentialKind == .dashboardCookie ? L10n.t(.dashboardSession) : maskedKey
+    }
+
+    var statusBarAccountContextLabel: String? {
+        if isBusinessInvocationCredential || isStoredAPIKeyOnlyCredential {
+            return maskedKey
+        }
+
+        guard isQuotaMonitoringAuthorizationCredential else {
+            return maskedKey
+        }
+
+        var parts: [String] = []
+        if let realPlanDisplayName {
+            parts.append(realPlanDisplayName)
+        }
+
+        if !usesGeneratedCredentialName,
+           name != realPlanDisplayName {
+            parts.append(name)
+        }
+
+        if let note = displayNote,
+           note != realPlanDisplayName,
+           note != name,
+           !parts.contains(note) {
+            parts.append(note)
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     var needsStatusBarAttention: Bool {
@@ -1769,6 +1983,25 @@ struct APIKey: Identifiable, Codable, Equatable {
         return .unknown
     }
 
+    var credentialConfigurationState: CredentialConfigurationState {
+        guard isActive else { return .configuredUntested }
+        guard !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .notConfigured }
+        if isStoredAPIKeyOnlyCredential || isBusinessInvocationCredential { return .usable }
+        if provider.quotaCheckConsumesSearchQuota, lastUpdated == nil { return .checkConsumesQuota }
+        if isCredentialExpired { return .credentialExpired }
+        if status == .failed { return .checkFailed }
+        if isUsableWithUnknownQuota || isUnsupportedQuotaCheckState { return .quotaUnavailable }
+        if remaining != nil || lastHTTPStatus == 200 { return .usable }
+        if lastUpdated == nil,
+           lastHTTPStatus == nil,
+           lastDiagnosticMessage == nil,
+           quotaText == nil,
+           quotaLabel == nil {
+            return .configuredUntested
+        }
+        return .checkFailed
+    }
+
     var healthDisplayText: String {
         if isBusinessInvocationCredential {
             return L10n.t(.businessInvocationKeySaved)
@@ -1864,6 +2097,48 @@ enum KeyStatus: String {
         case .failed: return .red
         case .disabled: return .gray
         case .unknown: return .gray
+        }
+    }
+}
+
+enum CredentialConfigurationState: String {
+    case notConfigured
+    case configuredUntested
+    case usable
+    case credentialExpired
+    case quotaUnavailable
+    case checkConsumesQuota
+    case checkFailed
+
+    var displayText: String {
+        switch self {
+        case .notConfigured:
+            return L10n.t(.credentialStateNotConfigured)
+        case .configuredUntested:
+            return L10n.t(.credentialStateConfiguredUntested)
+        case .usable:
+            return L10n.t(.credentialStateUsable)
+        case .credentialExpired:
+            return L10n.t(.credentialStateCredentialExpired)
+        case .quotaUnavailable:
+            return L10n.t(.credentialStateQuotaUnavailable)
+        case .checkConsumesQuota:
+            return L10n.t(.credentialStateCheckConsumesQuota)
+        case .checkFailed:
+            return L10n.t(.credentialStateCheckFailed)
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .usable:
+            return .green
+        case .configuredUntested, .quotaUnavailable, .checkConsumesQuota:
+            return .orange
+        case .credentialExpired, .checkFailed:
+            return .red
+        case .notConfigured:
+            return .gray
         }
     }
 }
@@ -2226,6 +2501,10 @@ struct ProviderStats: Identifiable {
         sortedMonitoringKeysByCurrentQuota.last { $0.isActive && !$0.key.isEmpty }
     }
 
+    var mostConstrainedActiveMonitoringKey: APIKey? {
+        tightestActiveMonitoringKey
+    }
+
     private var usableMonitoringCredentialCount: Int {
         monitoredKeys.filter { key in
             key.isActive
@@ -2332,21 +2611,74 @@ struct CredentialDiagnosticItem: Identifiable, Equatable {
         statusKey.lastHTTPStatus.map(String.init) ?? L10n.t(.httpNotRequested)
     }
 
-    var credentialTitle: String {
-        if key.isQuotaMonitoringAuthorizationCredential {
-            return L10n.t(.webLoginCredential)
+    var stateText: String {
+        statusKey.credentialConfigurationState.displayText
+    }
+
+    var stateColor: Color {
+        statusKey.credentialConfigurationState.color
+    }
+
+    var lastCheckedText: String {
+        statusKey.lastUpdated.map { L10n.shortDateTime($0) } ?? L10n.t(.notChecked)
+    }
+
+    var resetDiagnosticText: String {
+        let reset = statusKey.visibleQuotaResetSummary
+        return reset.isEmpty ? L10n.t(.resetNotExposed) : reset
+    }
+
+    var autoRefreshSkipText: String? {
+        guard statusKey.provider.quotaCheckConsumesSearchQuota else { return nil }
+        guard statusKey.lastDiagnosticText?.key == .quotaConsumingRefreshWarning
+            || statusKey.lastDiagnosticMessage == L10n.t(.quotaConsumingRefreshWarning)
+            || statusKey.quotaText?.key == .manualRefreshOnly else {
+            return nil
         }
-        return key.managementDisplayName
+        return L10n.t(.automaticRefreshSkipped)
+    }
+
+    var requestProxyModeText: String {
+        switch UserDefaults.standard.string(forKey: "networkProxyMode") {
+        case "direct":
+            return L10n.t(.networkProxyDirect)
+        case "custom":
+            return L10n.t(.networkProxyCustom)
+        case "system", nil:
+            return L10n.t(.networkProxySystem)
+        default:
+            return L10n.t(.networkProxySystem)
+        }
+    }
+
+    var planDisplayName: String? {
+        guard !key.isBusinessInvocationCredential,
+              !key.isStoredAPIKeyOnlyCredential else {
+            return nil
+        }
+        return statusKey.effectivePlanDisplayName
+    }
+
+    var credentialTitle: String {
+        key.accountDisplayTitle
     }
 
     var credentialSubtitle: String {
-        if key.isQuotaMonitoringAuthorizationCredential {
-            if companionAPIKey != nil {
-                return "\(L10n.t(.saved)) · \(L10n.t(.includesInvocationAPIKey))"
-            }
-            return L10n.t(.saved)
+        var parts: [String] = []
+
+        if let accountDisplaySubtitle = key.accountDisplaySubtitle {
+            parts.append(accountDisplaySubtitle)
         }
-        return key.managementCredentialValueText
+
+        if companionAPIKey != nil {
+            parts.append(L10n.t(.includesInvocationAPIKey))
+        }
+
+        if parts.isEmpty {
+            return key.managementCredentialValueText
+        }
+
+        return parts.joined(separator: " · ")
     }
 
     var connectionDiagnosticSummary: String? {

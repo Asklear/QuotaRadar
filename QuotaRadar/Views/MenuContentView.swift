@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 struct MenuContentView: View {
-    static let menuSize = CGSize(width: 560, height: 500)
+    static let menuSize = CGSize(width: 560, height: 740)
     private static let menuGlassCornerRadius: CGFloat = 20
     private static let contentHorizontalInset: CGFloat = 22
     private static let contentTopSafeInset: CGFloat = 18
@@ -17,12 +17,8 @@ struct MenuContentView: View {
         appearanceStore.statusBarTransparency
     }
 
-    private var blurOpacity: Double {
-        0.32 + (1 - statusBarTransparency) * 0.58
-    }
-
-    private var backdropTintOpacity: Double {
-        0.04 + (1 - statusBarTransparency) * 0.44
+    private var menuSurfaceOpacity: Double {
+        0.62 + (1 - statusBarTransparency) * 0.30
     }
 
     private var glassHighlightOpacity: Double {
@@ -39,14 +35,11 @@ struct MenuContentView: View {
 
     var body: some View {
         let currentLanguage = languageStore.language
+        let signalLayout = monitor.menuSignalLayout
 
         ZStack {
-            VisualEffectBlur(material: .popover, blendingMode: .behindWindow)
-                .opacity(blurOpacity)
-                .allowsHitTesting(false)
-
             Color(nsColor: .windowBackgroundColor)
-                .opacity(backdropTintOpacity)
+                .opacity(menuSurfaceOpacity)
                 .allowsHitTesting(false)
 
             LinearGradient(
@@ -74,11 +67,18 @@ struct MenuContentView: View {
                 } else {
                     MenuRiskSummaryCard(summary: monitor.menuQuotaSummary)
 
-                    MenuLowQuotaItemsView(monitor: monitor)
+                    MenuLowQuotaItemsView(items: signalLayout.lowQuotaItems)
 
-                    MenuExpiringQuotaItemsView(monitor: monitor)
+                    MenuExpiringQuotaItemsView(items: signalLayout.expiringSoonItems)
 
-                    MenuAttentionItemsView(monitor: monitor)
+                    MenuAttentionItemsView(monitor: monitor, items: signalLayout.attentionItems)
+
+                    MenuRecentUsageItemsView(monitor: monitor, items: signalLayout.recentUsageItems)
+
+                    MenuHiddenQuotaItemsView(
+                        hiddenCount: signalLayout.hiddenItemCount,
+                        onOpenProviders: { openProvidersOverview() }
+                    )
 
                     Spacer(minLength: 0)
                 }
@@ -111,6 +111,15 @@ struct MenuContentView: View {
     private func openAPIKeyConfiguration() {
         if let delegate = NSApp.delegate as? AppDelegate {
             delegate.openPreferencesFromStatusPopover(destination: .apiKeys)
+        } else {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    private func openProvidersOverview() {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.openPreferencesFromStatusPopover(destination: .providers)
         } else {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -169,7 +178,8 @@ struct HeaderView: View {
     }
 
     private var headerStatusMessage: String? {
-        refreshMessage
+        if refreshMessage == L10n.t(.updatedJustNow) { return nil }
+        return refreshMessage
     }
 
     private var hasSettingsAttention: Bool {
@@ -428,7 +438,7 @@ struct MenuRiskSummaryCard: View {
     var body: some View {
         MonitorModule(spacing: 9) {
             VStack(alignment: .leading, spacing: 10) {
-                MenuSectionHeader(title: L10n.t(.quotaRiskToday), detail: L10n.t(.quotaStatus))
+                MenuSectionHeader(title: L10n.t(.sidebarStatistics), detail: L10n.t(.quotaStatus))
 
                 HStack(spacing: 0) {
                     CompactMetricItem(value: "\(summary.lowCount)", label: L10n.t(.low), valueColor: summary.lowCount > 0 ? .orange : .secondary)
@@ -537,8 +547,8 @@ struct MenuProviderQuotaCell: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
 
-                    if let planName = stat.provider.planTypeDisplayName() {
-                        Text(planName)
+                    if let planType = stat.provider.planTypeDisplayName() {
+                        Text(planType)
                             .font(.system(size: 7.5, weight: .medium))
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
@@ -576,50 +586,69 @@ struct MenuProviderQuotaCell: View {
 // MARK: - Attention Quota Items
 
 struct MenuLowQuotaItemsView: View {
-    @ObservedObject var monitor: QuotaMonitor
+    let items: [MenuQuotaItem]
 
     var body: some View {
-        if !monitor.menuLowQuotaItems.isEmpty {
+        if !items.isEmpty {
             MonitorModule(spacing: 8) {
                 VStack(alignment: .leading, spacing: 8) {
                     MenuSectionHeader(title: L10n.t(.lowQuotaProviders), detail: L10n.t(.keyQuota))
 
-                    ForEach(monitor.menuLowQuotaItems) { item in
-                        MenuCompactQuotaItemRow(item: item)
+                    ForEach(items) { item in
+                        MenuCompactQuotaItemRow(
+                            item: item,
+                            onOpenProvider: { openProvider(item) }
+                        )
                     }
                 }
             }
         }
     }
+
+    private func openProvider(_ item: MenuQuotaItem) {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.openProviderFromStatusPopover(item.provider, credentialID: item.key.id, reason: item.signalReason)
+        }
+    }
 }
 
 struct MenuExpiringQuotaItemsView: View {
-    @ObservedObject var monitor: QuotaMonitor
+    let items: [MenuQuotaItem]
 
     var body: some View {
-        if !monitor.menuExpiringQuotaItems.isEmpty {
+        if !items.isEmpty {
             MonitorModule(spacing: 8) {
                 VStack(alignment: .leading, spacing: 8) {
                     MenuSectionHeader(title: L10n.t(.expiringSoon), detail: L10n.t(.criticalTime))
 
-                    ForEach(monitor.menuExpiringQuotaItems) { item in
-                        MenuExpiringQuotaItemRow(item: item)
+                    ForEach(items) { item in
+                        MenuExpiringQuotaItemRow(
+                            item: item,
+                            onOpenProvider: { openProvider(item) }
+                        )
                     }
                 }
             }
+        }
+    }
+
+    private func openProvider(_ item: MenuQuotaItem) {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.openProviderFromStatusPopover(item.provider, credentialID: item.key.id, reason: item.signalReason)
         }
     }
 }
 
 struct MenuAttentionItemsView: View {
     @ObservedObject var monitor: QuotaMonitor
+    let items: [MenuQuotaItem]
 
     var body: some View {
         MonitorModule(spacing: 9) {
             VStack(alignment: .leading, spacing: 10) {
                 MenuSectionHeader(title: L10n.t(.needsAttention), detail: L10n.t(.quotaStatus))
 
-                if monitor.menuAttentionQuotaItems.isEmpty {
+                if items.isEmpty {
                     HStack(spacing: 8) {
                         Image(systemName: "checkmark.seal.fill")
                             .font(.system(size: 11, weight: .semibold))
@@ -629,24 +658,162 @@ struct MenuAttentionItemsView: View {
                     }
                     .foregroundStyle(.green)
                 } else {
-                    ForEach(monitor.menuAttentionQuotaItems) { item in
+                    ForEach(items) { item in
                         MenuQuotaItemRow(
                             item: item,
                             isRefreshing: monitor.refreshingProviders.contains(item.provider),
-                            onRefresh: { monitor.refreshProvider(item.provider) }
+                            onRefresh: { monitor.refreshProvider(item.provider) },
+                            onOpenProvider: { openProvider(item) }
                         )
                     }
                 }
             }
         }
     }
+
+    private func openProvider(_ item: MenuQuotaItem) {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.openProviderFromStatusPopover(item.provider, credentialID: item.key.id, reason: item.signalReason)
+        }
+    }
+}
+
+struct MenuRecentUsageItemsView: View {
+    @ObservedObject var monitor: QuotaMonitor
+    let items: [MenuQuotaItem]
+
+    var body: some View {
+        if !items.isEmpty {
+            MonitorModule(spacing: 8) {
+                VStack(alignment: .leading, spacing: 8) {
+                    MenuSectionHeader(title: L10n.t(.recentProviderUsage), detail: L10n.t(.recentUsageDetail))
+
+                    ForEach(items) { item in
+                        MenuRecentUsageItemRow(
+                            item: item,
+                            trendSummary: monitor.trendSummary(for: item.key),
+                            isRefreshing: monitor.refreshingProviders.contains(item.provider),
+                            onRefresh: { monitor.refreshProvider(item.provider) },
+                            onOpenProvider: { openProvider(item) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func openProvider(_ item: MenuQuotaItem) {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.openProviderFromStatusPopover(item.provider, credentialID: item.key.id, reason: item.signalReason)
+        }
+    }
+}
+
+struct MenuHiddenQuotaItemsView: View {
+    let hiddenCount: Int
+    let onOpenProviders: () -> Void
+
+    var body: some View {
+        if hiddenCount > 0 {
+            Button(action: onOpenProviders) {
+                HStack(spacing: 8) {
+                    Image(systemName: "ellipsis.circle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+
+                    Text(L10n.format(.hiddenQuotaSignalCount, hiddenCount))
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity)
+                .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.primary.opacity(0.055), lineWidth: 0.8)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
 }
 
 struct MenuExpiringQuotaItemRow: View {
     let item: MenuQuotaItem
+    let onOpenProvider: () -> Void
 
     private var key: APIKey {
         item.key
+    }
+
+    var body: some View {
+        Button(action: onOpenProvider) {
+            HStack(spacing: 8) {
+                ProviderIcon(provider: item.provider, size: 20)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 5) {
+                        Text(item.provider.displayName())
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .lineLimit(1)
+
+                        if let contextLabel = item.statusBarAccountContextLabel {
+                            Text(contextLabel)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Text(key.planEndSummary)
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 6)
+
+                Image(systemName: "calendar.badge.exclamationmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.orange)
+                    .frame(width: 24, height: 24)
+                    .background(Color.orange.opacity(0.12), in: Circle())
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct MenuRecentUsageItemRow: View {
+    let item: MenuQuotaItem
+    let trendSummary: QuotaTrendSummary
+    let isRefreshing: Bool
+    let onRefresh: () -> Void
+    let onOpenProvider: () -> Void
+
+    private var key: APIKey {
+        item.key
+    }
+
+    private var trendText: String {
+        switch trendSummary.direction {
+        case .decreasing:
+            return L10n.compactDeltaIndicator("-\(L10n.percentPointDelta(trendSummary.consumedPercentPoints))")
+        case .replenished:
+            return L10n.t(.quotaTrendReplenished)
+        case .stable:
+            return L10n.t(.quotaTrendStable)
+        case .unknown:
+            return key.quotaPresentation.primaryText
+        }
     }
 
     var body: some View {
@@ -659,31 +826,42 @@ struct MenuExpiringQuotaItemRow: View {
                         .font(.system(size: 11.5, weight: .semibold))
                         .lineLimit(1)
 
-                    Text(key.statusBarCredentialLabel)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    if let contextLabel = item.statusBarAccountContextLabel {
+                        Text(contextLabel)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
 
-                Text(key.planEndSummary)
+                Text(key.quotaPresentation.primaryText)
                     .font(.caption2)
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
             Spacer(minLength: 6)
 
-            Image(systemName: "calendar.badge.exclamationmark")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.orange)
-                .frame(width: 24, height: 24)
-                .background(Color.orange.opacity(0.12), in: Circle())
+            Text(trendText)
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(trendSummary.direction == .decreasing ? .orange : .secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .frame(minWidth: 42)
+                .background(Color.orange.opacity(trendSummary.direction == .decreasing ? 0.12 : 0.06), in: Capsule())
+
+            RefreshButton(isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
+                .scaleEffect(0.72)
+                .frame(width: 22, height: 22)
         }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onOpenProvider)
     }
 }
 
 struct MenuCompactQuotaItemRow: View {
     let item: MenuQuotaItem
+    let onOpenProvider: () -> Void
 
     private var key: APIKey {
         item.key
@@ -694,37 +872,42 @@ struct MenuCompactQuotaItemRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            ProviderIcon(provider: item.provider, size: 20)
+        Button(action: onOpenProvider) {
+            HStack(spacing: 8) {
+                ProviderIcon(provider: item.provider, size: 20)
 
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 5) {
-                    Text(item.provider.displayName())
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 5) {
+                        Text(item.provider.displayName())
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .lineLimit(1)
 
-                    Text(key.statusBarCredentialLabel)
-                        .font(.system(size: 10.5, weight: .medium))
+                        if let contextLabel = item.statusBarAccountContextLabel {
+                            Text(contextLabel)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Text(presentation.primaryText)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
 
-                Text(presentation.primaryText)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                Spacer(minLength: 6)
+
+                Text(presentation.badgeText)
+                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .frame(minWidth: 38)
+                    .background(Color.orange.opacity(0.12), in: Capsule())
             }
-
-            Spacer(minLength: 6)
-
-            Text(presentation.badgeText)
-                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(.orange)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .frame(minWidth: 38)
-                .background(Color.orange.opacity(0.12), in: Capsule())
         }
+        .buttonStyle(.plain)
     }
 }
 
@@ -732,6 +915,7 @@ struct MenuQuotaItemRow: View {
     let item: MenuQuotaItem
     let isRefreshing: Bool
     let onRefresh: () -> Void
+    let onOpenProvider: () -> Void
 
     private var key: APIKey {
         item.key
@@ -751,10 +935,12 @@ struct MenuQuotaItemRow: View {
                         .font(.system(size: 12, weight: .semibold))
                         .lineLimit(1)
 
-                    Text(key.statusBarCredentialLabel)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    if let contextLabel = item.statusBarAccountContextLabel {
+                        Text(contextLabel)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
 
                 Text(presentation.primaryText)
@@ -801,6 +987,8 @@ struct MenuQuotaItemRow: View {
                 .scaleEffect(0.82)
                 .frame(width: 28, height: 28)
         }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onOpenProvider)
     }
 }
 

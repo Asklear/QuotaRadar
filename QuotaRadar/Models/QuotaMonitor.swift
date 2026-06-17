@@ -12,6 +12,7 @@ class QuotaMonitor: ObservableObject {
     static let shared = QuotaMonitor()
     private static let providerOrderDefaultsKey = "providerOrder"
     private static let customProviderOrderEnabledDefaultsKey = "customProviderOrderEnabled"
+    private static let menuSignalItemLimit = 6
 
     @Published var apiKeys: [APIKey] = []
     @Published var isRefreshing = false
@@ -19,6 +20,7 @@ class QuotaMonitor: ObservableObject {
     @Published var lastError: String?
     @Published var refreshMessage: String?
     @Published private(set) var providerOrder: [Provider] = []
+    @Published private(set) var quotaSnapshots: [QuotaSnapshot] = []
     @Published var isCustomProviderOrderEnabled = false {
         didSet {
             defaults.set(isCustomProviderOrderEnabled, forKey: Self.customProviderOrderEnabledDefaultsKey)
@@ -27,16 +29,23 @@ class QuotaMonitor: ObservableObject {
 
     private let service = QuotaService()
     private let store: APIKeyStore
+    private let historyStore: QuotaHistoryStore
     private let defaults: UserDefaults
     private var cancellables = Set<AnyCancellable>()
 
-    init(store: APIKeyStore = APIKeyStore(), defaults: UserDefaults = .standard) {
+    init(
+        store: APIKeyStore = APIKeyStore(),
+        historyStore: QuotaHistoryStore = QuotaHistoryStore(),
+        defaults: UserDefaults = .standard
+    ) {
         self.store = store
+        self.historyStore = historyStore
         self.defaults = defaults
         isCustomProviderOrderEnabled = defaults.bool(forKey: Self.customProviderOrderEnabledDefaultsKey)
         providerOrder = Provider.orderedVisibleCases(
             fromRawValues: defaults.stringArray(forKey: Self.providerOrderDefaultsKey) ?? []
         )
+        quotaSnapshots = historyStore.load()
         loadKeys()
     }
 
@@ -80,16 +89,49 @@ class QuotaMonitor: ObservableObject {
         MenuQuotaSummary(keys: apiKeys)
     }
 
+    var menuSignalLayout: MenuQuotaSignalLayout {
+        MenuQuotaSignalLayout.make(
+            from: homeProviderStats,
+            snapshots: quotaSnapshots,
+            visibleLimit: Self.menuSignalItemLimit,
+            providerOrder: orderedVisibleProviders
+        )
+    }
+
     var menuAttentionQuotaItems: [MenuQuotaItem] {
-        MenuQuotaItem.attentionItems(from: homeProviderStats, limit: 2, providerOrder: orderedVisibleProviders)
+        menuSignalLayout.attentionItems
     }
 
     var menuLowQuotaItems: [MenuQuotaItem] {
-        MenuQuotaItem.lowQuotaItems(from: homeProviderStats, limit: 3, providerOrder: orderedVisibleProviders)
+        menuSignalLayout.lowQuotaItems
     }
 
     var menuExpiringQuotaItems: [MenuQuotaItem] {
-        MenuQuotaItem.expiringSoonItems(from: homeProviderStats, limit: 3, providerOrder: orderedVisibleProviders)
+        menuSignalLayout.expiringSoonItems
+    }
+
+    var menuRecentUsageQuotaItems: [MenuQuotaItem] {
+        menuSignalLayout.recentUsageItems
+    }
+
+    var menuHiddenQuotaSignalCount: Int {
+        menuSignalLayout.hiddenItemCount
+    }
+
+    func trendSummary(for key: APIKey) -> QuotaTrendSummary {
+        QuotaTrendSummary.trendSummary(for: key, snapshots: quotaSnapshots)
+    }
+
+    func refreshDeltaText(for key: APIKey) -> String? {
+        QuotaRefreshDeltaSummary.refreshDeltaText(for: key, snapshots: quotaSnapshots)
+    }
+
+    func activitySummary(for key: APIKey) -> QuotaActivitySummary {
+        QuotaActivitySummary.activitySummary(for: key, snapshots: quotaSnapshots)
+    }
+
+    func sparklineSamples(for key: APIKey) -> [QuotaSparklineSample] {
+        QuotaSparklineSample.samples(for: key, snapshots: quotaSnapshots)
     }
 
     func moveProvider(_ provider: Provider, before targetProvider: Provider) {
@@ -225,15 +267,19 @@ class QuotaMonitor: ObservableObject {
                     key.limit = result.limit
                     key.resetAt = result.resetAt
                     key.planEndsAt = result.planEndsAt
+                    key.planDisplayName = result.planDisplayName
                     key.quotaLabel = result.quotaLabel
                     key.quotaText = result.quotaText
                     key.lastHTTPStatus = result.httpStatus
                     key.lastDiagnosticMessage = result.diagnosticMessage
                     key.lastDiagnosticText = result.diagnosticText
+                    key.consecutiveFailureCount = 0
                     key.lastUpdated = Date()
+                    recordQuotaSnapshot(for: key, outcome: .success)
                     updatedKeys.append(key)
                 } catch {
                     print("Failed to check quota for \(key.name): \(error)")
+                    let outcome: QuotaSnapshotOutcome
                     if case QuotaError.cooldown = error {
                         updatedKeys.append(key)
                         continue
@@ -242,6 +288,7 @@ class QuotaMonitor: ObservableObject {
                         key.limit = nil
                         key.resetAt = nil
                         key.planEndsAt = nil
+                        key.planDisplayName = nil
                         key.quotaLabel = key.provider.localizedUnsupportedQuotaLabel()
                         key.quotaText = LocalizedTextDescriptor.localized(.quotaUnavailable)
                         key.lastHTTPStatus = nil
@@ -251,23 +298,29 @@ class QuotaMonitor: ObservableObject {
                                 ? .businessInvocationKeyQuotaInstruction
                                 : .quotaCheckNotSupportedDiagnostic
                         )
+                        key.consecutiveFailureCount = 0
                         key.lastUpdated = Date()
+                        outcome = .unsupported
                     } else if case QuotaError.noSubscription = error {
                         key.remaining = nil
                         key.limit = nil
                         key.resetAt = nil
                         key.planEndsAt = nil
+                        key.planDisplayName = nil
                         key.quotaLabel = "No subscribed plan"
                         key.quotaText = LocalizedTextDescriptor.localized(.noSubscribedPlan)
                         key.lastHTTPStatus = 200
                         key.lastDiagnosticMessage = "No subscribed plan"
                         key.lastDiagnosticText = LocalizedTextDescriptor.localized(.noSubscribedPlan)
+                        key.consecutiveFailureCount = 0
                         key.lastUpdated = Date()
+                        outcome = .noSubscription
                     } else if case QuotaError.unauthorized = error {
                         key.remaining = nil
                         key.limit = nil
                         key.resetAt = nil
                         key.planEndsAt = nil
+                        key.planDisplayName = nil
                         key.lastHTTPStatus = (error as? QuotaError)?.httpStatus ?? 401
                         if key.provider.supportsDashboardReauthentication {
                             key.quotaLabel = L10n.t(.credentialExpired)
@@ -280,27 +333,35 @@ class QuotaMonitor: ObservableObject {
                         key.lastDiagnosticText = key.provider.supportsDashboardReauthentication
                             ? LocalizedTextDescriptor.localized(.credentialExpired)
                             : LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
+                        key.consecutiveFailureCount = 0
                         key.lastUpdated = Date()
                         failedKeys.append(key.name)
+                        outcome = .unauthorized
                     } else if case QuotaError.invalidAPIKey = error {
                         key.remaining = nil
                         key.limit = nil
                         key.resetAt = nil
                         key.planEndsAt = nil
+                        key.planDisplayName = nil
                         key.lastHTTPStatus = (error as? QuotaError)?.httpStatus
                         key.quotaLabel = error.localizedDescription
                         key.quotaText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
                         key.lastDiagnosticMessage = error.localizedDescription
                         key.lastDiagnosticText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
+                        key.consecutiveFailureCount += 1
                         key.lastUpdated = Date()
                         failedKeys.append(key.name)
+                        outcome = .unauthorized
                     } else {
                         key.lastHTTPStatus = (error as? QuotaError)?.httpStatus
                         key.lastDiagnosticMessage = error.localizedDescription
                         key.lastDiagnosticText = (error as? QuotaError)?.localizedTextDescriptor
+                        key.consecutiveFailureCount += 1
                         key.lastUpdated = Date()
                         failedKeys.append(key.name)
+                        outcome = .failed
                     }
+                    recordQuotaSnapshot(for: key, outcome: outcome)
                     updatedKeys.append(key)
                 }
             }
@@ -318,6 +379,7 @@ class QuotaMonitor: ObservableObject {
                 self.refreshMessage = nil
             }
             self.saveKeys()
+            QuotaThresholdNotificationService.shared.notifyIfNeeded(for: self.apiKeys)
             self.refreshingProviders = []
             self.isRefreshing = false
         }
@@ -331,6 +393,8 @@ class QuotaMonitor: ObservableObject {
     func removeKey(id: UUID) {
         apiKeys.removeAll { $0.id == id }
         store.delete(id: id)
+        quotaSnapshots = historyStore.deleteSnapshots(for: id, existing: quotaSnapshots)
+        historyStore.save(quotaSnapshots)
         saveKeys()
     }
 
@@ -360,6 +424,25 @@ class QuotaMonitor: ObservableObject {
 
     private func saveKeys() {
         store.save(apiKeys)
+    }
+
+    private func recordQuotaSnapshot(for key: APIKey, outcome: QuotaSnapshotOutcome) {
+        let snapshot = QuotaSnapshot(
+            keyID: key.id,
+            provider: key.provider,
+            credentialName: key.name,
+            outcome: outcome,
+            remaining: key.remaining,
+            limit: key.limit,
+            resetAt: key.resetAt,
+            planEndsAt: key.planEndsAt,
+            planDisplayName: key.planDisplayName,
+            quotaLabel: key.quotaLabel,
+            httpStatus: key.lastHTTPStatus,
+            quotaWindows: key.quotaWindowDetails.compactMap(QuotaWindowSnapshot.init)
+        )
+        quotaSnapshots = historyStore.append(snapshot, existing: quotaSnapshots)
+        historyStore.save(quotaSnapshots)
     }
 
     private func setProviderOrder(_ order: [Provider]) {
@@ -420,10 +503,12 @@ class QuotaMonitor: ObservableObject {
                 replacement.limit = existingKey.limit
                 replacement.resetAt = existingKey.resetAt
                 replacement.planEndsAt = existingKey.planEndsAt
+                replacement.planDisplayName = existingKey.planDisplayName
                 replacement.lastUpdated = existingKey.lastUpdated
                 replacement.lastHTTPStatus = existingKey.lastHTTPStatus
                 replacement.lastDiagnosticMessage = existingKey.lastDiagnosticMessage
                 replacement.lastDiagnosticText = existingKey.lastDiagnosticText
+                replacement.consecutiveFailureCount = existingKey.consecutiveFailureCount
                 replacement.quotaLabel = existingKey.quotaLabel
                 replacement.quotaText = existingKey.quotaText
                 replacement.usageCount = existingKey.usageCount

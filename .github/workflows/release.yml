@@ -41,16 +41,16 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
-            - Fixed Brave refresh state handling when Brave returns usage-limit, invalid-key, rate-limit, or hidden quota-header responses.
-            - Brave usage-limit responses now persist as exhausted quota, and invalid keys keep the provider HTTP status for diagnostics.
-            - Automatic refresh now uses each credential's persisted lastUpdated timestamp, so restarting the app no longer restarts the full refresh interval.
-            - Providers such as Brave that consume real search requests are checked for due status periodically, but Quota Radar only sends the provider request after the configured interval has elapsed.
+            - Refined the quota overview into a compact monitoring surface with provider-level rows and compressed account details.
+            - Added a risk-first menu bar Attention Feed for low quota, expiring plans, failed checks, and recent consumption.
+            - Added menu-bar-to-main-window handoff checks so attention items can open and highlight the matching provider/account.
+            - Added release visual QA summaries with screenshot dimensions and focused-signal highlight counts.
 
             中文说明：
-            - 修复 Brave 在返回额度用尽、无效 key、限流或隐藏 quota header 时刷新状态没有正确更新的问题。
-            - Brave 用量耗尽会保存为额度已用尽；无效 key 会保留 provider HTTP 状态，方便诊断。
-            - 自动刷新改为按每个凭据持久化的 lastUpdated 判断是否到期，重启应用不会重新从完整周期开始等待。
-            - 对 Brave 这类会消耗真实搜索请求的 provider，应用会周期性检查是否到期，但只有超过用户配置周期后才真正请求 provider。
+            - 将额度监控页收敛为紧凑监控界面：provider 汇总行优先，账号详情只保留核心信息。
+            - 状态栏改为风险优先的 Attention Feed，突出低额度、即将到期、刷新失败和近期消耗。
+            - 增加状态栏到主程序的联动检查，attention 条目可打开并高亮对应 provider / 账号。
+            - 新增发布前视觉 QA summary，记录截图尺寸和聚焦信号高亮统计。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.
 

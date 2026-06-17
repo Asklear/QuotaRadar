@@ -103,6 +103,33 @@ struct DashboardCapturedCredential {
     }
 }
 
+enum DashboardCredentialCapturePolicy {
+    static let automaticRetryDelays: [TimeInterval] = [0.35, 1.0, 2.0]
+    static let manualRetryDelays: [TimeInterval] = [0.25, 0.75, 1.5]
+
+    static func isCredentialReady(
+        _ credential: DashboardCapturedCredential,
+        requiredNames: [String]
+    ) -> Bool {
+        credential.hasCredentialMaterial
+            && DashboardCookieBuilder.missingRequiredCredentialNames(
+                cookieHeader: credential.cookieHeader,
+                fields: credential.fields,
+                requiredNames: requiredNames
+            ).isEmpty
+    }
+
+    static func shouldRetryCapture(
+        _ credential: DashboardCapturedCredential,
+        requiredNames: [String],
+        completedRetryCount: Int,
+        retryDelays: [TimeInterval]
+    ) -> Bool {
+        !isCredentialReady(credential, requiredNames: requiredNames)
+            && completedRetryCount < retryDelays.count
+    }
+}
+
 enum DashboardCookieBuilder {
     static func cookieHeader(from cookies: [HTTPCookie], domains: [String]) -> String {
         let normalizedDomains = domains.map(normalizeDomain)

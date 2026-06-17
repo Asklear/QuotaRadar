@@ -17,7 +17,15 @@ secrets.json
 *.ips
 *.crash
 .playwright-mcp/
+.omc/
+.superpowers/
 test-results/
 
 DerivedData/
 .worktrees/
+
+# Ad-hoc local QA captures. Keep committed screenshots under docs/assets/screenshots/.
+quotaradar-*.png
+task*.png
+tauri-*.png
+credential-dialog-check.png

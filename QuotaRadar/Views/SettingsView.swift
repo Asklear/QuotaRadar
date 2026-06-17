@@ -8,9 +8,27 @@ final class SettingsNavigationStore: ObservableObject {
     static let shared = SettingsNavigationStore()
 
     @Published var selection: SettingsDestination? = .providers
+    @Published var focusedProvider: Provider?
+    @Published var focusedCredentialID: UUID?
+    @Published var focusedMenuSignalReason: MenuSignalReason?
 
     func select(_ destination: SettingsDestination) {
         selection = destination
+    }
+
+    func focusProvider(_ provider: Provider, credentialID: UUID?, reason: MenuSignalReason?) {
+        selection = .providers
+        focusedProvider = provider
+        focusedCredentialID = credentialID
+        focusedMenuSignalReason = reason
+    }
+
+    var focusedProviderScrollID: String? {
+        focusedProvider.map(Self.providerScrollID)
+    }
+
+    static func providerScrollID(_ provider: Provider) -> String {
+        "provider-\(provider.rawValue)"
     }
 }
 
@@ -156,7 +174,7 @@ struct SettingsSidebarView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Text(L10n.t(.apiQuotaTitle))
+                Text(L10n.t(.sidebarStatistics))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
                     .textCase(.uppercase)
@@ -314,6 +332,7 @@ struct ModernPage<Content: View>: View {
     let subtitle: String?
     let systemImage: String
     let maxContentWidth: CGFloat
+    let scrollTargetID: String?
     let content: Content
 
     init(
@@ -321,27 +340,46 @@ struct ModernPage<Content: View>: View {
         subtitle: String? = nil,
         systemImage: String,
         maxContentWidth: CGFloat = 920,
+        scrollTargetID: String? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.subtitle = subtitle
         self.systemImage = systemImage
         self.maxContentWidth = maxContentWidth
+        self.scrollTargetID = scrollTargetID
         self.content = content()
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                PageHeader(title: title, subtitle: subtitle, systemImage: systemImage)
-                content
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    PageHeader(title: title, subtitle: subtitle, systemImage: systemImage)
+                    content
+                }
+                .padding(.horizontal, 26)
+                .padding(.vertical, 22)
+                .frame(maxWidth: maxContentWidth, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .top)
             }
-            .padding(.horizontal, 26)
-            .padding(.vertical, 22)
-            .frame(maxWidth: maxContentWidth, alignment: .topLeading)
-            .frame(maxWidth: .infinity, alignment: .top)
+            .scrollContentBackground(.hidden)
+            .onAppear {
+                scrollToTargetIfNeeded(with: proxy)
+            }
+            .onChange(of: scrollTargetID) { _, _ in
+                scrollToTargetIfNeeded(with: proxy)
+            }
         }
-        .scrollContentBackground(.hidden)
+    }
+
+    private func scrollToTargetIfNeeded(with proxy: ScrollViewProxy) {
+        guard let scrollTargetID else { return }
+        DispatchQueue.main.async {
+            withAnimation(settingsCollapseAnimation) {
+                proxy.scrollTo(scrollTargetID, anchor: .top)
+            }
+        }
     }
 }
 
@@ -762,7 +800,7 @@ struct APIKeyManagementRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(key.managementDisplayName)
+                    Text(key.accountDisplayTitle)
                         .font(.system(size: 13, weight: .semibold))
 
                     if let credentialTypeText {
@@ -775,18 +813,11 @@ struct APIKeyManagementRow: View {
                     }
                 }
 
-                HStack(spacing: 6) {
-                    Text(maskedKey)
+                if let accountDisplaySubtitle = key.accountDisplaySubtitle {
+                    Text(accountDisplaySubtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .fontDesign(.monospaced)
-
-                    if let note = key.displayNote {
-                        Text(note)
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                    }
+                        .lineLimit(1)
                 }
             }
             .layoutPriority(1)
@@ -807,10 +838,6 @@ struct APIKeyManagementRow: View {
         .contentShape(Rectangle())
     }
 
-    private var maskedKey: String {
-        key.managementCredentialValueText
-    }
-
     private var credentialTypeText: String? {
         key.managementCredentialTypeBadgeText
     }
@@ -821,10 +848,7 @@ struct APIKeyManagementRow: View {
     }
 
     private var statusText: String {
-        if key.isBusinessInvocationCredential {
-            return L10n.t(.useDashboardCookie)
-        }
-        return key.healthDisplayText
+        key.credentialConfigurationState.displayText
     }
 }
 
@@ -839,17 +863,21 @@ struct CredentialRowActionGroup: View {
     let onEdit: () -> Void
     let onCopy: (String) -> Void
 
+    private var stateColor: Color {
+        key.credentialConfigurationState.color
+    }
+
     var body: some View {
         HStack(spacing: 8) {
             Text(statusText)
                 .font(.caption.weight(.medium))
-                .foregroundStyle(key.status.color)
+                .foregroundStyle(stateColor)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .frame(width: Self.statusPillWidth)
-                .background(key.status.color.opacity(0.12), in: Capsule())
+                .background(stateColor.opacity(0.12), in: Capsule())
 
             Toggle(isOn: Binding(get: { key.isActive }, set: { onSetActive($0) })) {
                 Text(L10n.t(.active))
@@ -965,7 +993,12 @@ struct AddKeySheet: View {
         .frame(width: 760, height: 540)
         .background(.regularMaterial)
         .sheet(isPresented: $showingReauth) {
-            DashboardReauthSheet(monitor: monitor, provider: provider, key: nil)
+            DashboardReauthSheet(
+                monitor: monitor,
+                provider: provider,
+                key: nil,
+                onSaved: handleDashboardCredentialSaved
+            )
         }
         .onChange(of: provider) { oldProvider, newProvider in
             syncDefaultCredentialName(for: newProvider, replacing: oldProvider)
@@ -1028,6 +1061,43 @@ struct AddKeySheet: View {
 
         refreshProviderAfterSavingCredential(newKey)
         dismiss()
+    }
+
+    private func handleDashboardCredentialSaved(_ savedKey: APIKey) {
+        saveCompanionAPIKeyIfNeeded(linkedTo: savedKey)
+        showingReauth = false
+        dismiss()
+    }
+
+    private func saveCompanionAPIKeyIfNeeded(linkedTo savedKey: APIKey) {
+        guard savedKey.provider == provider,
+              provider.supportsCompanionAPIKeyStorage else {
+            return
+        }
+
+        let trimmedCompanionAPIKey = companionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedCompanionAPIKey.isEmpty else {
+            return
+        }
+
+        if let existingCompanion = monitor.apiKeys.first(where: {
+            $0.provider == provider
+                && $0.isStoredAPIKeyOnlyCredential
+                && ($0.linkedAuthorizationID == savedKey.id || $0.linkedAuthorizationID == nil)
+        }) {
+            var updatedCompanion = existingCompanion
+            updatedCompanion.name = provider.copyableAPIKeyCredentialName
+            updatedCompanion.key = trimmedCompanionAPIKey
+            updatedCompanion.linkedAuthorizationID = savedKey.id
+            monitor.updateKey(updatedCompanion)
+        } else {
+            monitor.addKey(APIKey(
+                name: provider.copyableAPIKeyCredentialName,
+                key: trimmedCompanionAPIKey,
+                provider: provider,
+                linkedAuthorizationID: savedKey.id
+            ))
+        }
     }
 
     private func refreshProviderAfterSavingCredential(_ savedKey: APIKey) {
@@ -1188,10 +1258,16 @@ struct ProviderQuotaActionGroup: View {
     let onReauthenticate: () -> Void
     let onRefresh: () -> Void
 
-    private let size: CGFloat = 28
+    private let size: CGFloat = 26
+
+    private var refreshActionLabel: String {
+        isRefreshing ? L10n.t(.refreshingQuotaAction) :
+            provider.quotaCheckConsumesSearchQuota ? L10n.t(.refreshQuotaConsumesQuotaAction) :
+            L10n.t(.refreshQuotaAction)
+    }
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             actionSlot {
                 ProviderDashboardJumpButton(provider: provider, size: size)
             }
@@ -1208,8 +1284,8 @@ struct ProviderQuotaActionGroup: View {
                         isRefreshing: .constant(isRefreshing),
                         isEnabled: canRefresh,
                         size: size,
-                        helpText: L10n.t(.refreshQuotaAction),
-                        accessibilityLabelText: L10n.t(.refreshQuotaAction),
+                        helpText: refreshActionLabel,
+                        accessibilityLabelText: refreshActionLabel,
                         action: onRefresh
                     )
                 }
@@ -1791,6 +1867,7 @@ struct EditKeySheet: View {
         updated.lastHTTPStatus = nil
         updated.lastDiagnosticMessage = nil
         updated.lastDiagnosticText = nil
+        updated.consecutiveFailureCount = 0
         updated.quotaText = nil
         updated.quotaLabel = nil
     }
@@ -1820,6 +1897,7 @@ struct EditKeySheet: View {
 
 struct ProvidersView: View {
     @ObservedObject var monitor: QuotaMonitor
+    @ObservedObject private var navigationStore = SettingsNavigationStore.shared
 
     private var providerCategories: [ProviderCategoryStats] {
         let stats = monitor.orderedVisibleProviders.compactMap { provider -> ProviderStats? in
@@ -1846,7 +1924,8 @@ struct ProvidersView: View {
             title: L10n.t(.providersHeader),
             subtitle: L10n.format(.providersSupported, configuredProviders, Provider.visibleCases.count),
             systemImage: "server.rack",
-            maxContentWidth: 1080
+            maxContentWidth: 1080,
+            scrollTargetID: navigationStore.focusedProviderScrollID
         ) {
             if providerCategories.isEmpty {
                 EmptyContentPanel(
@@ -1870,7 +1949,13 @@ struct ProvidersView: View {
 struct ProviderSettingsCategorySection: View {
     let category: ProviderCategoryStats
     @ObservedObject var monitor: QuotaMonitor
+    @ObservedObject private var navigationStore = SettingsNavigationStore.shared
     @State private var isExpanded = true
+
+    private var containsFocusedProvider: Bool {
+        guard let focusedProvider = navigationStore.focusedProvider else { return false }
+        return category.stats.contains { $0.provider == focusedProvider }
+    }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -1887,6 +1972,16 @@ struct ProviderSettingsCategorySection: View {
             if isExpanded {
                 ProviderQuotaMonitorTable(stats: category.stats, monitor: monitor)
                     .transition(.opacity)
+            }
+        }
+        .onAppear {
+            if containsFocusedProvider {
+                isExpanded = true
+            }
+        }
+        .onChange(of: navigationStore.focusedProvider) { _, _ in
+            if containsFocusedProvider {
+                withAnimation(settingsCollapseAnimation) { isExpanded = true }
             }
         }
     }
@@ -1910,46 +2005,234 @@ struct ProviderQuotaMonitorTable: View {
                     }
 
                     ProviderQuotaMonitorRow(stat: stat, monitor: monitor)
+                        .id(SettingsNavigationStore.providerScrollID(stat.provider))
                 }
             }
         }
     }
 }
 
+private enum ProviderQuotaOverviewLayout {
+    static let providerIconSize: CGFloat = 28
+    static let rowSpacing: CGFloat = 10
+    static let rowHorizontalPadding: CGFloat = 14
+    static let providerLabelWidth: CGFloat = 132
+    static let providerColumnWidth: CGFloat = providerIconSize + rowSpacing + providerLabelWidth
+    static let activityWidth: CGFloat = 112
+    static let keyQuotaWidth: CGFloat = 78
+    static let credentialPoolWidth: CGFloat = 104
+    static let criticalTimeWidth: CGFloat = 122
+    static let statusWidth: CGFloat = 68
+    static let actionReserveWidth: CGFloat = 90
+    static let totalWidthBudget: CGFloat = 784
+
+    static func columnWidths(for contentWidth: CGFloat) -> ProviderQuotaOverviewColumnWidths {
+        let spacingTotal = rowSpacing * 6
+        let minimumDataWidth = providerColumnWidth
+            + activityWidth
+            + keyQuotaWidth
+            + credentialPoolWidth
+            + criticalTimeWidth
+            + statusWidth
+        let usableWidth = max(totalWidthBudget - spacingTotal, contentWidth - spacingTotal)
+        let dataWidth = max(minimumDataWidth, usableWidth - actionReserveWidth)
+        let extraWidth = max(0, dataWidth - minimumDataWidth)
+
+        return ProviderQuotaOverviewColumnWidths(
+            provider: providerColumnWidth + extraWidth * 0.24,
+            activity: activityWidth + extraWidth * 0.12,
+            keyQuota: keyQuotaWidth + extraWidth * 0.12,
+            credentialPool: credentialPoolWidth + extraWidth * 0.18,
+            criticalTime: criticalTimeWidth + extraWidth * 0.22,
+            status: statusWidth + extraWidth * 0.12,
+            actions: actionReserveWidth
+        )
+    }
+}
+
+private enum ProviderQuotaAccountLayout {
+    static let rowSpacing: CGFloat = 10
+    static let flexibleGapMinWidth: CGFloat = 0
+    static let planWidth: CGFloat = 256
+    static let remainingWidth: CGFloat = 78
+    static let criticalTimeWidth: CGFloat = 210
+    static let updatedWidth: CGFloat = 132
+
+    static func columnWidths(for contentWidth: CGFloat) -> ProviderQuotaAccountColumnWidths {
+        let spacingTotal = rowSpacing * 3
+        let minimumDataWidth = planWidth
+            + remainingWidth
+            + criticalTimeWidth
+            + updatedWidth
+        let usableWidth = max(minimumDataWidth, contentWidth - spacingTotal)
+        let extraWidth = max(0, usableWidth - minimumDataWidth)
+
+        return ProviderQuotaAccountColumnWidths(
+            plan: planWidth + extraWidth * 0.42,
+            remaining: remainingWidth + extraWidth * 0.10,
+            criticalTime: criticalTimeWidth + extraWidth * 0.32,
+            updated: updatedWidth + extraWidth * 0.16
+        )
+    }
+}
+
+private struct ProviderQuotaAccountColumnWidths {
+    let plan: CGFloat
+    let remaining: CGFloat
+    let criticalTime: CGFloat
+    let updated: CGFloat
+}
+
+private struct ProviderQuotaOverviewColumnWidths {
+    let provider: CGFloat
+    let activity: CGFloat
+    let keyQuota: CGFloat
+    let credentialPool: CGFloat
+    let criticalTime: CGFloat
+    let status: CGFloat
+    let actions: CGFloat
+}
+
+struct ProviderQuotaAccountGridRow<PlanCell: View, RemainingCell: View, CriticalTimeCell: View, UpdatedCell: View>: View {
+    let height: CGFloat
+    let plan: PlanCell
+    let remaining: RemainingCell
+    let criticalTime: CriticalTimeCell
+    let updated: UpdatedCell
+
+    init(
+        height: CGFloat,
+        @ViewBuilder plan: () -> PlanCell,
+        @ViewBuilder remaining: () -> RemainingCell,
+        @ViewBuilder criticalTime: () -> CriticalTimeCell,
+        @ViewBuilder updated: () -> UpdatedCell
+    ) {
+        self.height = height
+        self.plan = plan()
+        self.remaining = remaining()
+        self.criticalTime = criticalTime()
+        self.updated = updated()
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let widths = ProviderQuotaAccountLayout.columnWidths(for: proxy.size.width)
+            HStack(spacing: ProviderQuotaAccountLayout.rowSpacing) {
+                plan
+                    .frame(width: widths.plan, height: height, alignment: .leading)
+
+                remaining
+                    .frame(width: widths.remaining, height: height, alignment: .trailing)
+
+                criticalTime
+                    .frame(width: widths.criticalTime, height: height, alignment: .trailing)
+
+                updated
+                    .frame(width: widths.updated, height: height, alignment: .trailing)
+            }
+            .frame(width: proxy.size.width, height: height, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: height)
+    }
+}
+
+struct ProviderQuotaOverviewGridRow<ProviderCell: View, ActivityCell: View, KeyQuotaCell: View, CredentialPoolCell: View, CriticalTimeCell: View, StatusCell: View, ActionCell: View>: View {
+    let height: CGFloat
+    let provider: ProviderCell
+    let activity: ActivityCell
+    let keyQuota: KeyQuotaCell
+    let credentialPool: CredentialPoolCell
+    let criticalTime: CriticalTimeCell
+    let status: StatusCell
+    let actions: ActionCell
+
+    init(
+        height: CGFloat,
+        @ViewBuilder provider: () -> ProviderCell,
+        @ViewBuilder activity: () -> ActivityCell,
+        @ViewBuilder keyQuota: () -> KeyQuotaCell,
+        @ViewBuilder credentialPool: () -> CredentialPoolCell,
+        @ViewBuilder criticalTime: () -> CriticalTimeCell,
+        @ViewBuilder status: () -> StatusCell,
+        @ViewBuilder actions: () -> ActionCell
+    ) {
+        self.height = height
+        self.provider = provider()
+        self.activity = activity()
+        self.keyQuota = keyQuota()
+        self.credentialPool = credentialPool()
+        self.criticalTime = criticalTime()
+        self.status = status()
+        self.actions = actions()
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let widths = ProviderQuotaOverviewLayout.columnWidths(for: proxy.size.width)
+            HStack(spacing: ProviderQuotaOverviewLayout.rowSpacing) {
+                provider
+                    .frame(width: widths.provider, height: height, alignment: .leading)
+
+                activity
+                    .frame(width: widths.activity, height: height, alignment: .center)
+
+                keyQuota
+                    .frame(width: widths.keyQuota, height: height, alignment: .trailing)
+
+                credentialPool
+                    .frame(width: widths.credentialPool, height: height, alignment: .trailing)
+
+                criticalTime
+                    .frame(width: widths.criticalTime, height: height, alignment: .trailing)
+
+                status
+                    .frame(width: widths.status, height: height, alignment: .trailing)
+
+                actions
+                    .frame(width: widths.actions, height: height, alignment: .trailing)
+            }
+            .frame(width: proxy.size.width, height: height, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: height)
+    }
+}
+
 struct ProviderQuotaMonitorTableHeader: View {
     var body: some View {
-        HStack(spacing: 12) {
+        ProviderQuotaOverviewGridRow(height: 18) {
             Text(L10n.t(.provider))
-                .frame(minWidth: 150, maxWidth: .infinity, alignment: .leading)
-
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } activity: {
+            ProviderQuotaActivityHeaderCell()
+        } keyQuota: {
             Text(L10n.t(.keyQuota))
-                .frame(width: 104, alignment: .trailing)
-
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        } credentialPool: {
             Text(L10n.t(.credentialPool))
-                .frame(width: 154, alignment: .trailing)
-
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        } criticalTime: {
             Text(L10n.t(.criticalTime))
-                .frame(width: 150, alignment: .trailing)
-
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        } status: {
             Text(L10n.t(.quotaStatus))
-                .frame(width: 92, alignment: .trailing)
-
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        } actions: {
             Color.clear
-                .frame(width: 104)
         }
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.secondary)
         .textCase(.uppercase)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
         .padding(.vertical, 9)
     }
 }
 
 struct ProviderQuotaMonitorRow: View {
-    private static let trailingControlReserve: CGFloat = 104
-
     let stat: ProviderStats
     @ObservedObject var monitor: QuotaMonitor
+    @ObservedObject private var navigationStore = SettingsNavigationStore.shared
     @State private var isExpanded = false
     @State private var showingReauth = false
 
@@ -1997,31 +2280,69 @@ struct ProviderQuotaMonitorRow: View {
         }
     }
 
+    private var providerActivitySummary: QuotaActivitySummary {
+        let constrainedKeyID = stat.mostConstrainedActiveMonitoringKey?.id
+        let rankedKeys = [
+            stat.mostConstrainedActiveMonitoringKey
+        ].compactMap { $0 } + keys.reversed().filter { $0.id != constrainedKeyID }
+
+        for key in rankedKeys {
+            let summary = monitor.activitySummary(for: key)
+            if summary.shouldRender {
+                return summary
+            }
+        }
+        return stat.mostConstrainedActiveMonitoringKey
+            .map { monitor.activitySummary(for: $0) }
+            ?? keys.first.map { monitor.activitySummary(for: $0) }
+            ?? .empty
+    }
+
+    private var providerWindowDetailKey: APIKey? {
+        guard let key = stat.mostConstrainedActiveMonitoringKey,
+              !key.quotaWindowDetails.isEmpty else {
+            return nil
+        }
+        return key
+    }
+
+    private var providerSummaryRowBackground: Color {
+        if navigationStore.focusedProvider == provider {
+            return Color.accentColor.opacity(0.075)
+        }
+        return quotaOverviewNeedsAttention ? quotaOverviewRiskColor.opacity(0.038) : Color.clear
+    }
+
+    private var focusedMenuSignalReasonText: String? {
+        guard navigationStore.focusedProvider == provider,
+              let reason = navigationStore.focusedMenuSignalReason else {
+            return nil
+        }
+        return reason.displayText
+    }
+
+    private var providerSubtitleText: String {
+        focusedMenuSignalReasonText ?? provider.planTypeDisplayName() ?? L10n.categoryTitle(provider.statusBarCategoryTitle)
+    }
+
+    @ViewBuilder
+    private var providerSummaryRiskAccent: some View {
+        if quotaOverviewNeedsAttention {
+            Capsule()
+                .fill(quotaOverviewRiskColor.opacity(0.58))
+                .frame(width: 3)
+                .padding(.vertical, 10)
+                .padding(.leading, 4)
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            ZStack(alignment: .trailing) {
-                Button {
-                    withAnimation(settingsCollapseAnimation) { isExpanded.toggle() }
-                } label: {
-                    providerSummaryRow
-                }
-                .buttonStyle(.plain)
-
-                ProviderQuotaActionGroup(
-                    provider: provider,
-                    isRefreshing: isRefreshing,
-                    canRefresh: canRefresh,
-                    onReauthenticate: { showingReauth = true },
-                    onRefresh: { monitor.refreshProvider(provider) }
-                )
-                .padding(.trailing, 10)
-            }
+            providerSummaryRow
 
             if isExpanded {
                 if keys.isEmpty {
                     ProviderQuotaEmptyKeyRow()
-                        .padding(.leading, 56)
-                        .padding(.trailing, 14)
                         .padding(.bottom, 10)
                         .transition(.opacity)
                 } else {
@@ -2035,17 +2356,29 @@ struct ProviderQuotaMonitorRow: View {
                                         .padding(.leading, 12)
                                 }
 
-                                ProviderQuotaKeyTableRow(key: key)
+                                ProviderQuotaKeyTableRow(
+                                    key: key,
+                                    isFocused: navigationStore.focusedCredentialID == key.id,
+                                    focusedReason: navigationStore.focusedMenuSignalReason
+                                )
                             }
                         }
 
-                        if let detailKey = keys.first(where: { !$0.quotaWindowDetails.isEmpty }) {
-                            QuotaWindowDetails(windows: detailKey.quotaWindowDetails)
-                                .padding(.top, 8)
+                        if let detailKey = providerWindowDetailKey {
+                            VStack(alignment: .leading, spacing: 6) {
+                                if keys.count > 1 {
+                                    Text(detailKey.accountDisplayTitle)
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                        .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
+                                }
+
+                                QuotaWindowDetails(windows: detailKey.quotaWindowDetails)
+                            }
+                            .padding(.top, 8)
                         }
                     }
-                    .padding(.leading, 56)
-                    .padding(.trailing, 14)
                     .padding(.bottom, 10)
                     .transition(.opacity)
                 }
@@ -2061,41 +2394,86 @@ struct ProviderQuotaMonitorRow: View {
     }
 
     private var providerSummaryRow: some View {
-        HStack(spacing: 12) {
-            ProviderIcon(provider: provider, size: 30)
+        ProviderQuotaOverviewGridRow(height: 34) {
+            toggleCell(alignment: .leading) {
+                HStack(spacing: ProviderQuotaOverviewLayout.rowSpacing) {
+                    ProviderIcon(provider: provider, size: ProviderQuotaOverviewLayout.providerIconSize)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(provider.providerFamilyDisplayName())
-                    .font(.system(size: 13, weight: .semibold))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(provider.providerFamilyDisplayName())
+                            .font(.system(size: 13, weight: .semibold))
+                            .lineLimit(1)
 
-                if let planName = provider.planTypeDisplayName() {
-                    Text(planName)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        Text(providerSubtitleText)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 }
             }
-
-            Spacer(minLength: 10)
-
-            ProviderQuotaColumnValue(value: keyQuotaText, tint: quotaOverviewRiskColor)
-                .frame(width: 104, alignment: .trailing)
-
-            ProviderQuotaColumnValue(value: credentialPoolText)
-                .frame(width: 154, alignment: .trailing)
-
-            ProviderQuotaColumnValue(value: criticalTimeText)
-                .frame(width: 150, alignment: .trailing)
-
-            ProviderQuotaStatusPill(text: statusText, tint: quotaOverviewRiskColor)
-                .frame(width: 92, alignment: .trailing)
-
-            Color.clear
-                .frame(width: Self.trailingControlReserve)
+        } activity: {
+            toggleCell(alignment: .center) {
+                ProviderQuotaActivityColumn {
+                    QuotaActivityMeter(
+                        summary: providerActivitySummary,
+                        tint: quotaOverviewRiskColor
+                    )
+                }
+            }
+        } keyQuota: {
+            toggleCell(alignment: .trailing) {
+                ProviderQuotaColumnValue(value: keyQuotaText, tint: quotaOverviewRiskColor)
+            }
+        } credentialPool: {
+            toggleCell(alignment: .trailing) {
+                ProviderQuotaColumnValue(value: credentialPoolText)
+            }
+        } criticalTime: {
+            toggleCell(alignment: .trailing) {
+                ProviderQuotaColumnValue(value: criticalTimeText)
+            }
+        } status: {
+            toggleCell(alignment: .trailing) {
+                ProviderQuotaStatusPill(text: statusText, tint: quotaOverviewRiskColor)
+            }
+        } actions: {
+            ProviderQuotaActionGroup(
+                provider: provider,
+                isRefreshing: isRefreshing,
+                canRefresh: canRefresh,
+                onReauthenticate: { showingReauth = true },
+                onRefresh: { monitor.refreshProvider(provider) }
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
+        .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
         .padding(.vertical, 11)
-        .contentShape(Rectangle())
+        .background(providerSummaryRowBackground, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay(alignment: .leading) {
+            providerSummaryRiskAccent
+        }
+        .onAppear {
+            if navigationStore.focusedProvider == provider {
+                isExpanded = true
+            }
+        }
+        .onChange(of: navigationStore.focusedProvider) { _, _ in
+            if navigationStore.focusedProvider == provider {
+                withAnimation(settingsCollapseAnimation) { isExpanded = true }
+            }
+        }
+    }
+
+    private func toggleCell<Content: View>(alignment: Alignment, @ViewBuilder content: () -> Content) -> some View {
+        Button {
+            withAnimation(settingsCollapseAnimation) { isExpanded.toggle() }
+        } label: {
+            content()
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
 }
@@ -2111,6 +2489,101 @@ struct ProviderQuotaColumnValue: View {
             .monospacedDigit()
             .lineLimit(1)
             .minimumScaleFactor(0.72)
+    }
+}
+
+struct ProviderQuotaActivityColumn: View {
+    static var width: CGFloat { ProviderQuotaOverviewLayout.activityWidth }
+
+    let content: AnyView
+
+    init<Content: View>(@ViewBuilder content: () -> Content) {
+        self.content = AnyView(content())
+    }
+
+    var body: some View {
+        ZStack {
+            Color.clear
+            content
+        }
+        .frame(width: Self.width, alignment: .center)
+        .frame(minHeight: 32, alignment: .center)
+    }
+}
+
+struct QuotaActivityMeter: View {
+    static let valueSpacing: CGFloat = 5
+
+    private var periodLabel: String? {
+        summary.periodName.map { L10n.quotaPeriodCompactTitle($0) }
+    }
+
+    let summary: QuotaActivitySummary
+    let tint: Color
+
+    private var currentValueText: String? {
+        guard let currentText = summary.currentText,
+              !currentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return currentText
+    }
+
+    private var changeIndicatorText: String? {
+        guard let deltaText = summary.deltaText,
+              !deltaText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        return L10n.compactDeltaIndicator(deltaText)
+    }
+
+    var body: some View {
+        Group {
+            if summary.shouldRender {
+                HStack(alignment: .center, spacing: Self.valueSpacing) {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        if let currentValueText {
+                            Text(currentValueText)
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                .foregroundStyle(tint.opacity(0.9))
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+
+                        if let changeIndicatorText {
+                            Text(changeIndicatorText)
+                                .font(.system(size: 9, weight: .medium, design: .rounded))
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.68)
+                        }
+
+                        if let periodLabel {
+                            Text(periodLabel)
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(tint.opacity(0.58))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.58)
+                        }
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, minHeight: 24)
+        .frame(height: 28)
+    }
+}
+
+struct ProviderQuotaActivityHeaderCell: View {
+    var body: some View {
+        ProviderQuotaActivityColumn {
+            Text(L10n.t(.quotaActivity))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 
@@ -2140,7 +2613,8 @@ struct ProviderQuotaEmptyKeyRow: View {
             Spacer()
         }
         .foregroundStyle(.secondary)
-        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
         .padding(.vertical, 9)
         .background(Color.primary.opacity(0.028), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
@@ -2148,23 +2622,23 @@ struct ProviderQuotaEmptyKeyRow: View {
 
 struct ProviderQuotaKeyTableHeader: View {
     var body: some View {
-        HStack(spacing: 10) {
-            Text(L10n.t(.credential))
-                .frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
-
+        ProviderQuotaAccountGridRow(height: 18) {
+            Text(L10n.t(.plan))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } remaining: {
             Text(L10n.t(.remaining))
-                .frame(width: 86, alignment: .trailing)
-
-            Text(L10n.t(.quotaStatus))
-                .frame(width: 112, alignment: .trailing)
-
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        } criticalTime: {
+            Text(L10n.t(.criticalTime))
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        } updated: {
             Text(L10n.t(.lastUpdated))
-                .frame(width: ProviderQuotaTimingColumn.width, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.tertiary)
         .textCase(.uppercase)
-        .padding(.horizontal, 12)
+        .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
         .padding(.top, 4)
         .padding(.bottom, 6)
         .background(Color.primary.opacity(0.018), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -2173,55 +2647,89 @@ struct ProviderQuotaKeyTableHeader: View {
 
 struct ProviderQuotaKeyTableRow: View {
     let key: APIKey
+    let isFocused: Bool
+    let focusedReason: MenuSignalReason?
 
     private var updatedText: String {
         guard let lastUpdated = key.lastUpdated else { return L10n.t(.notChecked) }
         return L10n.shortDateTime(lastUpdated)
     }
 
+    private var criticalTimeText: String {
+        if !key.planEndSummary.isEmpty {
+            return key.planEndSummary
+        }
+        if !key.visibleQuotaResetSummary.isEmpty {
+            return key.visibleQuotaResetSummary
+        }
+        return L10n.t(.notAvailableShort)
+    }
+
+    private var rowBackground: Color {
+        isFocused ? Color.accentColor.opacity(0.09) : Color.primary.opacity(0.022)
+    }
+
     var body: some View {
-        HStack(spacing: 10) {
+        ProviderQuotaAccountGridRow(height: 44) {
             HStack(spacing: 8) {
                 Circle()
-                    .fill(key.status.color)
+                    .fill(isFocused ? Color.accentColor : key.status.color)
                     .frame(width: 6, height: 6)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(key.managementCredentialValueText)
-                        .font(.system(size: 12, weight: .medium))
-                        .fontDesign(.monospaced)
-                        .lineLimit(1)
-
-                    if !key.quotaRowSubtitle.isEmpty {
-                        Text(key.quotaRowSubtitle)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        Text(key.accountDisplayTitle)
+                            .font(.system(size: 12, weight: .medium))
                             .lineLimit(1)
+                            .minimumScaleFactor(0.76)
+
+                        if isFocused, let focusedReason {
+                            Text(focusedReason.displayText)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(Color.accentColor)
+                                .lineLimit(1)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Color.accentColor.opacity(0.10), in: Capsule())
+                        }
                     }
                 }
             }
-            .frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
-
+        } remaining: {
             Text(key.remainingBadgeText)
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundStyle(key.status.color)
                 .monospacedDigit()
                 .lineLimit(1)
-                .frame(width: 86, alignment: .trailing)
-
-            ProviderQuotaStatusPill(text: key.healthDisplayText, tint: key.status.color)
-                .frame(width: 112, alignment: .trailing)
-
-            ProviderQuotaTimingColumn(key: key, updatedText: updatedText)
+                .minimumScaleFactor(0.72)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        } criticalTime: {
+            ProviderQuotaColumnValue(value: criticalTimeText, tint: isFocused ? .accentColor : .secondary)
+        } updated: {
+            Text(L10n.format(.updated, updatedText))
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
         .padding(.vertical, 8)
-        .background(Color.primary.opacity(0.022), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .background(rowBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(alignment: .leading) {
+            if isFocused {
+                Capsule()
+                    .fill(Color.accentColor.opacity(0.65))
+                    .frame(width: 3)
+                    .padding(.vertical, 8)
+                    .padding(.leading, 4)
+            }
+        }
     }
 }
 
 struct ProviderQuotaTimingColumn: View {
-    static let width: CGFloat = 188
+    static let width: CGFloat = ProviderQuotaAccountLayout.updatedWidth
 
     let key: APIKey
     let updatedText: String
@@ -2229,16 +2737,12 @@ struct ProviderQuotaTimingColumn: View {
     @ViewBuilder
     var body: some View {
         VStack(alignment: .trailing, spacing: 2) {
-            timingText(updatedText, style: .secondary, weight: .medium)
-            if !key.visibleQuotaResetSummary.isEmpty {
-                timingText(key.visibleQuotaResetSummary, style: .tertiary)
-            }
-
+            timingText(L10n.format(.updated, updatedText), style: .secondary, weight: .medium)
             if !key.planEndSummary.isEmpty {
                 planEndText
             }
         }
-        .frame(width: Self.width, alignment: .trailing)
+        .frame(maxWidth: .infinity, alignment: .trailing)
     }
 
     @ViewBuilder
@@ -2363,36 +2867,56 @@ struct CredentialDiagnosticRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.credentialTitle)
                         .font(.system(size: 13, weight: .semibold))
-                    Text(item.credentialSubtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        Text(item.credentialSubtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if let planName = item.planDisplayName,
+                           planName != item.credentialTitle {
+                            Text(planName)
+                                .font(.caption2.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.primary.opacity(0.06), in: Capsule())
+                        }
+                    }
                 }
 
                 Spacer()
 
                 DiagnosticPill(title: L10n.t(.healthStatus), value: item.diagnosticStatusText, tint: item.diagnosticStatusColor)
-                DiagnosticPill(title: L10n.t(.lastHTTPStatus), value: item.httpStatusText, tint: .secondary)
             }
 
             if let connectionDiagnosticSummary = item.connectionDiagnosticSummary {
-                HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "text.bubble")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16)
-
-                    Text(connectionDiagnosticSummary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Spacer()
-                }
+                DiagnosticMessageRow(text: connectionDiagnosticSummary)
             }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
         .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+    }
+}
+
+struct DiagnosticMessageRow: View {
+    let text: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "text.bubble")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer()
+        }
     }
 }
 

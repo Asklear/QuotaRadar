@@ -371,12 +371,15 @@ enum L10n {
         case customProxyPlaceholder
         case customProxyHelp
         case apiQuotaTitle
+        case sidebarStatistics
         case noApiKeys
         case noApiKeysMessage
         case openSettings
         case keys
         case providers
         case quotaRiskToday
+        case statusItemFailedCount
+        case statusItemLowCount
         case available
         case failed
         case needsAttention
@@ -385,8 +388,14 @@ enum L10n {
         case keyQuota
         case credentialPool
         case criticalTime
+        case accountTiming
+        case plan
         case lowQuotaProviders
         case expiringSoon
+        case recentProviderUsage
+        case recentUsageDetail
+        case hiddenQuotaSignalCount
+        case statusBarAccountCount
         case oneCredential
         case usableCredentialCount
         case attentionCredentialCount
@@ -463,12 +472,36 @@ enum L10n {
         case updatedJustNow
         case failedRefresh
         case refreshQuotaAction
+        case refreshingQuotaAction
+        case refreshQuotaConsumesQuotaAction
+        case testConnection
+        case costlyConnectionTestTitle
+        case costlyConnectionTestMessage
+        case testConnectionConsumesQuota
+        case reset
         case resetDate
         case planEndsDate
+        case quotaActivity
+        case quotaActivityRemaining
+        case quotaTrend
+        case quotaTrendReplenished
+        case quotaTrendStable
+        case quotaRefreshDeltaConsumed
+        case quotaRefreshDeltaNoChange
+        case quotaRefreshDeltaRecovered
+        case quotaRefreshDeltaFailed
         case resetsMonthlyDay1
         case noResetCycle
         case resetNotExposed
         case credentialExpired
+        case notificationLowQuotaTitle
+        case notificationLowQuotaBody
+        case notificationQuotaExhaustedTitle
+        case notificationQuotaExhaustedBody
+        case notificationCredentialExpiredTitle
+        case notificationCredentialExpiredBody
+        case notificationRepeatedFailuresTitle
+        case notificationRepeatedFailuresBody
         case updateLoginAuthorizationAction
         case reauthenticate
         case saveCookie
@@ -501,6 +534,17 @@ enum L10n {
         case importedFromEnv
         case importedFromClaude
         case dashboardSession
+        case credentialState
+        case credentialStateNotConfigured
+        case credentialStateConfiguredUntested
+        case credentialStateUsable
+        case credentialStateCredentialExpired
+        case credentialStateQuotaUnavailable
+        case credentialStateCheckConsumesQuota
+        case credentialStateCheckFailed
+        case requestProxyMode
+        case automaticRefresh
+        case automaticRefreshSkipped
         case diagnosticsDescription
         case healthStatus
         case lastHTTPStatus
@@ -657,6 +701,36 @@ enum L10n {
         return formatter.string(from: date)
     }
 
+    static func percentPoints(_ value: Double) -> String {
+        let boundedValue = max(0, value)
+        let roundedValue = boundedValue.rounded()
+        if abs(roundedValue - boundedValue) < 0.05 {
+            return "\(Int(roundedValue))%"
+        }
+        return String(format: "%.1f%%", locale: Locale(identifier: "en_US_POSIX"), boundedValue)
+    }
+
+    static func percentPointDelta(_ value: Double) -> String {
+        percentPoints(value).replacingOccurrences(of: "%", with: "pt")
+    }
+
+    static func compactDeltaIndicator(_ deltaText: String) -> String {
+        let trimmed = deltaText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let first = trimmed.first else {
+            return trimmed
+        }
+
+        let body = String(trimmed.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+        switch first {
+        case "-", "−":
+            return body.isEmpty ? trimmed : "↓\(body)"
+        case "+":
+            return body.isEmpty ? trimmed : "↑\(body)"
+        default:
+            return trimmed
+        }
+    }
+
     static func quotaPeriodTitle(_ title: String, language: AppLanguage = AppLanguageStore.shared.language) -> String {
         switch language {
         case .english:
@@ -705,6 +779,35 @@ enum L10n {
             default:
                 return title
             }
+        }
+    }
+
+    static func quotaPeriodCompactTitle(_ title: String, language: AppLanguage = AppLanguageStore.shared.language) -> String {
+        switch title {
+        case "5h":
+            return "5h"
+        case "week":
+            switch language {
+            case .english:
+                return "wk"
+            case .simplifiedChinese:
+                return "周"
+            case .traditionalChinese, .japanese:
+                return "週"
+            case .korean:
+                return "주"
+            }
+        case "month":
+            switch language {
+            case .english:
+                return "mo"
+            case .simplifiedChinese, .traditionalChinese, .japanese:
+                return "月"
+            case .korean:
+                return "월"
+            }
+        default:
+            return title
         }
     }
 
@@ -1121,12 +1224,15 @@ enum L10n {
         .customProxyPlaceholder: "http://127.0.0.1:7890",
         .customProxyHelp: "Use Custom for local proxies such as Clash or Surge. System follows macOS network settings.",
         .apiQuotaTitle: "Quota Radar",
+        .sidebarStatistics: "Statistics",
         .noApiKeys: "No credentials",
         .noApiKeysMessage: "Import a .env file or add credentials on the Credentials page to show provider quotas here.",
         .openSettings: "Open Settings",
         .keys: "Keys",
         .providers: "Providers",
         .quotaRiskToday: "Quota Risk Today",
+        .statusItemFailedCount: "%d Failed",
+        .statusItemLowCount: "%d Low",
         .available: "Available",
         .failed: "Failed",
         .needsAttention: "Needs Attention",
@@ -1135,8 +1241,14 @@ enum L10n {
         .keyQuota: "Key Quota",
         .credentialPool: "Credential Pool",
         .criticalTime: "Critical Time",
+        .accountTiming: "Timing",
+        .plan: "Plan",
         .lowQuotaProviders: "Low Quota",
         .expiringSoon: "Expiring Soon",
+        .recentProviderUsage: "Recent Change",
+        .recentUsageDetail: "Remaining Δ",
+        .hiddenQuotaSignalCount: "%d more items need attention",
+        .statusBarAccountCount: "%d accounts",
         .oneCredential: "1 key",
         .usableCredentialCount: "%d usable",
         .attentionCredentialCount: "%d attention",
@@ -1204,7 +1316,7 @@ enum L10n {
         .featureRealtime: "Provider-level quota refresh",
         .featureGlass: "Frosted glass menu bar UI",
         .featureMenuBar: "Menu bar quick access",
-        .version: "Version 0.3.4",
+        .version: "Version 0.3.5",
         .importNoKeys: "No supported API keys found in %@.",
         .importSummary: "Imported %d new and updated %d key(s).",
         .refreshAlreadyRunning: "Refresh already running",
@@ -1213,12 +1325,36 @@ enum L10n {
         .updatedJustNow: "Updated just now",
         .failedRefresh: "Failed to refresh %d key(s)",
         .refreshQuotaAction: "Refresh quota",
+        .refreshingQuotaAction: "Refreshing quota",
+        .refreshQuotaConsumesQuotaAction: "Refresh quota (uses 1 request)",
+        .testConnection: "Test connection",
+        .costlyConnectionTestTitle: "This test consumes quota",
+        .costlyConnectionTestMessage: "Testing this provider sends a real quota-consuming request. Continue only if you want to spend one request.",
+        .testConnectionConsumesQuota: "Test and consume quota",
+        .reset: "Reset",
         .resetDate: "Resets %@",
         .planEndsDate: "Plan ends %@",
+        .quotaActivity: "Activity",
+        .quotaActivityRemaining: "Remaining %@",
+        .quotaTrend: "Trend",
+        .quotaTrendReplenished: "Recovered",
+        .quotaTrendStable: "Stable",
+        .quotaRefreshDeltaConsumed: "Remaining -%@",
+        .quotaRefreshDeltaNoChange: "Updated · no change",
+        .quotaRefreshDeltaRecovered: "Reset",
+        .quotaRefreshDeltaFailed: "Refresh failed",
         .resetsMonthlyDay1: "Resets monthly on day 1",
         .noResetCycle: "No reset cycle",
         .resetNotExposed: "Reset not exposed",
         .credentialExpired: "Credential expired",
+        .notificationLowQuotaTitle: "Quota is low",
+        .notificationLowQuotaBody: "%@ is down to %@.",
+        .notificationQuotaExhaustedTitle: "Quota exhausted",
+        .notificationQuotaExhaustedBody: "%@ has no quota remaining.",
+        .notificationCredentialExpiredTitle: "Login authorization expired",
+        .notificationCredentialExpiredBody: "%@ needs a new login authorization.",
+        .notificationRepeatedFailuresTitle: "Quota check keeps failing",
+        .notificationRepeatedFailuresBody: "%@ failed %d checks in a row.",
         .updateLoginAuthorizationAction: "Update login authorization",
         .reauthenticate: "Re-authenticate",
         .saveCookie: "Save login authorization",
@@ -1251,6 +1387,17 @@ enum L10n {
         .importedFromEnv: "Imported from .env",
         .importedFromClaude: "Imported from ~/.claude/settings.json",
         .dashboardSession: "Web login authorization",
+        .credentialState: "State",
+        .credentialStateNotConfigured: "Not configured",
+        .credentialStateConfiguredUntested: "Configured, untested",
+        .credentialStateUsable: "Usable",
+        .credentialStateCredentialExpired: "Credential expired",
+        .credentialStateQuotaUnavailable: "Quota unavailable",
+        .credentialStateCheckConsumesQuota: "Check consumes quota",
+        .credentialStateCheckFailed: "Check failed",
+        .requestProxyMode: "Proxy",
+        .automaticRefresh: "Auto refresh",
+        .automaticRefreshSkipped: "Skipped",
         .diagnosticsDescription: "Review each credential's latest check result, HTTP status, and provider-specific diagnostic note.",
         .healthStatus: "Health",
         .lastHTTPStatus: "HTTP",
@@ -1380,12 +1527,15 @@ enum L10n {
         .customProxyPlaceholder: "http://127.0.0.1:7890",
         .customProxyHelp: "本地使用 Clash、Surge 等代理时选择自定义；跟随系统会使用 macOS 网络设置。",
         .apiQuotaTitle: "余量雷达",
+        .sidebarStatistics: "统计",
         .noApiKeys: "没有凭据",
         .noApiKeysMessage: "导入 .env 文件或在凭据页添加凭据后，这里会显示各服务商的额度。",
         .openSettings: "打开设置",
         .keys: "密钥",
         .providers: "服务商",
         .quotaRiskToday: "今日额度风险",
+        .statusItemFailedCount: "%d 失败",
+        .statusItemLowCount: "%d 低",
         .available: "可用",
         .failed: "失败",
         .needsAttention: "需要关注",
@@ -1394,8 +1544,14 @@ enum L10n {
         .keyQuota: "关键额度",
         .credentialPool: "凭据池",
         .criticalTime: "关键时间",
+        .accountTiming: "时间",
+        .plan: "套餐",
         .lowQuotaProviders: "额度紧张",
         .expiringSoon: "即将到期",
+        .recentProviderUsage: "近期变化",
+        .recentUsageDetail: "剩余变化",
+        .hiddenQuotaSignalCount: "还有 %d 项需要关注",
+        .statusBarAccountCount: "%d 个账号",
         .oneCredential: "1 个凭据",
         .usableCredentialCount: "%d 可用",
         .attentionCredentialCount: "%d 需关注",
@@ -1463,7 +1619,7 @@ enum L10n {
         .featureRealtime: "按服务商单独刷新额度",
         .featureGlass: "磨砂玻璃状态栏界面",
         .featureMenuBar: "状态栏快速访问",
-        .version: "版本 0.3.4",
+        .version: "版本 0.3.5",
         .importNoKeys: "在 %@ 中没有找到支持的 API 密钥。",
         .importSummary: "已导入 %d 个，新更新 %d 个密钥。",
         .refreshAlreadyRunning: "刷新正在进行",
@@ -1472,12 +1628,36 @@ enum L10n {
         .updatedJustNow: "刚刚已更新",
         .failedRefresh: "%d 个密钥刷新失败",
         .refreshQuotaAction: "刷新额度",
+        .refreshingQuotaAction: "正在刷新额度",
+        .refreshQuotaConsumesQuotaAction: "刷新额度（消耗 1 次请求）",
+        .testConnection: "测试连接",
+        .costlyConnectionTestTitle: "该测试会消耗额度",
+        .costlyConnectionTestMessage: "测试该服务商会发出一次真实请求并消耗额度。确认需要消耗 1 次请求后再继续。",
+        .testConnectionConsumesQuota: "测试并消耗额度",
+        .reset: "重置",
         .resetDate: "%@ 重置",
         .planEndsDate: "套餐 %@ 到期",
+        .quotaActivity: "动态",
+        .quotaActivityRemaining: "剩余 %@",
+        .quotaTrend: "趋势",
+        .quotaTrendReplenished: "已恢复",
+        .quotaTrendStable: "稳定",
+        .quotaRefreshDeltaConsumed: "剩余 -%@",
+        .quotaRefreshDeltaNoChange: "刚刚更新 · 无变化",
+        .quotaRefreshDeltaRecovered: "已重置",
+        .quotaRefreshDeltaFailed: "刷新失败",
         .resetsMonthlyDay1: "每月 1 日重置",
         .noResetCycle: "无重置周期",
         .resetNotExposed: "未公开重置时间",
         .credentialExpired: "凭据已过期",
+        .notificationLowQuotaTitle: "额度偏低",
+        .notificationLowQuotaBody: "%@ 剩余 %@。",
+        .notificationQuotaExhaustedTitle: "额度已耗尽",
+        .notificationQuotaExhaustedBody: "%@ 已无可用额度。",
+        .notificationCredentialExpiredTitle: "登录授权已过期",
+        .notificationCredentialExpiredBody: "%@ 需要重新登录授权。",
+        .notificationRepeatedFailuresTitle: "额度检查连续失败",
+        .notificationRepeatedFailuresBody: "%@ 已连续 %d 次检查失败。",
         .updateLoginAuthorizationAction: "更新登录授权",
         .reauthenticate: "重新认证",
         .saveCookie: "保存登录授权",
@@ -1510,6 +1690,17 @@ enum L10n {
         .importedFromEnv: "从 .env 导入",
         .importedFromClaude: "从 ~/.claude/settings.json 导入",
         .dashboardSession: "网页登录授权",
+        .credentialState: "状态",
+        .credentialStateNotConfigured: "未配置",
+        .credentialStateConfiguredUntested: "已配置，待检测",
+        .credentialStateUsable: "可用",
+        .credentialStateCredentialExpired: "凭据已过期",
+        .credentialStateQuotaUnavailable: "接口不可查询额度",
+        .credentialStateCheckConsumesQuota: "检查会消耗额度",
+        .credentialStateCheckFailed: "检查失败",
+        .requestProxyMode: "代理",
+        .automaticRefresh: "自动刷新",
+        .automaticRefreshSkipped: "已跳过",
         .diagnosticsDescription: "查看每个凭据最近一次检查结果、HTTP 状态和服务商诊断信息。",
         .healthStatus: "健康状态",
         .lastHTTPStatus: "HTTP",
@@ -1618,11 +1809,14 @@ enum L10n {
         .quotaConsumingAutoRefreshInterval: "搜尋刷新",
         .quotaConsumingAutoRefreshWarning: "僅在你接受消耗真實搜尋額度時開啟。這類檢查使用更長的刷新週期。",
         .apiQuotaTitle: "餘量雷達",
+        .sidebarStatistics: "統計",
         .noApiKeys: "沒有憑證",
         .noApiKeysMessage: "匯入 .env 檔案或在憑證頁新增憑證後，這裡會顯示各服務商的額度。",
         .keys: "金鑰",
         .providers: "服務商",
         .quotaRiskToday: "今日額度風險",
+        .statusItemFailedCount: "%d 失敗",
+        .statusItemLowCount: "%d 低",
         .available: "可用",
         .failed: "失敗",
         .needsAttention: "需要關注",
@@ -1631,8 +1825,14 @@ enum L10n {
         .keyQuota: "關鍵額度",
         .credentialPool: "憑證池",
         .criticalTime: "關鍵時間",
+        .accountTiming: "時間",
+        .plan: "套餐",
         .lowQuotaProviders: "額度緊張",
         .expiringSoon: "即將到期",
+        .recentProviderUsage: "近期變化",
+        .recentUsageDetail: "剩餘變化",
+        .hiddenQuotaSignalCount: "還有 %d 項需要關注",
+        .statusBarAccountCount: "%d 個帳號",
         .oneCredential: "1 個憑證",
         .usableCredentialCount: "%d 可用",
         .attentionCredentialCount: "%d 需關注",
@@ -1644,10 +1844,25 @@ enum L10n {
         .noKeyConfigured: "未配置金鑰",
         .openDashboard: "開啟控制台",
         .refreshQuotaAction: "刷新額度",
+        .refreshingQuotaAction: "正在刷新額度",
+        .refreshQuotaConsumesQuotaAction: "刷新額度（消耗 1 次請求）",
+        .testConnection: "測試連線",
+        .costlyConnectionTestTitle: "此測試會消耗額度",
+        .costlyConnectionTestMessage: "測試此服務商會發出一次真實請求並消耗額度。確認需要消耗 1 次請求後再繼續。",
+        .testConnectionConsumesQuota: "測試並消耗額度",
         .disabled: "停用",
         .quotaUnavailable: "額度不可用",
         .noSubscribedPlan: "未發現訂閱套餐",
         .planEndsDate: "套餐 %@ 到期",
+        .quotaActivity: "動態",
+        .quotaActivityRemaining: "剩餘 %@",
+        .quotaTrend: "趨勢",
+        .quotaTrendReplenished: "已恢復",
+        .quotaTrendStable: "穩定",
+        .quotaRefreshDeltaConsumed: "剩餘 -%@",
+        .quotaRefreshDeltaNoChange: "剛剛更新 · 無變化",
+        .quotaRefreshDeltaRecovered: "已重置",
+        .quotaRefreshDeltaFailed: "刷新失敗",
         .keyName: "憑證名稱",
         .apiKey: "API 金鑰",
         .apiKeyForCopy: "API 金鑰（可選）",
@@ -1681,14 +1896,33 @@ enum L10n {
         .moveProviderUp: "上移",
         .moveProviderDown: "下移",
         .remaining: "剩餘",
-        .version: "版本 0.3.4",
+        .version: "版本 0.3.5",
         .credentialExpired: "憑證已過期",
+        .notificationLowQuotaTitle: "額度偏低",
+        .notificationLowQuotaBody: "%@ 剩餘 %@。",
+        .notificationQuotaExhaustedTitle: "額度已耗盡",
+        .notificationQuotaExhaustedBody: "%@ 已無可用額度。",
+        .notificationCredentialExpiredTitle: "登入授權已過期",
+        .notificationCredentialExpiredBody: "%@ 需要重新登入授權。",
+        .notificationRepeatedFailuresTitle: "額度檢查連續失敗",
+        .notificationRepeatedFailuresBody: "%@ 已連續 %d 次檢查失敗。",
         .updateLoginAuthorizationAction: "更新登入授權",
         .importedFromEnv: "從 .env 匯入",
         .importedFromClaude: "從 ~/.claude/settings.json 匯入",
         .adminCredentialRequired: "需要 API 金鑰",
         .reauthenticate: "重新認證",
         .dashboardSession: "網頁登入授權",
+        .credentialState: "狀態",
+        .credentialStateNotConfigured: "未配置",
+        .credentialStateConfiguredUntested: "已配置，待檢測",
+        .credentialStateUsable: "可用",
+        .credentialStateCredentialExpired: "憑證已過期",
+        .credentialStateQuotaUnavailable: "介面不可查詢額度",
+        .credentialStateCheckConsumesQuota: "檢查會消耗額度",
+        .credentialStateCheckFailed: "檢查失敗",
+        .requestProxyMode: "代理",
+        .automaticRefresh: "自動刷新",
+        .automaticRefreshSkipped: "已跳過",
         .healthStatus: "健康狀態",
         .diagnosticMessage: "診斷資訊",
         .usableUnknownQuota: "可用 · 額度未知",
@@ -1705,6 +1939,7 @@ enum L10n {
         .businessInvocationKey: "業務調用 key",
         .useDashboardCookie: "請改用網頁登入授權",
         .quotaConsumingRefreshWarning: "手動刷新該服務商會消耗 1 次真實搜尋請求。",
+        .reset: "重設",
         .monthlyCreditsFormat: "%@ / %@ 月度積分",
         .monthlyRequestsFormat: "%@ / %@ 月度請求",
         .monthlyRequestsUsedFormat: "已用 %@ 次月度請求",
@@ -1789,12 +2024,15 @@ enum L10n {
         .customProxyPlaceholder: "http://127.0.0.1:7890",
         .customProxyHelp: "Clash や Surge などのローカルプロキシを使う場合はカスタムを選びます。システムは macOS のネットワーク設定に従います。",
         .apiQuotaTitle: "クォータレーダー",
+        .sidebarStatistics: "統計",
         .noApiKeys: "認証情報がありません",
         .noApiKeysMessage: ".env をインポートするか、認証情報ページで追加すると、ここにプロバイダーのクォータが表示されます。",
         .openSettings: "設定を開く",
         .keys: "キー",
         .providers: "プロバイダー",
         .quotaRiskToday: "今日のクォータリスク",
+        .statusItemFailedCount: "%d 失敗",
+        .statusItemLowCount: "%d 低",
         .available: "利用可能",
         .failed: "失敗",
         .needsAttention: "要確認",
@@ -1803,8 +2041,14 @@ enum L10n {
         .keyQuota: "重要クォータ",
         .credentialPool: "認証情報プール",
         .criticalTime: "重要時刻",
+        .accountTiming: "時刻",
+        .plan: "プラン",
         .lowQuotaProviders: "残量わずか",
         .expiringSoon: "期限間近",
+        .recentProviderUsage: "最近の変化",
+        .recentUsageDetail: "残量変化",
+        .hiddenQuotaSignalCount: "ほか %d 件の確認項目",
+        .statusBarAccountCount: "%d アカウント",
         .oneCredential: "1 キー",
         .usableCredentialCount: "%d 使用可",
         .attentionCredentialCount: "%d 要確認",
@@ -1872,7 +2116,7 @@ enum L10n {
         .featureRealtime: "プロバイダー単位のクォータ更新",
         .featureGlass: "フロストガラスのメニューバー UI",
         .featureMenuBar: "メニューバーから素早くアクセス",
-        .version: "バージョン 0.3.4",
+        .version: "バージョン 0.3.5",
         .importNoKeys: "%@ に対応する認証情報が見つかりません。",
         .importSummary: "%d 件を新規インポートし、%d 件を更新しました。",
         .refreshAlreadyRunning: "更新中です",
@@ -1881,12 +2125,35 @@ enum L10n {
         .updatedJustNow: "たった今更新しました",
         .failedRefresh: "%d 件のキー更新に失敗",
         .refreshQuotaAction: "クォータを更新",
+        .refreshingQuotaAction: "クォータを更新中",
+        .refreshQuotaConsumesQuotaAction: "クォータ更新（1 回消費）",
+        .testConnection: "接続をテスト",
+        .costlyConnectionTestTitle: "このテストはクォータを消費します",
+        .costlyConnectionTestMessage: "このプロバイダーのテストは実際のリクエストを送信し、クォータを 1 回分消費します。続行しますか。",
+        .testConnectionConsumesQuota: "テストして消費",
         .resetDate: "%@ にリセット",
         .planEndsDate: "プラン終了 %@",
+        .quotaActivity: "使用状況",
+        .quotaActivityRemaining: "残り %@",
+        .quotaTrend: "推移",
+        .quotaTrendReplenished: "回復",
+        .quotaTrendStable: "安定",
+        .quotaRefreshDeltaConsumed: "残り -%@",
+        .quotaRefreshDeltaNoChange: "更新 · 変化なし",
+        .quotaRefreshDeltaRecovered: "リセット",
+        .quotaRefreshDeltaFailed: "更新失敗",
         .resetsMonthlyDay1: "毎月 1 日にリセット",
         .noResetCycle: "リセット周期なし",
         .resetNotExposed: "リセット時刻は非公開",
         .credentialExpired: "認証情報の期限切れ",
+        .notificationLowQuotaTitle: "クォータ残量が低下",
+        .notificationLowQuotaBody: "%@ の残量は %@ です。",
+        .notificationQuotaExhaustedTitle: "クォータを使い切りました",
+        .notificationQuotaExhaustedBody: "%@ のクォータ残量がありません。",
+        .notificationCredentialExpiredTitle: "ログイン認証の期限切れ",
+        .notificationCredentialExpiredBody: "%@ は再ログイン認証が必要です。",
+        .notificationRepeatedFailuresTitle: "クォータ確認が連続失敗",
+        .notificationRepeatedFailuresBody: "%@ は %d 回連続で確認に失敗しました。",
         .updateLoginAuthorizationAction: "ログイン認証を更新",
         .reauthenticate: "再認証",
         .saveCookie: "ログイン認証を保存",
@@ -1917,6 +2184,17 @@ enum L10n {
         .importPanelTitle: ".env から認証情報をインポート",
         .importPanelMessage: "対応する API キーまたは Web ログイン認証を含む .env ファイルを選択してください。",
         .dashboardSession: "Web ログイン認証",
+        .credentialState: "状態",
+        .credentialStateNotConfigured: "未設定",
+        .credentialStateConfiguredUntested: "設定済み・未確認",
+        .credentialStateUsable: "利用可",
+        .credentialStateCredentialExpired: "認証情報の期限切れ",
+        .credentialStateQuotaUnavailable: "クォータ取得不可",
+        .credentialStateCheckConsumesQuota: "確認でクォータ消費",
+        .credentialStateCheckFailed: "確認失敗",
+        .requestProxyMode: "プロキシ",
+        .automaticRefresh: "自動更新",
+        .automaticRefreshSkipped: "スキップ",
         .diagnosticsDescription: "各認証情報の最新チェック結果、HTTP 状態、プロバイダー別診断を確認します。",
         .healthStatus: "ヘルス",
         .httpNotRequested: "未リクエスト",
@@ -1940,6 +2218,7 @@ enum L10n {
         .useDashboardCookie: "Web ログイン認証を使用",
         .quotaCheckNotSupportedDiagnostic: "このプロバイダーは対応するクォータ確認エンドポイントを公開していません。",
         .quotaConsumingRefreshWarning: "このプロバイダーの手動更新は実際の検索リクエストを 1 回消費します。",
+        .reset: "リセット",
         .dashboardCookieCapabilityNote: "Web ログイン認証でクォータを確認します。",
         .quotaParsingNotImplementedCapabilityNote: "認証情報は保存できますが、クォータ解析はまだ実装されていません。",
         .tencentCloudTokenPlanCredentialNote: "Tencent Cloud API 署名認証情報と Token Plan API キー ID が必要です。",
@@ -2047,12 +2326,15 @@ enum L10n {
         .customProxyPlaceholder: "http://127.0.0.1:7890",
         .customProxyHelp: "Clash 또는 Surge 같은 로컬 프록시는 사용자화를 선택하세요. 시스템은 macOS 네트워크 설정을 따릅니다.",
         .apiQuotaTitle: "할당량 레이더",
+        .sidebarStatistics: "통계",
         .noApiKeys: "자격 증명 없음",
         .noApiKeysMessage: ".env 파일을 가져오거나 자격 증명 페이지에서 추가하면 여기에 공급자 할당량이 표시됩니다.",
         .openSettings: "설정 열기",
         .keys: "키",
         .providers: "공급자",
         .quotaRiskToday: "오늘의 할당량 위험",
+        .statusItemFailedCount: "실패 %d개",
+        .statusItemLowCount: "낮음 %d개",
         .available: "사용 가능",
         .failed: "실패",
         .needsAttention: "확인 필요",
@@ -2061,8 +2343,14 @@ enum L10n {
         .keyQuota: "핵심 할당량",
         .credentialPool: "자격 증명 풀",
         .criticalTime: "중요 시간",
+        .accountTiming: "시간",
+        .plan: "플랜",
         .lowQuotaProviders: "할당량 부족",
         .expiringSoon: "곧 만료",
+        .recentProviderUsage: "최근 변화",
+        .recentUsageDetail: "잔여 변화",
+        .hiddenQuotaSignalCount: "추가 확인 항목 %d개",
+        .statusBarAccountCount: "계정 %d개",
         .oneCredential: "키 1개",
         .usableCredentialCount: "사용 가능 %d개",
         .attentionCredentialCount: "확인 필요 %d개",
@@ -2130,7 +2418,7 @@ enum L10n {
         .featureRealtime: "공급자별 할당량 새로 고침",
         .featureGlass: "반투명 메뉴 막대 UI",
         .featureMenuBar: "메뉴 막대 빠른 접근",
-        .version: "버전 0.3.4",
+        .version: "버전 0.3.5",
         .importNoKeys: "%@에서 지원되는 자격 증명을 찾을 수 없습니다.",
         .importSummary: "새로 %d개 가져오고 %d개 키를 업데이트했습니다.",
         .refreshAlreadyRunning: "새로 고침 중입니다",
@@ -2139,12 +2427,35 @@ enum L10n {
         .updatedJustNow: "방금 업데이트됨",
         .failedRefresh: "키 %d개 새로 고침 실패",
         .refreshQuotaAction: "할당량 새로 고침",
+        .refreshingQuotaAction: "할당량 새로 고침 중",
+        .refreshQuotaConsumesQuotaAction: "할당량 새로 고침(요청 1회 사용)",
+        .testConnection: "연결 테스트",
+        .costlyConnectionTestTitle: "이 테스트는 할당량을 소비합니다",
+        .costlyConnectionTestMessage: "이 공급자 테스트는 실제 요청을 보내 할당량 1회를 소비합니다. 계속하시겠습니까?",
+        .testConnectionConsumesQuota: "테스트하고 할당량 소비",
         .resetDate: "%@ 재설정",
         .planEndsDate: "%@ 플랜 종료",
+        .quotaActivity: "활동",
+        .quotaActivityRemaining: "%@ 남음",
+        .quotaTrend: "추세",
+        .quotaTrendReplenished: "복구됨",
+        .quotaTrendStable: "안정",
+        .quotaRefreshDeltaConsumed: "남음 -%@",
+        .quotaRefreshDeltaNoChange: "업데이트 · 변화 없음",
+        .quotaRefreshDeltaRecovered: "재설정됨",
+        .quotaRefreshDeltaFailed: "새로 고침 실패",
         .resetsMonthlyDay1: "매월 1일 재설정",
         .noResetCycle: "재설정 주기 없음",
         .resetNotExposed: "재설정 시간이 공개되지 않음",
         .credentialExpired: "자격 증명 만료됨",
+        .notificationLowQuotaTitle: "할당량 부족",
+        .notificationLowQuotaBody: "%@ 남은 할당량은 %@입니다.",
+        .notificationQuotaExhaustedTitle: "할당량 소진",
+        .notificationQuotaExhaustedBody: "%@에 남은 할당량이 없습니다.",
+        .notificationCredentialExpiredTitle: "로그인 인증 만료",
+        .notificationCredentialExpiredBody: "%@에 새 로그인 인증이 필요합니다.",
+        .notificationRepeatedFailuresTitle: "할당량 확인 연속 실패",
+        .notificationRepeatedFailuresBody: "%@ 확인이 %d회 연속 실패했습니다.",
         .updateLoginAuthorizationAction: "로그인 인증 업데이트",
         .reauthenticate: "다시 인증",
         .saveCookie: "로그인 인증 저장",
@@ -2175,6 +2486,17 @@ enum L10n {
         .importPanelTitle: ".env에서 자격 증명 가져오기",
         .importPanelMessage: "지원되는 API 키 또는 웹 로그인 인증이 포함된 .env 파일을 선택하세요.",
         .dashboardSession: "웹 로그인 인증",
+        .credentialState: "상태",
+        .credentialStateNotConfigured: "구성 안 됨",
+        .credentialStateConfiguredUntested: "구성됨, 미확인",
+        .credentialStateUsable: "사용 가능",
+        .credentialStateCredentialExpired: "자격 증명 만료됨",
+        .credentialStateQuotaUnavailable: "할당량 조회 불가",
+        .credentialStateCheckConsumesQuota: "확인 시 할당량 소비",
+        .credentialStateCheckFailed: "확인 실패",
+        .requestProxyMode: "프록시",
+        .automaticRefresh: "자동 새로 고침",
+        .automaticRefreshSkipped: "건너뜀",
         .diagnosticsDescription: "각 자격 증명의 최근 확인 결과, HTTP 상태 및 공급자별 진단을 검토합니다.",
         .healthStatus: "상태",
         .httpNotRequested: "요청 안 함",
@@ -2198,6 +2520,7 @@ enum L10n {
         .useDashboardCookie: "웹 로그인 인증 사용",
         .quotaCheckNotSupportedDiagnostic: "이 공급자는 지원되는 할당량 확인 엔드포인트를 공개하지 않습니다.",
         .quotaConsumingRefreshWarning: "이 공급자를 수동 새로 고침하면 실제 검색 요청 1회를 소비합니다.",
+        .reset: "재설정",
         .dashboardCookieCapabilityNote: "웹 로그인 인증으로 할당량을 확인합니다.",
         .quotaParsingNotImplementedCapabilityNote: "자격 증명은 저장할 수 있지만 할당량 파싱은 아직 구현되지 않았습니다.",
         .tencentCloudTokenPlanCredentialNote: "Tencent Cloud API 서명 자격 증명과 Token Plan API 키 ID가 필요합니다.",
