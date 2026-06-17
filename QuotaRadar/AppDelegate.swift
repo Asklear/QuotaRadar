@@ -22,6 +22,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let statusPanelGap: CGFloat = 6
     private let statusPanelScreenInset: CGFloat = 10
     private let statusPanelOuterPadding: CGFloat = 18
+    private let statusItemTextHorizontalPadding: CGFloat = 18
 
     private var statusPanelSize: CGSize {
         CGSize(
@@ -50,6 +51,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         startLanguageMonitoring()
         showManagedSettingsWindowOnLaunch()
         GitHubReleaseUpdater.shared.checkForUpdatesIfNeededOnLaunch()
+        showStatusPanelForAutomationIfRequested()
+        openMenuSignalForAutomationIfRequested()
     }
 
     private func setupStatusBar() {
@@ -60,7 +63,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let icon = makeStatusBarIcon()
         icon.isTemplate = true
         button.image = icon
-        button.imagePosition = .imageOnly
+        button.imagePosition = .imageLeading
         button.imageScaling = .scaleProportionallyDown
         button.contentTintColor = nil
         button.toolTip = L10n.t(.apiQuotaTitle)
@@ -68,6 +71,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // 监听点击
         button.target = self
         button.action = #selector(togglePopover)
+        updateStatusItemPresentation()
     }
 
     private func makeStatusBarIcon() -> NSImage {
@@ -182,6 +186,71 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    @objc func showStatusPanelForAutomation() {
+        guard let button = statusItem?.button else { return }
+        showStatusPanel(relativeTo: button)
+        stopPopoverMouseExitMonitor()
+    }
+
+    private func showStatusPanelForAutomationIfRequested() {
+        guard ProcessInfo.processInfo.environment["QUOTARADAR_SHOW_STATUS_PANEL_FOR_AUTOMATION"] == "1" else {
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+            self?.showStatusPanelForAutomation()
+        }
+    }
+
+    @MainActor
+    private func openMenuSignalForAutomationIfRequested() {
+        guard let requestedSignal = ProcessInfo.processInfo.environment["QUOTARADAR_OPEN_MENU_SIGNAL_FOR_AUTOMATION"],
+              !requestedSignal.isEmpty else {
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            self?.openMenuSignalForAutomation(requestedSignal)
+        }
+    }
+
+    @MainActor
+    private func openMenuSignalForAutomation(_ requestedSignal: String) {
+        guard let item = menuSignalItemForAutomation(requestedSignal) else {
+            return
+        }
+
+        openProviderFromStatusPopover(item.provider, credentialID: item.key.id, reason: item.signalReason)
+    }
+
+    @MainActor
+    private func menuSignalItemForAutomation(_ requestedSignal: String) -> MenuQuotaItem? {
+        let normalizedSignal = requestedSignal
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let layout = quotaMonitor.menuSignalLayout
+
+        switch normalizedSignal {
+        case "attention", "needs-attention", "needsattention":
+            return layout.attentionItems.first
+        case "failed", "failure", "check-failed", "checkfailed":
+            return layout.attentionItems.first { $0.signalReason == .failed }
+        case "low", "low-quota", "lowquota":
+            return layout.lowQuotaItems.first
+        case "expiring", "expiring-soon", "expiringsoon":
+            return layout.expiringSoonItems.first
+        case "recent", "recent-usage", "recentusage":
+            return layout.recentUsageItems.first
+        case "first":
+            return layout.visibleItems.first
+        default:
+            return layout.visibleItems.first { item in
+                item.provider.rawValue.lowercased() == normalizedSignal
+                    || item.provider.displayName(language: .english).lowercased() == normalizedSignal
+            }
+        }
+    }
+
     private func showStatusPanel(relativeTo button: NSStatusBarButton) {
         guard let panel = statusPanel else { return }
 
@@ -213,9 +282,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let maxX = visibleFrame.maxX - size.width - statusPanelScreenInset
         let preferredX = buttonFrame.midX - MenuContentView.menuSize.width / 2 - statusPanelOuterPadding
         let x = min(max(preferredX, minX), maxX)
-        let preferredY = buttonFrame.minY - statusPanelGap - MenuContentView.menuSize.height - statusPanelOuterPadding
-        let maxY = visibleFrame.maxY - statusPanelScreenInset - MenuContentView.menuSize.height - statusPanelOuterPadding
-        let minY = visibleFrame.minY + statusPanelScreenInset - statusPanelOuterPadding
+        let preferredY = buttonFrame.minY - statusPanelGap - statusPanelSize.height
+        let maxY = visibleFrame.maxY - statusPanelScreenInset - statusPanelSize.height
+        let minY = visibleFrame.minY + statusPanelScreenInset
         let y = min(max(preferredY, minY), maxY)
         return NSRect(x: x, y: y, width: size.width, height: size.height)
     }
@@ -388,6 +457,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @MainActor
     private func startMonitoring() {
+        quotaMonitor.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.updateStatusItemPresentation()
+                }
+            }
+            .store(in: &cancellables)
+
         configureAutoRefreshTimer()
         AppAppearanceStore.shared.$autoRefreshInterval
             .removeDuplicates()
@@ -414,14 +492,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func updateLocalizedStatusBarStrings() {
-        if let button = statusItem?.button {
-            button.toolTip = L10n.t(.apiQuotaTitle)
-            button.image?.accessibilityDescription = L10n.t(.apiQuotaTitle)
-        }
+        updateStatusItemPresentation()
 
         statusPanelSettingsOverlayButton?.toolTip = L10n.t(.settingsTab)
         statusPanelSettingsOverlayButton?.setAccessibilityLabel(L10n.t(.settingsTab))
         settingsWindow?.title = L10n.t(.settingsWindowTitle)
+    }
+
+    private func updateStatusItemPresentation() {
+        Task { @MainActor [weak self] in
+            self?.applyStatusItemPresentation()
+        }
+    }
+
+    @MainActor
+    private func applyStatusItemPresentation() {
+        guard let statusItem, let button = statusItem.button else { return }
+
+        let shortText = quotaMonitor?.menuQuotaSummary.statusItemShortText
+        button.toolTip = L10n.t(.apiQuotaTitle)
+        button.image?.accessibilityDescription = L10n.t(.apiQuotaTitle)
+        button.imagePosition = .imageLeading
+
+        guard let shortText, !shortText.isEmpty else {
+            button.title = ""
+            statusItem.length = NSStatusItem.squareLength
+            return
+        }
+
+        button.title = shortText
+        button.font = .systemFont(ofSize: 11, weight: .semibold)
+        let textWidth = (shortText as NSString).size(withAttributes: [.font: button.font ?? NSFont.systemFont(ofSize: 11, weight: .semibold)]).width
+        statusItem.length = ceil(NSStatusBar.system.thickness + textWidth + statusItemTextHorizontalPadding)
     }
 
     @MainActor
@@ -502,6 +604,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         closeStatusPopover()
         DispatchQueue.main.async { [weak self] in
             self?.openPreferences(destination: destination)
+        }
+    }
+
+    func openProviderFromStatusPopover(_ provider: Provider, credentialID: UUID?, reason: MenuSignalReason?) {
+        closeStatusPopover()
+        DispatchQueue.main.async { [weak self] in
+            SettingsNavigationStore.shared.focusProvider(provider, credentialID: credentialID, reason: reason)
+            self?.openPreferences(destination: .providers)
         }
     }
 

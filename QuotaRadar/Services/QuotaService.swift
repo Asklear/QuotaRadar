@@ -6,6 +6,7 @@ struct QuotaResult {
     let limit: Int
     let resetAt: Date?
     var planEndsAt: Date?
+    var planDisplayName: String?
     var quotaLabel: String? = nil
     var quotaText: LocalizedTextDescriptor? = nil
     var quotaWindows: [QuotaWindowText] = []
@@ -18,6 +19,7 @@ struct QuotaResult {
         limit: Int,
         resetAt: Date?,
         planEndsAt: Date? = nil,
+        planDisplayName: String? = nil,
         quotaLabel: String? = nil,
         quotaText: LocalizedTextDescriptor? = nil,
         quotaWindows: [QuotaWindowText] = [],
@@ -29,6 +31,7 @@ struct QuotaResult {
         self.limit = limit
         self.resetAt = resetAt
         self.planEndsAt = planEndsAt
+        self.planDisplayName = planDisplayName
         self.quotaLabel = quotaLabel
         self.quotaWindows = quotaWindows
         self.quotaText = quotaText
@@ -38,6 +41,16 @@ struct QuotaResult {
         self.diagnosticMessage = diagnosticMessage
         self.diagnosticText = diagnosticText ?? diagnosticMessage.flatMap(LocalizedTextDescriptor.fromLegacyLabel)
     }
+}
+
+struct SubscriptionLifecycleInfo {
+    var planEndsAt: Date?
+    var planDisplayName: String?
+}
+
+struct ClaudeOrganizationContext {
+    let id: String
+    let planDisplayName: String?
 }
 
 enum QuotaParsers {
@@ -221,6 +234,7 @@ enum QuotaParsers {
             limit: knownLimit,
             resetAt: result.resetAt,
             planEndsAt: result.planEndsAt,
+            planDisplayName: result.planDisplayName,
             quotaLabel: "\(refreshedRemaining) / \(knownLimit) monthly requests"
         )
     }
@@ -480,7 +494,7 @@ enum QuotaParsers {
         )
     }
 
-    static func parseXFYunCodingPlanList(_ data: Data) throws -> QuotaResult {
+    static func parseXFYunCodingPlanList(_ data: Data, now: Date = Date()) throws -> QuotaResult {
         struct CodingPlanListResponse: Decodable {
             struct PageData: Decodable {
                 let rows: [Plan]
@@ -488,6 +502,7 @@ enum QuotaParsers {
 
             struct Plan: Decodable {
                 let name: String?
+                let validFrom: String?
                 let expiresAt: String?
                 let status: Int?
                 let codingPlanUsageDTO: Usage?
@@ -520,16 +535,42 @@ enum QuotaParsers {
             throw QuotaError.invalidResponse
         }
 
-        var windows: [(name: String, left: Int, limit: Int)] = []
+        let validFrom = parseLocalDateTime(plan.validFrom)
+        let planEndsAt = parseLocalDateTime(plan.expiresAt)
+        var windows: [(name: String, remaining: Int, limit: Int, resetAt: Date?)] = []
+        func clampedReportedUsed(limit: Int, used: Int?) -> Int {
+            min(limit, max(0, used ?? 0))
+        }
+        func clampedReportedRemaining(limit: Int, remaining: Int?) -> Int {
+            min(limit, max(0, remaining ?? limit))
+        }
+
         if let limit = usage.rp5hLimit, limit > 0 {
-            windows.append(("5h", max(0, limit - (usage.rp5hUsage ?? 0)), limit))
+            let used = clampedReportedUsed(limit: limit, used: usage.rp5hUsage)
+            windows.append((
+                "5h",
+                limit - used,
+                limit,
+                inferredXFYunWindowReset(startedAt: validFrom, interval: 5 * 60 * 60, now: now)
+            ))
         }
         if let limit = usage.rpwLimit, limit > 0 {
-            windows.append(("week", max(0, limit - (usage.rpwUsage ?? 0)), limit))
+            let used = clampedReportedUsed(limit: limit, used: usage.rpwUsage)
+            windows.append((
+                "week",
+                limit - used,
+                limit,
+                inferredXFYunWindowReset(startedAt: validFrom, interval: 7 * 24 * 60 * 60, now: now)
+            ))
         }
         if let limit = usage.packageLimit, limit > 0 {
-            let left = usage.packageLeft ?? max(0, limit - (usage.packageUsage ?? 0))
-            windows.append(("month", max(0, left), limit))
+            if let packageUsage = usage.packageUsage {
+                let used = clampedReportedUsed(limit: limit, used: packageUsage)
+                windows.append(("month", limit - used, limit, planEndsAt))
+            } else {
+                let remaining = clampedReportedRemaining(limit: limit, remaining: usage.packageLeft)
+                windows.append(("month", remaining, limit, planEndsAt))
+            }
         }
 
         guard !windows.isEmpty else {
@@ -539,25 +580,20 @@ enum QuotaParsers {
         let percentWindows = windows.map { window in
             PercentQuotaWindow(
                 name: window.name,
-                remainingPercent: Double(window.left) / Double(window.limit) * 100,
-                resetAt: nil,
-                remainingText: "\(window.left) / \(window.limit)"
+                remainingPercent: Double(window.remaining) / Double(window.limit) * 100,
+                resetAt: window.resetAt,
+                remainingText: "\(window.remaining) / \(window.limit)"
             )
         }
-        let basisPoints = percentWindows
-            .map { Int(($0.remainingPercent * 100).rounded(.down)) }
-            .min() ?? 0
         let label = percentWindows
             .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
             .joined(separator: " · ")
 
-        return QuotaResult(
-            remaining: max(0, min(10_000, basisPoints)),
-            limit: 10_000,
-            resetAt: nil,
-            planEndsAt: parseLocalDateTime(plan.expiresAt),
-            quotaLabel: label,
-            quotaWindows: orderPercentWindows(percentWindows).map(quotaWindowText)
+        return percentQuotaResult(
+            windows: percentWindows,
+            planEndsAt: planEndsAt,
+            planDisplayName: normalizedPlanDisplayName(plan.name),
+            label: label
         )
     }
 
@@ -608,6 +644,37 @@ enum QuotaParsers {
             label: orderedWindows
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                 .joined(separator: " · ")
+        )
+    }
+
+    static func parseVolcengineCodingPlanSubscription(_ data: Data) throws -> SubscriptionLifecycleInfo {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw QuotaError.invalidResponse
+        }
+        let result = object["Result"] as? [String: Any] ?? object
+        let infoList = result["InfoList"] as? [[String: Any]]
+            ?? result["infoList"] as? [[String: Any]]
+            ?? result["items"] as? [[String: Any]]
+            ?? result["data"] as? [[String: Any]]
+            ?? []
+        let codingPlanItems = infoList.filter { item in
+            let resourceType = stringValue(item["ResourceType"] ?? item["resourceType"])?.lowercased()
+            return resourceType == nil || resourceType == "codingplan"
+        }
+        guard let selected = codingPlanItems.first(where: { item in
+            let status = stringValue(item["Status"] ?? item["status"])?.lowercased()
+            return status == "running" || status == "active" || status == "valid"
+        }) ?? codingPlanItems.first else {
+            throw QuotaError.noSubscription
+        }
+
+        return SubscriptionLifecycleInfo(
+            planEndsAt: firstDateValue(
+                in: selected,
+                keys: ["EndTime", "endTime", "ExpireTime", "expireTime", "expiresAt", "expires_at"]
+            ),
+            planDisplayName: planDisplayName(from: selected)
+                ?? normalizedPlanDisplayName(stringValue(selected["BizInfo"] ?? selected["bizInfo"]))
         )
     }
 
@@ -675,6 +742,7 @@ enum QuotaParsers {
         }
 
         let response = try JSONDecoder().decode(UsageResponse.self, from: data)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         guard let rateLimit = response.rate_limit else {
             throw QuotaError.invalidResponse
         }
@@ -710,26 +778,39 @@ enum QuotaParsers {
         let orderedWindows = orderPercentWindows(windows)
         return percentQuotaResult(
             windows: orderedWindows,
+            planDisplayName: object.flatMap(planDisplayName),
             label: orderedWindows
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                 .joined(separator: " · ")
         )
     }
 
-    static func parseCodexSubscriptionLifecycle(_ data: Data) throws -> Date? {
-        struct SubscriptionResponse: Decodable {
-            let active_until: String?
-            let current_period_end: String?
-            let expires_at: String?
+    static func parseCodexSubscriptionLifecycle(_ data: Data) throws -> SubscriptionLifecycleInfo {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw QuotaError.invalidResponse
         }
 
-        let response = try JSONDecoder().decode(SubscriptionResponse.self, from: data)
-        return parseISO8601Date(response.active_until)
-            ?? parseISO8601Date(response.current_period_end)
-            ?? parseISO8601Date(response.expires_at)
+        return SubscriptionLifecycleInfo(
+            planEndsAt: firstDateValue(
+                in: object,
+                keys: [
+                    "active_until",
+                    "activeUntil",
+                    "current_period_end",
+                    "currentPeriodEnd",
+                    "expires_at",
+                    "expiresAt",
+                ]
+            ),
+            planDisplayName: planDisplayName(from: object)
+        )
     }
 
     static func parseClaudeOrganizationID(_ data: Data) throws -> String {
+        try parseClaudeOrganizationContext(data).id
+    }
+
+    static func parseClaudeOrganizationContext(_ data: Data) throws -> ClaudeOrganizationContext {
         let object = try JSONSerialization.jsonObject(with: data)
         let candidates = claudeOrganizationCandidates(from: object)
         guard !candidates.isEmpty else {
@@ -743,7 +824,10 @@ enum QuotaParsers {
             throw QuotaError.invalidResponse
         }
 
-        return id
+        return ClaudeOrganizationContext(
+            id: id,
+            planDisplayName: selected?.planDisplayName
+        )
     }
 
     static func parseClaudeSubscriptionUsage(_ data: Data) throws -> QuotaResult {
@@ -782,31 +866,23 @@ enum QuotaParsers {
         let orderedWindows = orderPercentWindows(windows)
         return percentQuotaResult(
             windows: orderedWindows,
+            planDisplayName: planDisplayName(from: object),
             label: orderedWindows
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                 .joined(separator: " · ")
         )
     }
 
-    static func parseClaudeSubscriptionDetails(_ data: Data) throws -> Date? {
+    static func parseClaudeSubscriptionDetails(_ data: Data) throws -> SubscriptionLifecycleInfo {
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw QuotaError.invalidResponse
         }
 
-        return firstDateValue(
-            in: object,
-            keys: [
-                "next_charge_at",
-                "next_charge_date",
-                "current_period_end",
-                "active_until",
-                "expires_at",
-                "ends_at",
-            ]
-        )
-        ?? (object["subscription"] as? [String: Any]).flatMap {
-            firstDateValue(
-                in: $0,
+        let nestedSubscription = object["subscription"] as? [String: Any]
+
+        return SubscriptionLifecycleInfo(
+            planEndsAt: firstDateValue(
+                in: object,
                 keys: [
                     "next_charge_at",
                     "next_charge_date",
@@ -816,7 +892,22 @@ enum QuotaParsers {
                     "ends_at",
                 ]
             )
-        }
+            ?? nestedSubscription.flatMap {
+                firstDateValue(
+                    in: $0,
+                    keys: [
+                        "next_charge_at",
+                        "next_charge_date",
+                        "current_period_end",
+                        "active_until",
+                        "expires_at",
+                        "ends_at",
+                    ]
+                )
+            },
+            planDisplayName: planDisplayName(from: object)
+                ?? nestedSubscription.flatMap(planDisplayName)
+        )
     }
 
     static func parseKimiSubscriptionUsage(subscriptionData: Data, usageData: Data?) throws -> QuotaResult {
@@ -829,6 +920,8 @@ enum QuotaParsers {
 
         let planEndsAt = kimiPlanEndDate(from: subscription)
             ?? usage.flatMap(kimiPlanEndDate)
+        let detectedPlanDisplayName = planDisplayName(from: subscription)
+            ?? usage.flatMap { planDisplayName(from: $0) }
 
         var windows: [PercentQuotaWindow] = []
         if let usage {
@@ -844,6 +937,7 @@ enum QuotaParsers {
             return percentQuotaResult(
                 windows: orderedWindows,
                 planEndsAt: planEndsAt,
+                planDisplayName: detectedPlanDisplayName,
                 label: orderedWindows
                     .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                     .joined(separator: " · ")
@@ -859,6 +953,7 @@ enum QuotaParsers {
             limit: Int.max,
             resetAt: nil,
             planEndsAt: planEndsAt,
+            planDisplayName: detectedPlanDisplayName,
             quotaLabel: "Usable · quota unknown",
             quotaText: .localized(.usableUnknownQuota),
             diagnosticMessage: "Kimi membership endpoint returned subscription status, but quota was not exposed.",
@@ -901,6 +996,12 @@ enum QuotaParsers {
         }
 
         struct Package: Decodable {
+            let PkgName: String?
+            let PackageName: String?
+            let Name: String?
+            let ResourceName: String?
+            let ProductName: String?
+            let Title: String?
             let Status: String?
             let EndTime: String?
             let RemainingDays: Int?
@@ -1031,9 +1132,20 @@ enum QuotaParsers {
         }
 
         let orderedWindows = orderPercentWindows(windows)
+        let planDisplayName = package.flatMap {
+            normalizedPlanDisplayName(
+                $0.PkgName
+                    ?? $0.PackageName
+                    ?? $0.Name
+                    ?? $0.ResourceName
+                    ?? $0.ProductName
+                    ?? $0.Title
+            )
+        }
         return percentQuotaResult(
             windows: orderedWindows,
             planEndsAt: parseLocalDateTime(package?.EndTime),
+            planDisplayName: planDisplayName,
             label: orderedWindows
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                 .joined(separator: " · ")
@@ -1091,6 +1203,7 @@ enum QuotaParsers {
             return percentQuotaResult(
                 windows: orderedWindows,
                 planEndsAt: aliyunTimestampDate(codingPlanInfo["endTime"]),
+                planDisplayName: planDisplayName(from: codingPlanInfo),
                 label: orderedWindows
                     .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                     .joined(separator: " · ")
@@ -1102,6 +1215,7 @@ enum QuotaParsers {
             limit: Int.max,
             resetAt: nil,
             planEndsAt: aliyunTimestampDate(codingPlanInfo["endTime"]),
+            planDisplayName: planDisplayName(from: codingPlanInfo),
             quotaLabel: "Usable · quota unknown",
             quotaText: .localized(.usableUnknownQuota),
             diagnosticMessage: "Aliyun Coding Plan returned subscription status, but usage quota was not exposed.",
@@ -1144,6 +1258,7 @@ enum QuotaParsers {
                     ?? selected["expireTime"]
                     ?? selected["expirationTime"]
             ),
+            planDisplayName: planDisplayName(from: selected),
             label: orderedWindows
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                 .joined(separator: " · ")
@@ -1232,7 +1347,12 @@ enum QuotaParsers {
         var remainingText: String? = nil
     }
 
-    private static func percentQuotaResult(windows: [PercentQuotaWindow], planEndsAt: Date? = nil, label: String) -> QuotaResult {
+    private static func percentQuotaResult(
+        windows: [PercentQuotaWindow],
+        planEndsAt: Date? = nil,
+        planDisplayName: String? = nil,
+        label: String
+    ) -> QuotaResult {
         let tightest = windows.min { lhs, rhs in
             lhs.remainingPercent < rhs.remainingPercent
         }
@@ -1248,6 +1368,7 @@ enum QuotaParsers {
             limit: 10_000,
             resetAt: resetAt,
             planEndsAt: planEndsAt,
+            planDisplayName: planDisplayName,
             quotaLabel: label,
             quotaWindows: orderPercentWindows(windows).map(quotaWindowText)
         )
@@ -1319,6 +1440,21 @@ enum QuotaParsers {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return formatter.date(from: value)
+    }
+
+    private static func inferredXFYunWindowReset(
+        startedAt start: Date?,
+        interval: TimeInterval,
+        now: Date
+    ) -> Date? {
+        guard let start, interval > 0 else { return nil }
+        if now < start {
+            return start
+        }
+
+        let elapsed = now.timeIntervalSince(start)
+        let completedWindows = floor(elapsed / interval) + 1
+        return start.addingTimeInterval(completedWindows * interval)
     }
 
     private static func parseISO8601Date(_ value: String?) -> Date? {
@@ -1826,10 +1962,108 @@ enum QuotaParsers {
         return nil
     }
 
+    private static func planDisplayName(from source: [String: Any]) -> String? {
+        let nameKeys = [
+            "planDisplayName",
+            "plan_display_name",
+            "displayName",
+            "display_name",
+            "planName",
+            "plan_name",
+            "planType",
+            "plan_type",
+            "subscriptionType",
+            "subscription_type",
+            "tier",
+            "tierName",
+            "tier_name",
+            "packageName",
+            "package_name",
+            "pkgName",
+            "PkgName",
+            "Name",
+            "name",
+            "title",
+            "Title",
+            "productName",
+            "product_name",
+            "commodityName",
+            "commodity_name",
+            "goodsName",
+            "goods_name",
+            "membershipName",
+            "membership_name",
+            "instanceName",
+            "instance_name",
+            "instanceType",
+            "instance_type",
+        ]
+        for key in nameKeys {
+            if let value = normalizedPlanDisplayName(stringValue(source[key])) {
+                return value
+            }
+        }
+
+        let nestedKeys = [
+            "subscription",
+            "plan",
+            "package",
+            "pkg",
+            "goods",
+            "product",
+            "membership",
+            "current_plan",
+            "currentPlan",
+            "codingPlanInfo",
+        ]
+        for key in nestedKeys {
+            if let nested = source[key] as? [String: Any],
+               let value = planDisplayName(from: nested) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func normalizedPlanDisplayName(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let collapsed = value
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !collapsed.isEmpty, collapsed.count <= 80 else { return nil }
+        let lowercased = collapsed.lowercased()
+        let canonicalPlanNames = [
+            "free": "Free",
+            "lite": "Lite",
+            "plus": "Plus",
+            "pro": "Pro",
+            "max": "Max",
+            "team": "Team",
+            "business": "Business",
+            "enterprise": "Enterprise",
+            "starter": "Starter",
+            "standard": "Standard",
+            "premium": "Premium",
+            "ultra": "Ultra",
+        ]
+        if let canonicalPlanName = canonicalPlanNames[lowercased] {
+            return canonicalPlanName
+        }
+        guard !["normal", "valid", "active", "invalid", "true", "false"].contains(lowercased) else {
+            return nil
+        }
+        guard collapsed.range(of: #"^\d+$"#, options: .regularExpression) == nil else {
+            return nil
+        }
+        return collapsed
+    }
+
     private struct ClaudeOrganizationCandidate {
         let id: String?
         let isActive: Bool?
         let isDefault: Bool?
+        let planDisplayName: String?
     }
 
     private static func claudeOrganizationCandidates(from object: Any) -> [ClaudeOrganizationCandidate] {
@@ -1851,7 +2085,8 @@ enum QuotaParsers {
                 ClaudeOrganizationCandidate(
                     id: id,
                     isActive: dictionary["active"] as? Bool ?? dictionary["is_active"] as? Bool,
-                    isDefault: dictionary["default"] as? Bool ?? dictionary["is_default"] as? Bool
+                    isDefault: dictionary["default"] as? Bool ?? dictionary["is_default"] as? Bool,
+                    planDisplayName: claudeOrganizationPlanDisplayName(from: dictionary)
                 )
             )
         }
@@ -1863,6 +2098,43 @@ enum QuotaParsers {
         }
 
         return candidates
+    }
+
+    private static func claudeOrganizationPlanDisplayName(from source: [String: Any]) -> String? {
+        if let capabilities = source["capabilities"] as? [Any] {
+            let capabilityNames = capabilities.compactMap(stringValue).map { $0.lowercased() }
+            let capabilityPlans = [
+                "claude_pro": "Pro",
+                "claude_max": "Max",
+                "claude_team": "Team",
+                "claude_enterprise": "Enterprise",
+            ]
+            for capabilityName in capabilityNames {
+                if let plan = capabilityPlans[capabilityName] {
+                    return plan
+                }
+            }
+        }
+
+        let planKeys = [
+            "planDisplayName",
+            "plan_display_name",
+            "planName",
+            "plan_name",
+            "planType",
+            "plan_type",
+            "subscriptionType",
+            "subscription_type",
+            "tier",
+            "tierName",
+            "tier_name",
+        ]
+        for key in planKeys {
+            if let value = normalizedPlanDisplayName(stringValue(source[key])) {
+                return value
+            }
+        }
+        return nil
     }
 
     private static func firstDateValue(in source: [String: Any], keys: [String]) -> Date? {
@@ -2204,7 +2476,7 @@ actor QuotaService {
         case .claudeAPIUsage, .codexAPIUsage:
             throw QuotaError.notSupported
         case .claudeSubscription:
-            return try await checkClaudeSubscriptionQuota(key: key)
+            return try await checkClaudeSubscriptionQuota(key: key, bypassCooldown: bypassCooldown)
         case .codexSubscription:
             return try await checkCodexSubscriptionQuota(key: key)
         case .kimiSubscription:
@@ -2214,7 +2486,7 @@ actor QuotaService {
         case .xfyunCodingPlan:
             return try await checkXFYunCodingPlanQuota(key: key)
         case .volcengineCodingPlan:
-            return try await checkVolcengineCodingPlanQuota(key: key)
+            return try await checkVolcengineCodingPlanQuota(key: key, bypassCooldown: bypassCooldown)
         case .opencodeGo:
             return try await checkOpenCodeGoQuota(key: key)
         case .aliyunCodingPlan:
@@ -2493,14 +2765,14 @@ actor QuotaService {
 
     /// Claude Subscription: claude.ai organization dashboard usage endpoint.
     /// The secret is a Claude web login Cookie header captured by reauthentication.
-    private func checkClaudeSubscriptionQuota(key: APIKey) async throws -> QuotaResult {
+    private func checkClaudeSubscriptionQuota(key: APIKey, bypassCooldown: Bool) async throws -> QuotaResult {
         let credential = DashboardCredential(key.key)
         guard !credential.cookie.isEmpty else {
             throw QuotaError.unauthorized
         }
 
-        let organizationID = try await fetchClaudeOrganizationID(cookie: credential.cookie)
-        guard let encodedOrganizationID = organizationID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+        let organizationContext = try await fetchClaudeOrganizationContext(cookie: credential.cookie)
+        guard let encodedOrganizationID = organizationContext.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
             throw QuotaError.invalidResponse
         }
 
@@ -2524,17 +2796,21 @@ actor QuotaService {
         }
 
         var result = try QuotaParsers.parseClaudeSubscriptionUsage(data)
-        if let planEndsAt = try? await fetchClaudeSubscriptionPlanEnd(
-            cookie: credential.cookie,
-            organizationID: encodedOrganizationID
-        ) {
-            result.planEndsAt = planEndsAt
+        result.planEndsAt = key.planEndsAt ?? result.planEndsAt
+        result.planDisplayName = organizationContext.planDisplayName ?? key.planDisplayName ?? result.planDisplayName
+        if shouldRefreshLowChurnAccountMetadata(for: key, bypassCooldown: bypassCooldown),
+           let lifecycle = try? await fetchClaudeSubscriptionLifecycle(
+                cookie: credential.cookie,
+                organizationID: encodedOrganizationID
+           ) {
+            result.planEndsAt = lifecycle.planEndsAt ?? result.planEndsAt
+            result.planDisplayName = lifecycle.planDisplayName ?? result.planDisplayName
         }
 
         return withHTTPStatus(result, from: httpResponse)
     }
 
-    private func fetchClaudeOrganizationID(cookie: String) async throws -> String {
+    private func fetchClaudeOrganizationContext(cookie: String) async throws -> ClaudeOrganizationContext {
         var request = URLRequest(url: URL(string: "https://claude.ai/api/organizations")!)
         request.httpMethod = "GET"
         applyClaudeDashboardHeaders(
@@ -2554,10 +2830,10 @@ actor QuotaService {
             throw QuotaError.invalidResponse
         }
 
-        return try QuotaParsers.parseClaudeOrganizationID(data)
+        return try QuotaParsers.parseClaudeOrganizationContext(data)
     }
 
-    private func fetchClaudeSubscriptionPlanEnd(cookie: String, organizationID: String) async throws -> Date? {
+    private func fetchClaudeSubscriptionLifecycle(cookie: String, organizationID: String) async throws -> SubscriptionLifecycleInfo {
         var request = URLRequest(url: URL(string: "https://claude.ai/api/organizations/\(organizationID)/subscription_details")!)
         request.httpMethod = "GET"
         applyClaudeDashboardHeaders(
@@ -2765,7 +3041,7 @@ actor QuotaService {
 
     /// 火山引擎 Coding Plan: console session endpoint.
     /// The secret can be a raw Cookie header, or JSON with cookie/csrfToken/projectName/xWebId.
-    private func checkVolcengineCodingPlanQuota(key: APIKey) async throws -> QuotaResult {
+    private func checkVolcengineCodingPlanQuota(key: APIKey, bypassCooldown: Bool) async throws -> QuotaResult {
         let credential = DashboardCredential(key.key)
         guard !credential.cookie.isEmpty else {
             throw QuotaError.unauthorized
@@ -2774,19 +3050,7 @@ actor QuotaService {
         let projectName = credential.value(for: ["projectName", "project"]) ?? "default"
         var request = URLRequest(url: URL(string: "https://console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/GetCodingPlanUsage?")!)
         request.httpMethod = "POST"
-        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(credential.cookie, forHTTPHeaderField: "Cookie")
-        request.setValue("https://console.volcengine.com", forHTTPHeaderField: "Origin")
-        request.setValue("https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=subscribe&projectName=\(projectName)", forHTTPHeaderField: "Referer")
-
-        if let csrfToken = credential.value(for: ["csrfToken", "csrf", "xCsrfToken"]) ?? credential.cookieValue(named: "csrfToken") {
-            request.setValue(csrfToken, forHTTPHeaderField: "x-csrf-token")
-        }
-        if let webID = credential.value(for: ["xWebId", "x-web-id", "webId"]) {
-            request.setValue(webID, forHTTPHeaderField: "x-web-id")
-        }
-
+        applyVolcengineDashboardHeaders(to: &request, credential: credential, projectName: projectName)
         request.httpBody = try JSONSerialization.data(withJSONObject: ["ProjectName": projectName])
 
         let (data, response) = try await session.data(for: request)
@@ -2801,10 +3065,80 @@ actor QuotaService {
             throw QuotaError.invalidResponse
         }
 
-        return try withHTTPStatus(
-            QuotaParsers.parseVolcengineCodingPlanUsage(data),
-            from: httpResponse
+        var result = try QuotaParsers.parseVolcengineCodingPlanUsage(data)
+        result.planEndsAt = key.planEndsAt ?? result.planEndsAt
+        result.planDisplayName = key.planDisplayName ?? result.planDisplayName
+        if shouldRefreshLowChurnAccountMetadata(for: key, bypassCooldown: bypassCooldown),
+           let lifecycle = try? await fetchVolcengineCodingPlanSubscription(
+                credential: credential,
+                projectName: projectName
+           ) {
+            result.planEndsAt = lifecycle.planEndsAt ?? result.planEndsAt
+            result.planDisplayName = lifecycle.planDisplayName ?? result.planDisplayName
+        }
+
+        return withHTTPStatus(result, from: httpResponse)
+    }
+
+    private func fetchVolcengineCodingPlanSubscription(
+        credential: DashboardCredential,
+        projectName: String
+    ) async throws -> SubscriptionLifecycleInfo {
+        var request = URLRequest(url: URL(string: "https://console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/ListSubscribeTrade?")!)
+        request.httpMethod = "POST"
+        applyVolcengineDashboardHeaders(to: &request, credential: credential, projectName: projectName)
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: [
+                "ResourceTypes": ["CodingPlan"],
+                "ResourceNames": [""],
+                "BizInfos": ["lite", "pro"],
+            ]
         )
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        return try QuotaParsers.parseVolcengineCodingPlanSubscription(data)
+    }
+
+    private func applyVolcengineDashboardHeaders(
+        to request: inout URLRequest,
+        credential: DashboardCredential,
+        projectName: String
+    ) {
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(credential.cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://console.volcengine.com", forHTTPHeaderField: "Origin")
+        request.setValue("https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=subscribe&projectName=\(projectName)", forHTTPHeaderField: "Referer")
+
+        if let csrfToken = credential.value(for: ["csrfToken", "csrf", "xCsrfToken"]) ?? credential.cookieValue(named: "csrfToken") {
+            request.setValue(csrfToken, forHTTPHeaderField: "x-csrf-token")
+        }
+        if let webID = credential.value(for: ["xWebId", "x-web-id", "webId"]) {
+            request.setValue(webID, forHTTPHeaderField: "x-web-id")
+        }
+    }
+
+    private func shouldRefreshLowChurnAccountMetadata(for key: APIKey, bypassCooldown: Bool) -> Bool {
+        if bypassCooldown {
+            return true
+        }
+        if key.planDisplayName == nil && key.planEndsAt == nil {
+            return true
+        }
+        guard let lastUpdated = key.lastUpdated else {
+            return true
+        }
+        return !Calendar.current.isDate(lastUpdated, inSameDayAs: Date())
     }
 
     /// OpenCode Go: dashboard server function endpoint.
@@ -2995,12 +3329,13 @@ actor QuotaService {
 
         var result = try QuotaParsers.parseCodexWhamUsage(data)
         if let accountID = sessionContext.accountID,
-           let planEndsAt = try? await fetchCodexSubscriptionPlanEnd(
+           let lifecycle = try? await fetchCodexSubscriptionLifecycle(
                 cookie: credential.cookie,
                 accessToken: sessionContext.accessToken,
                 accountID: accountID
            ) {
-            result.planEndsAt = planEndsAt
+            result.planEndsAt = lifecycle.planEndsAt
+            result.planDisplayName = lifecycle.planDisplayName ?? result.planDisplayName
         }
 
         return withHTTPStatus(result, from: httpResponse)
@@ -3040,11 +3375,11 @@ actor QuotaService {
         )
     }
 
-    private func fetchCodexSubscriptionPlanEnd(
+    private func fetchCodexSubscriptionLifecycle(
         cookie: String,
         accessToken: String,
         accountID: String
-    ) async throws -> Date? {
+    ) async throws -> SubscriptionLifecycleInfo {
         guard let encodedAccountID = accountID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
             throw QuotaError.invalidResponse
         }
