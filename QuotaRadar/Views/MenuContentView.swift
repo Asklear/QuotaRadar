@@ -959,6 +959,18 @@ struct MenuQuotaItemRow: View {
         key.quotaPresentation
     }
 
+    private var compactDiagnosticText: String {
+        let diagnosticText = presentation.diagnosticText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+            !diagnosticText.isEmpty,
+            diagnosticText != L10n.t(.notChecked),
+            presentation.diagnosticText != presentation.primaryText
+        else {
+            return ""
+        }
+        return diagnosticText
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             ProviderIcon(provider: item.provider, size: 28)
@@ -995,8 +1007,8 @@ struct MenuQuotaItemRow: View {
                         .lineLimit(1)
                 }
 
-                if !presentation.diagnosticText.isEmpty && presentation.diagnosticText != L10n.t(.notChecked) {
-                    Text(presentation.diagnosticText)
+                if !compactDiagnosticText.isEmpty {
+                    Text(compactDiagnosticText)
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)

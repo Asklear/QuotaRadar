@@ -1259,6 +1259,12 @@ except IndexError:
 if "QuotaWindowDetails(" in attention_row:
     print("FAIL: Menu bar attention rows should not expand every quota window; one compact quota line is enough", file=sys.stderr)
     sys.exit(1)
+if "compactDiagnosticText" not in attention_row:
+    print("FAIL: Menu bar attention rows should filter duplicate diagnostic text before rendering", file=sys.stderr)
+    sys.exit(1)
+if "presentation.diagnosticText != presentation.primaryText" not in attention_row:
+    print("FAIL: Menu bar attention rows should not repeat quota-window balances as both primary quota and diagnostic text", file=sys.stderr)
+    sys.exit(1)
 PY
 python3 - <<'PY'
 from pathlib import Path

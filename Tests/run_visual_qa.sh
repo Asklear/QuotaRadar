@@ -103,10 +103,10 @@ for y in range(crop[1], crop[3]):
             and blue - green >= 8
         )
         is_risk_focus = (
-            225 <= red <= 255
-            and 185 <= green <= 245
-            and 175 <= blue <= 240
-            and red - blue >= 8
+            210 <= red <= 255
+            and 180 <= green <= 245
+            and 175 <= blue <= 245
+            and red - min(green, blue) >= 2
         )
         if is_blue_focus or is_risk_focus:
             highlight_pixels += 1
