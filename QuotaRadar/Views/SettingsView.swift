@@ -1287,7 +1287,7 @@ struct ProviderQuotaActionGroup: View {
 
     private var refreshActionLabel: String {
         isRefreshing ? L10n.t(.refreshingQuotaAction) :
-            provider.quotaCheckConsumesSearchQuota ? L10n.t(.refreshQuotaConsumesQuotaAction) :
+            provider.capability.requiresCostlyConfirmation ? L10n.t(.refreshQuotaConsumesQuotaAction) :
             L10n.t(.refreshQuotaAction)
     }
 
@@ -2873,7 +2873,7 @@ struct CredentialDiagnosticProviderSection: View {
                         .background(Color.secondary.opacity(0.10), in: Capsule())
                 }
 
-                if stat.provider.quotaCheckConsumesSearchQuota {
+                if stat.provider.capability.requiresCostlyConfirmation {
                     InlineStatusMessage(text: L10n.t(.quotaConsumingRefreshWarning))
                 }
 
@@ -2928,10 +2928,58 @@ struct CredentialDiagnosticRow: View {
             if let connectionDiagnosticSummary = item.connectionDiagnosticSummary {
                 DiagnosticMessageRow(text: connectionDiagnosticSummary)
             }
+
+            DiagnosticDebugDisclosure(item: item)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 9)
         .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+    }
+}
+
+struct DiagnosticDebugDisclosure: View {
+    let item: CredentialDiagnosticItem
+
+    var body: some View {
+        DisclosureGroup {
+            VStack(spacing: 5) {
+                DiagnosticDebugRow(title: L10n.t(.lastHTTPStatus), value: item.httpStatusText)
+                DiagnosticDebugRow(title: L10n.t(.requestProxyMode), value: item.requestProxyModeText)
+                DiagnosticDebugRow(title: L10n.t(.reset), value: item.resetDiagnosticText)
+                DiagnosticDebugRow(title: L10n.t(.lastUpdated), value: item.lastCheckedText)
+
+                if let autoRefreshSkipText = item.autoRefreshSkipText {
+                    DiagnosticDebugRow(title: L10n.t(.automaticRefresh), value: autoRefreshSkipText)
+                }
+            }
+            .padding(.top, 4)
+        } label: {
+            Text(L10n.t(.diagnosticDetails))
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+        }
+        .font(.caption2)
+        .tint(.secondary)
+    }
+}
+
+struct DiagnosticDebugRow: View {
+    let title: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(title)
+                .foregroundStyle(.tertiary)
+                .frame(width: 82, alignment: .leading)
+
+            Text(value)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+
+            Spacer(minLength: 0)
+        }
     }
 }
 
@@ -2986,6 +3034,12 @@ struct AppSettingsView: View {
     @ObservedObject private var launchAtLoginStore = LaunchAtLoginStore.shared
     @State private var showingProviderOrderSheet = false
     @State private var showingWatchedProvidersSheet = false
+
+    private var supportsQuotaConsumingAutomaticRefresh: Bool {
+        Provider.visibleCases.contains {
+            $0.capability.matchesAutomaticRefreshLane(consumesSearchQuota: true)
+        }
+    }
 
     private var transparencyText: String {
         "\(Int((appearanceStore.statusBarTransparency * 100).rounded()))%"
@@ -3100,14 +3154,21 @@ struct AppSettingsView: View {
 
                 SettingsDivider()
 
-                SettingsPreferenceRow(
-                    icon: "magnifyingglass",
-                    title: L10n.t(.quotaConsumingAutoRefreshInterval),
-                    subtitle: L10n.t(.quotaConsumingAutoRefreshWarning)
-                ) {
-                    SettingsCenteredMenuPicker(selection: $appearanceStore.quotaConsumingAutoRefreshInterval,
-                        options: QuotaConsumingAutoRefreshIntervalOption.allCases,
-                        title: \.displayName
+                if supportsQuotaConsumingAutomaticRefresh {
+                    SettingsPreferenceRow(
+                        icon: "magnifyingglass",
+                        title: L10n.t(.quotaConsumingAutoRefreshInterval),
+                        subtitle: L10n.t(.quotaConsumingAutoRefreshWarning)
+                    ) {
+                        SettingsCenteredMenuPicker(selection: $appearanceStore.quotaConsumingAutoRefreshInterval,
+                            options: QuotaConsumingAutoRefreshIntervalOption.allCases,
+                            title: \.displayName
+                        )
+                    }
+                } else {
+                    SettingsFootnote(
+                        icon: "hand.raised.fill",
+                        text: L10n.t(.quotaConsumingManualOnlyWarning)
                     )
                 }
             }

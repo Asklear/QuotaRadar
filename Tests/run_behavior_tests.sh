@@ -261,6 +261,36 @@ assert_match 'struct ProviderCapability' \
 assert_match 'enum CredentialKind' \
   "QuotaRadar/Models/APIKey.swift" \
   "Provider capability metadata should distinguish credential types"
+assert_match 'enum QuotaActionKind' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should centralize quota action semantics"
+assert_match 'let supportsQuota: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should explicitly state whether quota is observable"
+assert_match 'let supportsBalance: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should explicitly state whether balance is observable"
+assert_match 'let supportsPlan: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should explicitly state whether plan metadata is observable"
+assert_match 'let supportsActivity: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should explicitly state whether recent activity can be inferred"
+assert_match 'let supportsReset: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should explicitly state whether reset timing is observable"
+assert_match 'let connectionTestKind: QuotaActionKind' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should distinguish no-cost connection tests from quota refresh"
+assert_match 'let quotaRefreshKind: QuotaActionKind' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should distinguish normal quota refresh from costly checks"
+assert_match 'let allowsAutomaticRefresh: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should be the source of automatic refresh eligibility"
+assert_match 'let requiresCostlyConfirmation: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should mark providers that need costly-check confirmation"
 assert_match 'var capability: ProviderCapability' \
   "QuotaRadar/Models/APIKey.swift" \
   "Each provider should expose capability metadata"
@@ -605,15 +635,42 @@ assert_match 'case configuredUntested' \
 assert_no_match 'DiagnosticMetadataGrid' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Diagnostics should stay focused and not render low-level metadata grids by default"
-assert_no_match 'L10n\.t\(\.lastHTTPStatus\)' \
+assert_match 'struct DiagnosticDebugDisclosure' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Diagnostics should not show raw HTTP status in the default credential row"
-assert_no_match 'requestProxyModeText' \
-  "QuotaRadar/Views/SettingsView.swift" \
-  "Diagnostics should not expose configured proxy mode in the default credential row"
-assert_no_match 'autoRefreshSkipText' \
-  "QuotaRadar/Views/SettingsView.swift" \
-  "Diagnostics should not expose auto-refresh skip metadata in the default credential row"
+  "Diagnostics should keep low-level HTTP and network details behind an explicit disclosure"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
+try:
+    diagnostic_row = source.split("struct CredentialDiagnosticRow: View", 1)[1].split("struct DiagnosticDebugDisclosure", 1)[0]
+    debug_disclosure = source.split("struct DiagnosticDebugDisclosure: View", 1)[1].split("struct DiagnosticDebugRow", 1)[0]
+except IndexError:
+    print("FAIL: Diagnostics should separate default rows from debug disclosures", file=sys.stderr)
+    sys.exit(1)
+
+for marker, message in [
+    ("L10n.t(.lastHTTPStatus)", "raw HTTP status"),
+    ("requestProxyModeText", "configured proxy mode"),
+    ("autoRefreshSkipText", "auto-refresh skip metadata"),
+]:
+    if marker in diagnostic_row:
+        print(f"FAIL: Diagnostics should not expose {message} in the default credential row", file=sys.stderr)
+        sys.exit(1)
+
+for marker, message in [
+    ("DisclosureGroup", "an explicit disclosure control"),
+    ("L10n.t(.lastHTTPStatus)", "HTTP status"),
+    ("item.requestProxyModeText", "proxy mode"),
+    ("item.autoRefreshSkipText", "auto-refresh skip metadata"),
+    ("item.resetDiagnosticText", "reset diagnostics"),
+    ("item.lastCheckedText", "last checked diagnostics"),
+]:
+    if marker not in debug_disclosure:
+        print(f"FAIL: Diagnostic debug disclosure should render {message}", file=sys.stderr)
+        sys.exit(1)
+PY
 assert_match 'key\.credentialConfigurationState\.displayText' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Credential rows should render explicit configuration state labels"
@@ -644,7 +701,7 @@ assert_match 'private var refreshActionLabel: String' \
 assert_match 'isRefreshing \? L10n\.t\(\.refreshingQuotaAction\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Provider refresh buttons should announce when quota refresh is already running"
-assert_match 'provider\.quotaCheckConsumesSearchQuota \? L10n\.t\(\.refreshQuotaConsumesQuotaAction\)' \
+assert_match 'provider\.capability\.requiresCostlyConfirmation \? L10n\.t\(\.refreshQuotaConsumesQuotaAction\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Provider refresh buttons should warn when refreshing quota consumes a real request"
 assert_match 'struct QuotaSnapshot' \
@@ -771,9 +828,12 @@ assert_match 'isUsableWithUnknownQuota' \
 assert_match 'isUsageLimitExceeded' \
   "QuotaRadar/Models/APIKey.swift" \
   "API keys should distinguish provider usage-limit exhaustion from unknown quota"
-assert_match 'mode == \.automatic && key\.provider\.quotaCheckConsumesSearchQuota' \
+assert_match 'mode == \.automatic && !key\.provider\.capability\.allowsAutomaticRefresh' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
-  "Automatic refreshes must skip quota checks that consume provider search quota"
+  "Automatic refreshes must use provider capability instead of raw provider flags"
+assert_match 'key\.provider\.capability\.matchesAutomaticRefreshLane\(consumesSearchQuota: consumesSearchQuota\)' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Automatic refresh due checks should use provider capability as the single source of truth"
 assert_match 'case quotaConsumingAutomatic' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "Quota-consuming providers should have a separate automatic refresh mode from normal free checks"
@@ -2661,9 +2721,21 @@ assert_match 'SettingsPreferenceRow' \
 assert_match 'SettingsCenteredMenuPicker\(selection: \$appearanceStore\.autoRefreshInterval' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Automatic refresh selection should use the centered settings menu control"
-assert_match 'SettingsCenteredMenuPicker\(selection: \$appearanceStore\.quotaConsumingAutoRefreshInterval' \
+assert_match 'private var supportsQuotaConsumingAutomaticRefresh: Bool' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Quota-consuming refresh selection should use the centered settings menu control"
+  "Settings should derive costly automatic refresh visibility from provider capability"
+assert_match 'Provider\.visibleCases\.contains' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should inspect provider capabilities before showing costly automatic refresh controls"
+assert_match 'capability\.matchesAutomaticRefreshLane\(consumesSearchQuota: true\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should reuse the same costly automatic refresh capability lane as the scheduler"
+assert_match 'if supportsQuotaConsumingAutomaticRefresh' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota-consuming refresh selection should only render when a provider explicitly allows automatic costly checks"
+assert_match 'L10n\.t\(\.quotaConsumingManualOnlyWarning' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should explain that current costly checks require manual confirmation"
 assert_match 'SettingsCenteredMenuPicker\(selection: \$appearanceStore\.networkProxyMode' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Network proxy selection should use the centered settings menu control"
@@ -2682,6 +2754,12 @@ assert_match 'L10n\.t\(\.autoRefreshBraveWarning' \
 assert_match 'L10n\.t\(\.quotaConsumingAutoRefreshWarning' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Quota-consuming auto refresh settings should warn that real search quota will be spent"
+assert_match 'icon: "hand\.raised\.fill"' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should replace inactive costly auto-refresh controls with a manual-confirmation footnote"
+assert_match 'text: L10n\.t\(\.quotaConsumingManualOnlyWarning\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should describe current costly checks as manual-confirmation only"
 assert_match 'SettingsFormSection\(title: L10n\.t\(\.settingsNetworkSection\)\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings should group network proxy controls separately from refresh and appearance"
@@ -3707,7 +3785,7 @@ let dueQuotaConsumingProviders = Provider.providersDueForAutomaticRefresh(
     consumesSearchQuota: true,
     now: automaticRefreshNow
 )
-require(dueQuotaConsumingProviders == [.brave], "Quota-consuming automatic refresh should catch up stale Brave keys after restart without including normal providers")
+require(dueQuotaConsumingProviders.isEmpty, "Costly checks such as Brave should not run from automatic refresh queues without explicit user confirmation")
 require(Provider.xfyunCodingPlan.category == "LLM", "XFYun Coding Plan should be grouped as an LLM quota provider")
 require(Provider.xfyunTokenPlan.category == "LLM", "XFYun Token Plan should be grouped as an LLM quota provider")
 require(Provider.volcengineCodingPlan.category == "LLM", "Volcengine Coding Plan should be grouped as an LLM quota provider")
@@ -3777,6 +3855,43 @@ require(Provider.codexSubscription.capability.usageSource == .dashboardAPI, "Cod
 require(Provider.codexSubscription.capability.canTestConnection, "Codex subscription should expose refresh after the wham endpoint is wired in QuotaService")
 require(Provider.claudeSubscription.capability.usageSource == .dashboardAPI, "Claude subscription should expose quota status through claude.ai organization dashboard APIs")
 require(Provider.claudeSubscription.capability.canTestConnection, "Claude subscription should expose refresh after organization usage endpoints are wired in QuotaService")
+require(Provider.brave.capability.supportsQuota, "Brave capability should expose quota when rate-limit headers are returned")
+require(Provider.brave.capability.supportsReset, "Brave capability should expose reset timing when rate-limit headers are returned")
+require(Provider.brave.capability.quotaRefreshKind == .costlyCheck, "Brave quota refresh should be modeled as a costly check because it spends a real search")
+require(!Provider.brave.capability.allowsAutomaticRefresh, "Brave should not be eligible for normal automatic refresh by default")
+require(Provider.brave.capability.requiresCostlyConfirmation, "Brave manual quota checks should require a costly-check confirmation")
+require(Provider.tavily.capability.supportsQuota, "Tavily capability should expose monthly quota")
+require(Provider.tavily.capability.supportsReset, "Tavily capability should expose the known monthly reset")
+require(Provider.tavily.capability.supportsActivity, "Tavily capability should allow activity inference from snapshots")
+require(Provider.tavily.capability.quotaRefreshKind == .refreshQuota, "Tavily quota refresh should read quota without spending real search quota")
+require(Provider.tavily.capability.allowsAutomaticRefresh, "Tavily should be eligible for normal automatic refresh")
+require(!Provider.tavily.capability.requiresCostlyConfirmation, "Tavily refresh should not require costly-check confirmation")
+require(Provider.deepseek.capability.supportsBalance, "DeepSeek capability should expose account balance")
+require(!Provider.deepseek.capability.supportsReset, "DeepSeek balance should not invent a reset cycle")
+require(Provider.deepseek.capability.supportsActivity, "DeepSeek balance snapshots should support recent activity")
+require(Provider.deepseek.capability.quotaRefreshKind == .refreshQuota, "DeepSeek balance refresh should be a normal quota refresh action")
+require(Provider.deepseek.capability.allowsAutomaticRefresh, "DeepSeek balance checks should be eligible for automatic refresh")
+require(Provider.claudeSubscription.capability.supportsQuota, "Claude subscription should expose quota windows")
+require(Provider.claudeSubscription.capability.supportsPlan, "Claude subscription should expose plan metadata when available")
+require(Provider.claudeSubscription.capability.supportsActivity, "Claude subscription should support reset-aware activity")
+require(Provider.claudeSubscription.capability.supportsReset, "Claude subscription should expose reset timing from quota windows")
+require(Provider.claudeSubscription.capability.connectionTestKind == .testConnection, "Claude connection tests should be modeled as no-cost credential checks")
+require(Provider.claudeSubscription.capability.quotaRefreshKind == .refreshQuota, "Claude quota refresh should be distinct from connection testing")
+require(Provider.claudeSubscription.capability.allowsAutomaticRefresh, "Claude subscription checks should be eligible for no-cost automatic refresh")
+require(Provider.codexSubscription.capability.supportsQuota, "Codex subscription should expose quota windows")
+require(Provider.codexSubscription.capability.supportsPlan, "Codex subscription should expose plan metadata when available")
+require(Provider.codexSubscription.capability.supportsActivity, "Codex subscription should support reset-aware activity")
+require(Provider.codexSubscription.capability.supportsReset, "Codex subscription should expose reset timing from quota windows")
+require(Provider.codexSubscription.capability.connectionTestKind == .testConnection, "Codex connection tests should be modeled as no-cost credential checks")
+require(Provider.codexSubscription.capability.quotaRefreshKind == .refreshQuota, "Codex quota refresh should be distinct from connection testing")
+require(Provider.codexSubscription.capability.allowsAutomaticRefresh, "Codex subscription checks should be eligible for no-cost automatic refresh")
+require(Provider.xfyunCodingPlan.capability.supportsQuota, "XFYun Coding Plan should expose quota windows")
+require(Provider.xfyunCodingPlan.capability.supportsPlan, "XFYun Coding Plan should expose package names and expiry when returned")
+require(Provider.xfyunCodingPlan.capability.supportsActivity, "XFYun Coding Plan should support reset-aware quota activity")
+require(Provider.xfyunCodingPlan.capability.supportsReset, "XFYun Coding Plan should expose inferred reset timing")
+require(Provider.xfyunCodingPlan.capability.connectionTestKind == .testConnection, "XFYun connection tests should be modeled as no-cost credential checks")
+require(Provider.xfyunCodingPlan.capability.quotaRefreshKind == .refreshQuota, "XFYun quota refresh should read package quota without spending generation quota")
+require(Provider.xfyunCodingPlan.capability.allowsAutomaticRefresh, "XFYun Coding Plan checks should be eligible for no-cost automatic refresh")
 require(Provider.kimiSubscription.capability.credentialKind == .dashboardCookie, "Kimi subscription should store web login authorization separately from API keys")
 require(Provider.kimiSubscription.capability.usageSource == .dashboardAPI, "Kimi subscription should expose quota status through Kimi membership dashboard APIs")
 require(Provider.kimiSubscription.capability.canTestConnection, "Kimi subscription should offer a non-consuming membership quota check")

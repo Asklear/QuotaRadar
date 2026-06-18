@@ -362,6 +362,7 @@ enum L10n {
         case autoRefreshBraveWarning
         case quotaConsumingAutoRefreshInterval
         case quotaConsumingAutoRefreshWarning
+        case quotaConsumingManualOnlyWarning
         case autoRefreshFiveMinutes
         case autoRefreshFifteenMinutes
         case autoRefreshThirtyMinutes
@@ -557,6 +558,7 @@ enum L10n {
         case lastHTTPStatus
         case httpNotRequested
         case diagnosticMessage
+        case diagnosticDetails
         case notChecked
         case usableUnknownQuota
         case usageLimitExceeded
@@ -1248,6 +1250,7 @@ enum L10n {
         .autoRefreshBraveWarning: "Automatic refresh skips Brave because each Brave check consumes one real search request.",
         .quotaConsumingAutoRefreshInterval: "Search Refresh",
         .quotaConsumingAutoRefreshWarning: "Enable only when you accept spending real search quota. These checks use a much longer refresh cadence.",
+        .quotaConsumingManualOnlyWarning: "Costly checks require manual confirmation and are not run automatically.",
         .autoRefreshFiveMinutes: "Every 5 minutes",
         .autoRefreshFifteenMinutes: "Every 15 minutes",
         .autoRefreshThirtyMinutes: "Every 30 minutes",
@@ -1443,6 +1446,7 @@ enum L10n {
         .lastHTTPStatus: "HTTP",
         .httpNotRequested: "Not requested",
         .diagnosticMessage: "Diagnostic",
+        .diagnosticDetails: "Details",
         .notChecked: "Not checked",
         .usableUnknownQuota: "Usable · quota unknown",
         .usageLimitExceeded: "Usage limit exceeded",
@@ -1558,6 +1562,7 @@ enum L10n {
         .autoRefreshBraveWarning: "自动刷新会跳过 Brave，因为每次 Brave 检查都会消耗 1 次真实搜索请求。",
         .quotaConsumingAutoRefreshInterval: "检索刷新",
         .quotaConsumingAutoRefreshWarning: "仅在你接受消耗真实搜索额度时开启。这类检查使用更长的刷新周期。",
+        .quotaConsumingManualOnlyWarning: "消耗真实额度的检查需要手动确认，不会自动运行。",
         .autoRefreshFiveMinutes: "每 5 分钟",
         .autoRefreshFifteenMinutes: "每 15 分钟",
         .autoRefreshThirtyMinutes: "每 30 分钟",
@@ -1753,6 +1758,7 @@ enum L10n {
         .lastHTTPStatus: "HTTP",
         .httpNotRequested: "未请求",
         .diagnosticMessage: "诊断信息",
+        .diagnosticDetails: "详情",
         .notChecked: "尚未检查",
         .usableUnknownQuota: "可用 · 额度未知",
         .usageLimitExceeded: "额度已用尽",
@@ -1862,6 +1868,7 @@ enum L10n {
         .autoRefreshBraveWarning: "自動刷新會跳過 Brave，因為每次 Brave 檢查都會消耗 1 次真實搜尋請求。",
         .quotaConsumingAutoRefreshInterval: "搜尋刷新",
         .quotaConsumingAutoRefreshWarning: "僅在你接受消耗真實搜尋額度時開啟。這類檢查使用更長的刷新週期。",
+        .quotaConsumingManualOnlyWarning: "消耗真實額度的檢查需要手動確認，不會自動執行。",
         .apiQuotaTitle: "餘量雷達",
         .sidebarStatistics: "統計",
         .noApiKeys: "沒有憑證",
@@ -1979,6 +1986,7 @@ enum L10n {
         .automaticRefreshSkipped: "已跳過",
         .healthStatus: "健康狀態",
         .diagnosticMessage: "診斷資訊",
+        .diagnosticDetails: "詳情",
         .usableUnknownQuota: "可用 · 額度未知",
         .usageLimitExceeded: "額度已用盡",
         .quotaErrorTimedOutDetail: "請求超時",
@@ -2069,6 +2077,7 @@ enum L10n {
         .autoRefreshBraveWarning: "Brave のチェックは実際の検索リクエストを 1 回消費するため、自動更新ではスキップされます。",
         .quotaConsumingAutoRefreshInterval: "検索更新",
         .quotaConsumingAutoRefreshWarning: "実際の検索クォータを消費してよい場合のみ有効にしてください。このチェックは長い更新間隔を使います。",
+        .quotaConsumingManualOnlyWarning: "コストのあるチェックは手動確認が必要で、自動実行されません。",
         .autoRefreshFiveMinutes: "5 分ごと",
         .autoRefreshFifteenMinutes: "15 分ごと",
         .autoRefreshThirtyMinutes: "30 分ごと",
@@ -2260,6 +2269,7 @@ enum L10n {
         .healthStatus: "ヘルス",
         .httpNotRequested: "未リクエスト",
         .diagnosticMessage: "診断",
+        .diagnosticDetails: "詳細",
         .notChecked: "未チェック",
         .usableUnknownQuota: "利用可 · クォータ不明",
         .usageLimitExceeded: "使用上限超過",
@@ -2378,6 +2388,7 @@ enum L10n {
         .autoRefreshBraveWarning: "Brave 확인은 실제 검색 요청 1회를 소비하므로 자동 새로 고침에서 건너뜁니다.",
         .quotaConsumingAutoRefreshInterval: "검색 새로 고침",
         .quotaConsumingAutoRefreshWarning: "실제 검색 할당량을 소비해도 되는 경우에만 켜세요. 이 확인은 더 긴 주기를 사용합니다.",
+        .quotaConsumingManualOnlyWarning: "비용이 드는 확인은 수동 확인이 필요하며 자동으로 실행되지 않습니다.",
         .autoRefreshFiveMinutes: "5분마다",
         .autoRefreshFifteenMinutes: "15분마다",
         .autoRefreshThirtyMinutes: "30분마다",
@@ -2569,6 +2580,7 @@ enum L10n {
         .healthStatus: "상태",
         .httpNotRequested: "요청 안 함",
         .diagnosticMessage: "진단",
+        .diagnosticDetails: "세부 정보",
         .notChecked: "확인 안 됨",
         .usableUnknownQuota: "사용 가능 · 할당량 알 수 없음",
         .usageLimitExceeded: "사용 한도 초과",

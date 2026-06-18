@@ -218,7 +218,9 @@ class QuotaMonitor: ObservableObject {
     }
 
     func refreshQuotaConsumingProviders(mode: RefreshMode = .quotaConsumingAutomatic) {
-        let providers = Set(Provider.visibleCases.filter { $0.quotaCheckConsumesSearchQuota })
+        let providers = Set(Provider.visibleCases.filter {
+            $0.capability.matchesAutomaticRefreshLane(consumesSearchQuota: true)
+        })
         guard !providers.isEmpty else { return }
         refresh(targetProviders: providers, mode: mode)
     }
@@ -301,7 +303,7 @@ class QuotaMonitor: ObservableObject {
 
                 foundTargetKey = true
 
-                if mode == .automatic && key.provider.quotaCheckConsumesSearchQuota {
+                if mode == .automatic && !key.provider.capability.allowsAutomaticRefresh {
                     if key.lastUpdated == nil, key.quotaLabel == nil {
                         key.quotaLabel = "Manual refresh only"
                         key.quotaText = LocalizedTextDescriptor.localized(.manualRefreshOnly)

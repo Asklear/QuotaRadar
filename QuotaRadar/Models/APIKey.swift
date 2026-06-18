@@ -79,7 +79,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                   key.isActive,
                   !key.key.isEmpty,
                   !key.isStoredAPIKeyOnlyCredential,
-                  key.provider.quotaCheckConsumesSearchQuota == consumesSearchQuota else {
+                  key.provider.capability.matchesAutomaticRefreshLane(consumesSearchQuota: consumesSearchQuota) else {
                 return nil
             }
 
@@ -838,6 +838,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 consumesQuota: quotaCheckConsumesSearchQuota,
                 supportsCurlImport: true,
                 canTestConnection: supportsQuotaQuery,
+                supportsPlan: true,
                 notes: L10n.t(.dashboardCookieCapabilityNote)
             )
         case .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan:
@@ -878,6 +879,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 consumesQuota: false,
                 supportsCurlImport: true,
                 canTestConnection: true,
+                supportsPlan: true,
                 notes: L10n.t(.dashboardCookieCapabilityNote)
             )
         case .codexSubscription, .kimiSubscription:
@@ -888,6 +890,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 consumesQuota: false,
                 supportsCurlImport: true,
                 canTestConnection: true,
+                supportsPlan: true,
                 notes: L10n.t(.dashboardCookieCapabilityNote)
             )
         case .tavily, .brave, .serpapi, .serper, .bocha, .anysearch, .wxmp, .deepseek:
@@ -898,6 +901,9 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 consumesQuota: quotaCheckConsumesSearchQuota,
                 supportsCurlImport: false,
                 canTestConnection: supportsQuotaQuery,
+                supportsQuota: !usesMoneyBalance,
+                supportsBalance: usesMoneyBalance,
+                supportsReset: self == .brave ? true : nil,
                 notes: quotaCheckConsumesSearchQuota ? L10n.t(.quotaConsumingRefreshWarning) : nil
             )
         }
@@ -938,6 +944,13 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum QuotaActionKind: String, Equatable {
+    case unavailable
+    case testConnection
+    case refreshQuota
+    case costlyCheck
+}
+
 struct ProviderCapability: Equatable {
     enum CredentialKind: String, Equatable {
         case apiKey
@@ -966,7 +979,62 @@ struct ProviderCapability: Equatable {
     let consumesQuota: Bool
     let supportsCurlImport: Bool
     let canTestConnection: Bool
+    let supportsQuota: Bool
+    let supportsBalance: Bool
+    let supportsPlan: Bool
+    let supportsActivity: Bool
+    let supportsReset: Bool
+    let connectionTestKind: QuotaActionKind
+    let quotaRefreshKind: QuotaActionKind
+    let allowsAutomaticRefresh: Bool
+    let requiresCostlyConfirmation: Bool
     let notes: String?
+
+    init(
+        credentialKind: CredentialKind,
+        usageSource: UsageSource,
+        resetCycle: ResetCycle,
+        consumesQuota: Bool,
+        supportsCurlImport: Bool,
+        canTestConnection: Bool,
+        supportsQuota: Bool? = nil,
+        supportsBalance: Bool = false,
+        supportsPlan: Bool = false,
+        supportsActivity: Bool? = nil,
+        supportsReset: Bool? = nil,
+        connectionTestKind: QuotaActionKind? = nil,
+        quotaRefreshKind: QuotaActionKind? = nil,
+        allowsAutomaticRefresh: Bool? = nil,
+        requiresCostlyConfirmation: Bool? = nil,
+        notes: String? = nil
+    ) {
+        self.credentialKind = credentialKind
+        self.usageSource = usageSource
+        self.resetCycle = resetCycle
+        self.consumesQuota = consumesQuota
+        self.supportsCurlImport = supportsCurlImport
+        self.canTestConnection = canTestConnection
+        self.supportsBalance = supportsBalance
+        self.supportsPlan = supportsPlan
+        self.supportsQuota = supportsQuota ?? (usageSource != .unavailable && !supportsBalance)
+        self.supportsActivity = supportsActivity ?? (self.supportsQuota || supportsBalance)
+        self.supportsReset = supportsReset ?? (resetCycle == .monthly || resetCycle == .dashboard)
+        self.connectionTestKind = connectionTestKind ?? (canTestConnection ? .testConnection : .unavailable)
+        self.quotaRefreshKind = quotaRefreshKind ?? {
+            guard usageSource != .unavailable else { return .unavailable }
+            return consumesQuota ? .costlyCheck : .refreshQuota
+        }()
+        self.requiresCostlyConfirmation = requiresCostlyConfirmation ?? (self.quotaRefreshKind == .costlyCheck)
+        self.allowsAutomaticRefresh = allowsAutomaticRefresh ?? (self.quotaRefreshKind == .refreshQuota)
+        self.notes = notes
+    }
+
+    func matchesAutomaticRefreshLane(consumesSearchQuota: Bool) -> Bool {
+        if consumesSearchQuota {
+            return allowsAutomaticRefresh && quotaRefreshKind == .costlyCheck
+        }
+        return allowsAutomaticRefresh && quotaRefreshKind == .refreshQuota
+    }
 }
 
 typealias CredentialKind = ProviderCapability.CredentialKind
