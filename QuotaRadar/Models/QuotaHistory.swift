@@ -822,7 +822,7 @@ struct MenuQuotaSignalLayout: Equatable {
         let watchedProviderItems = MenuQuotaItem.watchedProviderItems(
             from: stats,
             watchedProviders: watchedProviders,
-            limit: 3,
+            limit: 2,
             providerOrder: providerOrder
         )
         let watchedProviderIDs = Set(watchedProviderItems.map(\.provider))

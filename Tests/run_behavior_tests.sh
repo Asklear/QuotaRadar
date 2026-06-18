@@ -1200,6 +1200,15 @@ assert_match 'watchedProviders' \
 assert_match 'configureWatchedProviders' \
   "QuotaRadar/Models/AppLanguage.swift" \
   "Settings should expose a localized way to configure menu-bar watched providers"
+assert_match 'menuWatchedProviderLimit = 2' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "Menu bar watched provider list should stay short enough to leave room for automatic signals"
+assert_match 'limit: 2' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Menu signal layout should render at most two watched providers in the status bar popover"
+assert_match 'watchedCount\)/2' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Watched provider settings should communicate the compact menu-bar limit"
 python3 - <<'PY'
 from pathlib import Path
 import sys
@@ -1221,6 +1230,39 @@ if "onOpenProvider: { openProvider(item) }" not in recent_view:
     sys.exit(1)
 if "activitySummary: monitor.activitySummary(for: item.key)" not in recent_view:
     print("FAIL: Menu recent usage rows should render from QuotaActivitySummary so money-balance providers can appear", file=sys.stderr)
+    sys.exit(1)
+try:
+    watched_view = source.split("struct MenuWatchedProviderItemsView: View", 1)[1].split("struct MenuLowQuotaItemsView: View", 1)[0]
+except IndexError:
+    print("FAIL: MenuWatchedProviderItemsView should exist before low quota items", file=sys.stderr)
+    sys.exit(1)
+if "MenuWatchedProviderItemRow(" not in watched_view:
+    print("FAIL: Menu watched providers should use a dedicated compact watchlist row instead of recent-change rows", file=sys.stderr)
+    sys.exit(1)
+if "MenuRecentUsageItemRow(" in watched_view or "activitySummary:" in watched_view:
+    print("FAIL: Menu watched providers should not repeat recent-change activity explanations in the watchlist section", file=sys.stderr)
+    sys.exit(1)
+try:
+    watched_row = source.split("struct MenuWatchedProviderItemRow: View", 1)[1].split("struct MenuRecentUsageItemRow: View", 1)[0]
+except IndexError:
+    print("FAIL: MenuWatchedProviderItemRow should exist before recent usage rows", file=sys.stderr)
+    sys.exit(1)
+if "let isRefreshing: Bool" not in watched_row or "let onRefresh: () -> Void" not in watched_row:
+    print("FAIL: Menu watched provider rows should keep the compact refresh affordance", file=sys.stderr)
+    sys.exit(1)
+if "activitySummary" in watched_row or "activityText" in watched_row or "compactDeltaIndicator" in watched_row:
+    print("FAIL: Menu watched provider rows should show current provider state, not trend/delta copy", file=sys.stderr)
+    sys.exit(1)
+try:
+    attention_view = source.split("struct MenuAttentionItemsView: View", 1)[1].split("struct MenuRecentUsageItemsView: View", 1)[0]
+except IndexError:
+    print("FAIL: MenuAttentionItemsView should exist before recent usage items", file=sys.stderr)
+    sys.exit(1)
+if "if !items.isEmpty" not in attention_view:
+    print("FAIL: Menu attention section should disappear when there are no actionable items", file=sys.stderr)
+    sys.exit(1)
+if "noAttentionItems" in attention_view or "checkmark.seal.fill" in attention_view:
+    print("FAIL: Menu attention section should not spend space on a calm empty-state row", file=sys.stderr)
     sys.exit(1)
 try:
     recent_row = source.split("struct MenuRecentUsageItemRow: View", 1)[1].split("struct MenuQuotaItemRow: View", 1)[0]
@@ -1247,6 +1289,9 @@ if "quotaTrendDecreasing" in recent_row:
     sys.exit(1)
 if "L10n.compactDeltaIndicator" not in recent_row:
     print("FAIL: Menu recent usage rows should use the shared compact direction indicator for remaining-quota drops", file=sys.stderr)
+    sys.exit(1)
+if "activitySummary.activityText" not in recent_row:
+    print("FAIL: Menu recent usage rows should include a short explanation of the recent change behind the compact delta", file=sys.stderr)
     sys.exit(1)
 if "key.usageCount" in recent_row or "key.lastUsed" in recent_row:
     print("FAIL: Menu recent usage rows should not fall back to legacy usage counts or last-used timestamps", file=sys.stderr)
@@ -2087,6 +2132,12 @@ if "ZStack(alignment: .trailing)" in provider_row:
 if "ProviderQuotaActionGroup(" not in provider_row.split("private var providerSummaryRow: some View", 1)[1]:
     print("FAIL: Provider quota action buttons should live inside the provider summary row grid", file=sys.stderr)
     sys.exit(1)
+if "isWatched: monitor.isMenuWatchedProvider(provider)" not in provider_row:
+    print("FAIL: Provider quota rows should expose whether the provider is pinned in the menu watchlist", file=sys.stderr)
+    sys.exit(1)
+if "onToggleWatched: { monitor.toggleMenuWatchedProvider(provider) }" not in provider_row:
+    print("FAIL: Provider quota rows should let users pin or unpin a provider without opening the watchlist settings sheet", file=sys.stderr)
+    sys.exit(1)
 if "ProviderQuotaOverviewGridRow(" not in overview_header or "ProviderQuotaOverviewGridRow(" not in provider_row:
     print("FAIL: Provider quota overview header and provider rows should both use the shared grid row component", file=sys.stderr)
     sys.exit(1)
@@ -2112,6 +2163,28 @@ if "ProviderQuotaAccountGridRow" not in source:
     sys.exit(1)
 if account_table.count("ProviderQuotaAccountGridRow(") < 2:
     print("FAIL: Expanded quota account header and rows should both use the responsive account grid row", file=sys.stderr)
+    sys.exit(1)
+try:
+    action_group = source.split("struct ProviderQuotaActionGroup: View", 1)[1].split("struct AddCredentialProviderList", 1)[0]
+except IndexError:
+    print("FAIL: ProviderQuotaActionGroup should exist before add-credential provider list", file=sys.stderr)
+    sys.exit(1)
+if "let isWatched: Bool" not in action_group or "let onToggleWatched: () -> Void" not in action_group:
+    print("FAIL: Provider quota action group should accept watchlist state and a watchlist toggle action", file=sys.stderr)
+    sys.exit(1)
+if "ProviderWatchedToggleButton(" not in action_group:
+    print("FAIL: Provider quota action group should render a compact star button for menu watchlist linkage", file=sys.stderr)
+    sys.exit(1)
+try:
+    watched_button = source.split("struct ProviderWatchedToggleButton: View", 1)[1].split("struct ProviderQuotaActionGroup", 1)[0]
+except IndexError:
+    print("FAIL: ProviderWatchedToggleButton should exist before ProviderQuotaActionGroup", file=sys.stderr)
+    sys.exit(1)
+if '"star.fill"' not in watched_button or '"star"' not in watched_button:
+    print("FAIL: Provider watchlist toggle should use familiar star and filled-star symbols", file=sys.stderr)
+    sys.exit(1)
+if "addWatchedProviderAction" not in watched_button or "removeWatchedProviderAction" not in watched_button:
+    print("FAIL: Provider watchlist toggle should expose localized add/remove help text", file=sys.stderr)
     sys.exit(1)
 for expected in ["L10n.t(.plan)", "L10n.t(.remaining)", "L10n.t(.criticalTime)", "L10n.t(.lastUpdated)"]:
     if expected not in account_table:

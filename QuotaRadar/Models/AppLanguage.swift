@@ -321,6 +321,8 @@ enum L10n {
         case watchedProviders
         case watchedProvidersDescription
         case configureWatchedProviders
+        case addWatchedProviderAction
+        case removeWatchedProviderAction
         case watchedProvidersSheetTitle
         case watchedProvidersSheetHint
         case settingsGeneralSection
@@ -1203,8 +1205,10 @@ enum L10n {
         .customProviderOrderDescription: "Unlock provider ordering. When off, Quota Radar keeps the product-defined order.",
         .configureProviderOrder: "Configure",
         .watchedProviders: "Favorites",
-        .watchedProvidersDescription: "Pick up to three providers to keep near the top of the menu bar.",
+        .watchedProvidersDescription: "Pick up to two providers to keep near the top of the menu bar.",
         .configureWatchedProviders: "Configure",
+        .addWatchedProviderAction: "Keep in Favorites",
+        .removeWatchedProviderAction: "Remove from Favorites",
         .watchedProvidersSheetTitle: "Favorites",
         .watchedProvidersSheetHint: "Pick providers you want to keep handy. Quota reminders still appear below.",
         .settingsGeneralSection: "General",
@@ -1511,8 +1515,10 @@ enum L10n {
         .customProviderOrderDescription: "开启后可以调整服务商顺序；关闭时使用默认锁定顺序。",
         .configureProviderOrder: "调整顺序",
         .watchedProviders: "常看",
-        .watchedProvidersDescription: "选择最多三个常看的服务商，它们会靠前显示在状态栏弹窗里。",
+        .watchedProvidersDescription: "选择最多两个常看的服务商，它们会靠前显示在状态栏弹窗里。",
         .configureWatchedProviders: "设置",
+        .addWatchedProviderAction: "加入常看",
+        .removeWatchedProviderAction: "移出常看",
         .watchedProvidersSheetTitle: "常看",
         .watchedProvidersSheetHint: "把常看的服务商放到状态栏前面；系统提醒仍会在下面出现。",
         .settingsGeneralSection: "通用",
@@ -1814,8 +1820,10 @@ enum L10n {
         .customProviderOrderDescription: "開啟後可以調整服務商順序；關閉時使用預設鎖定順序。",
         .configureProviderOrder: "調整順序",
         .watchedProviders: "常看",
-        .watchedProvidersDescription: "選擇最多三個常看的服務商，它們會靠前顯示在狀態列彈窗裡。",
+        .watchedProvidersDescription: "選擇最多兩個常看的服務商，它們會靠前顯示在狀態列彈窗裡。",
         .configureWatchedProviders: "設定",
+        .addWatchedProviderAction: "加入常看",
+        .removeWatchedProviderAction: "移出常看",
         .watchedProvidersSheetTitle: "常看",
         .watchedProvidersSheetHint: "把常看的服務商放到狀態列前面；系統提醒仍會顯示在下方。",
         .settingsGeneralSection: "通用",
@@ -2018,8 +2026,10 @@ enum L10n {
         .customProviderOrderDescription: "オンにするとプロバイダーの順序を変更できます。オフでは既定の順序を固定します。",
         .configureProviderOrder: "順序を調整",
         .watchedProviders: "よく見る",
-        .watchedProvidersDescription: "メニューバーの上部に置くプロバイダーを最大 3 つ選びます。",
+        .watchedProvidersDescription: "メニューバーの上部に置くプロバイダーを最大 2 つ選びます。",
         .configureWatchedProviders: "設定",
+        .addWatchedProviderAction: "よく見るに追加",
+        .removeWatchedProviderAction: "よく見るから削除",
         .watchedProvidersSheetTitle: "よく見る",
         .watchedProvidersSheetHint: "よく見るプロバイダーをメニューバー上部に置きます。クォータのお知らせは下に表示されます。",
         .settingsGeneralSection: "一般",
@@ -2325,8 +2335,10 @@ enum L10n {
         .customProviderOrderDescription: "켜면 공급자 순서를 조정할 수 있습니다. 끄면 기본 순서를 고정합니다.",
         .configureProviderOrder: "순서 조정",
         .watchedProviders: "자주 보는 항목",
-        .watchedProvidersDescription: "메뉴 막대 위쪽에 둘 공급자를 최대 3개 선택합니다.",
+        .watchedProvidersDescription: "메뉴 막대 위쪽에 둘 공급자를 최대 2개 선택합니다.",
         .configureWatchedProviders: "설정",
+        .addWatchedProviderAction: "자주 보는 항목에 추가",
+        .removeWatchedProviderAction: "자주 보는 항목에서 제거",
         .watchedProvidersSheetTitle: "자주 보는 항목",
         .watchedProvidersSheetHint: "자주 보는 공급자를 메뉴 막대 위쪽에 둡니다. 할당량 알림은 아래에 계속 표시됩니다.",
         .settingsGeneralSection: "일반",

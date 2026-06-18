@@ -598,9 +598,8 @@ struct MenuWatchedProviderItemsView: View {
                     MenuSectionHeader(title: L10n.t(.watchedProviders), detail: L10n.t(.keyQuota))
 
                     ForEach(items) { item in
-                        MenuRecentUsageItemRow(
+                        MenuWatchedProviderItemRow(
                             item: item,
-                            activitySummary: monitor.activitySummary(for: item.key),
                             isRefreshing: monitor.refreshingProviders.contains(item.provider),
                             onRefresh: { monitor.refreshProvider(item.provider) },
                             onOpenProvider: { openProvider(item) }
@@ -677,20 +676,11 @@ struct MenuAttentionItemsView: View {
     let items: [MenuQuotaItem]
 
     var body: some View {
-        MonitorModule(spacing: 9) {
-            VStack(alignment: .leading, spacing: 10) {
-                MenuSectionHeader(title: L10n.t(.needsAttention), detail: L10n.t(.quotaStatus))
+        if !items.isEmpty {
+            MonitorModule(spacing: 9) {
+                VStack(alignment: .leading, spacing: 10) {
+                    MenuSectionHeader(title: L10n.t(.needsAttention), detail: L10n.t(.quotaStatus))
 
-                if items.isEmpty {
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(L10n.t(.noAttentionItems))
-                            .font(.caption2)
-                        Spacer()
-                    }
-                    .foregroundStyle(.green)
-                } else {
                     ForEach(items) { item in
                         MenuQuotaItemRow(
                             item: item,
@@ -825,6 +815,63 @@ struct MenuExpiringQuotaItemRow: View {
     }
 }
 
+struct MenuWatchedProviderItemRow: View {
+    let item: MenuQuotaItem
+    let isRefreshing: Bool
+    let onRefresh: () -> Void
+    let onOpenProvider: () -> Void
+
+    private var key: APIKey {
+        item.key
+    }
+
+    private var presentation: QuotaPresentation {
+        key.quotaPresentation
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProviderIcon(provider: item.provider, size: 20)
+
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 5) {
+                    Text(item.provider.displayName())
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .lineLimit(1)
+
+                    if let contextLabel = item.statusBarAccountContextLabel {
+                        Text(contextLabel)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Text(presentation.primaryText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 6)
+
+            Text(presentation.badgeText)
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(key.status.color)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .frame(minWidth: 38)
+                .background(key.status.color.opacity(0.12), in: Capsule())
+
+            RefreshButton(isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
+                .scaleEffect(0.72)
+                .frame(width: 22, height: 22)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onOpenProvider)
+    }
+}
+
 struct MenuRecentUsageItemRow: View {
     let item: MenuQuotaItem
     let activitySummary: QuotaActivitySummary
@@ -850,6 +897,14 @@ struct MenuRecentUsageItemRow: View {
         activitySummary.deltaText == nil ? .secondary : .orange
     }
 
+    private var detailText: String {
+        guard let activityText = activitySummary.activityText,
+              !activityText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return key.quotaPresentation.primaryText
+        }
+        return "\(key.quotaPresentation.primaryText) · \(activityText)"
+    }
+
     var body: some View {
         HStack(spacing: 8) {
             ProviderIcon(provider: item.provider, size: 20)
@@ -868,7 +923,7 @@ struct MenuRecentUsageItemRow: View {
                     }
                 }
 
-                Text(key.quotaPresentation.primaryText)
+                Text(detailText)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

@@ -1251,14 +1251,39 @@ struct ProviderActionIcon: View {
     }
 }
 
+struct ProviderWatchedToggleButton: View {
+    let isWatched: Bool
+    let size: CGFloat
+    let action: () -> Void
+
+    private var helpText: String {
+        isWatched ? L10n.t(.removeWatchedProviderAction) : L10n.t(.addWatchedProviderAction)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            ProviderActionIcon(
+                systemName: isWatched ? "star.fill" : "star",
+                tint: isWatched ? .yellow : .secondary,
+                size: size
+            )
+        }
+        .buttonStyle(.plain)
+        .help(helpText)
+        .accessibilityLabel(helpText)
+    }
+}
+
 struct ProviderQuotaActionGroup: View {
     let provider: Provider
+    let isWatched: Bool
     let isRefreshing: Bool
     let canRefresh: Bool
+    let onToggleWatched: () -> Void
     let onReauthenticate: () -> Void
     let onRefresh: () -> Void
 
-    private let size: CGFloat = 26
+    private let size: CGFloat = 20
 
     private var refreshActionLabel: String {
         isRefreshing ? L10n.t(.refreshingQuotaAction) :
@@ -1267,7 +1292,15 @@ struct ProviderQuotaActionGroup: View {
     }
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 2) {
+            actionSlot {
+                ProviderWatchedToggleButton(
+                    isWatched: isWatched,
+                    size: size,
+                    action: onToggleWatched
+                )
+            }
+
             actionSlot {
                 ProviderDashboardJumpButton(provider: provider, size: size)
             }
@@ -2440,8 +2473,10 @@ struct ProviderQuotaMonitorRow: View {
         } actions: {
             ProviderQuotaActionGroup(
                 provider: provider,
+                isWatched: monitor.isMenuWatchedProvider(provider),
                 isRefreshing: isRefreshing,
                 canRefresh: canRefresh,
+                onToggleWatched: { monitor.toggleMenuWatchedProvider(provider) },
                 onReauthenticate: { showingReauth = true },
                 onRefresh: { monitor.refreshProvider(provider) }
             )
@@ -3201,7 +3236,7 @@ struct WatchedProvidersSheetToolbar: View {
 
             Spacer()
 
-            Text("\(watchedCount)/3")
+            Text("\(watchedCount)/2")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
                 .monospacedDigit()
@@ -3237,7 +3272,7 @@ struct WatchedProviderCategoryCard: View {
                 WatchedProviderToggleRow(
                     provider: provider,
                     isWatched: isWatched,
-                    isDisabled: !isWatched && watchedProviders.count >= 3,
+                    isDisabled: !isWatched && watchedProviders.count >= 2,
                     onToggle: { onToggle(provider) }
                 )
 

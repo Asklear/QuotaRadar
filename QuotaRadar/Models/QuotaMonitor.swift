@@ -14,7 +14,7 @@ class QuotaMonitor: ObservableObject {
     private static let customProviderOrderEnabledDefaultsKey = "customProviderOrderEnabled"
     private static let menuWatchedProvidersDefaultsKey = "menuWatchedProviders"
     private static let menuSignalItemLimit = 6
-    private static let menuWatchedProviderLimit = 3
+    private static let menuWatchedProviderLimit = 2
 
     @Published var apiKeys: [APIKey] = []
     @Published var isRefreshing = false
