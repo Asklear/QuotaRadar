@@ -67,6 +67,8 @@ struct MenuContentView: View {
                 } else {
                     MenuRiskSummaryCard(summary: monitor.menuQuotaSummary)
 
+                    MenuWatchedProviderItemsView(monitor: monitor, items: signalLayout.watchedProviderItems)
+
                     MenuLowQuotaItemsView(items: signalLayout.lowQuotaItems)
 
                     MenuExpiringQuotaItemsView(items: signalLayout.expiringSoonItems)
@@ -585,6 +587,37 @@ struct MenuProviderQuotaCell: View {
 
 // MARK: - Attention Quota Items
 
+struct MenuWatchedProviderItemsView: View {
+    @ObservedObject var monitor: QuotaMonitor
+    let items: [MenuQuotaItem]
+
+    var body: some View {
+        if !items.isEmpty {
+            MonitorModule(spacing: 8) {
+                VStack(alignment: .leading, spacing: 8) {
+                    MenuSectionHeader(title: L10n.t(.watchedProviders), detail: L10n.t(.keyQuota))
+
+                    ForEach(items) { item in
+                        MenuRecentUsageItemRow(
+                            item: item,
+                            activitySummary: monitor.activitySummary(for: item.key),
+                            isRefreshing: monitor.refreshingProviders.contains(item.provider),
+                            onRefresh: { monitor.refreshProvider(item.provider) },
+                            onOpenProvider: { openProvider(item) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func openProvider(_ item: MenuQuotaItem) {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.openProviderFromStatusPopover(item.provider, credentialID: item.key.id, reason: item.signalReason)
+        }
+    }
+}
+
 struct MenuLowQuotaItemsView: View {
     let items: [MenuQuotaItem]
 
@@ -691,7 +724,7 @@ struct MenuRecentUsageItemsView: View {
                     ForEach(items) { item in
                         MenuRecentUsageItemRow(
                             item: item,
-                            trendSummary: monitor.trendSummary(for: item.key),
+                            activitySummary: monitor.activitySummary(for: item.key),
                             isRefreshing: monitor.refreshingProviders.contains(item.provider),
                             onRefresh: { monitor.refreshProvider(item.provider) },
                             onOpenProvider: { openProvider(item) }
@@ -794,7 +827,7 @@ struct MenuExpiringQuotaItemRow: View {
 
 struct MenuRecentUsageItemRow: View {
     let item: MenuQuotaItem
-    let trendSummary: QuotaTrendSummary
+    let activitySummary: QuotaActivitySummary
     let isRefreshing: Bool
     let onRefresh: () -> Void
     let onOpenProvider: () -> Void
@@ -804,16 +837,17 @@ struct MenuRecentUsageItemRow: View {
     }
 
     private var trendText: String {
-        switch trendSummary.direction {
-        case .decreasing:
-            return L10n.compactDeltaIndicator("-\(L10n.percentPointDelta(trendSummary.consumedPercentPoints))")
-        case .replenished:
-            return L10n.t(.quotaTrendReplenished)
-        case .stable:
-            return L10n.t(.quotaTrendStable)
-        case .unknown:
-            return key.quotaPresentation.primaryText
+        if let deltaText = activitySummary.deltaText {
+            return L10n.compactDeltaIndicator(deltaText)
         }
+        if activitySummary.kind == .recovered {
+            return L10n.t(.quotaTrendReplenished)
+        }
+        return key.quotaPresentation.primaryText
+    }
+
+    private var trendTint: Color {
+        activitySummary.deltaText == nil ? .secondary : .orange
     }
 
     var body: some View {
@@ -844,11 +878,11 @@ struct MenuRecentUsageItemRow: View {
 
             Text(trendText)
                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(trendSummary.direction == .decreasing ? .orange : .secondary)
+                .foregroundStyle(trendTint)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .frame(minWidth: 42)
-                .background(Color.orange.opacity(trendSummary.direction == .decreasing ? 0.12 : 0.06), in: Capsule())
+                .background(Color.orange.opacity(activitySummary.deltaText == nil ? 0.06 : 0.12), in: Capsule())
 
             RefreshButton(isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
                 .scaleEffect(0.72)
@@ -968,9 +1002,6 @@ struct MenuQuotaItemRow: View {
                         .lineLimit(1)
                 }
 
-                if !key.quotaWindowDetails.isEmpty {
-                    QuotaWindowDetails(windows: key.quotaWindowDetails, compact: true)
-                }
             }
 
             Spacer(minLength: 8)

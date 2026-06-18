@@ -924,10 +924,10 @@ assert_match 'assert_file_nonempty "\$\{PANEL_BOUNDS_FILE\}"' \
 assert_match 'assert_file_nonempty "\$\{MAIN_WINDOW_ID_FILE\}"' \
   "Tests/run_visual_qa.sh" \
   "Visual QA should fail when it cannot identify the main settings window"
-assert_match 'assert_png_minimum_size "\$\{OUTPUT_DIR\}/menu-bar-popover\.png" 900 1100' \
+assert_match 'assert_png_minimum_size "\$\{OUTPUT_DIR\}/menu-bar-popover\.png" 540 720' \
   "Tests/run_visual_qa.sh" \
   "Visual QA should assert the menu-bar popover screenshot is complete enough to catch clipped panels"
-assert_match 'assert_png_minimum_size "\$\{focused_screenshot\}" 1700 900' \
+assert_match 'assert_png_minimum_size "\$\{focused_screenshot\}" 900 600' \
   "Tests/run_visual_qa.sh" \
   "Visual QA should assert the focused main-window screenshot is large enough for account-highlight review"
 assert_match 'assert_focused_highlight_present "\$\{focused_screenshot\}"' \
@@ -1008,6 +1008,15 @@ assert_match 'menuAttentionQuotaItems' \
 assert_match 'menuSignalLayout' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "QuotaMonitor should expose one globally capped signal layout for the menu bar"
+assert_match 'menuWatchedProviders' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should persist user-selected providers that deserve fixed menu-bar attention"
+assert_match 'setMenuWatchedProviders' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should provide a single sanitized setter for menu-bar watched providers"
+assert_match 'menuWatchedProviderItems' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose watched provider rows separately from long-lived automatic attention"
 assert_match 'struct MenuQuotaSummary' \
   "QuotaRadar/Models/APIKey.swift" \
   "Menu bar summary counts should live in a shared model instead of view-only logic"
@@ -1116,6 +1125,7 @@ if "MenuSignalSectionsScrollView" in body:
 required_order = [
     "HeaderView(",
     "MenuRiskSummaryCard(summary: monitor.menuQuotaSummary)",
+    "MenuWatchedProviderItemsView(monitor: monitor, items: signalLayout.watchedProviderItems)",
     "MenuLowQuotaItemsView(items: signalLayout.lowQuotaItems)",
     "MenuExpiringQuotaItemsView(items: signalLayout.expiringSoonItems)",
     "MenuAttentionItemsView(monitor: monitor, items: signalLayout.attentionItems)",
@@ -1148,6 +1158,9 @@ assert_match 'MenuAttentionItemsView' \
 assert_match 'let signalLayout = monitor\.menuSignalLayout' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar popover should render from a single globally capped signal layout"
+assert_match 'MenuWatchedProviderItemsView' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should show a short user-selected watchlist before automatic long-lived signals"
 assert_no_match 'ForEach\(monitor\.menuAttentionQuotaItems' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar attention rows should not bypass the global signal cap"
@@ -1181,6 +1194,12 @@ assert_match 'recentUsageDetail' \
 assert_match 'recentProviderUsage' \
   "QuotaRadar/Models/AppLanguage.swift" \
   "Recent provider usage menu label should be localized"
+assert_match 'watchedProviders' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Watched provider menu labels should be localized"
+assert_match 'configureWatchedProviders' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Settings should expose a localized way to configure menu-bar watched providers"
 python3 - <<'PY'
 from pathlib import Path
 import sys
@@ -1200,10 +1219,19 @@ if "onRefresh: { monitor.refreshProvider(item.provider) }" not in recent_view:
 if "onOpenProvider: { openProvider(item) }" not in recent_view:
     print("FAIL: Menu recent usage rows should open and focus the provider in the main app", file=sys.stderr)
     sys.exit(1)
+if "activitySummary: monitor.activitySummary(for: item.key)" not in recent_view:
+    print("FAIL: Menu recent usage rows should render from QuotaActivitySummary so money-balance providers can appear", file=sys.stderr)
+    sys.exit(1)
 try:
     recent_row = source.split("struct MenuRecentUsageItemRow: View", 1)[1].split("struct MenuQuotaItemRow: View", 1)[0]
 except IndexError:
     print("FAIL: MenuRecentUsageItemRow should exist before generic quota item rows", file=sys.stderr)
+    sys.exit(1)
+if "let activitySummary: QuotaActivitySummary" not in recent_row:
+    print("FAIL: Menu recent usage rows should accept activity summaries instead of percentage-only trend summaries", file=sys.stderr)
+    sys.exit(1)
+if "let trendSummary: QuotaTrendSummary" in recent_row:
+    print("FAIL: Menu recent usage rows should not depend on percentage-only trend summaries", file=sys.stderr)
     sys.exit(1)
 if "let isRefreshing: Bool" not in recent_row or "let onRefresh: () -> Void" not in recent_row:
     print("FAIL: Menu recent usage rows should accept refresh state and action", file=sys.stderr)
@@ -1222,6 +1250,14 @@ if "L10n.compactDeltaIndicator" not in recent_row:
     sys.exit(1)
 if "key.usageCount" in recent_row or "key.lastUsed" in recent_row:
     print("FAIL: Menu recent usage rows should not fall back to legacy usage counts or last-used timestamps", file=sys.stderr)
+    sys.exit(1)
+try:
+    attention_row = source.split("struct MenuQuotaItemRow: View", 1)[1].split("struct RefreshButton", 1)[0]
+except IndexError:
+    print("FAIL: MenuQuotaItemRow should exist before shared refresh controls", file=sys.stderr)
+    sys.exit(1)
+if "QuotaWindowDetails(" in attention_row:
+    print("FAIL: Menu bar attention rows should not expand every quota window; one compact quota line is enough", file=sys.stderr)
     sys.exit(1)
 PY
 python3 - <<'PY'
@@ -4599,21 +4635,25 @@ require(xfyunFallbackActivity.deltaText == "-4pt", "Windowed quota activity fall
 let recentTavilyID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
 let recentBraveID = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
 let recentSerperID = UUID(uuidString: "44444444-4444-4444-4444-444444444444")!
+let recentDeepSeekBalanceID = UUID(uuidString: "99999999-9999-9999-9999-999999999999")!
 let recentStats = [
     ProviderStats(provider: .tavily, keys: [APIKey(id: recentTavilyID, name: "TAVILY_ACTIVE", key: "tvly-active", provider: .tavily, remaining: 600, limit: 1000)]),
     ProviderStats(provider: .brave, keys: [APIKey(id: recentBraveID, name: "BRAVE_ACTIVE", key: "brave-active", provider: .brave, remaining: 850, limit: 1000)]),
-    ProviderStats(provider: .serper, keys: [APIKey(id: recentSerperID, name: "SERPER_FALLBACK", key: "serper-active", provider: .serper, remaining: 1000, limit: 1000, usageCount: 100, lastUsed: trendNow)])
+    ProviderStats(provider: .serper, keys: [APIKey(id: recentSerperID, name: "SERPER_FALLBACK", key: "serper-active", provider: .serper, remaining: 1000, limit: 1000, usageCount: 100, lastUsed: trendNow)]),
+    ProviderStats(provider: .deepseek, keys: [APIKey(id: recentDeepSeekBalanceID, name: "DEEPSEEK_BALANCE", key: "sk-deepseek", provider: .deepseek, remaining: 1750)])
 ]
 let recentUsageSnapshots = [
     QuotaSnapshot(keyID: recentTavilyID, provider: .tavily, credentialName: "TAVILY_ACTIVE", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
     QuotaSnapshot(keyID: recentTavilyID, provider: .tavily, credentialName: "TAVILY_ACTIVE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 600, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
     QuotaSnapshot(keyID: recentBraveID, provider: .brave, credentialName: "BRAVE_ACTIVE", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
-    QuotaSnapshot(keyID: recentBraveID, provider: .brave, credentialName: "BRAVE_ACTIVE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 850, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    QuotaSnapshot(keyID: recentBraveID, provider: .brave, credentialName: "BRAVE_ACTIVE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 850, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+    QuotaSnapshot(keyID: recentDeepSeekBalanceID, provider: .deepseek, credentialName: "DEEPSEEK_BALANCE", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 2000, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "¥20.00", httpStatus: 200),
+    QuotaSnapshot(keyID: recentDeepSeekBalanceID, provider: .deepseek, credentialName: "DEEPSEEK_BALANCE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 1750, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "¥17.50", httpStatus: 200)
 ]
-let recentUsageItems = MenuQuotaItem.recentProviderUsageItems(from: recentStats, snapshots: recentUsageSnapshots, limit: 3, providerOrder: [.serper, .brave, .tavily], now: trendNow)
-require(recentUsageItems.map { $0.key.name } == ["TAVILY_ACTIVE", "BRAVE_ACTIVE"], "Recent provider usage should only include credentials with snapshot-derived remaining-quota depletion")
-let excludedRecentUsageItems = MenuQuotaItem.recentProviderUsageItems(from: recentStats, snapshots: recentUsageSnapshots, limit: 3, providerOrder: [.serper, .brave, .tavily], excluding: [recentTavilyID], now: trendNow)
-require(excludedRecentUsageItems.map { $0.key.name } == ["BRAVE_ACTIVE"], "Recent provider usage should allow menu risk sections to exclude already surfaced credentials without falling back to legacy usage counts")
+let recentUsageItems = MenuQuotaItem.recentProviderUsageItems(from: recentStats, snapshots: recentUsageSnapshots, limit: 3, providerOrder: [.serper, .brave, .tavily, .deepseek], now: trendNow)
+require(recentUsageItems.map { $0.key.name } == ["TAVILY_ACTIVE", "BRAVE_ACTIVE", "DEEPSEEK_BALANCE"], "Recent provider usage should include money-balance providers with snapshot-derived balance depletion")
+let excludedRecentUsageItems = MenuQuotaItem.recentProviderUsageItems(from: recentStats, snapshots: recentUsageSnapshots, limit: 3, providerOrder: [.serper, .brave, .tavily, .deepseek], excluding: [recentTavilyID], now: trendNow)
+require(excludedRecentUsageItems.map { $0.key.name } == ["BRAVE_ACTIVE", "DEEPSEEK_BALANCE"], "Recent provider usage should allow menu risk sections to exclude already surfaced credentials without falling back to legacy usage counts")
 let lowSignalRecentID = UUID(uuidString: "77777777-7777-7777-7777-777777777777")!
 let meaningfulRecentID = UUID(uuidString: "88888888-8888-8888-8888-888888888888")!
 let attentionFeedRecentStats = [
@@ -4674,6 +4714,36 @@ require(groupedProviderLayout.lowQuotaItems.map { $0.key.name } == ["XFYUN_CODIN
 require(groupedProviderLayout.lowQuotaItems.first?.providerSignalCount == 2, "Collapsed provider rows should retain the same-provider account count for the menu label")
 require(groupedProviderLayout.hiddenItemCount == 0, "Collapsed same-provider accounts should not inflate the fixed-panel hidden-item count")
 require(groupedProviderLayout.lowQuotaItems.first?.statusBarAccountContextLabel == "Pro · 2 accounts", "Collapsed provider rows should append a compact account-count hint to the representative account context")
+let crossSignalLayout = MenuQuotaSignalLayout.make(
+    from: [
+        ProviderStats(provider: .volcengineCodingPlan, keys: [
+            APIKey(name: "VOLCENGINE_LOW", key: "cookie-low", provider: .volcengineCodingPlan, remaining: 50, limit: 1000),
+            APIKey(name: "VOLCENGINE_EXPIRES", key: "cookie-expiring", provider: .volcengineCodingPlan, remaining: 900, limit: 1000, planEndsAt: overflowNow.addingTimeInterval(3 * 24 * 60 * 60))
+        ]),
+        ProviderStats(provider: .tavily, keys: [
+            APIKey(name: "TAVILY_LOW", key: "tvly-cross-low", provider: .tavily, remaining: 20, limit: 1000)
+        ])
+    ],
+    snapshots: [],
+    visibleLimit: 5,
+    providerOrder: [.volcengineCodingPlan, .tavily],
+    now: overflowNow
+)
+require(crossSignalLayout.visibleItems.map { $0.provider }.filter { $0 == .volcengineCodingPlan }.count == 1, "Menu signal layout should surface each provider only once across low/expiring/attention sections")
+require(crossSignalLayout.visibleItems.map { $0.key.name } == ["TAVILY_LOW", "VOLCENGINE_LOW"], "When one provider has several automatic signals, the menu should keep only its strongest provider-level row")
+let watchedLayout = MenuQuotaSignalLayout.make(
+    from: [
+        ProviderStats(provider: .brave, keys: [APIKey(name: "BRAVE_WATCHED", key: "brave-watched", provider: .brave, remaining: 880, limit: 1000)]),
+        ProviderStats(provider: .tavily, keys: [APIKey(name: "TAVILY_LOW", key: "tvly-watched-low", provider: .tavily, remaining: 20, limit: 1000)])
+    ],
+    snapshots: [],
+    visibleLimit: 5,
+    providerOrder: [.tavily, .brave],
+    watchedProviders: [.brave],
+    now: overflowNow
+)
+require(watchedLayout.watchedProviderItems.map { $0.key.name } == ["BRAVE_WATCHED"], "Menu signal layout should reserve a separate short section for user-watched providers")
+require(!watchedLayout.visibleItems.map { $0.key.name }.contains("BRAVE_WATCHED"), "Watched providers should not also consume automatic signal slots")
 let menuSummary = MenuQuotaSummary(keys: [
     APIKey(name: "healthy", key: "tvly-healthy", provider: .tavily, remaining: 900, limit: 1000),
     APIKey(name: "low", key: "tvly-low", provider: .tavily, remaining: 20, limit: 1000),
@@ -4962,6 +5032,8 @@ require(L10n.quotaPeriodCompactTitle("5h", language: .simplifiedChinese) == "5h"
 require(L10n.quotaPeriodCompactTitle("week", language: .simplifiedChinese) == "周", "Sparkline weekly period marker should stay compact in Chinese")
 require(L10n.quotaPeriodCompactTitle("month", language: .simplifiedChinese) == "月", "Sparkline monthly period marker should stay compact in Chinese")
 require(L10n.quotaPeriodCompactTitle("week", language: .english) == "wk", "Sparkline weekly period marker should stay compact in English")
+require(L10n.quotaPeriodCompactTitle("balance", language: .english) == "bal", "Money-balance activity period marker should stay compact in English")
+require(L10n.quotaPeriodCompactTitle("balance", language: .simplifiedChinese) == "余额", "Money-balance activity period marker should be localized in Chinese")
 require(L10n.t(.httpNotRequested, language: .english) == "Not requested", "English diagnostics should distinguish skipped HTTP checks")
 require(L10n.t(.httpNotRequested, language: .simplifiedChinese) == "未请求", "Chinese diagnostics should distinguish skipped HTTP checks")
 require(QuotaDataSource.responseHeader.displayName(language: .simplifiedChinese) == "响应头", "Chinese quota data source labels should not leak English Header wording")

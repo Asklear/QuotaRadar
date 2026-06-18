@@ -95,7 +95,20 @@ highlight_pixels = 0
 for y in range(crop[1], crop[3]):
     for x in range(crop[0], crop[2]):
         red, green, blue = image.getpixel((x, y))
-        if 185 <= red <= 235 and 195 <= green <= 245 and 220 <= blue <= 255 and blue - red >= 18 and blue - green >= 8:
+        is_blue_focus = (
+            185 <= red <= 235
+            and 195 <= green <= 245
+            and 220 <= blue <= 255
+            and blue - red >= 18
+            and blue - green >= 8
+        )
+        is_risk_focus = (
+            225 <= red <= 255
+            and 185 <= green <= 245
+            and 175 <= blue <= 240
+            and red - blue >= 8
+        )
+        if is_blue_focus or is_risk_focus:
             highlight_pixels += 1
 
 report = (
@@ -170,7 +183,7 @@ SWIFT
     focused_main_window_id="$(tr -d '\n' <"${focused_window_id_file}")"
     screencapture -x -l"${focused_main_window_id}" "${focused_screenshot}"
     assert_file_nonempty "${focused_screenshot}" "Visual QA did not capture the focused main settings window for signal: ${signal}"
-    assert_png_minimum_size "${focused_screenshot}" 1700 900 "focused ${signal} main settings window"
+    assert_png_minimum_size "${focused_screenshot}" 900 600 "focused ${signal} main settings window"
     assert_focused_highlight_present "${focused_screenshot}"
 
     if [ "${signal}" = "low" ]; then
@@ -370,13 +383,13 @@ assert_file_nonempty "${PANEL_BOUNDS_FILE}" "Visual QA could not find the status
 IFS=, read -r x y width height <"${PANEL_BOUNDS_FILE}" || true
 screencapture -x -R"${x},${y},${width},${height}" "${OUTPUT_DIR}/menu-bar-popover.png"
 assert_file_nonempty "${OUTPUT_DIR}/menu-bar-popover.png" "Visual QA did not capture the menu-bar popover"
-assert_png_minimum_size "${OUTPUT_DIR}/menu-bar-popover.png" 900 1100 "menu-bar popover"
+assert_png_minimum_size "${OUTPUT_DIR}/menu-bar-popover.png" 540 720 "menu-bar popover"
 
 assert_file_nonempty "${MAIN_WINDOW_ID_FILE}" "Visual QA could not identify the main settings window"
 main_window_id="$(tr -d '\n' <"${MAIN_WINDOW_ID_FILE}")"
 screencapture -x -l"${main_window_id}" "${OUTPUT_DIR}/main-window.png"
 assert_file_nonempty "${OUTPUT_DIR}/main-window.png" "Visual QA did not capture the main settings window"
-assert_png_minimum_size "${OUTPUT_DIR}/main-window.png" 1700 900 "main settings window"
+assert_png_minimum_size "${OUTPUT_DIR}/main-window.png" 900 600 "main settings window"
 
 screencapture -x "${OUTPUT_DIR}/desktop.png" || true
 

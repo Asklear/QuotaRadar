@@ -799,6 +799,7 @@ struct QuotaRefreshDeltaSummary: Equatable {
 }
 
 struct MenuQuotaSignalLayout: Equatable {
+    let watchedProviderItems: [MenuQuotaItem]
     let attentionItems: [MenuQuotaItem]
     let lowQuotaItems: [MenuQuotaItem]
     let expiringSoonItems: [MenuQuotaItem]
@@ -814,44 +815,65 @@ struct MenuQuotaSignalLayout: Equatable {
         snapshots: [QuotaSnapshot],
         visibleLimit: Int,
         providerOrder: [Provider] = Provider.visibleCases,
+        watchedProviders: [Provider] = [],
         now: Date = Date()
     ) -> MenuQuotaSignalLayout {
         let boundedLimit = max(0, visibleLimit)
+        let watchedProviderItems = MenuQuotaItem.watchedProviderItems(
+            from: stats,
+            watchedProviders: watchedProviders,
+            limit: 3,
+            providerOrder: providerOrder
+        )
+        let watchedProviderIDs = Set(watchedProviderItems.map(\.provider))
 
         let attentionCandidates = MenuQuotaItem.attentionItems(
             from: stats,
             limit: Int.max,
             providerOrder: providerOrder
         )
+        .filter { !watchedProviderIDs.contains($0.provider) }
         .sorted { shouldRankSignal($0, before: $1, providerOrder: providerOrder) }
-        let attentionIDs = Set(attentionCandidates.map(\.id))
         let groupedAttentionCandidates = collapseProviderSignalGroups(attentionCandidates)
+        let attentionIDs = Set(groupedAttentionCandidates.map(\.id))
+        let attentionProviderIDs = Set(groupedAttentionCandidates.map(\.provider))
 
         let lowQuotaCandidates = MenuQuotaItem.lowQuotaItems(
             from: stats,
             limit: Int.max,
             providerOrder: providerOrder
         )
-        .filter { !attentionIDs.contains($0.id) }
-        let lowQuotaIDs = Set(lowQuotaCandidates.map(\.id))
+        .filter { !watchedProviderIDs.contains($0.provider) && !attentionProviderIDs.contains($0.provider) }
         let groupedLowQuotaCandidates = collapseProviderSignalGroups(lowQuotaCandidates)
+        let lowQuotaIDs = Set(groupedLowQuotaCandidates.map(\.id))
+        let lowQuotaProviderIDs = Set(groupedLowQuotaCandidates.map(\.provider))
 
         let expiringSoonCandidates = MenuQuotaItem.expiringSoonItems(
             from: stats,
             limit: Int.max,
             providerOrder: providerOrder
         )
-        .filter { !attentionIDs.contains($0.id) && !lowQuotaIDs.contains($0.id) }
-        let expiringSoonIDs = Set(expiringSoonCandidates.map(\.id))
+        .filter {
+            !watchedProviderIDs.contains($0.provider)
+                && !attentionProviderIDs.contains($0.provider)
+                && !lowQuotaProviderIDs.contains($0.provider)
+        }
         let groupedExpiringSoonCandidates = collapseProviderSignalGroups(expiringSoonCandidates)
+        let expiringSoonIDs = Set(groupedExpiringSoonCandidates.map(\.id))
+        let expiringSoonProviderIDs = Set(groupedExpiringSoonCandidates.map(\.provider))
 
         let riskCandidateIDs = attentionIDs.union(lowQuotaIDs).union(expiringSoonIDs)
+        let riskProviderIDs = attentionProviderIDs
+            .union(lowQuotaProviderIDs)
+            .union(expiringSoonProviderIDs)
+            .union(watchedProviderIDs)
         let recentUsageCandidates = MenuQuotaItem.recentProviderUsageItems(
             from: stats,
             snapshots: snapshots,
             limit: Int.max,
             providerOrder: providerOrder,
             excluding: riskCandidateIDs,
+            excludingProviders: riskProviderIDs,
             now: now
         )
 
@@ -871,6 +893,7 @@ struct MenuQuotaSignalLayout: Equatable {
             + visibleRecentUsageItems.count
 
         return MenuQuotaSignalLayout(
+            watchedProviderItems: watchedProviderItems,
             attentionItems: visibleAttentionItems,
             lowQuotaItems: visibleLowQuotaItems,
             expiringSoonItems: visibleExpiringSoonItems,
@@ -952,6 +975,33 @@ struct MenuQuotaSignalLayout: Equatable {
 
 extension MenuQuotaItem {
     private static let minimumMenuRecentUsagePercentPoints = 3.0
+    private static let minimumMenuRecentMoneyBalanceCents = 1
+
+    static func watchedProviderItems(
+        from stats: [ProviderStats],
+        watchedProviders: [Provider],
+        limit: Int = 3,
+        providerOrder: [Provider] = Provider.visibleCases
+    ) -> [MenuQuotaItem] {
+        guard limit > 0, !watchedProviders.isEmpty else { return [] }
+        let watchedSet = Set(watchedProviders)
+        let orderedWatchedProviders = providerOrder.filter { watchedSet.contains($0) }
+        let statByProvider = Dictionary(uniqueKeysWithValues: stats.map { ($0.provider, $0) })
+
+        return orderedWatchedProviders
+            .compactMap { provider -> MenuQuotaItem? in
+                guard
+                    let stat = statByProvider[provider],
+                    let key = stat.mostConstrainedActiveMonitoringKey,
+                    !key.isStoredAPIKeyOnlyCredential
+                else {
+                    return nil
+                }
+                return MenuQuotaItem(provider: provider, key: key)
+            }
+            .prefix(limit)
+            .map { $0 }
+    }
 
     static func recentProviderUsageItems(
         from stats: [ProviderStats],
@@ -959,26 +1009,52 @@ extension MenuQuotaItem {
         limit: Int = 3,
         providerOrder: [Provider] = Provider.visibleCases,
         excluding excludedKeyIDs: Set<UUID> = [],
+        excludingProviders excludedProviders: Set<Provider> = [],
         now: Date = Date()
     ) -> [MenuQuotaItem] {
         var bestCandidateByProvider: [Provider: RecentProviderUsageCandidate] = [:]
         var countByProvider: [Provider: Int] = [:]
 
         for stat in stats {
-            for key in stat.keys where key.isActive && !key.isStoredAPIKeyOnlyCredential && !excludedKeyIDs.contains(key.id) {
-                let summary = QuotaTrendSummary.trendSummary(for: key, snapshots: snapshots, now: now)
-                let hasSnapshotUsage = summary.direction == .decreasing
-                    && summary.consumedPercentPoints >= minimumMenuRecentUsagePercentPoints
+            guard !excludedProviders.contains(stat.provider) else { continue }
 
-                guard hasSnapshotUsage else { continue }
+            for key in stat.keys where key.isActive && !key.isStoredAPIKeyOnlyCredential && !excludedKeyIDs.contains(key.id) {
+                let candidateMetrics: (consumedPercentPoints: Double, consumedUnits: Int, latestActivity: Date?)?
+                if key.provider.usesMoneyBalance {
+                    let activitySummary = QuotaActivitySummary.activitySummary(
+                        for: key,
+                        snapshots: snapshots,
+                        now: now,
+                        language: .english
+                    )
+                    if let cents = recentMoneyBalanceCents(from: activitySummary),
+                       cents >= minimumMenuRecentMoneyBalanceCents {
+                        candidateMetrics = (0, cents, nil)
+                    } else {
+                        candidateMetrics = nil
+                    }
+                } else {
+                    let summary = QuotaTrendSummary.trendSummary(for: key, snapshots: snapshots, now: now)
+                    if summary.direction == .decreasing,
+                       summary.consumedPercentPoints >= minimumMenuRecentUsagePercentPoints {
+                        candidateMetrics = (
+                            summary.consumedPercentPoints,
+                            summary.consumedUnits ?? 0,
+                            summary.windowEnd
+                        )
+                    } else {
+                        candidateMetrics = nil
+                    }
+                }
+                guard let candidateMetrics else { continue }
                 countByProvider[stat.provider, default: 0] += 1
 
                 let candidate = RecentProviderUsageCandidate(
                     provider: stat.provider,
                     key: key,
-                    consumedPercentPoints: summary.consumedPercentPoints,
-                    consumedUnits: summary.consumedUnits,
-                    latestActivity: summary.windowEnd
+                    consumedPercentPoints: candidateMetrics.consumedPercentPoints,
+                    consumedUnits: candidateMetrics.consumedUnits,
+                    latestActivity: candidateMetrics.latestActivity
                 )
 
                 if let existingCandidate = bestCandidateByProvider[stat.provider] {
@@ -1011,10 +1087,8 @@ extension MenuQuotaItem {
             return lhs.consumedPercentPoints > rhs.consumedPercentPoints
         }
 
-        let lhsConsumedUnits = lhs.consumedUnits ?? -1
-        let rhsConsumedUnits = rhs.consumedUnits ?? -1
-        if lhsConsumedUnits != rhsConsumedUnits {
-            return lhsConsumedUnits > rhsConsumedUnits
+        if lhs.consumedUnits != rhs.consumedUnits {
+            return lhs.consumedUnits > rhs.consumedUnits
         }
 
         let lhsLatestActivity = lhs.latestActivity ?? .distantPast
@@ -1031,12 +1105,31 @@ extension MenuQuotaItem {
 
         return lhs.key.name.localizedStandardCompare(rhs.key.name) == .orderedAscending
     }
+
+    private static func recentMoneyBalanceCents(
+        from summary: QuotaActivitySummary
+    ) -> Int? {
+        guard summary.shouldRender, summary.kind == .moneyBalance, let deltaText = summary.deltaText else {
+            return nil
+        }
+        return moneyDeltaCents(from: deltaText)
+    }
+
+    private static func moneyDeltaCents(from text: String) -> Int {
+        let normalized = text
+            .replacingOccurrences(of: "-", with: "")
+            .replacingOccurrences(of: "CNY", with: "")
+            .replacingOccurrences(of: "¥", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let value = Decimal(string: normalized) else { return 0 }
+        return NSDecimalNumber(decimal: value * 100).intValue
+    }
 }
 
 private struct RecentProviderUsageCandidate {
     let provider: Provider
     let key: APIKey
     let consumedPercentPoints: Double
-    let consumedUnits: Int?
+    let consumedUnits: Int
     let latestActivity: Date?
 }

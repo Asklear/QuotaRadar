@@ -318,6 +318,11 @@ enum L10n {
         case customProviderOrder
         case customProviderOrderDescription
         case configureProviderOrder
+        case watchedProviders
+        case watchedProvidersDescription
+        case configureWatchedProviders
+        case watchedProvidersSheetTitle
+        case watchedProvidersSheetHint
         case settingsGeneralSection
         case settingsRefreshSection
         case settingsNetworkSection
@@ -734,7 +739,12 @@ enum L10n {
     static func quotaPeriodTitle(_ title: String, language: AppLanguage = AppLanguageStore.shared.language) -> String {
         switch language {
         case .english:
-            return title
+            switch title {
+            case "balance":
+                return "Balance"
+            default:
+                return title
+            }
         case .simplifiedChinese:
             switch title {
             case "5h":
@@ -743,6 +753,8 @@ enum L10n {
                 return "周"
             case "month":
                 return "月"
+            case "balance":
+                return "余额"
             default:
                 return title
             }
@@ -754,6 +766,8 @@ enum L10n {
                 return "週"
             case "month":
                 return "月"
+            case "balance":
+                return "餘額"
             default:
                 return title
             }
@@ -765,6 +779,8 @@ enum L10n {
                 return "週"
             case "month":
                 return "月"
+            case "balance":
+                return "残高"
             default:
                 return title
             }
@@ -776,6 +792,8 @@ enum L10n {
                 return "주"
             case "month":
                 return "월"
+            case "balance":
+                return "잔액"
             default:
                 return title
             }
@@ -805,6 +823,19 @@ enum L10n {
                 return "月"
             case .korean:
                 return "월"
+            }
+        case "balance":
+            switch language {
+            case .english:
+                return "bal"
+            case .simplifiedChinese:
+                return "余额"
+            case .traditionalChinese:
+                return "餘額"
+            case .japanese:
+                return "残高"
+            case .korean:
+                return "잔액"
             }
         default:
             return title
@@ -1171,6 +1202,11 @@ enum L10n {
         .customProviderOrder: "Custom Provider Order",
         .customProviderOrderDescription: "Unlock provider ordering. When off, Quota Radar keeps the product-defined order.",
         .configureProviderOrder: "Configure",
+        .watchedProviders: "Watched Providers",
+        .watchedProvidersDescription: "Choose up to three providers that should stay visible in the menu bar.",
+        .configureWatchedProviders: "Configure",
+        .watchedProvidersSheetTitle: "Watched Providers",
+        .watchedProvidersSheetHint: "Select the providers that deserve a fixed menu-bar slot. Automatic risk signals still appear below.",
         .settingsGeneralSection: "General",
         .settingsRefreshSection: "Refresh",
         .settingsNetworkSection: "Network",
@@ -1474,6 +1510,11 @@ enum L10n {
         .customProviderOrder: "自定义 Provider 顺序",
         .customProviderOrderDescription: "开启后可以调整服务商顺序；关闭时使用默认锁定顺序。",
         .configureProviderOrder: "调整顺序",
+        .watchedProviders: "关注 Provider",
+        .watchedProvidersDescription: "选择最多三个需要固定出现在状态栏弹窗里的服务商。",
+        .configureWatchedProviders: "配置关注",
+        .watchedProvidersSheetTitle: "关注 Provider",
+        .watchedProvidersSheetHint: "选择需要固定占用状态栏槽位的服务商；自动风险信号仍会显示在下方。",
         .settingsGeneralSection: "通用",
         .settingsRefreshSection: "刷新",
         .settingsNetworkSection: "网络",
@@ -1772,6 +1813,11 @@ enum L10n {
         .customProviderOrder: "自訂 Provider 順序",
         .customProviderOrderDescription: "開啟後可以調整服務商順序；關閉時使用預設鎖定順序。",
         .configureProviderOrder: "調整順序",
+        .watchedProviders: "關注 Provider",
+        .watchedProvidersDescription: "選擇最多三個要固定出現在狀態列彈窗裡的服務商。",
+        .configureWatchedProviders: "配置關注",
+        .watchedProvidersSheetTitle: "關注 Provider",
+        .watchedProvidersSheetHint: "選擇需要固定佔用狀態列位置的服務商；自動風險信號仍會顯示在下方。",
         .settingsGeneralSection: "通用",
         .settingsRefreshSection: "刷新",
         .settingsAppearanceSection: "外觀",
@@ -1971,6 +2017,11 @@ enum L10n {
         .customProviderOrder: "プロバイダー順序をカスタム",
         .customProviderOrderDescription: "オンにするとプロバイダーの順序を変更できます。オフでは既定の順序を固定します。",
         .configureProviderOrder: "順序を調整",
+        .watchedProviders: "ウォッチ中のプロバイダー",
+        .watchedProvidersDescription: "メニューバーに固定表示するプロバイダーを最大 3 つ選びます。",
+        .configureWatchedProviders: "ウォッチを設定",
+        .watchedProvidersSheetTitle: "ウォッチ中のプロバイダー",
+        .watchedProvidersSheetHint: "メニューバー枠に固定するプロバイダーを選択します。自動リスク信号は下に表示されます。",
         .settingsGeneralSection: "一般",
         .settingsRefreshSection: "更新",
         .settingsNetworkSection: "ネットワーク",
@@ -2273,6 +2324,11 @@ enum L10n {
         .customProviderOrder: "공급자 순서 사용자화",
         .customProviderOrderDescription: "켜면 공급자 순서를 조정할 수 있습니다. 끄면 기본 순서를 고정합니다.",
         .configureProviderOrder: "순서 조정",
+        .watchedProviders: "주시 공급자",
+        .watchedProvidersDescription: "메뉴 막대에 고정 표시할 공급자를 최대 3개 선택합니다.",
+        .configureWatchedProviders: "주시 설정",
+        .watchedProvidersSheetTitle: "주시 공급자",
+        .watchedProvidersSheetHint: "메뉴 막대 슬롯에 고정할 공급자를 선택하세요. 자동 위험 신호는 아래에 계속 표시됩니다.",
         .settingsGeneralSection: "일반",
         .settingsRefreshSection: "새로 고침",
         .settingsNetworkSection: "네트워크",

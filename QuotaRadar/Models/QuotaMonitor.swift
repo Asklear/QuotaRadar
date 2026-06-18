@@ -12,7 +12,9 @@ class QuotaMonitor: ObservableObject {
     static let shared = QuotaMonitor()
     private static let providerOrderDefaultsKey = "providerOrder"
     private static let customProviderOrderEnabledDefaultsKey = "customProviderOrderEnabled"
+    private static let menuWatchedProvidersDefaultsKey = "menuWatchedProviders"
     private static let menuSignalItemLimit = 6
+    private static let menuWatchedProviderLimit = 3
 
     @Published var apiKeys: [APIKey] = []
     @Published var isRefreshing = false
@@ -20,6 +22,7 @@ class QuotaMonitor: ObservableObject {
     @Published var lastError: String?
     @Published var refreshMessage: String?
     @Published private(set) var providerOrder: [Provider] = []
+    @Published private(set) var menuWatchedProviders: [Provider] = []
     @Published private(set) var quotaSnapshots: [QuotaSnapshot] = []
     @Published var isCustomProviderOrderEnabled = false {
         didSet {
@@ -44,6 +47,9 @@ class QuotaMonitor: ObservableObject {
         isCustomProviderOrderEnabled = defaults.bool(forKey: Self.customProviderOrderEnabledDefaultsKey)
         providerOrder = Provider.orderedVisibleCases(
             fromRawValues: defaults.stringArray(forKey: Self.providerOrderDefaultsKey) ?? []
+        )
+        menuWatchedProviders = Self.sanitizedMenuWatchedProviders(
+            defaults.stringArray(forKey: Self.menuWatchedProvidersDefaultsKey) ?? []
         )
         quotaSnapshots = historyStore.load()
         loadKeys()
@@ -94,8 +100,13 @@ class QuotaMonitor: ObservableObject {
             from: homeProviderStats,
             snapshots: quotaSnapshots,
             visibleLimit: Self.menuSignalItemLimit,
-            providerOrder: orderedVisibleProviders
+            providerOrder: orderedVisibleProviders,
+            watchedProviders: menuWatchedProviders
         )
+    }
+
+    var menuWatchedProviderItems: [MenuQuotaItem] {
+        menuSignalLayout.watchedProviderItems
     }
 
     var menuAttentionQuotaItems: [MenuQuotaItem] {
@@ -134,6 +145,31 @@ class QuotaMonitor: ObservableObject {
         QuotaSparklineSample.samples(for: key, snapshots: quotaSnapshots)
     }
 
+    func setMenuWatchedProviders(_ providers: [Provider]) {
+        let sanitized = Self.sanitizedMenuWatchedProviders(providers.map(\.rawValue))
+        menuWatchedProviders = sanitized
+        if sanitized.isEmpty {
+            defaults.removeObject(forKey: Self.menuWatchedProvidersDefaultsKey)
+        } else {
+            defaults.set(sanitized.map(\.rawValue), forKey: Self.menuWatchedProvidersDefaultsKey)
+        }
+    }
+
+    func toggleMenuWatchedProvider(_ provider: Provider) {
+        guard Provider.visibleCases.contains(provider) else { return }
+        var nextProviders = menuWatchedProviders
+        if nextProviders.contains(provider) {
+            nextProviders.removeAll { $0 == provider }
+        } else {
+            nextProviders.append(provider)
+        }
+        setMenuWatchedProviders(nextProviders)
+    }
+
+    func isMenuWatchedProvider(_ provider: Provider) -> Bool {
+        menuWatchedProviders.contains(provider)
+    }
+
     func moveProvider(_ provider: Provider, before targetProvider: Provider) {
         guard isCustomProviderOrderEnabled else { return }
         guard provider != targetProvider else { return }
@@ -156,6 +192,21 @@ class QuotaMonitor: ObservableObject {
     func resetProviderOrder() {
         providerOrder = Provider.visibleCases
         defaults.removeObject(forKey: Self.providerOrderDefaultsKey)
+    }
+
+    private static func sanitizedMenuWatchedProviders(_ rawValues: [String]) -> [Provider] {
+        var providers: [Provider] = []
+        for rawValue in rawValues {
+            guard
+                let provider = Provider(rawValue: rawValue),
+                Provider.visibleCases.contains(provider),
+                !providers.contains(provider)
+            else {
+                continue
+            }
+            providers.append(provider)
+        }
+        return Array(providers.prefix(Self.menuWatchedProviderLimit))
     }
 
     func refreshAll(mode: RefreshMode = .manual) {

@@ -29,6 +29,14 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Merge the feature branch back to `main`, then rerun behavior and visual QA on `main`.
 - [x] Prepare the `v0.3.5` release notes, version metadata, and unsigned DMG workflow for tagging.
 
+## v0.3.6 Monitoring UX Polish
+
+- [x] De-duplicate menu-bar signal rows by provider, so multi-window balances such as Volcengine five-hour / weekly / monthly quota appear once in the popover.
+- [x] Add user-selected watched providers in Settings. The menu bar can reserve a short watchlist without letting long-lived automatic attention items monopolize the feed.
+- [x] Include money-balance providers such as DeepSeek, Bocha, and WeChat Search in Recent Change when balance snapshots show real depletion.
+- [x] Localize the money-balance activity period marker so `balance` no longer leaks into Chinese, Traditional Chinese, Japanese, or Korean UI.
+- [x] Update visual QA to match the current fixed-size menu bar panel and current risk-focus highlight colors.
+
 ## Completed In v0.2.0
 
 - Changed the menu bar popover into a quota-first provider overview grouped by `AI Search` and `LLM`.

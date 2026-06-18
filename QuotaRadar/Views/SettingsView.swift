@@ -2950,6 +2950,7 @@ struct AppSettingsView: View {
     @ObservedObject private var appearanceStore = AppAppearanceStore.shared
     @ObservedObject private var launchAtLoginStore = LaunchAtLoginStore.shared
     @State private var showingProviderOrderSheet = false
+    @State private var showingWatchedProvidersSheet = false
 
     private var transparencyText: String {
         "\(Int((appearanceStore.statusBarTransparency * 100).rounded()))%"
@@ -2976,6 +2977,20 @@ struct AppSettingsView: View {
                     .labelsHidden()
                     .pickerStyle(.segmented)
                     .frame(width: 430)
+                }
+
+                SettingsDivider()
+
+                SettingsPreferenceRow(
+                    icon: "star.circle",
+                    title: L10n.t(.watchedProviders),
+                    subtitle: L10n.t(.watchedProvidersDescription)
+                ) {
+                    Button(L10n.t(.configureWatchedProviders)) {
+                        showingWatchedProvidersSheet = true
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
 
                 SettingsDivider()
@@ -3119,6 +3134,164 @@ struct AppSettingsView: View {
         .sheet(isPresented: $showingProviderOrderSheet) {
             ProviderOrderSheet(monitor: monitor)
         }
+        .sheet(isPresented: $showingWatchedProvidersSheet) {
+            WatchedProvidersSheet(monitor: monitor)
+        }
+    }
+}
+
+struct WatchedProvidersSheet: View {
+    @ObservedObject var monitor: QuotaMonitor
+    @Environment(\.dismiss) private var dismiss
+
+    private var watchedCount: Int {
+        monitor.menuWatchedProviders.count
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            WatchedProvidersSheetToolbar(
+                watchedCount: watchedCount,
+                onClose: { dismiss() }
+            )
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Provider.categoryDisplayOrder, id: \.self) { category in
+                        let providers = providers(in: category)
+                        if !providers.isEmpty {
+                            WatchedProviderCategoryCard(
+                                title: L10n.categoryTitle(category),
+                                providers: providers,
+                                watchedProviders: monitor.menuWatchedProviders,
+                                onToggle: { monitor.toggleMenuWatchedProvider($0) }
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+            }
+        }
+        .frame(width: 460, height: 500)
+        .background(Color(nsColor: .windowBackgroundColor).opacity(0.84))
+    }
+
+    private func providers(in category: String) -> [Provider] {
+        monitor.orderedVisibleProviders.filter { $0.statusBarCategoryTitle == category }
+    }
+}
+
+struct WatchedProvidersSheetToolbar: View {
+    let watchedCount: Int
+    let onClose: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L10n.t(.watchedProvidersSheetTitle))
+                    .font(.system(size: 14, weight: .semibold))
+                Text(L10n.t(.watchedProvidersSheetHint))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Text("\(watchedCount)/3")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.primary.opacity(0.05), in: Capsule())
+
+            Button(L10n.t(.close), action: onClose)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.bar)
+    }
+}
+
+struct WatchedProviderCategoryCard: View {
+    let title: String
+    let providers: [Provider]
+    let watchedProviders: [Provider]
+    let onToggle: (Provider) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ProviderOrderCategoryHeader(title: title, count: providers.count)
+
+            Divider()
+                .padding(.leading, 12)
+
+            ForEach(Array(providers.enumerated()), id: \.element.id) { index, provider in
+                let isWatched = watchedProviders.contains(provider)
+                WatchedProviderToggleRow(
+                    provider: provider,
+                    isWatched: isWatched,
+                    isDisabled: !isWatched && watchedProviders.count >= 3,
+                    onToggle: { onToggle(provider) }
+                )
+
+                if index < providers.count - 1 {
+                    Divider()
+                        .padding(.leading, 54)
+                }
+            }
+        }
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
+    }
+}
+
+struct WatchedProviderToggleRow: View {
+    let provider: Provider
+    let isWatched: Bool
+    let isDisabled: Bool
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: 10) {
+                ProviderIcon(provider: provider, size: 21, style: .compactBadge)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(provider.providerFamilyDisplayName())
+                        .font(.system(size: 12, weight: .medium))
+                        .lineLimit(1)
+
+                    if let planName = provider.planTypeDisplayName() {
+                        Text(planName)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer()
+
+                Image(systemName: isWatched ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(isWatched ? Color.accentColor : Color.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .opacity(isDisabled ? 0.45 : 1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
     }
 }
 
