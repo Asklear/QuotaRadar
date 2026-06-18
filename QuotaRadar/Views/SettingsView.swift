@@ -2169,6 +2169,48 @@ struct ProviderQuotaAccountGridRow<PlanCell: View, RemainingCell: View, Critical
     }
 }
 
+struct ProviderQuotaWindowDetailGridRow<PlanCell: View, RemainingCell: View, DetailCell: View>: View {
+    let height: CGFloat
+    let plan: PlanCell
+    let remaining: RemainingCell
+    let detail: DetailCell
+
+    init(
+        height: CGFloat,
+        @ViewBuilder plan: () -> PlanCell,
+        @ViewBuilder remaining: () -> RemainingCell,
+        @ViewBuilder detail: () -> DetailCell
+    ) {
+        self.height = height
+        self.plan = plan()
+        self.remaining = remaining()
+        self.detail = detail()
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let widths = ProviderQuotaAccountLayout.columnWidths(for: proxy.size.width)
+            HStack(spacing: ProviderQuotaAccountLayout.rowSpacing) {
+                plan
+                    .frame(width: widths.plan, height: height, alignment: .leading)
+
+                remaining
+                    .frame(width: widths.remaining, height: height, alignment: .leading)
+
+                detail
+                    .frame(
+                        width: widths.criticalTime + ProviderQuotaAccountLayout.rowSpacing + widths.updated,
+                        height: height,
+                        alignment: .leading
+                    )
+            }
+            .frame(width: proxy.size.width, height: height, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: height)
+    }
+}
+
 struct ProviderQuotaOverviewGridRow<ProviderCell: View, KeyQuotaCell: View, CredentialPoolCell: View, CriticalTimeCell: View, StatusCell: View, ActionCell: View>: View {
     let height: CGFloat
     let provider: ProviderCell
@@ -2771,7 +2813,7 @@ struct ProviderQuotaAccountWindowDetails: View {
                             .opacity(0.35)
                     }
 
-                    ProviderQuotaAccountGridRow(height: 28) {
+                    ProviderQuotaWindowDetailGridRow(height: 28) {
                         HStack(spacing: 8) {
                             Circle()
                                 .fill(Color.clear)
@@ -2790,15 +2832,13 @@ struct ProviderQuotaAccountWindowDetails: View {
                             weight: .semibold,
                             design: .rounded
                         )
-                    } criticalTime: {
+                    } detail: {
                         ProviderQuotaAccountValueText(
                             value: window.detailValueText ?? "",
                             tint: .secondary,
                             weight: .medium,
                             minimumScaleFactor: 0.62
                         )
-                    } updated: {
-                        Color.clear
                     }
                 }
             }

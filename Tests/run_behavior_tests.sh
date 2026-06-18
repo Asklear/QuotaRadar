@@ -2317,6 +2317,20 @@ if "struct ProviderQuotaAccountWindowDetails: View" not in account_table:
     print("FAIL: Expanded quota window details should define a table-aligned detail row component", file=sys.stderr)
     sys.exit(1)
 try:
+    window_details = account_table.split("struct ProviderQuotaAccountWindowDetails: View", 1)[1]
+except IndexError:
+    print("FAIL: Expanded quota window details should be present in the account table section", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaWindowDetailGridRow" not in window_details:
+    print("FAIL: Expanded quota window details should use a compact three-column detail grid", file=sys.stderr)
+    sys.exit(1)
+if "} updated: {\n                        Color.clear" in window_details:
+    print("FAIL: Expanded quota window details should not reserve an empty last-updated column", file=sys.stderr)
+    sys.exit(1)
+if "widths.criticalTime + ProviderQuotaAccountLayout.rowSpacing + widths.updated" not in source:
+    print("FAIL: Expanded quota window details should merge critical-time and last-updated lanes into one detail column", file=sys.stderr)
+    sys.exit(1)
+try:
     action_group = source.split("struct ProviderQuotaActionGroup: View", 1)[1].split("struct AddCredentialProviderList", 1)[0]
 except IndexError:
     print("FAIL: ProviderQuotaActionGroup should exist before add-credential provider list", file=sys.stderr)
