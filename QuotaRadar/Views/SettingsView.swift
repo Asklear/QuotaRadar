@@ -2934,12 +2934,6 @@ struct ProviderQuotaAccountQuotaWindows: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(L10n.t(.remaining))
-                .frame(maxWidth: .infinity, alignment: .center)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-
             if visibleWindows.isEmpty {
                 ProviderQuotaAccountSingleQuotaRow(
                     valueText: key.remainingBadgeText,

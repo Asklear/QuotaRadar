@@ -2370,7 +2370,7 @@ if '"star.fill"' not in watched_button or '"star"' not in watched_button:
 if "addWatchedProviderAction" not in watched_button or "removeWatchedProviderAction" not in watched_button:
     print("FAIL: Provider watchlist toggle should expose localized add/remove help text", file=sys.stderr)
     sys.exit(1)
-for expected in ["L10n.t(.remaining)", "L10n.t(.lastUpdated)"]:
+for expected in ["L10n.t(.lastUpdated)"]:
     if expected not in account_table:
         print(f"FAIL: Expanded quota account table should use compact core columns and include {expected}", file=sys.stderr)
         sys.exit(1)
@@ -2410,11 +2410,8 @@ if "plan: planWidth," not in source or "remaining: remainingWidth," not in sourc
 if "remaining\n                    .frame(width: widths.remaining, height: height, alignment: .leading)" not in account_grid:
     print("FAIL: Expanded quota account remaining cells should align near package labels instead of floating across a wide blank lane", file=sys.stderr)
     sys.exit(1)
-if "Text(L10n.t(.remaining))" not in account_table:
-    print("FAIL: Expanded account groups should keep a remaining/quota-window label near account quota rows", file=sys.stderr)
-    sys.exit(1)
-if "Text(L10n.t(.remaining))\n                .frame(maxWidth: .infinity, alignment: .center)" not in account_table:
-    print("FAIL: Expanded account group Remaining label should be horizontally centered over quota-window rows", file=sys.stderr)
+if "Text(L10n.t(.remaining))" in account_table:
+    print("FAIL: Expanded account groups should omit the low-value Remaining section label above quota-window rows", file=sys.stderr)
     sys.exit(1)
 for column in ["criticalTime", "updated"]:
     marker = f"{column}\n                    .frame(width: widths.{column}, height: height, alignment: .leading)"
