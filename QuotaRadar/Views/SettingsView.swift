@@ -2364,14 +2364,6 @@ struct ProviderQuotaMonitorRow: View {
             ?? .empty
     }
 
-    private var providerWindowDetailKey: APIKey? {
-        guard let key = stat.mostConstrainedActiveMonitoringKey,
-              !key.quotaWindowDetails.isEmpty else {
-            return nil
-        }
-        return key
-    }
-
     private var providerSummaryRowBackground: Color {
         if navigationStore.focusedProvider == provider {
             return Color.accentColor.opacity(0.075)
@@ -2412,39 +2404,16 @@ struct ProviderQuotaMonitorRow: View {
                         .padding(.bottom, 10)
                         .transition(.opacity)
                 } else {
-                    VStack(spacing: 0) {
-                        VStack(spacing: 0) {
-                            ProviderQuotaKeyTableHeader()
-
-                            ForEach(Array(keys.enumerated()), id: \.element.id) { index, key in
-                                if index > 0 {
-                                    Divider()
-                                        .padding(.leading, 12)
-                                }
-
-                                ProviderQuotaKeyTableRow(
-                                    key: key,
-                                    isFocused: navigationStore.focusedCredentialID == key.id,
-                                    focusedReason: navigationStore.focusedMenuSignalReason
-                                )
-                            }
-                        }
-
-                        if let detailKey = providerWindowDetailKey {
-                            VStack(alignment: .leading, spacing: 6) {
-                                if keys.count > 1 {
-                                    Text(detailKey.accountDisplayTitle)
-                                        .font(.caption2.weight(.semibold))
-                                        .foregroundStyle(.secondary)
-                                        .lineLimit(1)
-                                        .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
-                                }
-
-                                ProviderQuotaAccountWindowDetails(windows: detailKey.quotaWindowDetails)
-                            }
-                            .padding(.top, 8)
+                    VStack(spacing: 8) {
+                        ForEach(keys, id: \.id) { key in
+                            ProviderQuotaAccountGroup(
+                                key: key,
+                                isFocused: navigationStore.focusedCredentialID == key.id,
+                                focusedReason: navigationStore.focusedMenuSignalReason
+                            )
                         }
                     }
+                    .padding(.top, 8)
                     .padding(.bottom, 10)
                     .transition(.opacity)
                 }
@@ -2845,6 +2814,253 @@ struct ProviderQuotaAccountWindowDetails: View {
             .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
             .padding(.vertical, 6)
             .background(Color.primary.opacity(0.028), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+    }
+}
+
+struct ProviderQuotaAccountGroup: View {
+    let key: APIKey
+    let isFocused: Bool
+    let focusedReason: MenuSignalReason?
+
+    private var updatedText: String {
+        guard let lastUpdated = key.lastUpdated else { return L10n.t(.notChecked) }
+        return L10n.shortDateTime(lastUpdated)
+    }
+
+    private var criticalTimeText: String {
+        if !key.planEndSummary.isEmpty {
+            return key.planEndSummary
+        }
+        if !key.visibleQuotaResetSummary.isEmpty {
+            return key.visibleQuotaResetSummary
+        }
+        return L10n.t(.notAvailableShort)
+    }
+
+    private var fallbackQuotaDetailText: String? {
+        key.visibleQuotaResetSummary.isEmpty ? nil : key.visibleQuotaResetSummary
+    }
+
+    private var rowBackground: Color {
+        isFocused ? Color.accentColor.opacity(0.09) : Color.primary.opacity(0.026)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            ProviderQuotaAccountIdentity(
+                key: key,
+                isFocused: isFocused,
+                focusedReason: focusedReason
+            )
+            .frame(width: 166, alignment: .leading)
+
+            ProviderQuotaAccountQuotaWindows(
+                key: key,
+                fallbackDetailText: fallbackQuotaDetailText
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
+
+            ProviderQuotaAccountMetaPanel(
+                planEndText: key.planEndSummary.isEmpty ? nil : key.planEndSummary,
+                updatedText: updatedText
+            )
+            .frame(width: 260, alignment: .trailing)
+        }
+        .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
+        .padding(.vertical, 12)
+        .background(rowBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(alignment: .leading) {
+            if isFocused {
+                Capsule()
+                    .fill(Color.accentColor.opacity(0.65))
+                    .frame(width: 3)
+                    .padding(.vertical, 8)
+                    .padding(.leading, 4)
+            }
+        }
+    }
+}
+
+struct ProviderQuotaAccountIdentity: View {
+    let key: APIKey
+    let isFocused: Bool
+    let focusedReason: MenuSignalReason?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(isFocused ? Color.accentColor : key.status.color)
+                .frame(width: 6, height: 6)
+                .padding(.top, 6)
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(key.accountDisplayTitle)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.76)
+
+                    if isFocused, let focusedReason {
+                        Text(focusedReason.displayText)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(Color.accentColor)
+                            .lineLimit(1)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Color.accentColor.opacity(0.10), in: Capsule())
+                    }
+                }
+
+                Text(key.healthDisplayText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.76)
+            }
+        }
+    }
+}
+
+struct ProviderQuotaAccountQuotaWindows: View {
+    let key: APIKey
+    let fallbackDetailText: String?
+
+    private var visibleWindows: [QuotaWindowText] {
+        key.quotaWindowDetails.filter { !$0.name.isEmpty && !$0.percentText.isEmpty }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L10n.t(.remaining))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+
+            if visibleWindows.isEmpty {
+                ProviderQuotaAccountSingleQuotaRow(
+                    valueText: key.remainingBadgeText,
+                    detailText: fallbackDetailText,
+                    tint: key.status.color
+                )
+            } else {
+                ForEach(Array(visibleWindows.enumerated()), id: \.offset) { index, window in
+                    if index > 0 {
+                        Divider()
+                            .opacity(0.45)
+                    }
+
+                    ProviderQuotaAccountQuotaWindowRow(
+                        periodText: L10n.quotaPeriodTitle(window.name),
+                        valueText: window.percentText,
+                        detailText: window.detailValueText,
+                        tint: key.status.color
+                    )
+                }
+            }
+        }
+    }
+}
+
+struct ProviderQuotaAccountSingleQuotaRow: View {
+    let valueText: String
+    let detailText: String?
+    let tint: Color
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            ProviderQuotaAccountValueText(
+                value: valueText,
+                tint: tint,
+                weight: .semibold,
+                design: .rounded,
+                minimumScaleFactor: 0.70
+            )
+            .frame(width: 84, alignment: .leading)
+
+            ProviderQuotaAccountValueText(
+                value: detailText ?? "",
+                tint: .secondary,
+                weight: .medium,
+                minimumScaleFactor: 0.62
+            )
+        }
+        .frame(minHeight: 20, alignment: .leading)
+    }
+}
+
+struct ProviderQuotaAccountQuotaWindowRow: View {
+    let periodText: String
+    let valueText: String
+    let detailText: String?
+    let tint: Color
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            ProviderQuotaAccountValueText(
+                value: periodText,
+                tint: .secondary,
+                weight: .medium,
+                minimumScaleFactor: 0.72
+            )
+            .frame(width: 62, alignment: .leading)
+
+            ProviderQuotaAccountValueText(
+                value: valueText,
+                tint: tint,
+                weight: .semibold,
+                design: .rounded,
+                minimumScaleFactor: 0.70
+            )
+            .frame(width: 72, alignment: .leading)
+
+            ProviderQuotaAccountValueText(
+                value: detailText ?? "",
+                tint: .secondary,
+                weight: .medium,
+                minimumScaleFactor: 0.62
+            )
+        }
+        .frame(minHeight: 20, alignment: .leading)
+    }
+}
+
+struct ProviderQuotaAccountMetaPanel: View {
+    let planEndText: String?
+    let updatedText: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let planEndText {
+                metaRow(label: L10n.t(.criticalTime), value: planEndText)
+            }
+            metaRow(label: L10n.t(.lastUpdated), value: updatedText)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+        )
+    }
+
+    private func metaRow(label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                .frame(width: 56, alignment: .leading)
+
+            ProviderQuotaAccountValueText(
+                value: value,
+                tint: .secondary,
+                weight: .medium,
+                minimumScaleFactor: 0.58
+            )
         }
     }
 }

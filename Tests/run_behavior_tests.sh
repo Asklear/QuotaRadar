@@ -2294,41 +2294,56 @@ if ".padding(.leading, 56)" in provider_row:
     sys.exit(1)
 try:
     account_grid = source.split("struct ProviderQuotaAccountGridRow", 1)[1].split("struct ProviderQuotaOverviewGridRow", 1)[0]
-    account_table = source.split("struct ProviderQuotaKeyTableHeader: View", 1)[1].split("struct ProviderQuotaTimingColumn: View", 1)[0]
+    account_table = source.split("struct ProviderQuotaAccountGroup: View", 1)[1].split("struct ProviderQuotaTimingColumn: View", 1)[0]
 except IndexError:
-    print("FAIL: Expanded quota account table should exist before timing column helpers", file=sys.stderr)
+    print("FAIL: Expanded quota account group layout should exist before timing column helpers", file=sys.stderr)
     sys.exit(1)
 if ".frame(width: 230" in account_table or ".frame(width: 86" in account_table or ".frame(width: 112" in account_table:
     print("FAIL: Expanded quota account table should not keep old hard-coded column widths", file=sys.stderr)
     sys.exit(1)
-if "ProviderQuotaAccountGridRow" not in source:
-    print("FAIL: Expanded quota account header and rows should render through one shared responsive account grid row component", file=sys.stderr)
+if "ProviderQuotaAccountGroup(" not in source:
+    print("FAIL: Expanded quota rows should render account-group cards instead of continuing the provider table", file=sys.stderr)
     sys.exit(1)
-if account_table.count("ProviderQuotaAccountGridRow(") < 2:
-    print("FAIL: Expanded quota account header and rows should both use the responsive account grid row", file=sys.stderr)
+if "ProviderQuotaKeyTableHeader()" in source or "ProviderQuotaKeyTableRow(" in source:
+    print("FAIL: Expanded quota rows should not render the old header/key table layout", file=sys.stderr)
+    sys.exit(1)
+if "L10n.t(.quotaMonitoringAuthorization)" in account_table:
+    print("FAIL: Expanded account groups should not show low-value web-login authorization copy under the account name", file=sys.stderr)
+    sys.exit(1)
+if "providerWindowDetailKey" in source:
+    print("FAIL: Expanded quota window details should belong to each account instead of one provider-level selected key", file=sys.stderr)
     sys.exit(1)
 if "QuotaWindowDetails(windows: detailKey.quotaWindowDetails)" in source:
     print("FAIL: Expanded quota window detail rows should not use the loose spacer-based QuotaWindowDetails layout", file=sys.stderr)
     sys.exit(1)
-if "ProviderQuotaAccountWindowDetails(windows: detailKey.quotaWindowDetails)" not in source:
-    print("FAIL: Expanded quota window detail rows should share the account table grid with account rows", file=sys.stderr)
+if "ProviderQuotaAccountQuotaWindows(" not in account_table:
+    print("FAIL: Expanded account groups should render quota windows inside the account group body", file=sys.stderr)
     sys.exit(1)
-if "struct ProviderQuotaAccountWindowDetails: View" not in account_table:
-    print("FAIL: Expanded quota window details should define a table-aligned detail row component", file=sys.stderr)
+if "periodText: L10n.t(.remaining)" in account_table:
+    print("FAIL: Expanded account groups should not repeat Remaining as both section label and fallback row label", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaAccountMetaPanel(" not in account_table:
+    print("FAIL: Expanded account groups should show plan expiry and last update once in a compact meta panel", file=sys.stderr)
+    sys.exit(1)
+if "planEndText: key.planEndSummary.isEmpty ? nil : key.planEndSummary" not in account_table:
+    print("FAIL: Expanded account meta panel should show package expiry only when the account exposes one", file=sys.stderr)
+    sys.exit(1)
+if "criticalTimeText: criticalTimeText" in account_table:
+    print("FAIL: Expanded account quota rows should not duplicate package expiry from the account meta panel", file=sys.stderr)
     sys.exit(1)
 try:
-    window_details = account_table.split("struct ProviderQuotaAccountWindowDetails: View", 1)[1]
+    window_details = account_table.split("struct ProviderQuotaAccountQuotaWindows: View", 1)[1]
 except IndexError:
-    print("FAIL: Expanded quota window details should be present in the account table section", file=sys.stderr)
+    print("FAIL: Expanded quota window details should be present in the account group section", file=sys.stderr)
     sys.exit(1)
-if "ProviderQuotaWindowDetailGridRow" not in window_details:
-    print("FAIL: Expanded quota window details should use a compact three-column detail grid", file=sys.stderr)
+if "window.detailValueText" not in window_details:
+    print("FAIL: Expanded quota window rows should include reset or remaining detail next to the period value", file=sys.stderr)
     sys.exit(1)
-if "} updated: {\n                        Color.clear" in window_details:
-    print("FAIL: Expanded quota window details should not reserve an empty last-updated column", file=sys.stderr)
+if "ProviderQuotaAccountGridRow(" in account_table or "ProviderQuotaWindowDetailGridRow(" in account_table:
+    print("FAIL: Expanded account groups should not reuse table grid rows that recreate empty columns", file=sys.stderr)
     sys.exit(1)
-if "widths.criticalTime + ProviderQuotaAccountLayout.rowSpacing + widths.updated" not in source:
-    print("FAIL: Expanded quota window details should merge critical-time and last-updated lanes into one detail column", file=sys.stderr)
+if "L10n.t(.lastUpdated)" not in account_table:
+    print("FAIL: Expanded account meta panel should keep last-updated visible once per account", file=sys.stderr)
     sys.exit(1)
 try:
     action_group = source.split("struct ProviderQuotaActionGroup: View", 1)[1].split("struct AddCredentialProviderList", 1)[0]
@@ -2352,7 +2367,7 @@ if '"star.fill"' not in watched_button or '"star"' not in watched_button:
 if "addWatchedProviderAction" not in watched_button or "removeWatchedProviderAction" not in watched_button:
     print("FAIL: Provider watchlist toggle should expose localized add/remove help text", file=sys.stderr)
     sys.exit(1)
-for expected in ["L10n.t(.plan)", "L10n.t(.remaining)", "L10n.t(.criticalTime)", "L10n.t(.lastUpdated)"]:
+for expected in ["L10n.t(.remaining)", "L10n.t(.lastUpdated)"]:
     if expected not in account_table:
         print(f"FAIL: Expanded quota account table should use compact core columns and include {expected}", file=sys.stderr)
         sys.exit(1)
@@ -2361,9 +2376,9 @@ for noisy in ["ProviderQuotaActivityHeaderCell()", "QuotaActivityMeter(", "Provi
         print("FAIL: Expanded quota account rows should hide low-value activity/status/subtitle details and keep plan, quota, timing, update columns", file=sys.stderr)
         sys.exit(1)
 try:
-    quota_key_row = source.split("struct ProviderQuotaKeyTableRow: View", 1)[1].split("struct ProviderQuotaTimingColumn: View", 1)[0]
+    quota_key_row = source.split("struct ProviderQuotaAccountGroup: View", 1)[1].split("struct ProviderQuotaTimingColumn: View", 1)[0]
 except IndexError:
-    print("FAIL: ProviderQuotaKeyTableRow should exist before timing helpers", file=sys.stderr)
+    print("FAIL: ProviderQuotaAccountGroup should exist before timing helpers", file=sys.stderr)
     sys.exit(1)
 if "struct ProviderQuotaAccountValueText" not in source:
     print("FAIL: Expanded quota account values should use one shared account-row text style", file=sys.stderr)
@@ -2392,21 +2407,22 @@ if "plan: planWidth," not in source or "remaining: remainingWidth," not in sourc
 if "remaining\n                    .frame(width: widths.remaining, height: height, alignment: .leading)" not in account_grid:
     print("FAIL: Expanded quota account remaining cells should align near package labels instead of floating across a wide blank lane", file=sys.stderr)
     sys.exit(1)
-if "Text(L10n.t(.remaining))\n                .frame(maxWidth: .infinity, alignment: .leading)" not in account_table:
-    print("FAIL: Expanded quota account remaining header should align with remaining values", file=sys.stderr)
+if "Text(L10n.t(.remaining))" not in account_table:
+    print("FAIL: Expanded account groups should keep a remaining/quota-window label near account quota rows", file=sys.stderr)
     sys.exit(1)
 for column in ["criticalTime", "updated"]:
     marker = f"{column}\n                    .frame(width: widths.{column}, height: height, alignment: .leading)"
     if marker not in account_grid:
         print(f"FAIL: Expanded quota account {column} cells should share the same left boundary as their headers", file=sys.stderr)
         sys.exit(1)
-for key, label in [("criticalTime", ".criticalTime"), ("lastUpdated", ".lastUpdated")]:
-    marker = f"Text(L10n.t({label}))\n                .frame(maxWidth: .infinity, alignment: .leading)"
-    if marker not in account_table:
-        print(f"FAIL: Expanded quota account {key} header should align with its values", file=sys.stderr)
-        sys.exit(1)
-if "Circle()\n                    .fill(Color.clear)" not in account_table:
-    print("FAIL: Expanded quota account plan header should reserve the same status-dot slot as account rows", file=sys.stderr)
+if "metaRow(label: L10n.t(.criticalTime), value: planEndText)" not in account_table:
+    print("FAIL: Expanded account groups should show critical time once in the account meta panel", file=sys.stderr)
+    sys.exit(1)
+if "metaRow(label: L10n.t(.lastUpdated), value: updatedText)" not in account_table:
+    print("FAIL: Expanded account groups should show last updated once in the account meta panel", file=sys.stderr)
+    sys.exit(1)
+if "Circle()\n                .fill(isFocused ? Color.accentColor : key.status.color)" not in account_table:
+    print("FAIL: Expanded account groups should keep a status dot next to each account identity", file=sys.stderr)
     sys.exit(1)
 if "totalWidthBudget" in account_table:
     print("FAIL: Expanded quota account table should not keep a fixed left-anchored total width budget", file=sys.stderr)
@@ -2703,26 +2719,28 @@ assert_match 'ProviderQuotaMonitorRow' \
 assert_match '@State private var isExpanded = false' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Provider quota rows should default to a compact collapsed overview so the page starts as a monitor, not a long key dashboard"
-assert_match 'ProviderQuotaKeyTableHeader' \
+assert_match 'ProviderQuotaAccountGroup' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Expanded provider quota rows should show a stable table header for key details"
+  "Expanded provider quota rows should group each account's quota windows and metadata"
 python3 - <<'PY'
 from pathlib import Path
-import re
 import sys
 
 source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
-match = re.search(r"struct ProviderQuotaKeyTableHeader: View \{.*?\n\}", source, re.S)
-if not match:
-    print("FAIL: Provider quota key table header should exist", file=sys.stderr)
+if "struct ProviderQuotaAccountGroup: View" not in source:
+    print("FAIL: Provider quota account group should exist", file=sys.stderr)
     sys.exit(1)
-if "L10n.t(.apiKey)" in match.group(0):
-    print("FAIL: Quota monitor expanded tables should say Credential instead of API Key for cookie-backed providers", file=sys.stderr)
+group = source.split("struct ProviderQuotaAccountGroup: View", 1)[1].split("struct ProviderQuotaTimingColumn: View", 1)[0]
+if "L10n.t(.apiKey)" in group:
+    print("FAIL: Quota monitor expanded account groups should say Credential instead of API Key for cookie-backed providers", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaKeyTableHeader" in group or "ProviderQuotaKeyTableRow" in group:
+    print("FAIL: Quota monitor expanded account groups should not embed the old key table", file=sys.stderr)
     sys.exit(1)
 PY
-assert_match 'ProviderQuotaKeyTableRow' \
+assert_match 'ProviderQuotaAccountQuotaWindows' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Expanded provider quota rows should render key details in table-like rows"
+  "Expanded provider quota rows should render quota windows inside account groups"
 assert_no_match 'ProviderCard\(provider: stat\.provider' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Quota monitoring should not continue to render one large card per provider"
