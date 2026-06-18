@@ -2282,7 +2282,7 @@ struct ProviderQuotaMonitorTableHeader: View {
             Text(L10n.t(.criticalTime))
                 .frame(maxWidth: .infinity, alignment: .trailing)
         } status: {
-            Text(L10n.t(.quotaStatus))
+            Text(L10n.t(.credentialState))
                 .frame(maxWidth: .infinity, alignment: .trailing)
         } actions: {
             Color.clear

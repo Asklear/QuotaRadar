@@ -2289,6 +2289,12 @@ if "activity:" in overview_header or "activity:" in provider_row or "let activit
 if "ProviderQuotaOverviewGridRow(" not in overview_header:
     print("FAIL: Provider quota overview header should use the shared grid row so headers and values share positions", file=sys.stderr)
     sys.exit(1)
+if "Text(L10n.t(.credentialState))" not in overview_header:
+    print("FAIL: Provider quota status column header should say Status/State now that quota risk lives in Key Quota", file=sys.stderr)
+    sys.exit(1)
+if "Text(L10n.t(.quotaStatus))" in overview_header:
+    print("FAIL: Provider quota status column header should not still be labelled Quota Status", file=sys.stderr)
+    sys.exit(1)
 if "ProviderQuotaInlineActivity" not in provider_row or "summary: providerActivitySummary" not in provider_row:
     print("FAIL: Provider quota summary rows should attach meaningful activity under Key Quota instead of a sparse second column", file=sys.stderr)
     sys.exit(1)
