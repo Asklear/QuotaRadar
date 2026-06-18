@@ -2293,6 +2293,7 @@ if ".padding(.leading, 56)" in provider_row:
     print("FAIL: Expanded quota account rows should align their borders with provider summary rows instead of adding a hard left indent", file=sys.stderr)
     sys.exit(1)
 try:
+    account_grid = source.split("struct ProviderQuotaAccountGridRow", 1)[1].split("struct ProviderQuotaOverviewGridRow", 1)[0]
     account_table = source.split("struct ProviderQuotaKeyTableHeader: View", 1)[1].split("struct ProviderQuotaTimingColumn: View", 1)[0]
 except IndexError:
     print("FAIL: Expanded quota account table should exist before timing column helpers", file=sys.stderr)
@@ -2338,6 +2339,21 @@ for noisy in ["ProviderQuotaActivityHeaderCell()", "QuotaActivityMeter(", "Provi
         sys.exit(1)
 if "ProviderQuotaAccountLayout.columnWidths(for:" not in source:
     print("FAIL: Expanded quota account table should calculate column widths from available content width", file=sys.stderr)
+    sys.exit(1)
+if "static let planWidth: CGFloat = 156" not in source:
+    print("FAIL: Expanded quota account plan column should stay compact instead of reserving a wide empty package lane", file=sys.stderr)
+    sys.exit(1)
+if "plan: planWidth + extraWidth" in source or "remaining: remainingWidth + extraWidth" in source:
+    print("FAIL: Expanded quota account plan/remaining columns should not absorb spare width after Activity is removed", file=sys.stderr)
+    sys.exit(1)
+if "plan: planWidth," not in source or "remaining: remainingWidth," not in source:
+    print("FAIL: Expanded quota account plan/remaining columns should use fixed compact widths", file=sys.stderr)
+    sys.exit(1)
+if "remaining\n                    .frame(width: widths.remaining, height: height, alignment: .leading)" not in account_grid:
+    print("FAIL: Expanded quota account remaining cells should align near package labels instead of floating across a wide blank lane", file=sys.stderr)
+    sys.exit(1)
+if "Text(L10n.t(.remaining))\n                .frame(maxWidth: .infinity, alignment: .leading)" not in account_table:
+    print("FAIL: Expanded quota account remaining header should align with remaining values", file=sys.stderr)
     sys.exit(1)
 if "totalWidthBudget" in account_table:
     print("FAIL: Expanded quota account table should not keep a fixed left-anchored total width budget", file=sys.stderr)

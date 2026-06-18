@@ -2086,7 +2086,7 @@ private enum ProviderQuotaOverviewLayout {
 private enum ProviderQuotaAccountLayout {
     static let rowSpacing: CGFloat = 10
     static let flexibleGapMinWidth: CGFloat = 0
-    static let planWidth: CGFloat = 256
+    static let planWidth: CGFloat = 156
     static let remainingWidth: CGFloat = 78
     static let criticalTimeWidth: CGFloat = 210
     static let updatedWidth: CGFloat = 132
@@ -2101,10 +2101,10 @@ private enum ProviderQuotaAccountLayout {
         let extraWidth = max(0, usableWidth - minimumDataWidth)
 
         return ProviderQuotaAccountColumnWidths(
-            plan: planWidth + extraWidth * 0.42,
-            remaining: remainingWidth + extraWidth * 0.10,
-            criticalTime: criticalTimeWidth + extraWidth * 0.32,
-            updated: updatedWidth + extraWidth * 0.16
+            plan: planWidth,
+            remaining: remainingWidth,
+            criticalTime: criticalTimeWidth + extraWidth * 0.62,
+            updated: updatedWidth + extraWidth * 0.38
         )
     }
 }
@@ -2154,7 +2154,7 @@ struct ProviderQuotaAccountGridRow<PlanCell: View, RemainingCell: View, Critical
                     .frame(width: widths.plan, height: height, alignment: .leading)
 
                 remaining
-                    .frame(width: widths.remaining, height: height, alignment: .trailing)
+                    .frame(width: widths.remaining, height: height, alignment: .leading)
 
                 criticalTime
                     .frame(width: widths.criticalTime, height: height, alignment: .trailing)
@@ -2627,7 +2627,7 @@ struct ProviderQuotaKeyTableHeader: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         } remaining: {
             Text(L10n.t(.remaining))
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } criticalTime: {
             Text(L10n.t(.criticalTime))
                 .frame(maxWidth: .infinity, alignment: .trailing)
@@ -2702,7 +2702,7 @@ struct ProviderQuotaKeyTableRow: View {
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } criticalTime: {
             ProviderQuotaColumnValue(value: criticalTimeText, tint: isFocused ? .accentColor : .secondary)
         } updated: {
