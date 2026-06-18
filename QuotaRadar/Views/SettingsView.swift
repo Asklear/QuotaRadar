@@ -2052,7 +2052,7 @@ private enum ProviderQuotaOverviewLayout {
     static let providerIconSize: CGFloat = 28
     static let rowSpacing: CGFloat = 10
     static let rowHorizontalPadding: CGFloat = 14
-    static let providerLabelWidth: CGFloat = 132
+    static let providerLabelWidth: CGFloat = 104
     static let providerColumnWidth: CGFloat = providerIconSize + rowSpacing + providerLabelWidth
     static let keyQuotaWidth: CGFloat = 126
     static let credentialPoolWidth: CGFloat = 104
@@ -2073,11 +2073,11 @@ private enum ProviderQuotaOverviewLayout {
         let extraWidth = max(0, dataWidth - minimumDataWidth)
 
         return ProviderQuotaOverviewColumnWidths(
-            provider: providerColumnWidth + extraWidth * 0.26,
-            keyQuota: keyQuotaWidth + extraWidth * 0.16,
-            credentialPool: credentialPoolWidth + extraWidth * 0.18,
-            criticalTime: criticalTimeWidth + extraWidth * 0.24,
-            status: statusWidth + extraWidth * 0.16,
+            provider: providerColumnWidth,
+            keyQuota: keyQuotaWidth,
+            credentialPool: credentialPoolWidth + extraWidth * 0.30,
+            criticalTime: criticalTimeWidth + extraWidth * 0.42,
+            status: statusWidth + extraWidth * 0.28,
             actions: actionReserveWidth
         )
     }
@@ -2204,7 +2204,7 @@ struct ProviderQuotaOverviewGridRow<ProviderCell: View, KeyQuotaCell: View, Cred
                     .frame(width: widths.provider, height: height, alignment: .leading)
 
                 keyQuota
-                    .frame(width: widths.keyQuota, height: height, alignment: .trailing)
+                    .frame(width: widths.keyQuota, height: height, alignment: .leading)
 
                 credentialPool
                     .frame(width: widths.credentialPool, height: height, alignment: .trailing)
@@ -2232,7 +2232,7 @@ struct ProviderQuotaMonitorTableHeader: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         } keyQuota: {
             Text(L10n.t(.keyQuota))
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } credentialPool: {
             Text(L10n.t(.credentialPool))
                 .frame(maxWidth: .infinity, alignment: .trailing)
@@ -2437,8 +2437,8 @@ struct ProviderQuotaMonitorRow: View {
                 }
             }
         } keyQuota: {
-            toggleCell(alignment: .trailing) {
-                VStack(alignment: .trailing, spacing: 1) {
+            toggleCell(alignment: .leading) {
+                VStack(alignment: .leading, spacing: 1) {
                     ProviderQuotaColumnValue(value: keyQuotaText, tint: quotaOverviewRiskColor)
                     ProviderQuotaInlineActivity(summary: providerActivitySummary, tint: quotaOverviewRiskColor)
                 }
@@ -2579,11 +2579,11 @@ struct QuotaActivityMeter: View {
                         }
                     }
                     .fixedSize(horizontal: true, vertical: false)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 10, alignment: .trailing)
+        .frame(maxWidth: .infinity, minHeight: 10, alignment: .leading)
     }
 }
 

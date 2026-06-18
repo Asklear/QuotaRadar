@@ -2082,6 +2082,39 @@ assert_no_match 'ProviderQuotaActivityColumn' \
 assert_no_match 'activityWidth' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Quota overview layout should not reserve fixed width for mostly-empty activity signals"
+assert_match 'provider: providerColumnWidth,' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview should keep provider labels compact instead of stretching the removed Activity space"
+assert_match 'keyQuota: keyQuotaWidth,' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview should keep key quota close to provider labels instead of right-aligning across a wide blank lane"
+assert_match 'static let providerLabelWidth: CGFloat = 104' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview provider label width should stay compact after removing the Activity column"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
+try:
+    grid_row = source.split("struct ProviderQuotaOverviewGridRow", 1)[1].split("struct ProviderQuotaMonitorTableHeader", 1)[0]
+    overview_header = source.split("struct ProviderQuotaMonitorTableHeader: View", 1)[1].split("struct ProviderQuotaMonitorRow: View", 1)[0]
+except IndexError:
+    print("FAIL: Provider quota overview grid and header should be present", file=sys.stderr)
+    sys.exit(1)
+if "keyQuota\n                    .frame(width: widths.keyQuota, height: height, alignment: .leading)" not in grid_row:
+    print("FAIL: Key quota cells should align near provider labels instead of floating at the far edge of a wide numeric lane", file=sys.stderr)
+    sys.exit(1)
+if "Text(L10n.t(.keyQuota))\n                .frame(maxWidth: .infinity, alignment: .leading)" not in overview_header:
+    print("FAIL: Key quota header should align with key quota values after the Activity column is removed", file=sys.stderr)
+    sys.exit(1)
+PY
+assert_no_match 'provider: providerColumnWidth \+ extraWidth' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider column must not absorb spare table width after Activity is hidden"
+assert_no_match 'keyQuota: keyQuotaWidth \+ extraWidth' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Key quota column must not absorb spare table width after Activity is hidden"
 assert_no_match 'activitySummary: monitor\.activitySummary\(for: key\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Expanded account rows should not repeat activity summaries after the compact four-column account layout"
