@@ -2068,6 +2068,22 @@ private enum ProviderQuotaOverviewLayout {
             + credentialPoolWidth
             + criticalTimeWidth
             + statusWidth
+        let minimumTotalWidth = minimumDataWidth + actionReserveWidth + spacingTotal
+
+        if contentWidth < minimumTotalWidth {
+            let compactDataWidth = max(0, contentWidth - spacingTotal - actionReserveWidth)
+            let compactScale = max(0.62, min(1, compactDataWidth / minimumDataWidth))
+
+            return ProviderQuotaOverviewColumnWidths(
+                provider: providerColumnWidth * compactScale,
+                keyQuota: keyQuotaWidth * compactScale,
+                credentialPool: credentialPoolWidth * compactScale,
+                criticalTime: criticalTimeWidth * compactScale,
+                status: statusWidth * compactScale,
+                actions: actionReserveWidth
+            )
+        }
+
         let usableWidth = max(totalWidthBudget - spacingTotal, contentWidth - spacingTotal)
         let dataWidth = max(minimumDataWidth, usableWidth - actionReserveWidth)
         let extraWidth = max(0, dataWidth - minimumDataWidth)

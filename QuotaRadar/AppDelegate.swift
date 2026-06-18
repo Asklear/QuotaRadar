@@ -23,6 +23,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let statusPanelScreenInset: CGFloat = 10
     private let statusPanelOuterPadding: CGFloat = 18
     private let statusItemTextHorizontalPadding: CGFloat = 18
+    private var isVisualQAAutomation: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["QUOTARADAR_VISUAL_QA_FIXTURES"] == "1"
+            || environment["QUOTARADAR_VISUAL_QA_LANGUAGE"] != nil
+            || environment["QUOTARADAR_VISUAL_QA_APPEARANCE"] != nil
+            || environment["QUOTARADAR_VISUAL_QA_WINDOW_SIZE"] != nil
+            || environment["QUOTARADAR_VISUAL_QA_TRANSPARENCY"] != nil
+    }
+    private var forcedVisualQASettingsContentSize: NSSize? {
+        Self.visualQASettingsContentSize(
+            from: ProcessInfo.processInfo.environment["QUOTARADAR_VISUAL_QA_WINDOW_SIZE"]
+        )
+    }
 
     private var statusPanelSize: CGSize {
         CGSize(
@@ -43,6 +56,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         LegacyConfigurationMigrator.migrateUserDefaultsIfNeeded()
         NSApp.setActivationPolicy(.regular)
+        applyVisualQAAppearanceOverrideIfRequested()
         clearSwiftUISettingsWindowAutosaveFrame()
         quotaMonitor = QuotaMonitor.shared
         setupStatusBar()
@@ -692,12 +706,40 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.contentMinSize = minimumSettingsWindowSize
         window.collectionBehavior.insert(.moveToActiveSpace)
 
-        if window.contentView?.bounds.width ?? 0 < preferredSettingsContentSize.width ||
+        let forcedContentSize = forcedVisualQASettingsContentSize
+        let preferredContentSize = forcedContentSize ?? preferredSettingsContentSize
+        if let forcedContentSize {
+            window.setContentSize(forcedContentSize)
+        } else if window.contentView?.bounds.width ?? 0 < preferredSettingsContentSize.width ||
             window.contentView?.bounds.height ?? 0 < preferredSettingsContentSize.height {
-            window.setContentSize(preferredSettingsContentSize)
+            window.setContentSize(preferredContentSize)
         }
 
-        restoreOrRepairSettingsWindowPlacement(window, restoreSavedFrameIfNeeded: restoreSavedFrameIfNeeded)
+        restoreOrRepairSettingsWindowPlacement(
+            window,
+            restoreSavedFrameIfNeeded: restoreSavedFrameIfNeeded && forcedContentSize == nil
+        )
+    }
+
+    private func applyVisualQAAppearanceOverrideIfRequested() {
+        switch ProcessInfo.processInfo.environment["QUOTARADAR_VISUAL_QA_APPEARANCE"]?.lowercased() {
+        case "light":
+            NSApp.appearance = NSAppearance(named: .aqua)
+        case "dark":
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        default:
+            break
+        }
+    }
+
+    private static func visualQASettingsContentSize(from rawValue: String?) -> NSSize? {
+        guard let rawValue, !rawValue.isEmpty else { return nil }
+        let parts = rawValue
+            .lowercased()
+            .split(separator: "x", maxSplits: 1)
+            .compactMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        guard parts.count == 2 else { return nil }
+        return NSSize(width: max(900, parts[0]), height: max(600, parts[1]))
     }
 
     private func clearSwiftUISettingsWindowAutosaveFrame() {
@@ -818,6 +860,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func saveSettingsWindowFrame(_ window: NSWindow) {
         guard !isApplyingSettingsWindowPlacement,
+              !isVisualQAAutomation,
               window === settingsWindow,
               settingsWindowFrameIsUsable(window.frame) else {
             return

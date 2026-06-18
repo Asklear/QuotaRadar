@@ -150,7 +150,9 @@ final class AppAppearanceStore: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        if defaults.object(forKey: Self.statusBarTransparencyKey) == nil {
+        if let visualQATransparency = Self.visualQAStatusBarTransparencyOverride {
+            statusBarTransparency = visualQATransparency
+        } else if defaults.object(forKey: Self.statusBarTransparencyKey) == nil {
             statusBarTransparency = 0.58
         } else {
             statusBarTransparency = Self.clamped(defaults.double(forKey: Self.statusBarTransparencyKey))
@@ -188,6 +190,14 @@ final class AppAppearanceStore: ObservableObject {
 
     private static func clamped(_ value: Double) -> Double {
         min(max(value, 0.0), 1.0)
+    }
+
+    private static var visualQAStatusBarTransparencyOverride: Double? {
+        guard let rawValue = ProcessInfo.processInfo.environment["QUOTARADAR_VISUAL_QA_TRANSPARENCY"],
+              let value = Double(rawValue) else {
+            return nil
+        }
+        return clamped(value)
     }
 
     static func configuredURLSessionConfiguration(defaults: UserDefaults = .standard) -> URLSessionConfiguration {

@@ -51,6 +51,16 @@ class QuotaMonitor: ObservableObject {
         menuWatchedProviders = Self.sanitizedMenuWatchedProviders(
             defaults.stringArray(forKey: Self.menuWatchedProvidersDefaultsKey) ?? []
         )
+
+        if Self.usesVisualQAFixtures {
+            let fixtures = Self.visualQAFixtures(now: Date())
+            providerOrder = Provider.visibleCases
+            menuWatchedProviders = [.deepseek, .brave]
+            quotaSnapshots = fixtures.snapshots
+            apiKeys = fixtures.keys
+            return
+        }
+
         quotaSnapshots = historyStore.load()
         loadKeys()
     }
@@ -581,6 +591,257 @@ class QuotaMonitor: ObservableObject {
 // Keep first launch empty. Users import their own .env or add keys manually.
 struct DefaultKeys {
     static let keys: [APIKey] = []
+}
+
+extension QuotaMonitor {
+    private static var usesVisualQAFixtures: Bool {
+        ProcessInfo.processInfo.environment["QUOTARADAR_VISUAL_QA_FIXTURES"] == "1"
+    }
+
+    private static func visualQAFixtureKeys(now: Date) -> [APIKey] {
+        visualQAFixtures(now: now).keys
+    }
+
+    private static func visualQAFixtures(now: Date) -> (keys: [APIKey], snapshots: [QuotaSnapshot]) {
+        let calendar = Calendar(identifier: .gregorian)
+        let hourReset = calendar.date(byAdding: .hour, value: 4, to: now) ?? now
+        let weekReset = calendar.date(byAdding: .day, value: 3, to: now) ?? now
+        let monthReset = calendar.date(byAdding: .day, value: 22, to: now) ?? now
+        let soonPlanEnd = calendar.date(byAdding: .day, value: 6, to: now) ?? now
+        let annualPlanEnd = calendar.date(byAdding: .month, value: 8, to: now) ?? now
+        let recentPast = now.addingTimeInterval(-90 * 60)
+
+        let claudeID = UUID(uuidString: "10000000-0000-0000-0000-000000000001")!
+        let volcengineLowID = UUID(uuidString: "10000000-0000-0000-0000-000000000002")!
+        let volcengineHealthyID = UUID(uuidString: "10000000-0000-0000-0000-000000000003")!
+        let codexID = UUID(uuidString: "10000000-0000-0000-0000-000000000004")!
+        let xfyunID = UUID(uuidString: "10000000-0000-0000-0000-000000000005")!
+        let deepseekID = UUID(uuidString: "10000000-0000-0000-0000-000000000006")!
+        let braveID = UUID(uuidString: "10000000-0000-0000-0000-000000000007")!
+        let tencentID = UUID(uuidString: "10000000-0000-0000-0000-000000000008")!
+
+        let keys = [
+            visualQAFixtureKey(
+                id: claudeID,
+                name: "Claude Pro authorization with an intentionally long diagnostic message",
+                key: "claude-session-visual-qa",
+                provider: .claudeSubscription,
+                lastUpdated: now,
+                lastHTTPStatus: 503,
+                lastDiagnosticMessage: "Dashboard usage endpoint returned an unusually long upstream error summary after authentication, proxy negotiation, and organization selection; this should truncate without overlapping adjacent controls."
+            ),
+            visualQAFixtureKey(
+                id: volcengineLowID,
+                name: "Volcengine Lite primary account",
+                key: "volcengine-cookie-visual-qa-1",
+                provider: .volcengineCodingPlan,
+                remaining: 70,
+                limit: 1000,
+                planDisplayName: "Lite 权益",
+                lastUpdated: now,
+                quotaText: .quotaWindows([
+                    QuotaWindowText(name: "5h", percentText: "7%", resetAt: hourReset, remainingText: "420 / 6000"),
+                    QuotaWindowText(name: "week", percentText: "42%", resetAt: weekReset, remainingText: "42000 / 100000"),
+                    QuotaWindowText(name: "month", percentText: "64%", resetAt: monthReset, remainingText: "640000 / 1000000"),
+                ])
+            ),
+            visualQAFixtureKey(
+                id: volcengineHealthyID,
+                name: "Volcengine Lite backup account",
+                key: "volcengine-cookie-visual-qa-2",
+                provider: .volcengineCodingPlan,
+                remaining: 740,
+                limit: 1000,
+                planDisplayName: "Lite 权益",
+                lastUpdated: now,
+                quotaText: .quotaWindows([
+                    QuotaWindowText(name: "5h", percentText: "74%", resetAt: hourReset, remainingText: "4440 / 6000"),
+                    QuotaWindowText(name: "week", percentText: "82%", resetAt: weekReset, remainingText: "82000 / 100000"),
+                    QuotaWindowText(name: "month", percentText: "91%", resetAt: monthReset, remainingText: "910000 / 1000000"),
+                ])
+            ),
+            visualQAFixtureKey(
+                id: codexID,
+                name: "Codex Pro authorization",
+                key: "codex-session-visual-qa",
+                provider: .codexSubscription,
+                remaining: 860,
+                limit: 1000,
+                planEndsAt: soonPlanEnd,
+                planDisplayName: "Pro",
+                lastUpdated: now,
+                quotaText: .quotaWindows([
+                    QuotaWindowText(name: "5h", percentText: "96%", resetAt: hourReset, remainingText: "96 / 100"),
+                    QuotaWindowText(name: "week", percentText: "86%", resetAt: weekReset, remainingText: "860 / 1000"),
+                ])
+            ),
+            visualQAFixtureKey(
+                id: xfyunID,
+                name: "XFYun Spark Pro monthly package account",
+                key: "xfyun-cookie-visual-qa",
+                provider: .xfyunCodingPlan,
+                remaining: 430,
+                limit: 1000,
+                planEndsAt: annualPlanEnd,
+                planDisplayName: "Pro 资源包月套餐",
+                lastUpdated: now,
+                quotaText: .quotaWindows([
+                    QuotaWindowText(name: "5h", percentText: "53%", resetAt: hourReset, remainingText: "3180 / 6000"),
+                    QuotaWindowText(name: "week", percentText: "62%", resetAt: weekReset, remainingText: "62000 / 100000"),
+                    QuotaWindowText(name: "month", percentText: "43%", resetAt: monthReset, remainingText: "430000 / 1000000"),
+                ])
+            ),
+            visualQAFixtureKey(
+                id: deepseekID,
+                name: "DeepSeek balance account",
+                key: "deepseek-key-visual-qa",
+                provider: .deepseek,
+                remaining: 128800,
+                lastUpdated: now,
+                quotaLabel: "CNY 1288.00 available"
+            ),
+            visualQAFixtureKey(
+                id: braveID,
+                name: "Brave Search response-header key",
+                key: "brave-key-visual-qa",
+                provider: .brave,
+                remaining: Int.max,
+                limit: Int.max,
+                lastUpdated: now,
+                lastHTTPStatus: 200,
+                lastDiagnosticMessage: "Search works, but monthly quota is hidden by Brave."
+            ),
+            visualQAFixtureKey(
+                id: tencentID,
+                name: "Tencent Cloud Coding Plan enterprise package with long credential label",
+                key: "tencent-cloud-cookie-visual-qa",
+                provider: .tencentCloudCodingPlan,
+                remaining: 880,
+                limit: 1000,
+                planEndsAt: annualPlanEnd,
+                planDisplayName: "高效版-包月",
+                lastUpdated: now,
+                quotaText: .quotaWindows([
+                    QuotaWindowText(name: "5h", percentText: "88%", resetAt: hourReset, remainingText: "880 / 1000"),
+                    QuotaWindowText(name: "week", percentText: "91%", resetAt: weekReset, remainingText: "9100 / 10000"),
+                    QuotaWindowText(name: "month", percentText: "94%", resetAt: monthReset, remainingText: "94000 / 100000"),
+                ])
+            ),
+        ]
+
+        let snapshots: [QuotaSnapshot] = [
+            visualQAFixtureSnapshot(
+                keyID: xfyunID,
+                provider: .xfyunCodingPlan,
+                credentialName: "XFYun Spark Pro monthly package account",
+                recordedAt: recentPast,
+                remaining: 500,
+                limit: 1000,
+                planEndsAt: annualPlanEnd,
+                planDisplayName: "Pro 资源包月套餐",
+                quotaWindows: [
+                    QuotaWindowSnapshot(name: "5h", remainingPercent: 61, resetAt: hourReset),
+                    QuotaWindowSnapshot(name: "week", remainingPercent: 66, resetAt: weekReset),
+                    QuotaWindowSnapshot(name: "month", remainingPercent: 50, resetAt: monthReset),
+                ]
+            ),
+            visualQAFixtureSnapshot(
+                keyID: xfyunID,
+                provider: .xfyunCodingPlan,
+                credentialName: "XFYun Spark Pro monthly package account",
+                recordedAt: now,
+                remaining: 430,
+                limit: 1000,
+                planEndsAt: annualPlanEnd,
+                planDisplayName: "Pro 资源包月套餐",
+                quotaWindows: [
+                    QuotaWindowSnapshot(name: "5h", remainingPercent: 53, resetAt: hourReset),
+                    QuotaWindowSnapshot(name: "week", remainingPercent: 62, resetAt: weekReset),
+                    QuotaWindowSnapshot(name: "month", remainingPercent: 43, resetAt: monthReset),
+                ]
+            ),
+            visualQAFixtureSnapshot(
+                keyID: deepseekID,
+                provider: .deepseek,
+                credentialName: "DeepSeek balance account",
+                recordedAt: recentPast,
+                remaining: 130100,
+                limit: nil,
+                quotaLabel: "CNY 1301.00 available"
+            ),
+            visualQAFixtureSnapshot(
+                keyID: deepseekID,
+                provider: .deepseek,
+                credentialName: "DeepSeek balance account",
+                recordedAt: now,
+                remaining: 128800,
+                limit: nil,
+                quotaLabel: "CNY 1288.00 available"
+            ),
+        ]
+
+        return (keys, snapshots)
+    }
+
+    private static func visualQAFixtureKey(
+        id: UUID,
+        name: String,
+        key: String,
+        provider: Provider,
+        remaining: Int? = nil,
+        limit: Int? = nil,
+        resetAt: Date? = nil,
+        planEndsAt: Date? = nil,
+        planDisplayName: String? = nil,
+        lastUpdated: Date? = nil,
+        lastHTTPStatus: Int? = nil,
+        lastDiagnosticMessage: String? = nil,
+        quotaText: LocalizedTextDescriptor? = nil,
+        quotaLabel: String? = nil
+    ) -> APIKey {
+        var apiKey = APIKey(name: name, key: key, provider: provider)
+        apiKey.id = id
+        apiKey.remaining = remaining
+        apiKey.limit = limit
+        apiKey.resetAt = resetAt
+        apiKey.planEndsAt = planEndsAt
+        apiKey.planDisplayName = planDisplayName
+        apiKey.lastUpdated = lastUpdated
+        apiKey.lastHTTPStatus = lastHTTPStatus
+        apiKey.lastDiagnosticMessage = lastDiagnosticMessage
+        apiKey.quotaText = quotaText
+        apiKey.quotaLabel = quotaLabel
+        return apiKey
+    }
+
+    private static func visualQAFixtureSnapshot(
+        keyID: UUID,
+        provider: Provider,
+        credentialName: String,
+        recordedAt: Date,
+        remaining: Int?,
+        limit: Int?,
+        planEndsAt: Date? = nil,
+        planDisplayName: String? = nil,
+        quotaLabel: String? = nil,
+        quotaWindows: [QuotaWindowSnapshot] = []
+    ) -> QuotaSnapshot {
+        QuotaSnapshot(
+            keyID: keyID,
+            provider: provider,
+            credentialName: credentialName,
+            recordedAt: recordedAt,
+            outcome: .success,
+            remaining: remaining,
+            limit: limit,
+            resetAt: nil,
+            planEndsAt: planEndsAt,
+            planDisplayName: planDisplayName,
+            quotaLabel: quotaLabel,
+            httpStatus: 200,
+            quotaWindows: quotaWindows
+        )
+    }
 }
 
 // 示例数据（用于预览）

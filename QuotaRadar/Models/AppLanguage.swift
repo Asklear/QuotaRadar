@@ -289,7 +289,10 @@ final class AppLanguageStore: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        if let rawValue = defaults.string(forKey: Self.defaultsKey),
+        if let rawValue = ProcessInfo.processInfo.environment["QUOTARADAR_VISUAL_QA_LANGUAGE"],
+           let language = AppLanguage(rawValue: rawValue) {
+            self.language = language
+        } else if let rawValue = defaults.string(forKey: Self.defaultsKey),
            let language = AppLanguage(rawValue: rawValue) {
             self.language = language
         } else {

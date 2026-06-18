@@ -1029,6 +1029,72 @@ assert_match 'assert_focused_highlight_present "\$\{focused_screenshot\}"' \
 assert_match 'minimum_highlight_pixels = 20000' \
   "Tests/run_visual_qa.sh" \
   "Focused visual QA should use a threshold high enough to distinguish the selected account highlight from incidental blue UI"
+assert_match 'VISUAL_QA_SCENARIOS=\(' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should define an explicit scenario matrix instead of relying on one manual screenshot state"
+assert_match 'zh-Hans\|en' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should cover both Simplified Chinese and English language states"
+assert_match 'light\|dark' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should cover both light and dark appearances"
+assert_match '13-inch\|wide' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should cover compact 13-inch and wide-window main app layouts"
+assert_match 'QUOTARADAR_VISUAL_QA_FIXTURES=1' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should run against deterministic fixture data for multi-key, long-name, and long-error coverage"
+assert_match 'QUOTARADAR_VISUAL_QA_LANGUAGE' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should set the app language per scenario without relying on the user's saved preference"
+assert_match 'QUOTARADAR_VISUAL_QA_APPEARANCE' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should set light/dark appearance per scenario"
+assert_match 'QUOTARADAR_VISUAL_QA_WINDOW_SIZE' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should force compact and wide main-window sizes per scenario"
+assert_match 'assert_main_table_alignment' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should report provider table header/content alignment failures explicitly"
+assert_match 'assert_no_text_occlusion' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should report likely text overlap or occlusion failures explicitly"
+assert_match 'assert_menu_panel_not_clipped' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should report menu-bar top/bottom clipping failures explicitly"
+assert_match 'assert_transparency_readability' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should report menu-bar transparency/readability failures explicitly"
+assert_match 'checklist' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA summary should include a checklist of covered languages, appearances, surfaces, and stress cases"
+assert_match 'failure_reasons' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA summary should expose structured failure-reason fields for faster release review"
+assert_match 'scenario_screenshots' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA summary should list stable screenshot names for every scenario"
+assert_match 'visualQAFixtureKeys' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose deterministic visual QA fixture data behind an automation environment flag"
+assert_match 'QUOTARADAR_VISUAL_QA_FIXTURES' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "Visual QA fixtures should be gated by an explicit automation environment flag"
+assert_match 'QUOTARADAR_VISUAL_QA_LANGUAGE' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "App language should support visual QA overrides without relying on saved user preferences"
+assert_match 'QUOTARADAR_VISUAL_QA_TRANSPARENCY' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "Menu transparency should support visual QA overrides without relying on saved user preferences"
+assert_match 'QUOTARADAR_VISUAL_QA_APPEARANCE' \
+  "QuotaRadar/AppDelegate.swift" \
+  "AppDelegate should support visual QA light/dark appearance overrides"
+assert_match 'QUOTARADAR_VISUAL_QA_WINDOW_SIZE' \
+  "QuotaRadar/AppDelegate.swift" \
+  "AppDelegate should support visual QA compact and wide main-window size overrides"
+assert_match '!isVisualQAAutomation' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Visual QA forced window sizes should not be persisted into the user's saved settings-window frame"
 assert_match 'case "failed", "failure", "check-failed", "checkfailed":' \
   "QuotaRadar/AppDelegate.swift" \
   "Menu signal automation should expose failed credentials as an addressable action-feed reason"
@@ -2322,6 +2388,12 @@ if not layout_match:
     sys.exit(1)
 if float(layout_match.group(1)) > 850:
     print("FAIL: Provider quota overview row width budget should fit the default settings window", file=sys.stderr)
+    sys.exit(1)
+if "compactDataWidth" not in source or "compactScale" not in source:
+    print("FAIL: Provider quota overview rows should shrink data columns in compact 13-inch windows so action buttons stay visible", file=sys.stderr)
+    sys.exit(1)
+if "contentWidth < minimumTotalWidth" not in source:
+    print("FAIL: Provider quota overview layout should detect compact windows before applying the default width budget", file=sys.stderr)
     sys.exit(1)
 if "ProviderQuotaAccountLayout" not in source:
     print("FAIL: Expanded account quota rows should use a shared compact account layout", file=sys.stderr)
