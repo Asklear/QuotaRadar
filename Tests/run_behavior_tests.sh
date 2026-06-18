@@ -4303,6 +4303,7 @@ require(MenuQuotaItem.attentionItems(from: menuSplitStats, limit: 5).map { $0.ke
 require(MenuQuotaItem.lowQuotaItems(from: menuSplitStats, limit: 5).map { $0.key.name } == ["TAVILY_LOW"], "Status bar low-quota items should separately surface providers that are still usable but tight")
 require(MenuQuotaItem(provider: .tavily, key: menuSplitStats[0].keys[0]).signalReason == .exhausted, "Menu quota items should explain exhausted quota as the reason they are surfaced")
 require(MenuQuotaItem(provider: .tavily, key: menuSplitStats[0].keys[1]).signalReason == .lowQuota, "Menu quota items should explain low quota as the reason they are surfaced")
+require(MenuSignalReason.unknown.displayText == L10n.t(.needsAttention), "Unknown menu reasons should use a soft attention label instead of generic quota status")
 let soonPlanEnd = Date().addingTimeInterval(5 * 24 * 60 * 60)
 let laterPlanEnd = Date().addingTimeInterval(20 * 24 * 60 * 60)
 let expiredPlanEnd = Date().addingTimeInterval(-1 * 24 * 60 * 60)

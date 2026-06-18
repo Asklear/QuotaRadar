@@ -1212,7 +1212,7 @@ enum MenuSignalReason: String, Codable, Equatable {
         case .recentActivity:
             return L10n.t(.recentProviderUsage)
         case .unknown:
-            return L10n.t(.quotaStatus)
+            return L10n.t(.needsAttention)
         }
     }
 }
