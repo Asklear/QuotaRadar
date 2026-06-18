@@ -2847,7 +2847,7 @@ struct ProviderQuotaAccountGroup: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
+        HStack(alignment: .center, spacing: 14) {
             ProviderQuotaAccountIdentity(
                 key: key,
                 isFocused: isFocused,

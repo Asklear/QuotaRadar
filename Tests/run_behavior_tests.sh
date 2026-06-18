@@ -2304,6 +2304,9 @@ if ".frame(width: 230" in account_table or ".frame(width: 86" in account_table o
 if "ProviderQuotaAccountGroup(" not in source:
     print("FAIL: Expanded quota rows should render account-group cards instead of continuing the provider table", file=sys.stderr)
     sys.exit(1)
+if "HStack(alignment: .center, spacing: 14)" not in account_table:
+    print("FAIL: Expanded account group identity and meta panel should be vertically centered against quota-window rows", file=sys.stderr)
+    sys.exit(1)
 if "ProviderQuotaKeyTableHeader()" in source or "ProviderQuotaKeyTableRow(" in source:
     print("FAIL: Expanded quota rows should not render the old header/key table layout", file=sys.stderr)
     sys.exit(1)
