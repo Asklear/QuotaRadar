@@ -59,9 +59,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.3\.5' \
+assert_match '0\.3\.6' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.3.5 should be recorded in Info.plist"
+  "Quota Radar 0.3.6 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -2954,6 +2954,27 @@ assert_no_match 'Text\(L10n\.t\(\.appLanguage\)\)' \
 assert_match 'AppAppearanceStore' \
   "QuotaRadar/Models/AppAppearance.swift" \
   "QuotaRadar should persist appearance settings such as status bar transparency"
+assert_match 'enum AppThemeModeOption: String, CaseIterable, Identifiable' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "QuotaRadar should expose a finite app theme mode model"
+assert_match 'case system' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "App theme mode should support following the macOS system appearance"
+assert_match 'case light' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "App theme mode should support a forced light appearance"
+assert_match 'case dark' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "App theme mode should support a forced dark appearance"
+assert_match 'static let appearanceModeKey = "appearanceMode"' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "Theme mode should persist under a stable UserDefaults key"
+assert_match '@Published var appearanceMode: AppThemeModeOption' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "Theme mode changes should publish to the running app"
+assert_match 'appearanceMode = \.system' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "QuotaRadar should default to following the system appearance"
 assert_match 'autoRefreshInterval' \
   "QuotaRadar/Models/AppAppearance.swift" \
   "QuotaRadar should persist the automatic refresh interval"
@@ -2990,6 +3011,36 @@ assert_match 'statusBarTransparency' \
 assert_match 'Slider\(value: \$appearanceStore\.statusBarTransparency, in: 0\.0\.\.\.1\.0\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Language/appearance settings should expose a full 0%-100% status bar transparency slider"
+assert_match 'SettingsCenteredMenuPicker\(selection: \$appearanceStore\.appearanceMode' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should let users choose system, light, or dark appearance with the compact menu control"
+assert_match 'L10n\.t\(\.appearanceMode' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Theme mode settings row should use localized labels"
+assert_match 'AppAppearanceStore\.shared\.\$appearanceMode' \
+  "QuotaRadar/AppDelegate.swift" \
+  "The running app should observe saved theme-mode changes"
+assert_match 'sink \{ \[weak self\] appearanceMode in' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Theme-mode changes should apply the freshly published value instead of re-reading the old @Published stored value"
+assert_no_match 'sink \{ \[weak self\] _ in[[:space:]]*self\?\.applyConfiguredAppearanceMode\(\)' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Theme-mode changes must not be applied from the stale @Published stored value"
+assert_match 'applyConfiguredAppearanceMode' \
+  "QuotaRadar/AppDelegate.swift" \
+  "AppDelegate should apply the user-configured theme mode"
+assert_match 'NSApp\.appearance = nil' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Following system appearance should clear the app-level appearance override"
+assert_match 'NSAppearance\(named: \.aqua\)' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Forced light mode should use the macOS Aqua appearance"
+assert_match 'NSAppearance\(named: \.darkAqua\)' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Forced dark mode should use the macOS dark Aqua appearance"
+assert_match 'guard !applyVisualQAAppearanceOverrideIfRequested\(\) else \{ return \}' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Visual QA light/dark overrides should take priority over saved user theme mode without persisting it"
 assert_match 'SettingsFormSection' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings should use compact grouped preference sections instead of stacked full-width cards"
@@ -5573,6 +5624,14 @@ require(L10n.t(.settingsTab, language: .simplifiedChinese) == "设置", "Chinese
 require(L10n.t(.settingsWindowTitle, language: .simplifiedChinese) == "Quota Radar 设置", "Chinese settings window title should be localized")
 require(L10n.t(.provider, language: .simplifiedChinese) == "服务商", "Chinese provider form label should be fully translated")
 require(L10n.t(.language, language: .simplifiedChinese) == "语言", "Chinese language label should be available")
+require(L10n.t(.appearanceMode, language: .english) == "Color Scheme", "English theme-mode label should be explicit")
+require(L10n.t(.appearanceModeSystem, language: .english) == "Follow System", "English theme mode should avoid the bare System label")
+require(L10n.t(.appearanceModeLight, language: .english) == "Light Mode", "English theme mode should avoid the bare Light label")
+require(L10n.t(.appearanceModeDark, language: .english) == "Dark Mode", "English theme mode should avoid the bare Dark label")
+require(L10n.t(.appearanceMode, language: .simplifiedChinese) == "配色模式", "Chinese theme-mode label should be explicit")
+require(L10n.t(.appearanceModeSystem, language: .simplifiedChinese) == "跟随系统", "Chinese theme mode should include system")
+require(L10n.t(.appearanceModeLight, language: .simplifiedChinese) == "浅色模式", "Chinese theme mode should avoid the bare light label")
+require(L10n.t(.appearanceModeDark, language: .simplifiedChinese) == "深色模式", "Chinese theme mode should avoid the bare dark label")
 require(L10n.t(.statusBarTransparency, language: .simplifiedChinese) == "状态栏透明度", "Chinese status bar transparency label should be available")
 require(L10n.t(.adminCredentialRequired, language: .simplifiedChinese) == "需要 API 密钥", "Chinese service API key status should be fully translated without admin credential wording")
 require(L10n.localizedQuotaLabel("需要管理员凭据", language: .english) == "API Key required", "Persisted legacy Chinese Admin credential labels should render with the current API key wording")
@@ -5600,6 +5659,16 @@ require(QuotaConsumingAutoRefreshIntervalOption.off.timeInterval == nil, "Quota-
 require(QuotaConsumingAutoRefreshIntervalOption.sixHours.timeInterval == 21_600, "Quota-consuming automatic refresh should expose a long 6 hour interval")
 require(QuotaConsumingAutoRefreshIntervalOption.twelveHours.timeInterval == 43_200, "Quota-consuming automatic refresh should expose a long 12 hour interval")
 require(QuotaConsumingAutoRefreshIntervalOption.oneDay.timeInterval == 86_400, "Quota-consuming automatic refresh should expose a daily interval")
+require(AppThemeModeOption.allCases.map(\.rawValue) == ["system", "light", "dark"], "Theme mode should expose system, light, and dark in that order")
+let appearanceDefaults = UserDefaults(suiteName: "QuotaRadarAppearanceTests.\(UUID().uuidString)")!
+appearanceDefaults.removePersistentDomain(forName: appearanceDefaults.dictionaryRepresentation().description)
+let defaultAppearanceStore = AppAppearanceStore(defaults: appearanceDefaults)
+require(defaultAppearanceStore.appearanceMode == .system, "Theme mode should default to following system appearance")
+defaultAppearanceStore.appearanceMode = .dark
+require(appearanceDefaults.string(forKey: "appearanceMode") == "dark", "Theme mode changes should persist to UserDefaults")
+appearanceDefaults.set("light", forKey: "appearanceMode")
+let savedAppearanceStore = AppAppearanceStore(defaults: appearanceDefaults)
+require(savedAppearanceStore.appearanceMode == .light, "Theme mode should restore the saved UserDefaults value")
 for language in AppLanguage.allCases {
     require(L10n.missingTranslationKeys(language: language).isEmpty, "\(language.rawValue) should have translations for every L10n key")
     let fallbackKeys = L10n.fallbackTranslationKeys(language: language)

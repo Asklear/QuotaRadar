@@ -3529,6 +3529,19 @@ struct AppSettingsView: View {
 
             SettingsFormSection(title: L10n.t(.settingsAppearanceSection)) {
                 SettingsPreferenceRow(
+                    icon: "circle.righthalf.filled",
+                    title: L10n.t(.appearanceMode),
+                    subtitle: L10n.t(.appearanceModeDescription)
+                ) {
+                    SettingsCenteredMenuPicker(selection: $appearanceStore.appearanceMode,
+                        options: AppThemeModeOption.allCases,
+                        title: \.displayName
+                    )
+                }
+
+                SettingsDivider()
+
+                SettingsPreferenceRow(
                     icon: "circle.lefthalf.filled",
                     title: L10n.t(.statusBarTransparency),
                     subtitle: L10n.t(.statusBarTransparencyDescription)

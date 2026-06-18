@@ -41,16 +41,16 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
-            - Refined the quota overview into a compact monitoring surface with provider-level rows and compressed account details.
-            - Added a risk-first menu bar Attention Feed for low quota, expiring plans, failed checks, and recent consumption.
-            - Added menu-bar-to-main-window handoff checks so attention items can open and highlight the matching provider/account.
-            - Added release visual QA summaries with screenshot dimensions and focused-signal highlight counts.
+            - Added a Settings color-scheme control for Follow System, Light Mode, and Dark Mode.
+            - Fixed live color-scheme switching so existing windows and menu bar popovers update immediately.
+            - Continued menu bar polish with de-duplicated provider signals, watched providers, and balance-provider Recent Change entries.
+            - Refreshed README screenshots with app-window and popover-only captures, avoiding desktop backgrounds in release-facing images.
 
             中文说明：
-            - 将额度监控页收敛为紧凑监控界面：provider 汇总行优先，账号详情只保留核心信息。
-            - 状态栏改为风险优先的 Attention Feed，突出低额度、即将到期、刷新失败和近期消耗。
-            - 增加状态栏到主程序的联动检查，attention 条目可打开并高亮对应 provider / 账号。
-            - 新增发布前视觉 QA summary，记录截图尺寸和聚焦信号高亮统计。
+            - 设置页新增配色模式：跟随系统、浅色模式、深色模式。
+            - 修复运行中切换配色模式不立即生效的问题，主窗口和状态栏弹窗无需重启即可更新。
+            - 继续打磨状态栏：按 provider 去重、支持常看 provider，并让余额类 provider 进入近期变化。
+            - 刷新 README 截图，只使用 app 窗口和状态栏弹窗截图，避免把桌面背景截入发布文档。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.
 

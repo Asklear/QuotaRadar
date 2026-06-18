@@ -12,7 +12,7 @@ Quota Radar is a macOS menu bar app for monitoring search API balances and LLM c
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Current version: `v0.3.5`.
+Current version: `v0.3.6`.
 
 ## Screenshots
 
@@ -40,7 +40,7 @@ Current version: `v0.3.5`.
 - API-key and web-login authorization credentials, including companion API keys for providers whose quota checks require web login.
 - Local secret storage in `~/Library/Application Support/QuotaRadar/secrets.json` with `0600` permissions.
 - `.env`, cURL, and `~/.claude/settings.json` import paths for supported providers.
-- Configurable automatic refresh, quota-consuming refresh protection, proxy settings, launch at login, and GitHub Release update checks.
+- Configurable automatic refresh, quota-consuming refresh protection, proxy settings, color scheme, launch at login, and GitHub Release update checks.
 
 ## Quick Start
 
@@ -90,8 +90,8 @@ open build/QuotaRadar.dmg
 Manual GitHub Release upload:
 
 ```bash
-gh release create v0.3.5 build/QuotaRadar.dmg \
-  --title "Quota Radar v0.3.5" \
+gh release create v0.3.6 build/QuotaRadar.dmg \
+  --title "Quota Radar v0.3.6" \
   --notes "Unsigned DMG for trusted users. macOS may require removing quarantine on first launch."
 ```
 

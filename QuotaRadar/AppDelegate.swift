@@ -56,12 +56,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         LegacyConfigurationMigrator.migrateUserDefaultsIfNeeded()
         NSApp.setActivationPolicy(.regular)
-        applyVisualQAAppearanceOverrideIfRequested()
+        applyConfiguredAppearanceMode()
         clearSwiftUISettingsWindowAutosaveFrame()
         quotaMonitor = QuotaMonitor.shared
         setupStatusBar()
         setupStatusPanel()
         startMonitoring()
+        startAppearanceModeMonitoring()
         startLanguageMonitoring()
         showManagedSettingsWindowOnLaunch()
         GitHubReleaseUpdater.shared.checkForUpdatesIfNeededOnLaunch()
@@ -505,6 +506,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .store(in: &cancellables)
     }
 
+    private func startAppearanceModeMonitoring() {
+        AppAppearanceStore.shared.$appearanceMode
+            .removeDuplicates()
+            .sink { [weak self] appearanceMode in
+                self?.applyConfiguredAppearanceMode(appearanceMode)
+            }
+            .store(in: &cancellables)
+    }
+
     private func updateLocalizedStatusBarStrings() {
         updateStatusItemPresentation()
 
@@ -721,14 +731,38 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
     }
 
-    private func applyVisualQAAppearanceOverrideIfRequested() {
+    private func applyConfiguredAppearanceMode(_ appearanceMode: AppThemeModeOption? = nil) {
+        guard !applyVisualQAAppearanceOverrideIfRequested() else { return }
+
+        switch appearanceMode ?? AppAppearanceStore.shared.appearanceMode {
+        case .system:
+            NSApp.appearance = nil
+            settingsWindow?.appearance = nil
+            statusPanel?.appearance = nil
+        case .light:
+            applyAppAppearance(NSAppearance(named: .aqua))
+        case .dark:
+            applyAppAppearance(NSAppearance(named: .darkAqua))
+        }
+    }
+
+    private func applyAppAppearance(_ appearance: NSAppearance?) {
+        NSApp.appearance = appearance
+        settingsWindow?.appearance = appearance
+        statusPanel?.appearance = appearance
+    }
+
+    @discardableResult
+    private func applyVisualQAAppearanceOverrideIfRequested() -> Bool {
         switch ProcessInfo.processInfo.environment["QUOTARADAR_VISUAL_QA_APPEARANCE"]?.lowercased() {
         case "light":
-            NSApp.appearance = NSAppearance(named: .aqua)
+            applyAppAppearance(NSAppearance(named: .aqua))
+            return true
         case "dark":
-            NSApp.appearance = NSAppearance(named: .darkAqua)
+            applyAppAppearance(NSAppearance(named: .darkAqua))
+            return true
         default:
-            break
+            return false
         }
     }
 

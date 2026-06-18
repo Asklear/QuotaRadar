@@ -36,6 +36,10 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Include money-balance providers such as DeepSeek, Bocha, and WeChat Search in Recent Change when balance snapshots show real depletion.
 - [x] Localize the money-balance activity period marker so `balance` no longer leaks into Chinese, Traditional Chinese, Japanese, or Korean UI.
 - [x] Update visual QA to match the current fixed-size menu bar panel and current risk-focus highlight colors.
+- [x] Add a Settings color-scheme control for Follow System, Light Mode, and Dark Mode.
+- [x] Fix live color-scheme switching so existing main windows and menu bar panels update immediately without restarting.
+- [x] Refresh README screenshots with window/panel captures only, avoiding desktop backgrounds in release-facing images.
+- [x] Bump version metadata and release notes for `v0.3.6`.
 
 ## Completed In v0.2.0
 
@@ -338,7 +342,7 @@ Continue with P1 + P2. Reauthentication auto-save is already in place; the remai
    - Main files: `QuotaRadar/Models/AppAppearance.swift`, `QuotaRadar/Services/QuotaService.swift`, `QuotaRadar/Views/SettingsView.swift`.
    - Goal: support system proxy, manual HTTP/SOCKS proxy, and no proxy.
 6. [ ] Run a main-window and menu-popover visual QA pass.
-   - Check screenshots across sizes, languages, and light/dark mode.
+   - Check screenshots across sizes, languages, light/dark mode, and live color-scheme switching.
    - Prioritize overlap, clipping, repeated information, and collapse animation issues.
 
 ## Not Prioritized Yet
