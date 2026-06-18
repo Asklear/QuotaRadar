@@ -12,6 +12,44 @@ extension EnvironmentValues {
     }
 }
 
+enum StatusBarGlassMetrics {
+    private static func clamped(_ transparency: Double) -> Double {
+        min(max(transparency, 0.0), 1.0)
+    }
+
+    static func menuSurfaceOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 1.0 : 0.62 + (1 - clamped(transparency)) * 0.30
+    }
+
+    static func materialOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 0.0 : 0.28 + (1 - clamped(transparency)) * 0.62
+    }
+
+    static func baseFillOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 1.0 : 0.08 + (1 - clamped(transparency)) * 0.42
+    }
+
+    static func leadingHighlightOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 0.0 : 0.04 + (1 - clamped(transparency)) * 0.10
+    }
+
+    static func trailingHighlightOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 0.0 : 0.02 + (1 - clamped(transparency)) * 0.06
+    }
+
+    static func headerFillOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 1.0 : 0.22 + (1 - clamped(transparency)) * 0.30
+    }
+
+    static func moduleMaterialOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 0.0 : 0.22 + (1 - clamped(transparency)) * 0.34
+    }
+
+    static func moduleFillOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 1.0 : 0.045 + (1 - clamped(transparency)) * 0.22
+    }
+}
+
 // MARK: - App Mark
 
 struct QuotaRadarMark: View {
@@ -59,19 +97,19 @@ struct GlassBackground: View {
     let transparency: Double
 
     private var materialOpacity: Double {
-        0.28 + (1 - transparency) * 0.62
+        StatusBarGlassMetrics.materialOpacity(for: transparency)
     }
 
     private var baseFillOpacity: Double {
-        0.08 + (1 - transparency) * 0.42
+        StatusBarGlassMetrics.baseFillOpacity(for: transparency)
     }
 
     private var leadingHighlightOpacity: Double {
-        0.04 + (1 - transparency) * 0.10
+        StatusBarGlassMetrics.leadingHighlightOpacity(for: transparency)
     }
 
     private var trailingHighlightOpacity: Double {
-        0.02 + (1 - transparency) * 0.06
+        StatusBarGlassMetrics.trailingHighlightOpacity(for: transparency)
     }
 
     var body: some View {

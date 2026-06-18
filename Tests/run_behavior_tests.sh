@@ -1555,7 +1555,7 @@ assert_match 'GlassBackground\(transparency: menuGlassTransparency\)' \
 assert_match 'materialOpacity' \
   "QuotaRadar/Views/Components.swift" \
   "Status bar card material should change opacity with the transparency slider"
-assert_match '0\.28 \+ \(1 - transparency\) \* 0\.62' \
+assert_match 'StatusBarGlassMetrics\.materialOpacity\(for: transparency\)' \
   "QuotaRadar/Views/Components.swift" \
   "Status bar cards should visibly change material opacity with the transparency slider"
 assert_match '\.fill\(\.regularMaterial\)' \
@@ -1570,9 +1570,21 @@ assert_match 'menuSurfaceOpacity' \
 assert_match 'private var menuSurfaceOpacity: Double \{' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar transparency should affect the outer menu surface, not only inner cards"
-assert_match '0\.62 \+ \(1 - statusBarTransparency\) \* 0\.30' \
+assert_match 'StatusBarGlassMetrics\.menuSurfaceOpacity\(for: statusBarTransparency\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar outer surface opacity should visibly change across the full transparency range without hiding content"
+  "Status bar outer surface opacity should come from the shared glass metrics"
+assert_match 'StatusBarGlassMetrics\.materialOpacity\(for: transparency\)' \
+  "QuotaRadar/Views/Components.swift" \
+  "Status bar card material opacity should come from the shared glass metrics"
+assert_match 'transparency <= 0 \? 1\.0 : 0\.62 \+ \(1 - clamped\(transparency\)\) \* 0\.30' \
+  "QuotaRadar/Views/Components.swift" \
+  "Status bar transparency 0% should be a fully opaque outer surface"
+assert_match 'transparency <= 0 \? 0\.0 : 0\.28 \+ \(1 - clamped\(transparency\)\) \* 0\.62' \
+  "QuotaRadar/Views/Components.swift" \
+  "Status bar transparency 0% should disable frosted material bleed-through"
+assert_match 'transparency <= 0 \? 1\.0 : 0\.08 \+ \(1 - clamped\(transparency\)\) \* 0\.42' \
+  "QuotaRadar/Views/Components.swift" \
+  "Status bar transparency 0% should use a fully opaque card fill"
 assert_match 'Slider\(value: \$appearanceStore\.statusBarTransparency, in: 0\.0\.\.\.1\.0\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Status bar transparency slider should support the full 0% to 100% range"

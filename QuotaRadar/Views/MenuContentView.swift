@@ -18,7 +18,7 @@ struct MenuContentView: View {
     }
 
     private var menuSurfaceOpacity: Double {
-        0.62 + (1 - statusBarTransparency) * 0.30
+        StatusBarGlassMetrics.menuSurfaceOpacity(for: statusBarTransparency)
     }
 
     private var glassHighlightOpacity: Double {
@@ -176,7 +176,7 @@ struct HeaderView: View {
     let onOpenSettings: () -> Void
 
     private var headerFillOpacity: Double {
-        0.22 + (1 - menuGlassTransparency) * 0.30
+        StatusBarGlassMetrics.headerFillOpacity(for: menuGlassTransparency)
     }
 
     private var headerStatusMessage: String? {
@@ -384,7 +384,11 @@ struct MonitorModule<Content: View>: View {
     @ViewBuilder var content: Content
 
     private var moduleFillOpacity: Double {
-        0.045 + (1 - menuGlassTransparency) * 0.22
+        StatusBarGlassMetrics.moduleFillOpacity(for: menuGlassTransparency)
+    }
+
+    private var moduleMaterialOpacity: Double {
+        StatusBarGlassMetrics.moduleMaterialOpacity(for: menuGlassTransparency)
     }
 
     private var moduleStrokeOpacity: Double {
@@ -400,7 +404,7 @@ struct MonitorModule<Content: View>: View {
         .background(
             RoundedRectangle(cornerRadius: 13, style: .continuous)
                 .fill(.regularMaterial)
-                .opacity(0.22 + (1 - menuGlassTransparency) * 0.34)
+                .opacity(moduleMaterialOpacity)
         )
         .background(
             RoundedRectangle(cornerRadius: 13, style: .continuous)
