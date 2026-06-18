@@ -2307,6 +2307,15 @@ if "ProviderQuotaAccountGridRow" not in source:
 if account_table.count("ProviderQuotaAccountGridRow(") < 2:
     print("FAIL: Expanded quota account header and rows should both use the responsive account grid row", file=sys.stderr)
     sys.exit(1)
+if "QuotaWindowDetails(windows: detailKey.quotaWindowDetails)" in source:
+    print("FAIL: Expanded quota window detail rows should not use the loose spacer-based QuotaWindowDetails layout", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaAccountWindowDetails(windows: detailKey.quotaWindowDetails)" not in source:
+    print("FAIL: Expanded quota window detail rows should share the account table grid with account rows", file=sys.stderr)
+    sys.exit(1)
+if "struct ProviderQuotaAccountWindowDetails: View" not in account_table:
+    print("FAIL: Expanded quota window details should define a table-aligned detail row component", file=sys.stderr)
+    sys.exit(1)
 try:
     action_group = source.split("struct ProviderQuotaActionGroup: View", 1)[1].split("struct AddCredentialProviderList", 1)[0]
 except IndexError:

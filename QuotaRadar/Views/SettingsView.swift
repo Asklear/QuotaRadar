@@ -2398,7 +2398,7 @@ struct ProviderQuotaMonitorRow: View {
                                         .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
                                 }
 
-                                QuotaWindowDetails(windows: detailKey.quotaWindowDetails)
+                                ProviderQuotaAccountWindowDetails(windows: detailKey.quotaWindowDetails)
                             }
                             .padding(.top, 8)
                         }
@@ -2751,6 +2751,60 @@ struct ProviderQuotaKeyTableRow: View {
                     .padding(.vertical, 8)
                     .padding(.leading, 4)
             }
+        }
+    }
+}
+
+struct ProviderQuotaAccountWindowDetails: View {
+    let windows: [QuotaWindowText]
+
+    private var visibleWindows: [QuotaWindowText] {
+        windows.filter { !$0.name.isEmpty && !$0.percentText.isEmpty }
+    }
+
+    var body: some View {
+        if !visibleWindows.isEmpty {
+            VStack(spacing: 0) {
+                ForEach(Array(visibleWindows.enumerated()), id: \.offset) { index, window in
+                    if index > 0 {
+                        Divider()
+                            .opacity(0.35)
+                    }
+
+                    ProviderQuotaAccountGridRow(height: 28) {
+                        HStack(spacing: 8) {
+                            Circle()
+                                .fill(Color.clear)
+                                .frame(width: 6, height: 6)
+
+                            ProviderQuotaAccountValueText(
+                                value: L10n.quotaPeriodTitle(window.name),
+                                tint: .secondary,
+                                weight: .medium
+                            )
+                        }
+                    } remaining: {
+                        ProviderQuotaAccountValueText(
+                            value: window.percentText,
+                            tint: .primary,
+                            weight: .semibold,
+                            design: .rounded
+                        )
+                    } criticalTime: {
+                        ProviderQuotaAccountValueText(
+                            value: window.detailValueText ?? "",
+                            tint: .secondary,
+                            weight: .medium,
+                            minimumScaleFactor: 0.62
+                        )
+                    } updated: {
+                        Color.clear
+                    }
+                }
+            }
+            .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
+            .padding(.vertical, 6)
+            .background(Color.primary.opacity(0.028), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 }
