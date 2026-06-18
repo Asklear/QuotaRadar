@@ -1103,7 +1103,8 @@ struct AddKeySheet: View {
     private func refreshProviderAfterSavingCredential(_ savedKey: APIKey) {
         guard savedKey.isActive,
               !savedKey.isStoredAPIKeyOnlyCredential,
-              savedKey.provider.supportsQuotaQuery else {
+              savedKey.provider.supportsQuotaQuery,
+              savedKey.provider.capability.quotaRefreshKind == .refreshQuota else {
             return
         }
         monitor.refreshProvider(provider)
@@ -1313,7 +1314,8 @@ struct ProviderQuotaActionGroup: View {
 
             actionSlot {
                 if canRefresh {
-                    RefreshButton(
+                    ProviderRefreshButton(
+                        provider: provider,
                         isRefreshing: .constant(isRefreshing),
                         isEnabled: canRefresh,
                         size: size,
@@ -1857,7 +1859,8 @@ struct EditKeySheet: View {
     private func refreshProviderAfterSavingCredential(_ savedKey: APIKey) {
         guard savedKey.isActive,
               !savedKey.isStoredAPIKeyOnlyCredential,
-              savedKey.provider.supportsQuotaQuery else {
+              savedKey.provider.supportsQuotaQuery,
+              savedKey.provider.capability.quotaRefreshKind == .refreshQuota else {
             return
         }
         monitor.refreshProvider(provider)
@@ -2051,18 +2054,16 @@ private enum ProviderQuotaOverviewLayout {
     static let rowHorizontalPadding: CGFloat = 14
     static let providerLabelWidth: CGFloat = 132
     static let providerColumnWidth: CGFloat = providerIconSize + rowSpacing + providerLabelWidth
-    static let activityWidth: CGFloat = 112
-    static let keyQuotaWidth: CGFloat = 78
+    static let keyQuotaWidth: CGFloat = 126
     static let credentialPoolWidth: CGFloat = 104
     static let criticalTimeWidth: CGFloat = 122
     static let statusWidth: CGFloat = 68
     static let actionReserveWidth: CGFloat = 90
-    static let totalWidthBudget: CGFloat = 784
+    static let totalWidthBudget: CGFloat = 704
 
     static func columnWidths(for contentWidth: CGFloat) -> ProviderQuotaOverviewColumnWidths {
-        let spacingTotal = rowSpacing * 6
+        let spacingTotal = rowSpacing * 5
         let minimumDataWidth = providerColumnWidth
-            + activityWidth
             + keyQuotaWidth
             + credentialPoolWidth
             + criticalTimeWidth
@@ -2072,12 +2073,11 @@ private enum ProviderQuotaOverviewLayout {
         let extraWidth = max(0, dataWidth - minimumDataWidth)
 
         return ProviderQuotaOverviewColumnWidths(
-            provider: providerColumnWidth + extraWidth * 0.24,
-            activity: activityWidth + extraWidth * 0.12,
-            keyQuota: keyQuotaWidth + extraWidth * 0.12,
+            provider: providerColumnWidth + extraWidth * 0.26,
+            keyQuota: keyQuotaWidth + extraWidth * 0.16,
             credentialPool: credentialPoolWidth + extraWidth * 0.18,
-            criticalTime: criticalTimeWidth + extraWidth * 0.22,
-            status: statusWidth + extraWidth * 0.12,
+            criticalTime: criticalTimeWidth + extraWidth * 0.24,
+            status: statusWidth + extraWidth * 0.16,
             actions: actionReserveWidth
         )
     }
@@ -2118,7 +2118,6 @@ private struct ProviderQuotaAccountColumnWidths {
 
 private struct ProviderQuotaOverviewColumnWidths {
     let provider: CGFloat
-    let activity: CGFloat
     let keyQuota: CGFloat
     let credentialPool: CGFloat
     let criticalTime: CGFloat
@@ -2170,10 +2169,9 @@ struct ProviderQuotaAccountGridRow<PlanCell: View, RemainingCell: View, Critical
     }
 }
 
-struct ProviderQuotaOverviewGridRow<ProviderCell: View, ActivityCell: View, KeyQuotaCell: View, CredentialPoolCell: View, CriticalTimeCell: View, StatusCell: View, ActionCell: View>: View {
+struct ProviderQuotaOverviewGridRow<ProviderCell: View, KeyQuotaCell: View, CredentialPoolCell: View, CriticalTimeCell: View, StatusCell: View, ActionCell: View>: View {
     let height: CGFloat
     let provider: ProviderCell
-    let activity: ActivityCell
     let keyQuota: KeyQuotaCell
     let credentialPool: CredentialPoolCell
     let criticalTime: CriticalTimeCell
@@ -2183,7 +2181,6 @@ struct ProviderQuotaOverviewGridRow<ProviderCell: View, ActivityCell: View, KeyQ
     init(
         height: CGFloat,
         @ViewBuilder provider: () -> ProviderCell,
-        @ViewBuilder activity: () -> ActivityCell,
         @ViewBuilder keyQuota: () -> KeyQuotaCell,
         @ViewBuilder credentialPool: () -> CredentialPoolCell,
         @ViewBuilder criticalTime: () -> CriticalTimeCell,
@@ -2192,7 +2189,6 @@ struct ProviderQuotaOverviewGridRow<ProviderCell: View, ActivityCell: View, KeyQ
     ) {
         self.height = height
         self.provider = provider()
-        self.activity = activity()
         self.keyQuota = keyQuota()
         self.credentialPool = credentialPool()
         self.criticalTime = criticalTime()
@@ -2206,9 +2202,6 @@ struct ProviderQuotaOverviewGridRow<ProviderCell: View, ActivityCell: View, KeyQ
             HStack(spacing: ProviderQuotaOverviewLayout.rowSpacing) {
                 provider
                     .frame(width: widths.provider, height: height, alignment: .leading)
-
-                activity
-                    .frame(width: widths.activity, height: height, alignment: .center)
 
                 keyQuota
                     .frame(width: widths.keyQuota, height: height, alignment: .trailing)
@@ -2237,8 +2230,6 @@ struct ProviderQuotaMonitorTableHeader: View {
         ProviderQuotaOverviewGridRow(height: 18) {
             Text(L10n.t(.provider))
                 .frame(maxWidth: .infinity, alignment: .leading)
-        } activity: {
-            ProviderQuotaActivityHeaderCell()
         } keyQuota: {
             Text(L10n.t(.keyQuota))
                 .frame(maxWidth: .infinity, alignment: .trailing)
@@ -2445,18 +2436,12 @@ struct ProviderQuotaMonitorRow: View {
                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 }
             }
-        } activity: {
-            toggleCell(alignment: .center) {
-                ProviderQuotaActivityColumn {
-                    QuotaActivityMeter(
-                        summary: providerActivitySummary,
-                        tint: quotaOverviewRiskColor
-                    )
-                }
-            }
         } keyQuota: {
             toggleCell(alignment: .trailing) {
-                ProviderQuotaColumnValue(value: keyQuotaText, tint: quotaOverviewRiskColor)
+                VStack(alignment: .trailing, spacing: 1) {
+                    ProviderQuotaColumnValue(value: keyQuotaText, tint: quotaOverviewRiskColor)
+                    ProviderQuotaInlineActivity(summary: providerActivitySummary, tint: quotaOverviewRiskColor)
+                }
             }
         } credentialPool: {
             toggleCell(alignment: .trailing) {
@@ -2527,34 +2512,33 @@ struct ProviderQuotaColumnValue: View {
     }
 }
 
-struct ProviderQuotaActivityColumn: View {
-    static var width: CGFloat { ProviderQuotaOverviewLayout.activityWidth }
+struct ProviderQuotaInlineActivity: View {
+    let summary: QuotaActivitySummary
+    let tint: Color
 
-    let content: AnyView
-
-    init<Content: View>(@ViewBuilder content: () -> Content) {
-        self.content = AnyView(content())
+    private var hasVisibleChange: Bool {
+        guard let deltaText = summary.deltaText?.trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return false
+        }
+        return !deltaText.isEmpty
     }
 
     var body: some View {
-        ZStack {
-            Color.clear
-            content
+        if summary.shouldRender && hasVisibleChange {
+            QuotaActivityMeter(summary: summary, tint: tint)
         }
-        .frame(width: Self.width, alignment: .center)
-        .frame(minHeight: 32, alignment: .center)
     }
 }
 
 struct QuotaActivityMeter: View {
-    static let valueSpacing: CGFloat = 5
+    static let valueSpacing: CGFloat = 4
+
+    let summary: QuotaActivitySummary
+    let tint: Color
 
     private var periodLabel: String? {
         summary.periodName.map { L10n.quotaPeriodCompactTitle($0) }
     }
-
-    let summary: QuotaActivitySummary
-    let tint: Color
 
     private var currentValueText: String? {
         guard let currentText = summary.currentText,
@@ -2577,15 +2561,6 @@ struct QuotaActivityMeter: View {
             if summary.shouldRender {
                 HStack(alignment: .center, spacing: Self.valueSpacing) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        if let currentValueText {
-                            Text(currentValueText)
-                                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                .foregroundStyle(tint.opacity(0.9))
-                                .monospacedDigit()
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.7)
-                        }
-
                         if let changeIndicatorText {
                             Text(changeIndicatorText)
                                 .font(.system(size: 9, weight: .medium, design: .rounded))
@@ -2604,21 +2579,11 @@ struct QuotaActivityMeter: View {
                         }
                     }
                     .fixedSize(horizontal: true, vertical: false)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 24)
-        .frame(height: 28)
-    }
-}
-
-struct ProviderQuotaActivityHeaderCell: View {
-    var body: some View {
-        ProviderQuotaActivityColumn {
-            Text(L10n.t(.quotaActivity))
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        .frame(maxWidth: .infinity, minHeight: 10, alignment: .trailing)
     }
 }
 

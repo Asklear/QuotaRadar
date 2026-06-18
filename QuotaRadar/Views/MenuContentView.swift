@@ -867,7 +867,7 @@ struct MenuWatchedProviderItemRow: View {
                 .frame(minWidth: 38)
                 .background(key.status.color.opacity(0.12), in: Capsule())
 
-            RefreshButton(isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
+            ProviderRefreshButton(provider: item.provider, isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
                 .scaleEffect(0.72)
                 .frame(width: 22, height: 22)
         }
@@ -943,7 +943,7 @@ struct MenuRecentUsageItemRow: View {
                 .frame(minWidth: 42)
                 .background(Color.orange.opacity(activitySummary.deltaText == nil ? 0.06 : 0.12), in: Capsule())
 
-            RefreshButton(isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
+            ProviderRefreshButton(provider: item.provider, isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
                 .scaleEffect(0.72)
                 .frame(width: 22, height: 22)
         }
@@ -1085,7 +1085,7 @@ struct MenuQuotaItemRow: View {
                 .frame(minWidth: 42)
                 .background(key.status.color.opacity(0.12), in: Capsule())
 
-            RefreshButton(isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
+            ProviderRefreshButton(provider: item.provider, isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
                 .scaleEffect(0.82)
                 .frame(width: 28, height: 28)
         }

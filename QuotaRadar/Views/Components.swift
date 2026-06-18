@@ -455,3 +455,40 @@ struct RefreshButton: View {
         .accessibilityLabel(accessibilityLabelText ?? L10n.t(.refreshQuotaAction))
     }
 }
+
+struct ProviderRefreshButton: View {
+    let provider: Provider
+    @Binding var isRefreshing: Bool
+    var isEnabled = true
+    var size: CGFloat = 32
+    var helpText: String? = nil
+    var accessibilityLabelText: String? = nil
+    let action: () -> Void
+
+    @State private var showingCostlyRefreshConfirmation = false
+
+    var body: some View {
+        RefreshButton(
+            isRefreshing: $isRefreshing,
+            isEnabled: isEnabled,
+            size: size,
+            helpText: helpText,
+            accessibilityLabelText: accessibilityLabelText,
+            action: requestRefresh
+        )
+        .confirmationDialog(L10n.t(.costlyQuotaRefreshTitle), isPresented: $showingCostlyRefreshConfirmation, titleVisibility: .visible) {
+            Button(L10n.t(.refreshQuotaConsumesQuotaAction), role: .destructive, action: action)
+            Button(L10n.t(.cancel), role: .cancel) {}
+        } message: {
+            Text(L10n.t(.costlyQuotaRefreshMessage))
+        }
+    }
+
+    private func requestRefresh() {
+        guard provider.capability.requiresCostlyConfirmation else {
+            action()
+            return
+        }
+        showingCostlyRefreshConfirmation = true
+    }
+}

@@ -485,6 +485,8 @@ enum L10n {
         case testConnection
         case costlyConnectionTestTitle
         case costlyConnectionTestMessage
+        case costlyQuotaRefreshTitle
+        case costlyQuotaRefreshMessage
         case testConnectionConsumesQuota
         case reset
         case resetDate
@@ -1373,6 +1375,8 @@ enum L10n {
         .testConnection: "Test connection",
         .costlyConnectionTestTitle: "This test consumes quota",
         .costlyConnectionTestMessage: "Testing this provider sends a real quota-consuming request. Continue only if you want to spend one request.",
+        .costlyQuotaRefreshTitle: "This refresh consumes quota",
+        .costlyQuotaRefreshMessage: "Refreshing this provider sends a real quota-consuming request. Continue only if you want to spend one request.",
         .testConnectionConsumesQuota: "Test and consume quota",
         .reset: "Reset",
         .resetDate: "Resets %@",
@@ -1685,6 +1689,8 @@ enum L10n {
         .testConnection: "测试连接",
         .costlyConnectionTestTitle: "该测试会消耗额度",
         .costlyConnectionTestMessage: "测试该服务商会发出一次真实请求并消耗额度。确认需要消耗 1 次请求后再继续。",
+        .costlyQuotaRefreshTitle: "这次刷新会消耗额度",
+        .costlyQuotaRefreshMessage: "刷新该服务商会发出一次真实请求并消耗额度。确认需要消耗 1 次请求后再继续。",
         .testConnectionConsumesQuota: "测试并消耗额度",
         .reset: "重置",
         .resetDate: "%@ 重置",
@@ -1910,6 +1916,8 @@ enum L10n {
         .testConnection: "測試連線",
         .costlyConnectionTestTitle: "此測試會消耗額度",
         .costlyConnectionTestMessage: "測試此服務商會發出一次真實請求並消耗額度。確認需要消耗 1 次請求後再繼續。",
+        .costlyQuotaRefreshTitle: "這次刷新會消耗額度",
+        .costlyQuotaRefreshMessage: "刷新此服務商會發出一次真實請求並消耗額度。確認需要消耗 1 次請求後再繼續。",
         .testConnectionConsumesQuota: "測試並消耗額度",
         .disabled: "停用",
         .quotaUnavailable: "額度不可用",
@@ -2200,6 +2208,8 @@ enum L10n {
         .testConnection: "接続をテスト",
         .costlyConnectionTestTitle: "このテストはクォータを消費します",
         .costlyConnectionTestMessage: "このプロバイダーのテストは実際のリクエストを送信し、クォータを 1 回分消費します。続行しますか。",
+        .costlyQuotaRefreshTitle: "この更新はクォータを消費します",
+        .costlyQuotaRefreshMessage: "このプロバイダーの更新は実際のリクエストを送信し、クォータを 1 回分消費します。続行しますか。",
         .testConnectionConsumesQuota: "テストして消費",
         .resetDate: "%@ にリセット",
         .planEndsDate: "プラン終了 %@",
@@ -2511,6 +2521,8 @@ enum L10n {
         .testConnection: "연결 테스트",
         .costlyConnectionTestTitle: "이 테스트는 할당량을 소비합니다",
         .costlyConnectionTestMessage: "이 공급자 테스트는 실제 요청을 보내 할당량 1회를 소비합니다. 계속하시겠습니까?",
+        .costlyQuotaRefreshTitle: "이 새로 고침은 할당량을 소비합니다",
+        .costlyQuotaRefreshMessage: "이 공급자 새로 고침은 실제 요청을 보내 할당량 1회를 소비합니다. 계속하시겠습니까?",
         .testConnectionConsumesQuota: "테스트하고 할당량 소비",
         .resetDate: "%@ 재설정",
         .planEndsDate: "%@ 플랜 종료",

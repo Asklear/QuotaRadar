@@ -704,6 +704,27 @@ assert_match 'isRefreshing \? L10n\.t\(\.refreshingQuotaAction\)' \
 assert_match 'provider\.capability\.requiresCostlyConfirmation \? L10n\.t\(\.refreshQuotaConsumesQuotaAction\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Provider refresh buttons should warn when refreshing quota consumes a real request"
+assert_match 'struct ProviderRefreshButton' \
+  "QuotaRadar/Views/Components.swift" \
+  "Provider refresh controls should centralize costly-check confirmation"
+assert_match '@State private var showingCostlyRefreshConfirmation = false' \
+  "QuotaRadar/Views/Components.swift" \
+  "Costly provider refreshes should show an explicit confirmation before spending real quota"
+assert_match 'provider\.capability\.requiresCostlyConfirmation' \
+  "QuotaRadar/Views/Components.swift" \
+  "The provider refresh gate should use ProviderCapability for costly-check semantics"
+assert_match 'confirmationDialog\(L10n\.t\(\.costlyQuotaRefreshTitle\)' \
+  "QuotaRadar/Views/Components.swift" \
+  "Costly refresh confirmation should use refresh-specific wording instead of connection-test wording"
+assert_match 'Button\(L10n\.t\(\.refreshQuotaConsumesQuotaAction\), role: \.destructive' \
+  "QuotaRadar/Views/Components.swift" \
+  "Costly refresh confirmation should require an explicit destructive confirmation action"
+assert_match 'ProviderRefreshButton\(' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider quota rows should use the centralized provider refresh gate"
+assert_match 'savedKey\.provider\.capability\.quotaRefreshKind == \.refreshQuota' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Saving a credential should only auto-refresh no-cost quota refresh providers"
 assert_match 'struct QuotaSnapshot' \
   "QuotaRadar/Models/QuotaHistory.swift" \
   "Quota history should persist refresh snapshots"
@@ -1341,8 +1362,8 @@ if "let isRefreshing: Bool" not in recent_row or "let onRefresh: () -> Void" not
 if "let onOpenProvider: () -> Void" not in recent_row:
     print("FAIL: Menu recent usage rows should accept a main-app focus action", file=sys.stderr)
     sys.exit(1)
-if "RefreshButton(isRefreshing:" not in recent_row:
-    print("FAIL: Menu recent usage rows should render the shared compact refresh button", file=sys.stderr)
+if "ProviderRefreshButton(provider: item.provider" not in recent_row:
+    print("FAIL: Menu recent usage rows should render the centralized provider refresh gate", file=sys.stderr)
     sys.exit(1)
 if "quotaTrendDecreasing" in recent_row:
     print("FAIL: Menu recent usage rows should not show old textual trend labels such as 7d -2pt", file=sys.stderr)
@@ -1705,9 +1726,9 @@ assert_match 'monitor\.refreshProvider\(item\.provider\)' \
 assert_no_match 'onRefresh: \{ monitor\.refreshAll\(\) \}' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar home view must not expose only a single global refresh action"
-assert_match 'RefreshButton\(isRefreshing: \.constant\(isRefreshing\), isEnabled: item\.canRefresh' \
+assert_match 'ProviderRefreshButton\(provider: item\.provider, isRefreshing: \.constant\(isRefreshing\), isEnabled: item\.canRefresh' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Each status bar top item row should own its refresh button"
+  "Each status bar top item row should use the centralized provider refresh gate"
 assert_match 'statusPanelSize' \
   "QuotaRadar/AppDelegate.swift" \
   "Status bar hosting window must be larger than MenuContentView.menuSize to avoid clipping"
@@ -2051,13 +2072,16 @@ assert_match 'func activitySummary\(for key: APIKey\)' \
   "QuotaMonitor should expose activity summaries to SwiftUI surfaces"
 assert_match 'struct QuotaActivityMeter' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Settings quota rows should render compact activity meters instead of trend sparklines"
-assert_match 'ProviderQuotaActivityColumn' \
+  "Settings quota rows should render compact activity indicators instead of trend sparklines"
+assert_no_match 'ProviderQuotaActivityHeaderCell' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Quota overview rows should reserve a middle activity scan column"
-assert_match 'static var width: CGFloat \{ ProviderQuotaOverviewLayout\.activityWidth \}' \
+  "Quota overview should not reserve a sparse Activity header column"
+assert_no_match 'ProviderQuotaActivityColumn' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Quota activity scan column should use a fixed compact width instead of consuming all remaining table space"
+  "Quota overview should not reserve a sparse Activity scan column"
+assert_no_match 'activityWidth' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview layout should not reserve fixed width for mostly-empty activity signals"
 assert_no_match 'activitySummary: monitor\.activitySummary\(for: key\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Expanded account rows should not repeat activity summaries after the compact four-column account layout"
@@ -2066,7 +2090,13 @@ assert_no_match 'summary: activitySummary' \
   "Expanded account rows should not render a second activity meter inside the compact account layout"
 assert_match 'summary: providerActivitySummary' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Provider summary rows should place activity in the middle scan lane"
+  "Provider summary rows should keep meaningful activity attached to the quota reading"
+assert_match 'ProviderQuotaInlineActivity' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider summary rows should render activity as an inline quota-side signal"
+assert_match 'summary\.deltaText\?\.trimmingCharacters' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Inline quota activity should hide bare period markers when there is no actual change"
 assert_match 'var mostConstrainedActiveMonitoringKey' \
   "QuotaRadar/Models/APIKey.swift" \
   "Provider summary rows should be anchored to the most constrained active account instead of implying aggregated usage"
@@ -2113,24 +2143,16 @@ import sys
 source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
 try:
     activity_meter_start = source.split("struct QuotaActivityMeter: View", 1)[1]
-    activity_meter = activity_meter_start.split("struct ProviderQuotaActivityHeaderCell: View", 1)[0]
-    activity_header_cell = source.split("struct ProviderQuotaActivityHeaderCell: View", 1)[1].split("struct ProviderQuotaStatusPill: View", 1)[0]
-    activity_column = source.split("struct ProviderQuotaActivityColumn: View", 1)[1].split("struct QuotaActivityMeter: View", 1)[0]
+    activity_meter = activity_meter_start.split("struct ProviderQuotaStatusPill: View", 1)[0]
+    overview_header = source.split("struct ProviderQuotaMonitorTableHeader: View", 1)[1].split("struct ProviderQuotaMonitorRow: View", 1)[0]
+    provider_row = source.split("struct ProviderQuotaMonitorRow: View", 1)[1].split("struct ProviderQuotaColumnValue: View", 1)[0]
+    grid_row = source.split("struct ProviderQuotaOverviewGridRow", 1)[1].split("struct ProviderQuotaMonitorTableHeader", 1)[0]
 except IndexError:
-    print("FAIL: ProviderQuotaActivityColumn and QuotaActivityMeter should exist before status pill helpers", file=sys.stderr)
+    print("FAIL: Quota overview structure should expose activity meter, header, and provider row scopes", file=sys.stderr)
     sys.exit(1)
 
 if "summary.shouldRender" not in activity_meter:
     print("FAIL: QuotaActivityMeter should delegate low-signal hiding to QuotaActivitySummary.shouldRender", file=sys.stderr)
-    sys.exit(1)
-if "Color.clear" not in activity_column:
-    print("FAIL: Quota activity column should reserve transparent width even when a row has no renderable activity", file=sys.stderr)
-    sys.exit(1)
-if ".frame(width: Self.width" not in activity_column:
-    print("FAIL: ProviderQuotaActivityColumn should use a fixed width so empty activity cells do not create a wide blank lane", file=sys.stderr)
-    sys.exit(1)
-if "maxWidth: .infinity" in activity_column:
-    print("FAIL: ProviderQuotaActivityColumn must not expand to all remaining table width", file=sys.stderr)
     sys.exit(1)
 if "summary.periodName.map" not in activity_meter or "quotaPeriodCompactTitle" not in activity_meter:
     print("FAIL: QuotaActivityMeter should render compact activity period labels such as month/week/5h", file=sys.stderr)
@@ -2138,14 +2160,11 @@ if "summary.periodName.map" not in activity_meter or "quotaPeriodCompactTitle" n
 if "Text(periodLabel ?? \"\")" in activity_meter or ".opacity(periodLabel == nil ? 0 : 1)" in activity_meter:
     print("FAIL: QuotaActivityMeter should not place a reserved period-label slot before the primary activity value", file=sys.stderr)
     sys.exit(1)
-if "Text(currentValueText)" not in activity_meter or "Text(periodLabel)" not in activity_meter:
-    print("FAIL: QuotaActivityMeter should render the current activity value first and the period label as a suffix", file=sys.stderr)
-    sys.exit(1)
-if activity_meter.find("Text(periodLabel)") < activity_meter.find("Text(currentValueText)"):
-    print("FAIL: QuotaActivityMeter should keep activity values left-aligned by placing period labels after the value", file=sys.stderr)
+if "Text(currentValueText)" in activity_meter:
+    print("FAIL: QuotaActivityMeter should not duplicate the current quota value now that activity is attached to Key Quota", file=sys.stderr)
     sys.exit(1)
 if "summary.currentText" not in activity_meter:
-    print("FAIL: QuotaActivityMeter should show the current remaining value as the primary compact reading", file=sys.stderr)
+    print("FAIL: QuotaActivityMeter should still derive from the same summary model even when it suppresses duplicate current quota text", file=sys.stderr)
     sys.exit(1)
 if "fixedSize(horizontal: true, vertical: false)" not in activity_meter:
     print("FAIL: QuotaActivityMeter values should keep compact money amounts readable instead of truncating them", file=sys.stderr)
@@ -2174,28 +2193,20 @@ if "activityFill" in activity_meter:
 if "Capsule()" in activity_meter:
     print("FAIL: QuotaActivityMeter should stay inline and avoid pill/card-like placeholder styling", file=sys.stderr)
     sys.exit(1)
-if "Color.clear" in activity_header_cell or "periodLabelWidth" in activity_header_cell:
-    print("FAIL: Provider quota activity header should align to the primary value, not to an obsolete period-label slot", file=sys.stderr)
+if "Text(L10n.t(.quotaActivity))" in overview_header:
+    print("FAIL: Provider quota overview header should not reserve a mostly-empty Activity column", file=sys.stderr)
     sys.exit(1)
-try:
-    overview_header = source.split("struct ProviderQuotaMonitorTableHeader: View", 1)[1].split("struct ProviderQuotaMonitorRow: View", 1)[0]
-except IndexError:
-    print("FAIL: ProviderQuotaMonitorTableHeader should exist before provider quota rows", file=sys.stderr)
-    sys.exit(1)
-if "Text(L10n.t(.quotaActivity))" not in source:
-    print("FAIL: Provider quota overview header should name the middle activity scan lane", file=sys.stderr)
-    sys.exit(1)
-if "ProviderQuotaActivityHeaderCell()" not in overview_header:
-    print("FAIL: Provider quota overview activity header should use the same fixed activity slot as provider rows", file=sys.stderr)
-    sys.exit(1)
-if 'Text(L10n.t(.quotaActivity))\n                .frame(maxWidth: .infinity, alignment: .center)' in overview_header:
-    print("FAIL: Provider quota overview activity header should not float independently from the activity meter slot", file=sys.stderr)
+if "activity:" in overview_header or "activity:" in provider_row or "let activity:" in grid_row:
+    print("FAIL: Provider quota overview grid should remove the dedicated Activity column", file=sys.stderr)
     sys.exit(1)
 if "ProviderQuotaOverviewGridRow(" not in overview_header:
-    print("FAIL: Provider quota overview header should use the shared grid row so activity/header/value columns share positions", file=sys.stderr)
+    print("FAIL: Provider quota overview header should use the shared grid row so headers and values share positions", file=sys.stderr)
     sys.exit(1)
-if "activityWidth" not in source or "ProviderQuotaOverviewLayout.activityWidth" not in source:
-    print("FAIL: Provider quota overview activity width should come from the shared overview layout model", file=sys.stderr)
+if "ProviderQuotaInlineActivity" not in provider_row or "summary: providerActivitySummary" not in provider_row:
+    print("FAIL: Provider quota summary rows should attach meaningful activity under Key Quota instead of a sparse second column", file=sys.stderr)
+    sys.exit(1)
+if provider_row.find("ProviderQuotaColumnValue(value: keyQuotaText") > provider_row.find("ProviderQuotaInlineActivity"):
+    print("FAIL: Provider quota summary rows should keep the quota value primary and show activity as supporting text below it", file=sys.stderr)
     sys.exit(1)
 if "providerSummaryRowBackground" not in source or "providerSummaryRiskAccent" not in source:
     print("FAIL: Provider quota rows should lightly emphasize risk rows without turning the table into cards", file=sys.stderr)
