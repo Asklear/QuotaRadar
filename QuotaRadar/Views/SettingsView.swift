@@ -2323,11 +2323,19 @@ struct ProviderQuotaMonitorRow: View {
         guard !keys.isEmpty else { return L10n.t(.noKeyConfigured) }
         if keys.allSatisfy({ !$0.isActive }) { return L10n.t(.disabled) }
         if keys.contains(where: { $0.isCredentialExpired }) { return L10n.t(.credentialExpired) }
-        if keys.contains(where: { $0.isUsageLimitExceeded }) { return L10n.t(.usageLimitExceeded) }
-        if keys.contains(where: { $0.isExhausted || $0.isLow }) { return L10n.t(.low) }
         if keys.contains(where: { $0.status == .failed }) { return L10n.t(.healthFailed) }
+        if keys.contains(where: { $0.isUsageLimitExceeded || $0.isExhausted }) { return L10n.t(.usageLimitExceeded) }
         if keys.contains(where: { $0.isUsableWithUnknownQuota }) { return L10n.t(.ok) }
         return L10n.t(.healthHealthy)
+    }
+
+    private var providerAvailabilityStatusColor: Color {
+        guard !keys.isEmpty else { return .secondary }
+        if keys.allSatisfy({ !$0.isActive }) { return .secondary }
+        if keys.contains(where: { $0.isCredentialExpired }) { return .orange }
+        if keys.contains(where: { $0.status == .failed }) { return .red }
+        if keys.contains(where: { $0.isUsageLimitExceeded || $0.isExhausted }) { return .red }
+        return .green
     }
 
     private var quotaOverviewRiskColor: Color {
@@ -2464,7 +2472,7 @@ struct ProviderQuotaMonitorRow: View {
             }
         } status: {
             toggleCell(alignment: .trailing) {
-                ProviderQuotaStatusPill(text: statusText, tint: quotaOverviewRiskColor)
+                ProviderQuotaStatusPill(text: statusText, tint: providerAvailabilityStatusColor)
             }
         } actions: {
             ProviderQuotaActionGroup(

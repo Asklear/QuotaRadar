@@ -18,7 +18,7 @@ enum StatusBarGlassMetrics {
     }
 
     static func menuSurfaceOpacity(for transparency: Double) -> Double {
-        transparency <= 0 ? 1.0 : 0.62 + (1 - clamped(transparency)) * 0.30
+        transparency <= 0 ? 1.0 : 0.78 + (1 - clamped(transparency)) * 0.18
     }
 
     static func materialOpacity(for transparency: Double) -> Double {
@@ -46,7 +46,7 @@ enum StatusBarGlassMetrics {
     }
 
     static func moduleFillOpacity(for transparency: Double) -> Double {
-        transparency <= 0 ? 1.0 : 0.045 + (1 - clamped(transparency)) * 0.22
+        transparency <= 0 ? 1.0 : 0.16 + (1 - clamped(transparency)) * 0.28
     }
 }
 

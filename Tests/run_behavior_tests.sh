@@ -1300,8 +1300,8 @@ try:
 except IndexError:
     print("FAIL: MenuRecentUsageItemsView should exist before recent usage row details", file=sys.stderr)
     sys.exit(1)
-if "detail: L10n.t(.recentUsageDetail)" not in recent_view:
-    print("FAIL: Menu recent usage section should describe recent consumption, not repeat quota-status wording", file=sys.stderr)
+if "detail: L10n.t(.recentUsageDetail)" in recent_view:
+    print("FAIL: Menu recent usage section should not rely on weak right-side detail headers for explanation", file=sys.stderr)
     sys.exit(1)
 if "onRefresh: { monitor.refreshProvider(item.provider) }" not in recent_view:
     print("FAIL: Menu recent usage rows should allow refreshing the provider from the same compact row", file=sys.stderr)
@@ -1345,6 +1345,45 @@ if "if !items.isEmpty" not in attention_view:
 if "noAttentionItems" in attention_view or "checkmark.seal.fill" in attention_view:
     print("FAIL: Menu attention section should not spend space on a calm empty-state row", file=sys.stderr)
     sys.exit(1)
+for noisy_header in [
+    "MenuSectionHeader(title: L10n.t(.sidebarStatistics), detail:",
+    "MenuSectionHeader(title: L10n.t(.watchedProviders), detail:",
+    "MenuSectionHeader(title: L10n.t(.lowQuotaProviders), detail:",
+    "MenuSectionHeader(title: L10n.t(.expiringSoon), detail:",
+    "MenuSectionHeader(title: L10n.t(.needsAttention), detail:",
+    "MenuSectionHeader(title: L10n.t(.recentProviderUsage), detail:"
+]:
+    if noisy_header in source:
+        print("FAIL: Menu bar attention feed sections should not show weak right-side table headers", file=sys.stderr)
+        sys.exit(1)
+if "struct MenuSignalReasonBadge: View" not in source:
+    print("FAIL: Menu bar rows should use compact reason badges so users know why each provider is shown", file=sys.stderr)
+    sys.exit(1)
+for row_name in [
+    "MenuWatchedProviderItemRow",
+    "MenuRecentUsageItemRow",
+    "MenuCompactQuotaItemRow",
+    "MenuQuotaItemRow",
+    "MenuExpiringQuotaItemRow"
+]:
+    try:
+        row_scope = source.split(f"struct {row_name}: View", 1)[1].split("\nstruct ", 1)[0]
+    except IndexError:
+        print(f"FAIL: {row_name} should exist for menu bar signal rows", file=sys.stderr)
+        sys.exit(1)
+    if "MenuSignalReasonBadge(" not in row_scope:
+        print(f"FAIL: {row_name} should show a compact reason badge instead of relying on section headers", file=sys.stderr)
+        sys.exit(1)
+components_source = Path("QuotaRadar/Views/Components.swift").read_text()
+if "static func menuSurfaceOpacity(for transparency: Double) -> Double" not in components_source:
+    print("FAIL: Status bar glass metrics should centralize menu surface opacity", file=sys.stderr)
+    sys.exit(1)
+if "transparency <= 0 ? 1.0 : 0.78" not in components_source:
+    print("FAIL: Status bar menu surface should keep enough opacity for readable attention-feed rows", file=sys.stderr)
+    sys.exit(1)
+if "static func moduleFillOpacity(for transparency: Double)" not in components_source or "0.16 + (1 - clamped(transparency)) * 0.28" not in components_source:
+    print("FAIL: Status bar modules should have a stronger base fill so background content does not bleed through", file=sys.stderr)
+    sys.exit(1)
 try:
     recent_row = source.split("struct MenuRecentUsageItemRow: View", 1)[1].split("struct MenuQuotaItemRow: View", 1)[0]
 except IndexError:
@@ -1364,6 +1403,9 @@ if "let onOpenProvider: () -> Void" not in recent_row:
     sys.exit(1)
 if "ProviderRefreshButton(provider: item.provider" not in recent_row:
     print("FAIL: Menu recent usage rows should render the centralized provider refresh gate", file=sys.stderr)
+    sys.exit(1)
+if "MenuSignalReasonBadge(text: L10n.t(.recentProviderUsage)" not in recent_row:
+    print("FAIL: Menu recent usage rows should label their reason as Recent Change instead of a generic quota-status reason", file=sys.stderr)
     sys.exit(1)
 if "quotaTrendDecreasing" in recent_row:
     print("FAIL: Menu recent usage rows should not show old textual trend labels such as 7d -2pt", file=sys.stderr)
@@ -1657,7 +1699,7 @@ assert_match 'StatusBarGlassMetrics\.menuSurfaceOpacity\(for: statusBarTranspare
 assert_match 'StatusBarGlassMetrics\.materialOpacity\(for: transparency\)' \
   "QuotaRadar/Views/Components.swift" \
   "Status bar card material opacity should come from the shared glass metrics"
-assert_match 'transparency <= 0 \? 1\.0 : 0\.62 \+ \(1 - clamped\(transparency\)\) \* 0\.30' \
+assert_match 'transparency <= 0 \? 1\.0 : 0\.78 \+ \(1 - clamped\(transparency\)\) \* 0\.18' \
   "QuotaRadar/Views/Components.swift" \
   "Status bar transparency 0% should be a fully opaque outer surface"
 assert_match 'transparency <= 0 \? 0\.0 : 0\.28 \+ \(1 - clamped\(transparency\)\) \* 0\.62' \
@@ -2240,6 +2282,18 @@ if "ProviderQuotaInlineActivity" not in provider_row or "summary: providerActivi
     sys.exit(1)
 if provider_row.find("ProviderQuotaColumnValue(value: keyQuotaText") > provider_row.find("ProviderQuotaInlineActivity"):
     print("FAIL: Provider quota summary rows should keep the quota value primary and show activity as supporting text below it", file=sys.stderr)
+    sys.exit(1)
+if "private var providerAvailabilityStatusColor: Color" not in provider_row:
+    print("FAIL: Provider quota summary rows should separate availability status color from quota-risk color", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaStatusPill(text: statusText, tint: providerAvailabilityStatusColor)" not in provider_row:
+    print("FAIL: Provider quota status pill should use availability color instead of quota-risk color", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaStatusPill(text: statusText, tint: quotaOverviewRiskColor)" in provider_row:
+    print("FAIL: Provider quota status pill should not turn red only because quota is low", file=sys.stderr)
+    sys.exit(1)
+if "if keys.contains(where: { $0.isExhausted || $0.isLow }) { return L10n.t(.low) }" in provider_row:
+    print("FAIL: Provider quota status text should not collapse low remaining quota into connection status", file=sys.stderr)
     sys.exit(1)
 if "providerSummaryRowBackground" not in source or "providerSummaryRiskAccent" not in source:
     print("FAIL: Provider quota rows should lightly emphasize risk rows without turning the table into cards", file=sys.stderr)

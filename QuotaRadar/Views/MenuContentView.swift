@@ -438,13 +438,28 @@ struct MenuSectionHeader: View {
     }
 }
 
+struct MenuSignalReasonBadge: View {
+    let text: String
+    var tint: Color = .secondary
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(tint.opacity(0.11), in: Capsule())
+    }
+}
+
 struct MenuRiskSummaryCard: View {
     let summary: MenuQuotaSummary
 
     var body: some View {
         MonitorModule(spacing: 9) {
             VStack(alignment: .leading, spacing: 10) {
-                MenuSectionHeader(title: L10n.t(.sidebarStatistics), detail: L10n.t(.quotaStatus))
+                MenuSectionHeader(title: L10n.t(.sidebarStatistics))
 
                 HStack(spacing: 0) {
                     CompactMetricItem(value: "\(summary.lowCount)", label: L10n.t(.low), valueColor: summary.lowCount > 0 ? .orange : .secondary)
@@ -501,7 +516,7 @@ struct MenuProviderOverviewCard: View {
     var body: some View {
         MonitorModule(spacing: 8) {
             VStack(alignment: .leading, spacing: 9) {
-                MenuSectionHeader(title: L10n.t(.providers), detail: L10n.t(.quotaStatus))
+                MenuSectionHeader(title: L10n.t(.providers))
 
                 MenuBoundedScrollRegion {
                     VStack(alignment: .leading, spacing: 9) {
@@ -599,7 +614,7 @@ struct MenuWatchedProviderItemsView: View {
         if !items.isEmpty {
             MonitorModule(spacing: 8) {
                 VStack(alignment: .leading, spacing: 8) {
-                    MenuSectionHeader(title: L10n.t(.watchedProviders), detail: L10n.t(.keyQuota))
+                    MenuSectionHeader(title: L10n.t(.watchedProviders))
 
                     ForEach(items) { item in
                         MenuWatchedProviderItemRow(
@@ -628,7 +643,7 @@ struct MenuLowQuotaItemsView: View {
         if !items.isEmpty {
             MonitorModule(spacing: 8) {
                 VStack(alignment: .leading, spacing: 8) {
-                    MenuSectionHeader(title: L10n.t(.lowQuotaProviders), detail: L10n.t(.keyQuota))
+                    MenuSectionHeader(title: L10n.t(.lowQuotaProviders))
 
                     ForEach(items) { item in
                         MenuCompactQuotaItemRow(
@@ -655,7 +670,7 @@ struct MenuExpiringQuotaItemsView: View {
         if !items.isEmpty {
             MonitorModule(spacing: 8) {
                 VStack(alignment: .leading, spacing: 8) {
-                    MenuSectionHeader(title: L10n.t(.expiringSoon), detail: L10n.t(.criticalTime))
+                    MenuSectionHeader(title: L10n.t(.expiringSoon))
 
                     ForEach(items) { item in
                         MenuExpiringQuotaItemRow(
@@ -683,7 +698,7 @@ struct MenuAttentionItemsView: View {
         if !items.isEmpty {
             MonitorModule(spacing: 9) {
                 VStack(alignment: .leading, spacing: 10) {
-                    MenuSectionHeader(title: L10n.t(.needsAttention), detail: L10n.t(.quotaStatus))
+                    MenuSectionHeader(title: L10n.t(.needsAttention))
 
                     ForEach(items) { item in
                         MenuQuotaItemRow(
@@ -713,7 +728,7 @@ struct MenuRecentUsageItemsView: View {
         if !items.isEmpty {
             MonitorModule(spacing: 8) {
                 VStack(alignment: .leading, spacing: 8) {
-                    MenuSectionHeader(title: L10n.t(.recentProviderUsage), detail: L10n.t(.recentUsageDetail))
+                    MenuSectionHeader(title: L10n.t(.recentProviderUsage))
 
                     ForEach(items) { item in
                         MenuRecentUsageItemRow(
@@ -792,6 +807,8 @@ struct MenuExpiringQuotaItemRow: View {
                             .font(.system(size: 11.5, weight: .semibold))
                             .lineLimit(1)
 
+                        MenuSignalReasonBadge(text: item.signalReason.displayText, tint: .orange)
+
                         if let contextLabel = item.statusBarAccountContextLabel {
                             Text(contextLabel)
                                 .font(.system(size: 10.5, weight: .medium))
@@ -842,6 +859,8 @@ struct MenuWatchedProviderItemRow: View {
                     Text(item.provider.displayName())
                         .font(.system(size: 11.5, weight: .semibold))
                         .lineLimit(1)
+
+                    MenuSignalReasonBadge(text: L10n.t(.watchedProviders), tint: key.status.color)
 
                     if let contextLabel = item.statusBarAccountContextLabel {
                         Text(contextLabel)
@@ -919,6 +938,8 @@ struct MenuRecentUsageItemRow: View {
                         .font(.system(size: 11.5, weight: .semibold))
                         .lineLimit(1)
 
+                    MenuSignalReasonBadge(text: L10n.t(.recentProviderUsage), tint: trendTint)
+
                     if let contextLabel = item.statusBarAccountContextLabel {
                         Text(contextLabel)
                             .font(.system(size: 10.5, weight: .medium))
@@ -974,6 +995,8 @@ struct MenuCompactQuotaItemRow: View {
                         Text(item.provider.displayName())
                             .font(.system(size: 11.5, weight: .semibold))
                             .lineLimit(1)
+
+                        MenuSignalReasonBadge(text: item.signalReason.displayText, tint: .orange)
 
                         if let contextLabel = item.statusBarAccountContextLabel {
                             Text(contextLabel)
@@ -1039,6 +1062,8 @@ struct MenuQuotaItemRow: View {
                     Text(item.provider.displayName())
                         .font(.system(size: 12, weight: .semibold))
                         .lineLimit(1)
+
+                    MenuSignalReasonBadge(text: item.signalReason.displayText, tint: key.status.color)
 
                     if let contextLabel = item.statusBarAccountContextLabel {
                         Text(contextLabel)
