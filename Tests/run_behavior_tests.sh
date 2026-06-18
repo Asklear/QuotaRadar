@@ -2001,7 +2001,7 @@ assert_no_match 'frame\(width: 124, alignment: \.trailing\)' \
 assert_match 'criticalTimeText' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings API key rows should separate reset or package expiry into a compact critical-time column"
-assert_match 'Text\(L10n\.format\(\.updated, updatedText\)\)' \
+assert_match 'value: L10n\.format\(\.updated, updatedText\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings API key rows should keep last-updated text in its own compact column"
 python3 - <<'PY'
@@ -2337,6 +2337,23 @@ for noisy in ["ProviderQuotaActivityHeaderCell()", "QuotaActivityMeter(", "Provi
     if noisy in account_table:
         print("FAIL: Expanded quota account rows should hide low-value activity/status/subtitle details and keep plan, quota, timing, update columns", file=sys.stderr)
         sys.exit(1)
+try:
+    quota_key_row = source.split("struct ProviderQuotaKeyTableRow: View", 1)[1].split("struct ProviderQuotaTimingColumn: View", 1)[0]
+except IndexError:
+    print("FAIL: ProviderQuotaKeyTableRow should exist before timing helpers", file=sys.stderr)
+    sys.exit(1)
+if "struct ProviderQuotaAccountValueText" not in source:
+    print("FAIL: Expanded quota account values should use one shared account-row text style", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaColumnValue(value: criticalTimeText" in quota_key_row:
+    print("FAIL: Expanded quota account critical time should not reuse the larger provider-summary value style", file=sys.stderr)
+    sys.exit(1)
+if quota_key_row.count("ProviderQuotaAccountValueText(") < 3:
+    print("FAIL: Expanded quota account remaining, critical time, and updated columns should share one font size", file=sys.stderr)
+    sys.exit(1)
+if ".font(.system(size: 11" in quota_key_row or ".font(.caption2.weight(.medium))" in quota_key_row:
+    print("FAIL: Expanded quota account value columns should not mix 11pt and caption2 fonts", file=sys.stderr)
+    sys.exit(1)
 if "ProviderQuotaAccountLayout.columnWidths(for:" not in source:
     print("FAIL: Expanded quota account table should calculate column widths from available content width", file=sys.stderr)
     sys.exit(1)

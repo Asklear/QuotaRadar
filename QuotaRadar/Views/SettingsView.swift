@@ -2512,6 +2512,24 @@ struct ProviderQuotaColumnValue: View {
     }
 }
 
+struct ProviderQuotaAccountValueText: View {
+    let value: String
+    var tint: Color = .secondary
+    var weight: Font.Weight = .semibold
+    var design: Font.Design = .default
+    var minimumScaleFactor: CGFloat = 0.72
+
+    var body: some View {
+        Text(value)
+            .font(.system(size: 12, weight: weight, design: design))
+            .foregroundStyle(tint)
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(minimumScaleFactor)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
 struct ProviderQuotaInlineActivity: View {
     let summary: QuotaActivitySummary
     let tint: Color
@@ -2696,22 +2714,25 @@ struct ProviderQuotaKeyTableRow: View {
                 }
             }
         } remaining: {
-            Text(key.remainingBadgeText)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(key.status.color)
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            ProviderQuotaAccountValueText(
+                value: key.remainingBadgeText,
+                tint: key.status.color,
+                weight: .semibold,
+                design: .rounded
+            )
         } criticalTime: {
-            ProviderQuotaColumnValue(value: criticalTimeText, tint: isFocused ? .accentColor : .secondary)
+            ProviderQuotaAccountValueText(
+                value: criticalTimeText,
+                tint: isFocused ? .accentColor : .secondary,
+                weight: .semibold
+            )
         } updated: {
-            Text(L10n.format(.updated, updatedText))
-                .font(.caption2.weight(.medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.62)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+            ProviderQuotaAccountValueText(
+                value: L10n.format(.updated, updatedText),
+                tint: .secondary,
+                weight: .medium,
+                minimumScaleFactor: 0.62
+            )
         }
         .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
         .padding(.vertical, 8)
