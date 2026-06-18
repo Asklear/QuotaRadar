@@ -1962,6 +1962,12 @@ assert_match 'struct QuotaActivitySummary' \
 assert_match 'static func activitySummary' \
   "QuotaRadar/Models/QuotaHistory.swift" \
   "Quota activity should be derived through one shared summary function"
+assert_match 'var consumedPercentPoints: Double\?' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota activity summaries should expose consumed percentage points so menu recency ranking uses the same reset-aware model"
+assert_match 'var consumedUnits: Int\?' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota activity summaries should expose consumed units so money-balance and fixed-quota providers can share menu recency ranking"
 assert_match 'var usedFraction: Double\?' \
   "QuotaRadar/Models/QuotaHistory.swift" \
   "Quota activity summaries should expose an optional usage fraction for compact meters"
@@ -2007,6 +2013,26 @@ assert_no_match 'ProviderQuotaTrendColumn' \
 assert_no_match 'sparklineSamples: monitor\.sparklineSamples\(for: key\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Expanded account rows should not request sparkline samples from QuotaMonitor"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Models/QuotaHistory.swift").read_text()
+try:
+    recent_provider_usage = source.split("static func recentProviderUsageItems", 1)[1].split("private static func shouldRankRecentUsage", 1)[0]
+except IndexError:
+    print("FAIL: recentProviderUsageItems should exist before ranking helpers", file=sys.stderr)
+    sys.exit(1)
+if "QuotaActivitySummary.activitySummary" not in recent_provider_usage:
+    print("FAIL: Menu bar recent changes should use the same reset-aware QuotaActivitySummary as the main activity column", file=sys.stderr)
+    sys.exit(1)
+if "QuotaTrendSummary.trendSummary" in recent_provider_usage:
+    print("FAIL: Menu bar recent changes should not use generic quota trends that can cross reset windows", file=sys.stderr)
+    sys.exit(1)
+if "recentActivityMetrics" not in recent_provider_usage:
+    print("FAIL: Menu bar recent changes should rank from a shared activity metric derived from QuotaActivitySummary", file=sys.stderr)
+    sys.exit(1)
+PY
 python3 - <<'PY'
 from pathlib import Path
 import re
@@ -4541,6 +4567,17 @@ let deepseekActivity = QuotaActivitySummary.activitySummary(
 require(deepseekActivity.kind == .moneyBalance, "Quota activity should classify money-balance spend separately from quota-window consumption")
 require(deepseekActivity.deltaText == "-CNY 4.00", "Quota activity should expose money-balance spend as currency")
 require(deepseekActivity.shouldRender, "Quota activity should render meaningful money-balance spend")
+let deepseekRecoveredActivity = QuotaActivitySummary.activitySummary(
+    for: deepseekTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 850, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 8.50 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 1250, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 12.50 available", httpStatus: 200)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(deepseekRecoveredActivity.kind == .recovered, "DeepSeek balance increases should be classified as recovery instead of consumption")
+require(deepseekRecoveredActivity.deltaText == nil, "DeepSeek balance recovery should not expose a spent delta")
 let wechatTrendKeyID = UUID(uuidString: "15151515-1515-1515-1515-151515151515")!
 let wechatTrendKey = APIKey(
     id: wechatTrendKeyID,
@@ -4632,11 +4669,10 @@ let codexResetAwareSparklineSamples = QuotaSparklineSample.samples(
     ],
     now: trendNow
 )
+require(codexResetAwareSparklineSamples.map { $0.value } == [0.99], "Quota sparkline samples should cut reset-crossing quota history and keep only the current reset segment")
 require(codexResetAwareSparklineSamples.map { $0.resetAt } == [
-    trendNow.addingTimeInterval(24 * 60 * 60),
-    trendNow.addingTimeInterval(24 * 60 * 60),
     trendNow.addingTimeInterval(8 * 24 * 60 * 60)
-], "Quota sparkline samples should preserve window reset timestamps so the UI can split reset-crossing trend lines")
+], "Quota sparkline samples should not connect pre-reset and post-reset quota windows")
 let codexRecoveryActivity = QuotaActivitySummary.activitySummary(
     for: codexTrendKey,
     snapshots: [
@@ -4652,6 +4688,38 @@ let codexRecoveryActivity = QuotaActivitySummary.activitySummary(
 )
 require(codexRecoveryActivity.kind == .recovered, "Quota activity should classify reset-window increases as recovery instead of consumption")
 require(codexRecoveryActivity.deltaText == nil, "Quota activity should not expose a consumed delta for recovered quota")
+let codexResetLowerActivity = QuotaActivitySummary.activitySummary(
+    for: codexTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 9100, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 91%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 91, resetAt: trendNow.addingTimeInterval(24 * 60 * 60))
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 8000, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 80%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 80, resetAt: trendNow.addingTimeInterval(8 * 24 * 60 * 60))
+        ])
+    ],
+    now: trendNow,
+    language: .english
+)
+require(codexResetLowerActivity.kind == .recovered, "Codex reset should cut the old weekly segment even when the first post-reset sample is already below the old-period remaining percentage")
+require(codexResetLowerActivity.deltaText == nil, "Codex reset should not report consumption across different weekly reset windows")
+let codexProviderScopedActivity = QuotaActivitySummary.activitySummary(
+    for: codexTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 9100, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 91%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 91)
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 8500, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 85%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 85)
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .xfyunCodingPlan, credentialName: "XFYUN_CODING_PLAN_COOKIE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 2000, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 20%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 20)
+        ])
+    ],
+    now: trendNow,
+    language: .english
+)
+require(codexProviderScopedActivity.deltaText == "-6pt", "Quota activity should group snapshots by account and provider before comparing a quota window")
 let xfyunTrendKeyID = UUID(uuidString: "13131313-1313-1313-1313-131313131313")!
 let xfyunTrendKey = APIKey(
     id: xfyunTrendKeyID,
@@ -4711,15 +4779,40 @@ require(xfyunFallbackActivity.shouldRender, "Windowed quota activity should fall
 require(xfyunFallbackActivity.periodName == "week", "Windowed quota activity should choose the largest changed window after the largest period is stable")
 require(xfyunFallbackActivity.currentText == "58%", "Windowed quota activity fallback should still show current remaining percentage")
 require(xfyunFallbackActivity.deltaText == "-4pt", "Windowed quota activity fallback should show remaining percentage-point loss")
+let xfyunResetLowerActivity = QuotaActivitySummary.activitySummary(
+    for: xfyunTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: xfyunTrendKeyID, provider: .xfyunCodingPlan, credentialName: "XFYUN_CODING_PLAN_COOKIE", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 9800, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "month 98%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "month", remainingPercent: 98, resetAt: trendNow.addingTimeInterval(24 * 60 * 60))
+        ]),
+        QuotaSnapshot(keyID: xfyunTrendKeyID, provider: .xfyunCodingPlan, credentialName: "XFYUN_CODING_PLAN_COOKIE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 9000, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "month 90%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "month", remainingPercent: 90, resetAt: trendNow.addingTimeInterval(31 * 24 * 60 * 60))
+        ])
+    ],
+    now: trendNow,
+    language: .english
+)
+require(xfyunResetLowerActivity.kind == .recovered, "XFYun monthly reset should cut the old package-period segment even when the first new-period sample is lower than the old period")
+require(xfyunResetLowerActivity.deltaText == nil, "XFYun monthly reset should not report package-period consumption across reset windows")
 let recentTavilyID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
 let recentBraveID = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
 let recentSerperID = UUID(uuidString: "44444444-4444-4444-4444-444444444444")!
 let recentDeepSeekBalanceID = UUID(uuidString: "99999999-9999-9999-9999-999999999999")!
+let recentXFYunWindowID = UUID(uuidString: "99999999-1111-2222-3333-999999999999")!
+let recentCodexResetID = UUID(uuidString: "99999999-2222-3333-4444-999999999999")!
 let recentStats = [
     ProviderStats(provider: .tavily, keys: [APIKey(id: recentTavilyID, name: "TAVILY_ACTIVE", key: "tvly-active", provider: .tavily, remaining: 600, limit: 1000)]),
     ProviderStats(provider: .brave, keys: [APIKey(id: recentBraveID, name: "BRAVE_ACTIVE", key: "brave-active", provider: .brave, remaining: 850, limit: 1000)]),
     ProviderStats(provider: .serper, keys: [APIKey(id: recentSerperID, name: "SERPER_FALLBACK", key: "serper-active", provider: .serper, remaining: 1000, limit: 1000, usageCount: 100, lastUsed: trendNow)]),
-    ProviderStats(provider: .deepseek, keys: [APIKey(id: recentDeepSeekBalanceID, name: "DEEPSEEK_BALANCE", key: "sk-deepseek", provider: .deepseek, remaining: 1750)])
+    ProviderStats(provider: .deepseek, keys: [APIKey(id: recentDeepSeekBalanceID, name: "DEEPSEEK_BALANCE", key: "sk-deepseek", provider: .deepseek, remaining: 1750)]),
+    ProviderStats(provider: .xfyunCodingPlan, keys: [APIKey(id: recentXFYunWindowID, name: "XFYUN_RECENT_WINDOW", key: "xfyun-cookie", provider: .xfyunCodingPlan, remaining: 4760, limit: 10000, quotaText: .quotaWindows([
+        QuotaWindowText(name: "5h", percentText: "50%"),
+        QuotaWindowText(name: "week", percentText: "50%"),
+        QuotaWindowText(name: "month", percentText: "47.6%")
+    ]))]),
+    ProviderStats(provider: .codexSubscription, keys: [APIKey(id: recentCodexResetID, name: "CODEX_RESET_WINDOW", key: "codex-session", provider: .codexSubscription, remaining: 8000, limit: 10000, quotaText: .quotaWindows([
+        QuotaWindowText(name: "week", percentText: "80%")
+    ]))])
 ]
 let recentUsageSnapshots = [
     QuotaSnapshot(keyID: recentTavilyID, provider: .tavily, credentialName: "TAVILY_ACTIVE", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
@@ -4727,12 +4820,28 @@ let recentUsageSnapshots = [
     QuotaSnapshot(keyID: recentBraveID, provider: .brave, credentialName: "BRAVE_ACTIVE", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
     QuotaSnapshot(keyID: recentBraveID, provider: .brave, credentialName: "BRAVE_ACTIVE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 850, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
     QuotaSnapshot(keyID: recentDeepSeekBalanceID, provider: .deepseek, credentialName: "DEEPSEEK_BALANCE", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 2000, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "¥20.00", httpStatus: 200),
-    QuotaSnapshot(keyID: recentDeepSeekBalanceID, provider: .deepseek, credentialName: "DEEPSEEK_BALANCE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 1750, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "¥17.50", httpStatus: 200)
+    QuotaSnapshot(keyID: recentDeepSeekBalanceID, provider: .deepseek, credentialName: "DEEPSEEK_BALANCE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 1750, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "¥17.50", httpStatus: 200),
+    QuotaSnapshot(keyID: recentXFYunWindowID, provider: .xfyunCodingPlan, credentialName: "XFYUN_RECENT_WINDOW", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 4760, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 62% · week 62% · month 47.6%", httpStatus: 200, quotaWindows: [
+        QuotaWindowSnapshot(name: "5h", remainingPercent: 62),
+        QuotaWindowSnapshot(name: "week", remainingPercent: 62),
+        QuotaWindowSnapshot(name: "month", remainingPercent: 47.6)
+    ]),
+    QuotaSnapshot(keyID: recentXFYunWindowID, provider: .xfyunCodingPlan, credentialName: "XFYUN_RECENT_WINDOW", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 4760, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 50% · week 50% · month 47.6%", httpStatus: 200, quotaWindows: [
+        QuotaWindowSnapshot(name: "5h", remainingPercent: 50),
+        QuotaWindowSnapshot(name: "week", remainingPercent: 50),
+        QuotaWindowSnapshot(name: "month", remainingPercent: 47.6)
+    ]),
+    QuotaSnapshot(keyID: recentCodexResetID, provider: .codexSubscription, credentialName: "CODEX_RESET_WINDOW", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 9100, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 91%", httpStatus: 200, quotaWindows: [
+        QuotaWindowSnapshot(name: "week", remainingPercent: 91, resetAt: trendNow.addingTimeInterval(24 * 60 * 60))
+    ]),
+    QuotaSnapshot(keyID: recentCodexResetID, provider: .codexSubscription, credentialName: "CODEX_RESET_WINDOW", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 8000, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 80%", httpStatus: 200, quotaWindows: [
+        QuotaWindowSnapshot(name: "week", remainingPercent: 80, resetAt: trendNow.addingTimeInterval(8 * 24 * 60 * 60))
+    ])
 ]
-let recentUsageItems = MenuQuotaItem.recentProviderUsageItems(from: recentStats, snapshots: recentUsageSnapshots, limit: 3, providerOrder: [.serper, .brave, .tavily, .deepseek], now: trendNow)
-require(recentUsageItems.map { $0.key.name } == ["TAVILY_ACTIVE", "BRAVE_ACTIVE", "DEEPSEEK_BALANCE"], "Recent provider usage should include money-balance providers with snapshot-derived balance depletion")
-let excludedRecentUsageItems = MenuQuotaItem.recentProviderUsageItems(from: recentStats, snapshots: recentUsageSnapshots, limit: 3, providerOrder: [.serper, .brave, .tavily, .deepseek], excluding: [recentTavilyID], now: trendNow)
-require(excludedRecentUsageItems.map { $0.key.name } == ["BRAVE_ACTIVE", "DEEPSEEK_BALANCE"], "Recent provider usage should allow menu risk sections to exclude already surfaced credentials without falling back to legacy usage counts")
+let recentUsageItems = MenuQuotaItem.recentProviderUsageItems(from: recentStats, snapshots: recentUsageSnapshots, limit: 4, providerOrder: [.serper, .brave, .tavily, .xfyunCodingPlan, .codexSubscription, .deepseek], now: trendNow)
+require(recentUsageItems.map { $0.key.name } == ["TAVILY_ACTIVE", "XFYUN_RECENT_WINDOW", "BRAVE_ACTIVE", "DEEPSEEK_BALANCE"], "Recent provider usage should use reset-aware activity summaries, include windowed providers, and exclude reset-crossing Codex windows")
+let excludedRecentUsageItems = MenuQuotaItem.recentProviderUsageItems(from: recentStats, snapshots: recentUsageSnapshots, limit: 4, providerOrder: [.serper, .brave, .tavily, .xfyunCodingPlan, .codexSubscription, .deepseek], excluding: [recentTavilyID], now: trendNow)
+require(excludedRecentUsageItems.map { $0.key.name } == ["XFYUN_RECENT_WINDOW", "BRAVE_ACTIVE", "DEEPSEEK_BALANCE"], "Recent provider usage should allow menu risk sections to exclude already surfaced credentials without falling back to legacy usage counts")
 let lowSignalRecentID = UUID(uuidString: "77777777-7777-7777-7777-777777777777")!
 let meaningfulRecentID = UUID(uuidString: "88888888-8888-8888-8888-888888888888")!
 let attentionFeedRecentStats = [
