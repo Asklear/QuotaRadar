@@ -2157,10 +2157,10 @@ struct ProviderQuotaAccountGridRow<PlanCell: View, RemainingCell: View, Critical
                     .frame(width: widths.remaining, height: height, alignment: .leading)
 
                 criticalTime
-                    .frame(width: widths.criticalTime, height: height, alignment: .trailing)
+                    .frame(width: widths.criticalTime, height: height, alignment: .leading)
 
                 updated
-                    .frame(width: widths.updated, height: height, alignment: .trailing)
+                    .frame(width: widths.updated, height: height, alignment: .leading)
             }
             .frame(width: proxy.size.width, height: height, alignment: .leading)
         }
@@ -2641,17 +2641,23 @@ struct ProviderQuotaEmptyKeyRow: View {
 struct ProviderQuotaKeyTableHeader: View {
     var body: some View {
         ProviderQuotaAccountGridRow(height: 18) {
-            Text(L10n.t(.plan))
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color.clear)
+                    .frame(width: 6, height: 6)
+
+                Text(L10n.t(.plan))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         } remaining: {
             Text(L10n.t(.remaining))
                 .frame(maxWidth: .infinity, alignment: .leading)
         } criticalTime: {
             Text(L10n.t(.criticalTime))
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .leading)
         } updated: {
             Text(L10n.t(.lastUpdated))
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .font(.caption2.weight(.semibold))
         .foregroundStyle(.tertiary)

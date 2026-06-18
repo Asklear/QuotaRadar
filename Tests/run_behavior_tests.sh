@@ -2372,6 +2372,19 @@ if "remaining\n                    .frame(width: widths.remaining, height: heigh
 if "Text(L10n.t(.remaining))\n                .frame(maxWidth: .infinity, alignment: .leading)" not in account_table:
     print("FAIL: Expanded quota account remaining header should align with remaining values", file=sys.stderr)
     sys.exit(1)
+for column in ["criticalTime", "updated"]:
+    marker = f"{column}\n                    .frame(width: widths.{column}, height: height, alignment: .leading)"
+    if marker not in account_grid:
+        print(f"FAIL: Expanded quota account {column} cells should share the same left boundary as their headers", file=sys.stderr)
+        sys.exit(1)
+for key, label in [("criticalTime", ".criticalTime"), ("lastUpdated", ".lastUpdated")]:
+    marker = f"Text(L10n.t({label}))\n                .frame(maxWidth: .infinity, alignment: .leading)"
+    if marker not in account_table:
+        print(f"FAIL: Expanded quota account {key} header should align with its values", file=sys.stderr)
+        sys.exit(1)
+if "Circle()\n                    .fill(Color.clear)" not in account_table:
+    print("FAIL: Expanded quota account plan header should reserve the same status-dot slot as account rows", file=sys.stderr)
+    sys.exit(1)
 if "totalWidthBudget" in account_table:
     print("FAIL: Expanded quota account table should not keep a fixed left-anchored total width budget", file=sys.stderr)
     sys.exit(1)
