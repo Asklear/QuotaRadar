@@ -713,6 +713,18 @@ assert_match '@State private var showingCostlyRefreshConfirmation = false' \
 assert_match 'provider\.capability\.requiresCostlyConfirmation' \
   "QuotaRadar/Views/Components.swift" \
   "The provider refresh gate should use ProviderCapability for costly-check semantics"
+assert_match 'private var defaultActionLabel: String' \
+  "QuotaRadar/Views/Components.swift" \
+  "Provider refresh controls should derive a provider-aware default tooltip for every surface"
+assert_match 'provider\.capability\.requiresCostlyConfirmation \? L10n\.t\(\.refreshQuotaConsumesQuotaAction\)' \
+  "QuotaRadar/Views/Components.swift" \
+  "Provider refresh controls should warn about costly refresh even when callers omit a custom label"
+assert_match 'helpText \?\? defaultActionLabel' \
+  "QuotaRadar/Views/Components.swift" \
+  "Provider refresh controls should use the provider-aware default tooltip"
+assert_match 'accessibilityLabelText \?\? defaultActionLabel' \
+  "QuotaRadar/Views/Components.swift" \
+  "Provider refresh controls should expose the provider-aware default accessibility label"
 assert_match 'confirmationDialog\(L10n\.t\(\.costlyQuotaRefreshTitle\)' \
   "QuotaRadar/Views/Components.swift" \
   "Costly refresh confirmation should use refresh-specific wording instead of connection-test wording"

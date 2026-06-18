@@ -467,13 +467,19 @@ struct ProviderRefreshButton: View {
 
     @State private var showingCostlyRefreshConfirmation = false
 
+    private var defaultActionLabel: String {
+        isRefreshing ? L10n.t(.refreshingQuotaAction) :
+            provider.capability.requiresCostlyConfirmation ? L10n.t(.refreshQuotaConsumesQuotaAction) :
+            L10n.t(.refreshQuotaAction)
+    }
+
     var body: some View {
         RefreshButton(
             isRefreshing: $isRefreshing,
             isEnabled: isEnabled,
             size: size,
-            helpText: helpText,
-            accessibilityLabelText: accessibilityLabelText,
+            helpText: helpText ?? defaultActionLabel,
+            accessibilityLabelText: accessibilityLabelText ?? defaultActionLabel,
             action: requestRefresh
         )
         .confirmationDialog(L10n.t(.costlyQuotaRefreshTitle), isPresented: $showingCostlyRefreshConfirmation, titleVisibility: .visible) {
