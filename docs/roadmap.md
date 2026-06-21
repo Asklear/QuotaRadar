@@ -41,20 +41,22 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Refresh README screenshots with window/panel captures only, avoiding desktop backgrounds in release-facing images.
 - [x] Bump version metadata and release notes for `v0.3.6`.
 
-## v0.3.7 Refresh Trust
+## v0.3.7 Monitoring Trust And Attention
 
 - [x] Add a compact last-refresh status marker beside Last Updated in expanded provider rows, so users can see whether the latest refresh updated, had no change, failed, or was skipped without adding a history list.
 - [x] Keep refresh consumption deltas on the quota/activity metric itself; Last Updated now shows status only and does not repeat amounts such as `-7pt`.
 - [x] Record automatic refresh skips as quota history snapshots, so costly/manual-only providers explain why no provider request was made.
 - [x] Keep refresh history reset-aware and balance-aware: top-ups and quota resets are recovery events, while money-balance drops render as currency deltas.
-- [x] Calibrate the Roadmap so completed capability/action semantics, quota snapshots, localStorage token capture, and visual QA are not listed as open starting work.
-
-## v0.3.8 Predictive Attention
-
 - [x] Add reset-aware consumption-speed hints. They render only when the current reset segment has enough history and the current pace is likely to cross the 20% low-quota threshold soon.
 - [x] Preserve period names for multi-window providers such as weekly/monthly quotas, and avoid treating the first low sample after a reset as fast consumption.
 - [x] Add recovery local notifications. Recent reset or top-up recoveries now send a `Quota recovered` notification through the existing permission and event-dedupe pipeline.
 - [x] Keep the monitor UI lightweight: speed hints stay as a short inline state below Key Quota, without adding columns or history lists.
+- [x] Add dense-account visual QA for a single provider with many accounts, long localized plan names, long account labels, and long diagnostics.
+- [x] Add provider trust calibration metadata in code and document last verified time plus fallback behavior when provider fields drift.
+- [x] Tighten the menu bar attention feed so rows stay short, action-first, and less metadata-heavy.
+- [x] Make menu-bar-to-main-window handoff fall back to the most relevant account when provider-level signals are collapsed.
+- [x] Add credential metadata export for backup/debugging without exporting raw API keys, cookies, tokens, or authorization values.
+- [x] Refresh README screenshots with the latest fixture-based main-window and menu-bar captures for English and Simplified Chinese.
 
 ## Completed In v0.2.0
 

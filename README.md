@@ -12,7 +12,7 @@ Quota Radar is a macOS menu bar app for monitoring search API balances and LLM c
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Current version: `v0.3.6`.
+Current version: `v0.3.7`.
 
 ## Screenshots
 
@@ -90,8 +90,8 @@ open build/QuotaRadar.dmg
 Manual GitHub Release upload:
 
 ```bash
-gh release create v0.3.6 build/QuotaRadar.dmg \
-  --title "Quota Radar v0.3.6" \
+gh release create v0.3.7 build/QuotaRadar.dmg \
+  --title "Quota Radar v0.3.7" \
   --notes "Unsigned DMG for trusted users. macOS may require removing quarantine on first launch."
 ```
 

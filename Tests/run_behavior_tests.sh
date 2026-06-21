@@ -59,9 +59,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.3\.6' \
+assert_match '0\.3\.7' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.3.6 should be recorded in Info.plist"
+  "Quota Radar 0.3.7 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -1614,9 +1614,12 @@ assert_match 'quotaOverviewRiskColor' \
 assert_match 'navigationStore\.focusedProvider == provider' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Quota overview provider rows should know when they are focused from the menu bar"
-assert_match 'navigationStore\.focusedCredentialID == key\.id' \
+assert_match 'focusedCredentialIDForDisplay == key\.id' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Expanded provider account rows should know when they are the exact menu-bar target"
+  "Expanded provider account rows should use the exact or fallback menu-bar focus target"
+assert_match 'fallbackFocusedCredential' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider-collapsed menu bar signals should fall back to the most relevant account in the main window"
 assert_match 'MenuSignalReason' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Quota overview provider rows should be able to explain why the menu bar opened them"

@@ -41,16 +41,20 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
-            - Added a Settings color-scheme control for Follow System, Light Mode, and Dark Mode.
-            - Fixed live color-scheme switching so existing windows and menu bar popovers update immediately.
-            - Continued menu bar polish with de-duplicated provider signals, watched providers, and balance-provider Recent Change entries.
-            - Refreshed README screenshots with app-window and popover-only captures, avoiding desktop backgrounds in release-facing images.
+            - Tightened the menu bar into a shorter Attention Feed with fewer duplicate metadata lines.
+            - Made menu-bar-to-main-window handoff more reliable by focusing the most relevant account when a provider-level signal is collapsed.
+            - Added provider trust calibration metadata and documented fallback behavior when provider fields drift.
+            - Added credential metadata export for backup/debugging without exporting API keys, cookies, tokens, or authorization values.
+            - Expanded visual QA with dense single-provider account fixtures and refreshed README screenshots.
+            - Added reset-aware speed hints and recovery notifications while keeping Last Updated focused on refresh status only.
 
             中文说明：
-            - 设置页新增配色模式：跟随系统、浅色模式、深色模式。
-            - 修复运行中切换配色模式不立即生效的问题，主窗口和状态栏弹窗无需重启即可更新。
-            - 继续打磨状态栏：按 provider 去重、支持常看 provider，并让余额类 provider 进入近期变化。
-            - 刷新 README 截图，只使用 app 窗口和状态栏弹窗截图，避免把桌面背景截入发布文档。
+            - 将状态栏继续收紧为短小的 Attention Feed，减少重复 metadata。
+            - 当状态栏信号按 provider 折叠时，主程序会自动聚焦最相关账号，提升从状态栏跳转回主窗口的可靠性。
+            - 增加 provider 可信度校准 metadata，并记录接口字段漂移时的降级口径。
+            - 增加凭据 metadata 导出，便于备份和排查问题，但不导出 API key、Cookie、token 或授权值。
+            - 扩展密集账号视觉 QA，并刷新 README 截图。
+            - 增加 reset-aware 消耗速度提示和恢复通知，同时让“上次更新”只表达刷新状态。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.
 

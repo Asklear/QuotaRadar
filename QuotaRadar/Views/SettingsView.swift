@@ -2462,7 +2462,7 @@ struct ProviderQuotaMonitorRow: View {
 
     private var providerSummaryRowBackground: Color {
         if navigationStore.focusedProvider == provider {
-            return Color.accentColor.opacity(0.075)
+            return Color.accentColor.opacity(0.11)
         }
         return quotaOverviewNeedsAttention ? quotaOverviewRiskColor.opacity(0.038) : Color.clear
     }
@@ -2477,6 +2477,48 @@ struct ProviderQuotaMonitorRow: View {
 
     private var providerSubtitleText: String {
         focusedMenuSignalReasonText ?? provider.planTypeDisplayName() ?? L10n.categoryTitle(provider.statusBarCategoryTitle)
+    }
+
+    private var focusedCredentialIDForDisplay: UUID? {
+        guard navigationStore.focusedProvider == provider else { return nil }
+
+        if let focusedCredentialID = navigationStore.focusedCredentialID,
+           keys.contains(where: { $0.id == focusedCredentialID }) {
+            return focusedCredentialID
+        }
+
+        return fallbackFocusedCredential?.id
+    }
+
+    private var fallbackFocusedCredential: APIKey? {
+        guard navigationStore.focusedProvider == provider else { return nil }
+
+        switch navigationStore.focusedMenuSignalReason {
+        case .lowQuota:
+            return keys.first(where: { $0.needsLowQuotaStatusBarAttention })
+                ?? keys.first(where: { $0.isLow || $0.isExhausted })
+                ?? stat.mostConstrainedActiveMonitoringKey
+        case .exhausted:
+            return keys.first(where: { $0.isUsageLimitExceeded || $0.isExhausted })
+                ?? stat.mostConstrainedActiveMonitoringKey
+        case .failed:
+            return keys.first(where: { $0.status == .failed })
+                ?? keys.first(where: { $0.hasSchemaDriftDiagnostic })
+        case .schemaDrift:
+            return keys.first(where: { $0.hasSchemaDriftDiagnostic })
+                ?? keys.first(where: { $0.status == .failed })
+        case .credentialExpired:
+            return keys.first(where: { $0.isCredentialExpired })
+        case .expiringSoon:
+            return keys.first(where: { $0.expiresSoonForStatusBar })
+        case .stale:
+            return keys.first(where: { $0.lastUpdated == nil })
+        case .recentActivity:
+            return keys.first(where: { $0.usageCount > 0 || $0.lastUsed != nil })
+                ?? stat.mostConstrainedActiveMonitoringKey
+        case .unknown, nil:
+            return stat.mostConstrainedActiveMonitoringKey ?? keys.first
+        }
     }
 
     @ViewBuilder
@@ -2505,7 +2547,7 @@ struct ProviderQuotaMonitorRow: View {
                             ProviderQuotaAccountGroup(
                                 key: key,
                                 latestRefreshHistoryItem: monitor.refreshHistoryItems(for: key).first,
-                                isFocused: navigationStore.focusedCredentialID == key.id,
+                                isFocused: focusedCredentialIDForDisplay == key.id,
                                 focusedReason: navigationStore.focusedMenuSignalReason
                             )
                         }
@@ -2859,7 +2901,7 @@ struct ProviderQuotaKeyTableRow: View {
     }
 
     private var rowBackground: Color {
-        isFocused ? Color.accentColor.opacity(0.09) : Color.primary.opacity(0.022)
+        isFocused ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.022)
     }
 
     var body: some View {
@@ -3002,7 +3044,7 @@ struct ProviderQuotaAccountGroup: View {
     }
 
     private var rowBackground: Color {
-        isFocused ? Color.accentColor.opacity(0.09) : Color.primary.opacity(0.026)
+        isFocused ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.026)
     }
 
     var body: some View {

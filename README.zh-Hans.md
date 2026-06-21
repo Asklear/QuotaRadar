@@ -12,7 +12,7 @@ Quota Radar 是一个 macOS 状态栏应用，用来监控搜索 API 余额和 L
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-当前版本：`v0.3.6`。
+当前版本：`v0.3.7`。
 
 ## 界面预览
 
@@ -97,8 +97,8 @@ open build/QuotaRadar.dmg
 手动发布到 GitHub Release：
 
 ```bash
-gh release create v0.3.6 build/QuotaRadar.dmg \
-  --title "Quota Radar v0.3.6" \
+gh release create v0.3.7 build/QuotaRadar.dmg \
+  --title "Quota Radar v0.3.7" \
   --notes "Unsigned DMG for trusted users. macOS may require removing quarantine on first launch."
 ```
 
