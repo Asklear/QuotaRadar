@@ -909,6 +909,87 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    var trustCalibration: ProviderTrustCalibration {
+        switch self {
+        case .deepseek:
+            return .verified(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Official balance endpoint and local balance snapshots",
+                fallbackBehavior: "Treat balance increases as top-up or recovery, not consumption."
+            )
+        case .xfyunCodingPlan:
+            return .verified(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Coding-plan package list with three usage windows",
+                fallbackBehavior: "Convert used counts to remaining/total; schema drift falls back to recalibration diagnostics."
+            )
+        case .volcengineCodingPlan:
+            return .verified(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Coding-plan usage and subscription trade endpoints",
+                fallbackBehavior: "Keep percentage windows and low-churn plan metadata; schema drift asks for recalibration."
+            )
+        case .claudeSubscription:
+            return .verified(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Organization usage plus subscription details",
+                fallbackBehavior: "Show observed five-hour and weekly windows only; schema drift asks for recalibration."
+            )
+        case .codexSubscription:
+            return .verified(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "ChatGPT session, Codex usage, and subscription lifecycle endpoints",
+                fallbackBehavior: "Use ChatGPT account lifecycle for plan end; schema drift asks for recalibration."
+            )
+        case .tavily:
+            return .verified(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Official usage endpoint and independent key snapshots",
+                fallbackBehavior: "Stable zero balance remains a quota state, not schema drift."
+            )
+        case .brave:
+            return .watchlist(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Search response headers when exposed",
+                fallbackBehavior: "If monthly quota is hidden, show usable quota-unknown and keep checks manual/costly."
+            )
+        case .serpapi, .serper, .bocha, .wxmp:
+            return .watchlist(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Provider account or balance endpoint parser retained",
+                fallbackBehavior: "If numeric quota is not exposed, keep the credential usable with quota unknown."
+            )
+        case .exa, .querit:
+            return .watchlist(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Usage-only account evidence",
+                fallbackBehavior: "Do not invent quota limits; show usable quota-unknown until limits are exposed."
+            )
+        case .kimiSubscription, .opencodeGo, .aliyunCodingPlan, .tencentCloudCodingPlan:
+            return .watchlist(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Dashboard subscription endpoint parser retained",
+                fallbackBehavior: "Schema drift asks for recalibration instead of treating the credential as invalid."
+            )
+        case .anysearch:
+            return .verified(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Local unlimited-quota policy",
+                fallbackBehavior: "No remote quota endpoint is expected."
+            )
+        case .anthropic, .claudeAPIUsage, .codexAPIUsage:
+            return .unsupported(
+                evidence: "Hidden from quota-monitoring UI because subscription and admin API usage are separate surfaces",
+                fallbackBehavior: "Keep unavailable until an observable user quota endpoint is confirmed."
+            )
+        case .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan, .tencentCloudTokenPlan:
+            return .pending(
+                evidence: "Provider case and parser hooks retained for future non-empty plan samples",
+                fallbackBehavior: "Hidden from UI, import, and refresh until stable quota fields are confirmed."
+            )
+        }
+    }
+
     private var quotaDataCapabilitySource: ProviderCapability.UsageSource {
         switch self {
         case .brave:
@@ -949,6 +1030,70 @@ enum QuotaActionKind: String, Equatable {
     case testConnection
     case refreshQuota
     case costlyCheck
+}
+
+enum ProviderCalibrationStatus: String, Codable, Equatable {
+    case verified
+    case watchlist
+    case pending
+    case unsupported
+}
+
+struct ProviderTrustCalibration: Codable, Equatable {
+    let status: ProviderCalibrationStatus
+    let lastVerifiedAt: String?
+    let evidence: String
+    let fallbackBehavior: String
+
+    static func verified(
+        lastVerifiedAt: String,
+        evidence: String,
+        fallbackBehavior: String
+    ) -> ProviderTrustCalibration {
+        ProviderTrustCalibration(
+            status: .verified,
+            lastVerifiedAt: lastVerifiedAt,
+            evidence: evidence,
+            fallbackBehavior: fallbackBehavior
+        )
+    }
+
+    static func watchlist(
+        lastVerifiedAt: String,
+        evidence: String,
+        fallbackBehavior: String
+    ) -> ProviderTrustCalibration {
+        ProviderTrustCalibration(
+            status: .watchlist,
+            lastVerifiedAt: lastVerifiedAt,
+            evidence: evidence,
+            fallbackBehavior: fallbackBehavior
+        )
+    }
+
+    static func pending(
+        evidence: String,
+        fallbackBehavior: String
+    ) -> ProviderTrustCalibration {
+        ProviderTrustCalibration(
+            status: .pending,
+            lastVerifiedAt: nil,
+            evidence: evidence,
+            fallbackBehavior: fallbackBehavior
+        )
+    }
+
+    static func unsupported(
+        evidence: String,
+        fallbackBehavior: String
+    ) -> ProviderTrustCalibration {
+        ProviderTrustCalibration(
+            status: .unsupported,
+            lastVerifiedAt: nil,
+            evidence: evidence,
+            fallbackBehavior: fallbackBehavior
+        )
+    }
 }
 
 struct ProviderCapability: Equatable {
@@ -1189,6 +1334,7 @@ enum MenuSignalReason: String, Codable, Equatable {
     case lowQuota
     case exhausted
     case expiringSoon
+    case schemaDrift
     case failed
     case credentialExpired
     case stale
@@ -1203,6 +1349,8 @@ enum MenuSignalReason: String, Codable, Equatable {
             return L10n.t(.usageLimitExceeded)
         case .expiringSoon:
             return L10n.t(.expiringSoon)
+        case .schemaDrift:
+            return L10n.t(.recalibrateProvider)
         case .failed:
             return L10n.t(.failed)
         case .credentialExpired:
@@ -1255,6 +1403,9 @@ struct MenuQuotaItem: Identifiable, Equatable {
         }
         if key.isUsageLimitExceeded || key.isExhausted {
             return .exhausted
+        }
+        if key.hasSchemaDriftDiagnostic {
+            return .schemaDrift
         }
         if key.status == .failed {
             return .failed
@@ -1779,6 +1930,11 @@ struct APIKey: Identifiable, Codable, Equatable {
                 return "검색 가능 · 월간 할당량 비공개"
             }
         }
+        if isExhausted, !isUsageLimitExceeded {
+            let reset = visibleQuotaResetSummary
+            guard !reset.isEmpty else { return L10n.t(.healthExhausted) }
+            return "\(L10n.t(.healthExhausted)) · \(reset)"
+        }
         return quotaDisplayText
     }
 
@@ -1870,6 +2026,17 @@ struct APIKey: Identifiable, Codable, Equatable {
         guard isActive, !key.isEmpty else { return false }
         guard !isStoredAPIKeyOnlyCredential else { return false }
         return isCredentialExpired || isUsageLimitExceeded || isExhausted || status == .failed
+    }
+
+    var hasSchemaDriftDiagnostic: Bool {
+        if lastDiagnosticText?.key == .quotaErrorSchemaDrift {
+            return true
+        }
+        guard let lastDiagnosticMessage = lastDiagnosticMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !lastDiagnosticMessage.isEmpty else {
+            return false
+        }
+        return L10n.localizedValues(for: .quotaErrorSchemaDrift).contains(lastDiagnosticMessage)
     }
 
     var needsLowQuotaStatusBarAttention: Bool {
@@ -2057,6 +2224,7 @@ struct APIKey: Identifiable, Codable, Equatable {
         if isStoredAPIKeyOnlyCredential || isBusinessInvocationCredential { return .usable }
         if provider.quotaCheckConsumesSearchQuota, lastUpdated == nil { return .checkConsumesQuota }
         if isCredentialExpired { return .credentialExpired }
+        if hasSchemaDriftDiagnostic { return .needsRecalibration }
         if status == .failed { return .checkFailed }
         if isUsableWithUnknownQuota || isUnsupportedQuotaCheckState { return .quotaUnavailable }
         if remaining != nil || lastHTTPStatus == 200 { return .usable }
@@ -2093,6 +2261,9 @@ struct APIKey: Identifiable, Codable, Equatable {
         case .usableUnknown:
             return L10n.t(.usableUnknownQuota)
         case .failed:
+            if hasSchemaDriftDiagnostic {
+                return L10n.t(.needsRecalibration)
+            }
             return L10n.t(.healthFailed)
         case .disabled:
             return L10n.t(.disabled)
@@ -2176,6 +2347,7 @@ enum CredentialConfigurationState: String {
     case credentialExpired
     case quotaUnavailable
     case checkConsumesQuota
+    case needsRecalibration
     case checkFailed
 
     var displayText: String {
@@ -2192,6 +2364,8 @@ enum CredentialConfigurationState: String {
             return L10n.t(.credentialStateQuotaUnavailable)
         case .checkConsumesQuota:
             return L10n.t(.credentialStateCheckConsumesQuota)
+        case .needsRecalibration:
+            return L10n.t(.needsRecalibration)
         case .checkFailed:
             return L10n.t(.credentialStateCheckFailed)
         }
@@ -2203,7 +2377,7 @@ enum CredentialConfigurationState: String {
             return .green
         case .configuredUntested, .quotaUnavailable, .checkConsumesQuota:
             return .orange
-        case .credentialExpired, .checkFailed:
+        case .credentialExpired, .needsRecalibration, .checkFailed:
             return .red
         case .notConfigured:
             return .gray
@@ -2315,7 +2489,7 @@ struct ProviderStats: Identifiable {
         if usesPercentageQuota {
             return tightestQuotaWindowDisplay ?? totalRemainingDisplayText
         }
-        return tightestActiveMonitoringKey?.remainingBadgeText
+        return tightestActiveUsableMonitoringKey?.remainingBadgeText
             ?? tightestActiveMonitoringKey?.quotaPresentation.primaryText
             ?? totalRemainingDisplayText
     }
@@ -2573,6 +2747,17 @@ struct ProviderStats: Identifiable {
         tightestActiveMonitoringKey
     }
 
+    private var tightestActiveUsableMonitoringKey: APIKey? {
+        sortedMonitoringKeysByCurrentQuota.last { key in
+            key.isActive
+                && !key.key.isEmpty
+                && !key.isCredentialExpired
+                && !key.isUsageLimitExceeded
+                && !key.isExhausted
+                && key.status != .failed
+        }
+    }
+
     private var usableMonitoringCredentialCount: Int {
         monitoredKeys.filter { key in
             key.isActive
@@ -2657,6 +2842,7 @@ struct CredentialDiagnosticItem: Identifiable, Equatable {
     var diagnosticStatusText: String {
         guard statusKey.isActive else { return L10n.t(.disabled) }
         if statusKey.isCredentialExpired { return L10n.t(.expired) }
+        if statusKey.hasSchemaDriftDiagnostic { return L10n.t(.needsRecalibration) }
         if statusKey.status == .failed { return L10n.t(.healthFailed) }
         if statusKey.lastHTTPStatus == nil,
            statusKey.lastDiagnosticMessage == nil,

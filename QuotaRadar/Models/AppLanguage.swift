@@ -116,6 +116,12 @@ struct LocalizedTextDescriptor: Codable, Equatable {
             return .localized(.quotaCheckNotSupportedDiagnostic)
         case "Invalid response from server", "服务器响应无效", "伺服器回應無效", "サーバー応答が無効です", "서버 응답이 올바르지 않습니다":
             return .localized(.quotaErrorInvalidResponse)
+        case "Provider quota fields may have changed. Recalibrate this provider.",
+             "接口字段可能变化，请重新校准该服务商。",
+             "介面欄位可能已變更，請重新校準此服務商。",
+             "プロバイダーのクォータ項目が変更された可能性があります。このプロバイダーを再校正してください。",
+             "공급자의 할당량 필드가 변경되었을 수 있습니다. 이 공급자를 다시 보정하세요.":
+            return .localized(.quotaErrorSchemaDrift)
         case "Rate limit exceeded":
             return .localized(.quotaErrorRateLimited)
         case "Invalid API key", "API Key 无效", "API Key 無效", "API キーが無効です", "API 키가 유효하지 않습니다":
@@ -313,6 +319,9 @@ enum L10n {
         case apiKeyConfiguration
         case apiKeyConfigurationDescription
         case importFromEnv
+        case exportCredentialMetadata
+        case exportCredentialMetadataSuccess
+        case exportCredentialMetadataFailed
         case addKey
         case language
         case languageTitle
@@ -408,6 +417,8 @@ enum L10n {
         case plan
         case lowQuotaProviders
         case expiringSoon
+        case recalibrateProvider
+        case needsRecalibration
         case recentProviderUsage
         case recentUsageDetail
         case hiddenQuotaSignalCount
@@ -506,8 +517,11 @@ enum L10n {
         case quotaTrendStable
         case quotaRefreshDeltaConsumed
         case quotaRefreshDeltaNoChange
+        case quotaRefreshMarkerUpdated
+        case quotaRefreshMarkerNoChange
         case quotaRefreshDeltaRecovered
         case quotaRefreshDeltaFailed
+        case quotaSpeedFastUse
         case resetsMonthlyDay1
         case noResetCycle
         case resetNotExposed
@@ -520,6 +534,8 @@ enum L10n {
         case notificationCredentialExpiredBody
         case notificationRepeatedFailuresTitle
         case notificationRepeatedFailuresBody
+        case notificationQuotaRecoveredTitle
+        case notificationQuotaRecoveredBody
         case updateLoginAuthorizationAction
         case reauthenticate
         case saveCookie
@@ -609,6 +625,7 @@ enum L10n {
         case exaBillingUsageDiagnostic
         case tokenQuotaFormat
         case quotaErrorInvalidResponse
+        case quotaErrorSchemaDrift
         case quotaErrorNetworkFormat
         case quotaErrorTimedOutDetail
         case quotaErrorTimedOutNetwork
@@ -963,6 +980,7 @@ enum L10n {
             .anthropicDashboardOnlyDiagnostic,
             .quotaConsumingRefreshWarning,
             .quotaErrorInvalidResponse,
+            .quotaErrorSchemaDrift,
             .quotaErrorRateLimited,
             .quotaErrorInvalidAPIKey,
             .quotaErrorCooldown
@@ -1018,6 +1036,12 @@ enum L10n {
             return t(.queritAccountDiagnostic, language: language)
         case "Quota check not supported for this provider":
             return t(.quotaCheckNotSupportedDiagnostic, language: language)
+        case "Provider quota fields may have changed. Recalibrate this provider.",
+             "接口字段可能变化，请重新校准该服务商。",
+             "介面欄位可能已變更，請重新校準此服務商。",
+             "プロバイダーのクォータ項目が変更された可能性があります。このプロバイダーを再校正してください。",
+             "공급자의 할당량 필드가 변경되었을 수 있습니다. 이 공급자를 다시 보정하세요.":
+            return t(.quotaErrorSchemaDrift, language: language)
         case "Business invocation keys cannot query quota; use a web login credential.",
              "Business invocation key is not used for quota monitoring. Add a dashboard Cookie credential instead.",
              "Business invocation key is not used for quota monitoring. Add a dashboard Cookie credential instead...":
@@ -1208,6 +1232,9 @@ enum L10n {
         .apiKeyConfiguration: "Credential Configuration",
         .apiKeyConfigurationDescription: "Add API keys or web login authorizations. New credentials appear below by provider.",
         .importFromEnv: "Import from .env",
+        .exportCredentialMetadata: "Export Metadata",
+        .exportCredentialMetadataSuccess: "Exported metadata to %@.",
+        .exportCredentialMetadataFailed: "Could not export metadata: %@",
         .addKey: "Add Credential",
         .language: "Language",
         .languageTitle: "Language",
@@ -1303,6 +1330,8 @@ enum L10n {
         .plan: "Plan",
         .lowQuotaProviders: "Low Quota",
         .expiringSoon: "Expiring Soon",
+        .recalibrateProvider: "Recalibrate",
+        .needsRecalibration: "Needs Recalibration",
         .recentProviderUsage: "Recent Change",
         .recentUsageDetail: "Remaining Δ",
         .hiddenQuotaSignalCount: "%d more items need attention",
@@ -1401,8 +1430,11 @@ enum L10n {
         .quotaTrendStable: "Stable",
         .quotaRefreshDeltaConsumed: "Remaining -%@",
         .quotaRefreshDeltaNoChange: "Updated · no change",
+        .quotaRefreshMarkerUpdated: "Updated",
+        .quotaRefreshMarkerNoChange: "No change",
         .quotaRefreshDeltaRecovered: "Reset",
         .quotaRefreshDeltaFailed: "Refresh failed",
+        .quotaSpeedFastUse: "Fast use",
         .resetsMonthlyDay1: "Resets monthly on day 1",
         .noResetCycle: "No reset cycle",
         .resetNotExposed: "Reset not exposed",
@@ -1415,6 +1447,8 @@ enum L10n {
         .notificationCredentialExpiredBody: "%@ needs a new login authorization.",
         .notificationRepeatedFailuresTitle: "Quota check keeps failing",
         .notificationRepeatedFailuresBody: "%@ failed %d checks in a row.",
+        .notificationQuotaRecoveredTitle: "Quota recovered",
+        .notificationQuotaRecoveredBody: "%@ quota recovered after a reset or top-up.",
         .updateLoginAuthorizationAction: "Update login authorization",
         .reauthenticate: "Re-authenticate",
         .saveCookie: "Save login authorization",
@@ -1504,6 +1538,7 @@ enum L10n {
         .queritAccountDiagnostic: "Querit account endpoint returned monthly usage, but no plan quota limit.",
         .exaBillingUsageDiagnostic: "Exa Team Management usage endpoint returned billing usage.",
         .quotaErrorInvalidResponse: "Invalid response from server",
+        .quotaErrorSchemaDrift: "Provider quota fields may have changed. Recalibrate this provider.",
         .quotaErrorNetworkFormat: "Network error: %@",
         .quotaErrorTimedOutDetail: "Request timed out",
         .quotaErrorTimedOutNetwork: "Network error: request timed out",
@@ -1527,6 +1562,9 @@ enum L10n {
         .apiKeyConfiguration: "配置凭据",
         .apiKeyConfigurationDescription: "添加 API 密钥或网页登录授权。新增凭据会按服务商显示在下方。",
         .importFromEnv: "从 .env 导入",
+        .exportCredentialMetadata: "导出元数据",
+        .exportCredentialMetadataSuccess: "已导出元数据到 %@。",
+        .exportCredentialMetadataFailed: "无法导出元数据：%@",
         .addKey: "添加凭据",
         .language: "语言",
         .languageTitle: "语言",
@@ -1622,6 +1660,8 @@ enum L10n {
         .plan: "套餐",
         .lowQuotaProviders: "额度紧张",
         .expiringSoon: "即将到期",
+        .recalibrateProvider: "重新校准",
+        .needsRecalibration: "需要重新校准",
         .recentProviderUsage: "近期变化",
         .recentUsageDetail: "剩余变化",
         .hiddenQuotaSignalCount: "还有 %d 项需要关注",
@@ -1720,8 +1760,11 @@ enum L10n {
         .quotaTrendStable: "稳定",
         .quotaRefreshDeltaConsumed: "剩余 -%@",
         .quotaRefreshDeltaNoChange: "刚刚更新 · 无变化",
+        .quotaRefreshMarkerUpdated: "已更新",
+        .quotaRefreshMarkerNoChange: "无变化",
         .quotaRefreshDeltaRecovered: "已重置",
         .quotaRefreshDeltaFailed: "刷新失败",
+        .quotaSpeedFastUse: "消耗偏快",
         .resetsMonthlyDay1: "每月 1 日重置",
         .noResetCycle: "无重置周期",
         .resetNotExposed: "未公开重置时间",
@@ -1734,6 +1777,8 @@ enum L10n {
         .notificationCredentialExpiredBody: "%@ 需要重新登录授权。",
         .notificationRepeatedFailuresTitle: "额度检查连续失败",
         .notificationRepeatedFailuresBody: "%@ 已连续 %d 次检查失败。",
+        .notificationQuotaRecoveredTitle: "额度已恢复",
+        .notificationQuotaRecoveredBody: "%@ 已在重置或充值后恢复。",
         .updateLoginAuthorizationAction: "更新登录授权",
         .reauthenticate: "重新认证",
         .saveCookie: "保存登录授权",
@@ -1823,6 +1868,7 @@ enum L10n {
         .queritAccountDiagnostic: "Querit 账户接口返回了月度已用请求，但没有返回套餐上限。",
         .exaBillingUsageDiagnostic: "Exa Team Management 用量接口返回了账单用量。",
         .quotaErrorInvalidResponse: "服务器响应无效",
+        .quotaErrorSchemaDrift: "接口字段可能变化，请重新校准该服务商。",
         .quotaErrorNetworkFormat: "网络错误：%@",
         .quotaErrorTimedOutDetail: "请求超时",
         .quotaErrorTimedOutNetwork: "网络错误：请求超时",
@@ -1844,6 +1890,10 @@ enum L10n {
         .apiKeysCount: "%d 個憑證",
         .apiKeyConfiguration: "配置憑證",
         .apiKeyConfigurationDescription: "新增 API 金鑰或網頁登入授權。新增憑證會按服務商顯示在下方。",
+        .importFromEnv: "從 .env 匯入",
+        .exportCredentialMetadata: "匯出元資料",
+        .exportCredentialMetadataSuccess: "已匯出元資料到 %@。",
+        .exportCredentialMetadataFailed: "無法匯出元資料：%@",
         .addKey: "新增憑證",
         .languageDescription: "調整應用程式行為、刷新頻率、語言和狀態列外觀。",
         .customProviderOrder: "自訂 Provider 順序",
@@ -1919,6 +1969,8 @@ enum L10n {
         .plan: "套餐",
         .lowQuotaProviders: "額度緊張",
         .expiringSoon: "即將到期",
+        .recalibrateProvider: "重新校準",
+        .needsRecalibration: "需要重新校準",
         .recentProviderUsage: "近期變化",
         .recentUsageDetail: "剩餘變化",
         .hiddenQuotaSignalCount: "還有 %d 項需要關注",
@@ -1953,8 +2005,11 @@ enum L10n {
         .quotaTrendStable: "穩定",
         .quotaRefreshDeltaConsumed: "剩餘 -%@",
         .quotaRefreshDeltaNoChange: "剛剛更新 · 無變化",
+        .quotaRefreshMarkerUpdated: "已更新",
+        .quotaRefreshMarkerNoChange: "無變化",
         .quotaRefreshDeltaRecovered: "已重置",
         .quotaRefreshDeltaFailed: "刷新失敗",
+        .quotaSpeedFastUse: "消耗偏快",
         .keyName: "憑證名稱",
         .apiKey: "API 金鑰",
         .apiKeyForCopy: "API 金鑰（可選）",
@@ -1998,6 +2053,8 @@ enum L10n {
         .notificationCredentialExpiredBody: "%@ 需要重新登入授權。",
         .notificationRepeatedFailuresTitle: "額度檢查連續失敗",
         .notificationRepeatedFailuresBody: "%@ 已連續 %d 次檢查失敗。",
+        .notificationQuotaRecoveredTitle: "額度已恢復",
+        .notificationQuotaRecoveredBody: "%@ 已在重置或儲值後恢復。",
         .updateLoginAuthorizationAction: "更新登入授權",
         .importedFromEnv: "從 .env 匯入",
         .importedFromClaude: "從 ~/.claude/settings.json 匯入",
@@ -2026,6 +2083,7 @@ enum L10n {
         .quotaErrorConnectionLostNetwork: "網路錯誤：連線中斷",
         .quotaErrorHostNotFoundNetwork: "網路錯誤：找不到主機",
         .quotaErrorCannotConnectNetwork: "網路錯誤：無法連線到伺服器",
+        .quotaErrorSchemaDrift: "介面欄位可能已變更，請重新校準此服務商。",
         .businessInvocationKeyUnsupportedDiagnostic: "額度介面待確認。",
         .businessInvocationKeySaved: "業務 key 已儲存",
         .businessInvocationKeyQuotaInstruction: "額度監控請使用網頁登入授權",
@@ -2054,6 +2112,9 @@ enum L10n {
         .apiKeyConfiguration: "認証情報の設定",
         .apiKeyConfigurationDescription: "API キーまたは Web ログイン認証を追加します。追加した認証情報はプロバイダー別に表示されます。",
         .importFromEnv: ".env からインポート",
+        .exportCredentialMetadata: "メタデータを書き出す",
+        .exportCredentialMetadataSuccess: "%@ にメタデータを書き出しました。",
+        .exportCredentialMetadataFailed: "メタデータを書き出せませんでした：%@",
         .importedFromEnv: ".env からインポート",
         .importedFromClaude: "~/.claude/settings.json からインポート",
         .addKey: "認証情報を追加",
@@ -2151,6 +2212,8 @@ enum L10n {
         .plan: "プラン",
         .lowQuotaProviders: "残量わずか",
         .expiringSoon: "期限間近",
+        .recalibrateProvider: "再校正",
+        .needsRecalibration: "再校正が必要",
         .recentProviderUsage: "最近の変化",
         .recentUsageDetail: "残量変化",
         .hiddenQuotaSignalCount: "ほか %d 件の確認項目",
@@ -2248,8 +2311,11 @@ enum L10n {
         .quotaTrendStable: "安定",
         .quotaRefreshDeltaConsumed: "残り -%@",
         .quotaRefreshDeltaNoChange: "更新 · 変化なし",
+        .quotaRefreshMarkerUpdated: "更新済み",
+        .quotaRefreshMarkerNoChange: "変化なし",
         .quotaRefreshDeltaRecovered: "リセット",
         .quotaRefreshDeltaFailed: "更新失敗",
+        .quotaSpeedFastUse: "使用が速い",
         .resetsMonthlyDay1: "毎月 1 日にリセット",
         .noResetCycle: "リセット周期なし",
         .resetNotExposed: "リセット時刻は非公開",
@@ -2262,6 +2328,8 @@ enum L10n {
         .notificationCredentialExpiredBody: "%@ は再ログイン認証が必要です。",
         .notificationRepeatedFailuresTitle: "クォータ確認が連続失敗",
         .notificationRepeatedFailuresBody: "%@ は %d 回連続で確認に失敗しました。",
+        .notificationQuotaRecoveredTitle: "クォータが回復しました",
+        .notificationQuotaRecoveredBody: "%@ はリセットまたはチャージ後に回復しました。",
         .updateLoginAuthorizationAction: "ログイン認証を更新",
         .reauthenticate: "再認証",
         .saveCookie: "ログイン認証を保存",
@@ -2349,6 +2417,7 @@ enum L10n {
         .queritAccountDiagnostic: "Querit アカウントエンドポイントから月間使用量は返されましたが、プラン上限は返されませんでした。",
         .exaBillingUsageDiagnostic: "Exa Team Management 使用量エンドポイントから請求使用量が返されました。",
         .quotaErrorInvalidResponse: "サーバー応答が無効です",
+        .quotaErrorSchemaDrift: "プロバイダーのクォータ項目が変更された可能性があります。このプロバイダーを再校正してください。",
         .quotaErrorNetworkFormat: "ネットワークエラー：%@",
         .quotaErrorTimedOutDetail: "リクエストがタイムアウトしました",
         .quotaErrorTimedOutNetwork: "ネットワークエラー：リクエストがタイムアウトしました",
@@ -2372,6 +2441,9 @@ enum L10n {
         .apiKeyConfiguration: "자격 증명 설정",
         .apiKeyConfigurationDescription: "API 키 또는 웹 로그인 인증을 추가합니다. 새 자격 증명은 공급자별로 표시됩니다.",
         .importFromEnv: ".env에서 가져오기",
+        .exportCredentialMetadata: "메타데이터 내보내기",
+        .exportCredentialMetadataSuccess: "%@에 메타데이터를 내보냈습니다.",
+        .exportCredentialMetadataFailed: "메타데이터를 내보낼 수 없음: %@",
         .importedFromEnv: ".env에서 가져옴",
         .importedFromClaude: "~/.claude/settings.json에서 가져옴",
         .addKey: "자격 증명 추가",
@@ -2469,6 +2541,8 @@ enum L10n {
         .plan: "플랜",
         .lowQuotaProviders: "할당량 부족",
         .expiringSoon: "곧 만료",
+        .recalibrateProvider: "다시 보정",
+        .needsRecalibration: "다시 보정 필요",
         .recentProviderUsage: "최근 변화",
         .recentUsageDetail: "잔여 변화",
         .hiddenQuotaSignalCount: "추가 확인 항목 %d개",
@@ -2566,8 +2640,11 @@ enum L10n {
         .quotaTrendStable: "안정",
         .quotaRefreshDeltaConsumed: "남음 -%@",
         .quotaRefreshDeltaNoChange: "업데이트 · 변화 없음",
+        .quotaRefreshMarkerUpdated: "업데이트됨",
+        .quotaRefreshMarkerNoChange: "변화 없음",
         .quotaRefreshDeltaRecovered: "재설정됨",
         .quotaRefreshDeltaFailed: "새로 고침 실패",
+        .quotaSpeedFastUse: "빠른 사용",
         .resetsMonthlyDay1: "매월 1일 재설정",
         .noResetCycle: "재설정 주기 없음",
         .resetNotExposed: "재설정 시간이 공개되지 않음",
@@ -2580,6 +2657,8 @@ enum L10n {
         .notificationCredentialExpiredBody: "%@에 새 로그인 인증이 필요합니다.",
         .notificationRepeatedFailuresTitle: "할당량 확인 연속 실패",
         .notificationRepeatedFailuresBody: "%@ 확인이 %d회 연속 실패했습니다.",
+        .notificationQuotaRecoveredTitle: "할당량 복구됨",
+        .notificationQuotaRecoveredBody: "%@ 할당량이 재설정 또는 충전 후 복구되었습니다.",
         .updateLoginAuthorizationAction: "로그인 인증 업데이트",
         .reauthenticate: "다시 인증",
         .saveCookie: "로그인 인증 저장",
@@ -2667,6 +2746,7 @@ enum L10n {
         .queritAccountDiagnostic: "Querit 계정 엔드포인트가 월간 사용량은 반환했지만 플랜 한도는 반환하지 않았습니다.",
         .exaBillingUsageDiagnostic: "Exa Team Management 사용량 엔드포인트가 청구 사용량을 반환했습니다.",
         .quotaErrorInvalidResponse: "서버 응답이 올바르지 않습니다",
+        .quotaErrorSchemaDrift: "공급자의 할당량 필드가 변경되었을 수 있습니다. 이 공급자를 다시 보정하세요.",
         .quotaErrorNetworkFormat: "네트워크 오류: %@",
         .quotaErrorTimedOutDetail: "요청 시간이 초과되었습니다",
         .quotaErrorTimedOutNetwork: "네트워크 오류: 요청 시간이 초과되었습니다",

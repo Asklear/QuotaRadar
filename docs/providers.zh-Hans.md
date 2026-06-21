@@ -7,6 +7,19 @@
 
 这张表是新增 provider 的准入入口：先明确凭据类型、额度来源、重置周期和是否会消耗真实额度，再决定是否接入 UI、自动刷新和连通性测试。
 
+## 校准状态
+
+最近一次本机脱敏校准：2026-06-21 16:53 CST。校准只读取 Quota Radar 的本机 metadata、quota history 和当前刷新结果，不记录真实 API Key、Cookie 或个人额度数值。
+
+| Provider | 校准状态 | 最近验证 | 证据链 | 当前口径 | 降级口径 |
+| --- | --- | --- | --- | --- | --- |
+| DeepSeek | 已实测 | 2026-06-21 16:53 CST | 官方 `/user/balance` 返回 HTTP 200，metadata 和最近快照均为余额型结果。 | 只展示人民币余额；无 reset/end。余额增加按充值/恢复处理，不参与消耗趋势。顶层 `limit = remaining` 是余额型展示归一化，不代表固定套餐上限。 | 如果余额字段变化，保留凭据可操作状态，并提示需要重新校准，不显示泛化失败。 |
+| 讯飞星火 coding plan | 已实测 | 2026-06-21 16:53 CST | `/api/v1/gpt-finetune/coding-plan/list` 返回套餐名、`validFrom/expiresAt` 和三周期 `usage` 字段，metadata 和最近快照都保留 5 小时/周/套餐期窗口。 | 官网字段是已用次数；解析层统一换算为剩余次数/总次数。5 小时/周 reset 由 `validFrom` 推断，套餐期窗口使用 `expiresAt`。 | 如果套餐字段变化，按“需要重新校准”拒绝异常响应，并保留历史快照用于趋势上下文。 |
+| 火山引擎 coding plan | 已实测 | 2026-06-21 16:53 CST | `GetCodingPlanUsage` 返回三周期百分比和 reset；`ListSubscribeTrade` 返回套餐名和到期时间，当前刷新结果已落到 metadata。 | 当前接口只确认百分比和 reset，不确认具体剩余次数/总次数。套餐名和到期时间属于低频 metadata：每天最多刷新一次，手动刷新会绕过冷却立即更新。 | 如果 usage 或订阅字段变化，显示需要重新校准，不自行推断剩余次数。 |
+| Claude Subscription | 已实测 | 2026-06-21 16:53 CST | `/api/organizations`、`/usage`、`/subscription_details` 当前返回套餐名、5 小时/周窗口、reset 和订阅周期结束时间。 | 不展示月窗口；不混入 Anthropic API/prepaid credits。历史中可能存在旧版本无 reset 的成功快照，最新刷新已保留 reset。 | 如果 organization 或 usage 字段变化，提示重新校准，而不是直接判定登录失效。 |
+| Codex Subscription | 已实测 | 2026-06-21 16:53 CST | `/api/auth/session`、`/backend-api/wham/usage`、`/backend-api/subscriptions?account_id=...` 当前返回套餐名、5 小时/周窗口、reset 和订阅周期结束时间。 | 不展示月窗口；使用 ChatGPT session `account.id` 查询生命周期，不能使用 `wham/usage` 的 account id。 | 如果生命周期字段变化，将 usage 解析和生命周期解析分开处理，并对生命周期部分提示重新校准。 |
+| Tavily | 已实测 | 2026-06-21 16:53 CST | 官方 `/usage` 当前返回 key/account 用量，多个 key 的快照独立记录。 | 月初 reset 由产品规则计算；耗尽 key 稳定显示 0，不视为 schema 异常。 | 稳定 0 额度继续作为额度状态；HTTP 或字段异常才进入可行动诊断。 |
+
 ## AI Search
 
 | Provider | Category | 凭据类型 | 额度来源 | 重置/窗口 | 检查消耗额度 | 诊断端点 | 备注 |

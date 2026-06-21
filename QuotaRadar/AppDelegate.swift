@@ -202,9 +202,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func showStatusPanelForAutomation() {
-        guard let button = statusItem?.button else { return }
-        showStatusPanel(relativeTo: button)
-        stopPopoverMouseExitMonitor()
+        if let button = statusItem?.button {
+            showStatusPanel(relativeTo: button)
+            stopPopoverMouseExitMonitor()
+            return
+        }
+
+        showStatusPanelAtAutomationFallbackPosition()
     }
 
     private func showStatusPanelForAutomationIfRequested() {
@@ -212,9 +216,33 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-            self?.showStatusPanelForAutomation()
+        scheduleStatusPanelForAutomationAttempt(remainingAttempts: 12)
+    }
+
+    private func scheduleStatusPanelForAutomationAttempt(remainingAttempts: Int) {
+        guard remainingAttempts > 0 else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            self.showStatusPanelForAutomation()
+            self.scheduleStatusPanelForAutomationAttempt(remainingAttempts: remainingAttempts - 1)
         }
+    }
+
+    private func showStatusPanelAtAutomationFallbackPosition() {
+        guard let panel = statusPanel else { return }
+        let visibleFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1512, height: 949)
+        let size = statusPanelSize
+        let frame = NSRect(
+            x: visibleFrame.maxX - size.width - statusPanelScreenInset,
+            y: visibleFrame.maxY - size.height - statusPanelScreenInset,
+            width: size.width,
+            height: size.height
+        )
+        panel.setFrame(frame, display: true)
+        configureStatusPanelWindowAppearance(window: panel)
+        panel.orderFrontRegardless()
+        stopPopoverMouseExitMonitor()
     }
 
     @MainActor

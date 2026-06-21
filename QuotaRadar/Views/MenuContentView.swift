@@ -9,6 +9,7 @@ struct MenuContentView: View {
     private static let contentBottomInset: CGFloat = 14
 
     @ObservedObject var monitor: QuotaMonitor
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var languageStore = AppLanguageStore.shared
     @ObservedObject private var appearanceStore = AppAppearanceStore.shared
     @ObservedObject private var quoteStore = AIQuoteStore.shared
@@ -23,6 +24,12 @@ struct MenuContentView: View {
 
     private var glassHighlightOpacity: Double {
         0.08 + (1 - statusBarTransparency) * 0.08
+    }
+
+    private var glassDepthOpacity: Double {
+        colorScheme == .light
+            ? 0.045 + statusBarTransparency * 0.035
+            : 0.018 + statusBarTransparency * 0.018
     }
 
     private var borderOpacity: Double {
@@ -46,6 +53,16 @@ struct MenuContentView: View {
                 colors: [
                     Color.white.opacity(glassHighlightOpacity),
                     Color.primary.opacity(0.025)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .allowsHitTesting(false)
+
+            LinearGradient(
+                colors: [
+                    Color.clear,
+                    Color.black.opacity(glassDepthOpacity)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -985,6 +1002,15 @@ struct MenuCompactQuotaItemRow: View {
         key.quotaPresentation
     }
 
+    private var compactTimingText: String {
+        [
+            presentation.resetText,
+            presentation.planEndText
+        ]
+        .filter { !$0.isEmpty }
+        .joined(separator: " · ")
+    }
+
     var body: some View {
         Button(action: onOpenProvider) {
             HStack(spacing: 8) {
@@ -1010,6 +1036,13 @@ struct MenuCompactQuotaItemRow: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+
+                    if !compactTimingText.isEmpty {
+                        Text(compactTimingText)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
                 }
 
                 Spacer(minLength: 6)
@@ -1055,67 +1088,57 @@ struct MenuQuotaItemRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            ProviderIcon(provider: item.provider, size: 28)
+            Button(action: onOpenProvider) {
+                HStack(spacing: 10) {
+                    ProviderIcon(provider: item.provider, size: 28)
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(item.provider.displayName())
-                        .font(.system(size: 12, weight: .semibold))
-                        .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(item.provider.displayName())
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(1)
 
-                    MenuSignalReasonBadge(text: item.signalReason.displayText, tint: key.status.color)
+                            MenuSignalReasonBadge(text: item.signalReason.displayText, tint: key.status.color)
 
-                    if let contextLabel = item.statusBarAccountContextLabel {
-                        Text(contextLabel)
-                            .font(.system(size: 11, weight: .medium))
+                            if let contextLabel = item.statusBarAccountContextLabel {
+                                Text(contextLabel)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+
+                        Text(presentation.primaryText)
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
+
+                        if !compactDiagnosticText.isEmpty {
+                            Text(compactDiagnosticText)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+
                     }
+
+                    Spacer(minLength: 8)
+
+                    Text(presentation.badgeText)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(key.status.color)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .frame(minWidth: 42)
+                        .background(key.status.color.opacity(0.12), in: Capsule())
                 }
-
-                Text(presentation.primaryText)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-
-                let metadataItems = [
-                    presentation.resetText,
-                    presentation.planEndText,
-                    presentation.sourceText
-                ].filter { !$0.isEmpty }
-
-                if !metadataItems.isEmpty {
-                    Text(metadataItems.joined(separator: " · "))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-
-                if !compactDiagnosticText.isEmpty {
-                    Text(compactDiagnosticText)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
-
             }
-
-            Spacer(minLength: 8)
-
-            Text(presentation.badgeText)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundColor(key.status.color)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .frame(minWidth: 42)
-                .background(key.status.color.opacity(0.12), in: Capsule())
+            .buttonStyle(.plain)
 
             ProviderRefreshButton(provider: item.provider, isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
                 .scaleEffect(0.82)
                 .frame(width: 28, height: 28)
         }
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onOpenProvider)
     }
 }
 

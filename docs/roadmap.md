@@ -41,6 +41,21 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Refresh README screenshots with window/panel captures only, avoiding desktop backgrounds in release-facing images.
 - [x] Bump version metadata and release notes for `v0.3.6`.
 
+## v0.3.7 Refresh Trust
+
+- [x] Add a compact last-refresh status marker beside Last Updated in expanded provider rows, so users can see whether the latest refresh updated, had no change, failed, or was skipped without adding a history list.
+- [x] Keep refresh consumption deltas on the quota/activity metric itself; Last Updated now shows status only and does not repeat amounts such as `-7pt`.
+- [x] Record automatic refresh skips as quota history snapshots, so costly/manual-only providers explain why no provider request was made.
+- [x] Keep refresh history reset-aware and balance-aware: top-ups and quota resets are recovery events, while money-balance drops render as currency deltas.
+- [x] Calibrate the Roadmap so completed capability/action semantics, quota snapshots, localStorage token capture, and visual QA are not listed as open starting work.
+
+## v0.3.8 Predictive Attention
+
+- [x] Add reset-aware consumption-speed hints. They render only when the current reset segment has enough history and the current pace is likely to cross the 20% low-quota threshold soon.
+- [x] Preserve period names for multi-window providers such as weekly/monthly quotas, and avoid treating the first low sample after a reset as fast consumption.
+- [x] Add recovery local notifications. Recent reset or top-up recoveries now send a `Quota recovered` notification through the existing permission and event-dedupe pipeline.
+- [x] Keep the monitor UI lightweight: speed hints stay as a short inline state below Key Quota, without adding columns or history lists.
+
 ## Completed In v0.2.0
 
 - Changed the menu bar popover into a quota-first provider overview grouped by `AI Search` and `LLM`.
@@ -163,12 +178,12 @@ The broader UI redesign toward a native, dense, low-distraction macOS monitoring
   - `Quota API Unavailable`
   - `Check Consumes Quota`
 - [ ] Add export/backup for credential metadata, but do not export secrets by default.
-- [ ] Extend WebView reauthentication persistence beyond cookie store: support confirmed providers whose login token is stored in localStorage. Kimi should use this when the web session writes `access_token` without a `kimi-auth` cookie.
+- [x] Extend WebView reauthentication persistence beyond cookie store: support confirmed providers whose login token is stored in localStorage or sessionStorage. Kimi uses this when the web session writes `access_token` without a `kimi-auth` cookie.
 
 ## P2: Connectivity Tests And Diagnostics
 
 - [x] Add an independent `Test Connection` button for each provider.
-- [ ] Separate three test types:
+- [x] Separate three test types:
   - No-cost ping: validates key/cookie format or account endpoint without consuming quota.
   - Quota check: reads real quota.
   - Costly check: consumes real quota and requires manual confirmation.
@@ -285,7 +300,7 @@ Keep this separate from Claude / Codex subscription quota. Subscription quota tr
   - The menu bar icon should work on light, dark, and transparent menu bars, without being confused with the macOS battery or power icon.
   - The menu bar popover's top-right action icon should be modern and semantically clear, not another generic grey circular button.
   - Use official provider icons when available; use consistent fallbacks otherwise.
-- [ ] Add a visual QA checklist:
+- [x] Add a visual QA checklist:
   - 13-inch display, wide display, external display.
   - Light and dark mode.
   - Chinese and English.
@@ -316,34 +331,20 @@ Keep this separate from Claude / Codex subscription quota. Subscription quota tr
 
 ## P6: History, Trends, And Alerts
 
-- [ ] Store the last N quota snapshots for trend display.
-- [ ] Add consumption-speed hints, such as unusually fast weekly usage.
+- [x] Store the last N quota snapshots for trend display.
+- [x] Add consumption-speed hints, such as unusually fast weekly usage.
 - [x] Add local threshold notifications: quota below 20%, exhausted quota, expired login authorization, repeated failures, with event dedupe.
-- [ ] Add recovery local notifications: balance restored or monthly reset detected.
-- [ ] Add provider-level refresh history so users can tell whether refresh actually changed anything.
+- [x] Add recovery local notifications: balance restored or monthly reset detected.
+- [x] Add provider-level refresh history semantics so users can tell whether the latest refresh changed anything, failed, recovered, or was skipped.
 
 ## Next Starting Plan
 
-Continue with P1 + P2. Reauthentication auto-save is already in place; the remaining high-impact work is making configuration harder to get wrong and diagnostics easier to understand.
+The first P6 history/trend/alert pass is complete. The latest polish pass moved the app closer to a compact monitoring-tool workflow.
 
-1. [x] Build a provider capability matrix.
-   - Suggested files: `docs/providers.md` / `docs/providers.zh-Hans.md`.
-   - Fields: provider, category, credential type, usage source, reset cycle, does check consume quota, diagnostic endpoint, notes.
-2. [x] Refactor the credential page into provider-aware forms.
-   - Main files: `QuotaRadar/Models/APIKey.swift`, `QuotaRadar/Views/SettingsView.swift`, `QuotaRadar/Services/EnvImporter.swift`.
-   - Goal: after selecting a provider, users only see fields that provider needs.
-3. [x] Add a cURL paste parser.
-   - Main file: create `QuotaRadar/Services/CurlCredentialParser.swift`.
-   - Goal: Querit, XFYun Spark Coding Plan, Volcengine Coding Plan, and OpenCode Go can extract cookies/headers from copied browser cURL.
-4. [ ] Add per-provider connectivity tests.
-   - Main files: `QuotaRadar/Services/QuotaService.swift`, `QuotaRadar/Models/QuotaMonitor.swift`, `QuotaRadar/Views/SettingsView.swift`.
-   - Goal: each provider can test credential usability and disclose whether the test consumes quota.
-5. [x] Add proxy settings.
-   - Main files: `QuotaRadar/Models/AppAppearance.swift`, `QuotaRadar/Services/QuotaService.swift`, `QuotaRadar/Views/SettingsView.swift`.
-   - Goal: support system proxy, manual HTTP/SOCKS proxy, and no proxy.
-6. [ ] Run a main-window and menu-popover visual QA pass.
-   - Check screenshots across sizes, languages, light/dark mode, and live color-scheme switching.
-   - Prioritize overlap, clipping, repeated information, and collapse animation issues.
+1. [x] Continue visual QA on dense account rows, especially many accounts per provider and long localized provider messages.
+2. [x] Add provider trust calibration metadata and document fallback behavior when provider fields drift.
+3. [x] Tighten the menu bar attention feed so rows stay short, actionable, and less metadata-heavy.
+4. [x] Add credential metadata export/backup, without exporting secrets by default.
 
 ## Not Prioritized Yet
 

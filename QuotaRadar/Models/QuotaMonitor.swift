@@ -147,8 +147,16 @@ class QuotaMonitor: ObservableObject {
         QuotaRefreshDeltaSummary.refreshDeltaText(for: key, snapshots: quotaSnapshots)
     }
 
+    func refreshHistoryItems(for key: APIKey) -> [QuotaRefreshHistoryItem] {
+        QuotaRefreshHistoryItem.items(for: key, snapshots: quotaSnapshots)
+    }
+
     func activitySummary(for key: APIKey) -> QuotaActivitySummary {
         QuotaActivitySummary.activitySummary(for: key, snapshots: quotaSnapshots)
+    }
+
+    func consumptionSpeedSummary(for key: APIKey) -> QuotaConsumptionSpeedSummary {
+        QuotaConsumptionSpeedSummary.speedSummary(for: key, snapshots: quotaSnapshots)
     }
 
     func sparklineSamples(for key: APIKey) -> [QuotaSparklineSample] {
@@ -320,6 +328,8 @@ class QuotaMonitor: ObservableObject {
                     }
                     key.lastDiagnosticMessage = L10n.t(.quotaConsumingRefreshWarning)
                     key.lastDiagnosticText = LocalizedTextDescriptor.localized(.quotaConsumingRefreshWarning)
+                    key.lastHTTPStatus = nil
+                    recordQuotaSnapshot(for: key, outcome: .skipped)
                     updatedKeys.append(key)
                     continue
                 }
@@ -442,7 +452,10 @@ class QuotaMonitor: ObservableObject {
                 self.refreshMessage = nil
             }
             self.saveKeys()
-            QuotaThresholdNotificationService.shared.notifyIfNeeded(for: self.apiKeys)
+            QuotaThresholdNotificationService.shared.notifyIfNeeded(
+                for: self.apiKeys,
+                snapshots: self.quotaSnapshots
+            )
             self.refreshingProviders = []
             self.isRefreshing = false
         }
@@ -727,7 +740,7 @@ extension QuotaMonitor {
                     QuotaWindowText(name: "month", percentText: "94%", resetAt: monthReset, remainingText: "94000 / 100000"),
                 ])
             ),
-        ]
+        ] + visualQADenseAccountFixtureKeys(now: now)
 
         let snapshots: [QuotaSnapshot] = [
             visualQAFixtureSnapshot(
@@ -812,6 +825,54 @@ extension QuotaMonitor {
         apiKey.quotaText = quotaText
         apiKey.quotaLabel = quotaLabel
         return apiKey
+    }
+
+    private static func visualQADenseAccountFixtureKeys(now: Date) -> [APIKey] {
+        let calendar = Calendar(identifier: .gregorian)
+        let hourReset = calendar.date(byAdding: .hour, value: 4, to: now) ?? now
+        let weekReset = calendar.date(byAdding: .day, value: 3, to: now) ?? now
+        let monthReset = calendar.date(byAdding: .day, value: 22, to: now) ?? now
+        let annualPlanEnd = calendar.date(byAdding: .month, value: 8, to: now) ?? now
+        let denseIDs = [
+            "10000000-0000-0000-0000-000000000009",
+            "10000000-0000-0000-0000-000000000010",
+            "10000000-0000-0000-0000-000000000011",
+            "10000000-0000-0000-0000-000000000012",
+            "10000000-0000-0000-0000-000000000013",
+            "10000000-0000-0000-0000-000000000014",
+            "10000000-0000-0000-0000-000000000015",
+            "10000000-0000-0000-0000-000000000016",
+        ]
+        let definitions: [(name: String, remaining: Int, plan: String)] = [
+            ("Volcengine dense workspace 01 · Global research account with long localized label", 930, "高效版-包月 · 企业协作长名称套餐"),
+            ("Volcengine dense workspace 02 · Backup automation account", 880, "Lite 权益"),
+            ("Volcengine dense workspace 03 · Product experiments and batch tasks", 760, "Pro 权益包月"),
+            ("Volcengine dense workspace 04 · Design QA and prompt regression checks", 690, "高效版-包月"),
+            ("Volcengine dense workspace 05 · Nightly quota audit credential", 540, "Lite 权益"),
+            ("Volcengine dense workspace 06 · Customer support sandbox", 420, "Pro 权益包月"),
+            ("Volcengine dense workspace 07 · Long-running evaluation lane", 260, "高效版-包月 · 跨团队共享额度包"),
+            ("Volcengine dense workspace 08 · Near-limit fallback account", 140, "Lite 权益"),
+        ]
+
+        return definitions.enumerated().map { index, definition in
+            let remainingText = "\(definition.remaining * 1000) / 1000000"
+            return visualQAFixtureKey(
+                id: UUID(uuidString: denseIDs[index])!,
+                name: definition.name,
+                key: "volcengine-visual-qa-dense-\(index + 1)",
+                provider: .volcengineCodingPlan,
+                remaining: definition.remaining,
+                limit: 1000,
+                planEndsAt: annualPlanEnd,
+                planDisplayName: definition.plan,
+                lastUpdated: now,
+                quotaText: .quotaWindows([
+                    QuotaWindowText(name: "5h", percentText: "\(max(8, definition.remaining / 12))%", resetAt: hourReset, remainingText: "\(definition.remaining * 6) / 6000"),
+                    QuotaWindowText(name: "week", percentText: "\(max(12, definition.remaining / 10))%", resetAt: weekReset, remainingText: "\(definition.remaining * 100) / 100000"),
+                    QuotaWindowText(name: "month", percentText: "\(definition.remaining / 10)%", resetAt: monthReset, remainingText: remainingText),
+                ])
+            )
+        }
     }
 
     private static func visualQAFixtureSnapshot(

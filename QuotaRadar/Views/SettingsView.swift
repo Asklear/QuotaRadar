@@ -480,6 +480,7 @@ struct KeysManagementView: View {
     @State private var showingAddSheet = false
     @State private var editingKey: APIKey?
     @State private var importMessage: String?
+    @State private var exportMessage: String?
 
     private var keyProviderCategories: [ProviderCategoryStats] {
         let stats: [ProviderStats] = monitor.orderedVisibleProviders.compactMap { provider in
@@ -505,10 +506,14 @@ struct KeysManagementView: View {
             if let importMessage {
                 InlineStatusMessage(text: importMessage)
             }
+            if let exportMessage {
+                InlineStatusMessage(text: exportMessage)
+            }
 
             APIKeyConfigurationPanel(
                 onAddKey: { showingAddSheet = true },
-                onImportEnv: importEnvFile
+                onImportEnv: importEnvFile,
+                onExportMetadata: exportMetadata
             )
 
             if keyProviderCategories.isEmpty {
@@ -561,12 +566,42 @@ struct KeysManagementView: View {
         } else {
             importMessage = L10n.format(.importSummary, summary.added, summary.updated)
         }
+        exportMessage = nil
+    }
+
+    private func exportMetadata() {
+        guard !monitor.apiKeys.isEmpty else {
+            exportMessage = L10n.t(.noApiKeys)
+            importMessage = nil
+            return
+        }
+
+        let panel = NSSavePanel()
+        panel.title = L10n.t(.exportCredentialMetadata)
+        panel.nameFieldStringValue = "QuotaRadar-Credential-Metadata.json"
+        panel.canCreateDirectories = true
+        panel.allowedContentTypes = [.json]
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        do {
+            let data = try APIKeyStore().exportMetadata(monitor.apiKeys)
+            try data.write(to: url, options: .atomic)
+            exportMessage = L10n.format(.exportCredentialMetadataSuccess, url.lastPathComponent)
+            importMessage = nil
+        } catch {
+            exportMessage = L10n.format(.exportCredentialMetadataFailed, error.localizedDescription)
+            importMessage = nil
+        }
     }
 }
 
 struct APIKeyConfigurationPanel: View {
     let onAddKey: () -> Void
     let onImportEnv: () -> Void
+    let onExportMetadata: () -> Void
 
     var body: some View {
         MaterialPanel(padding: 18) {
@@ -589,6 +624,11 @@ struct APIKeyConfigurationPanel: View {
                 HStack(spacing: 8) {
                     Button(action: onImportEnv) {
                         Label(L10n.t(.importFromEnv), systemImage: "square.and.arrow.down")
+                    }
+                    .controlSize(.small)
+
+                    Button(action: onExportMetadata) {
+                        Label(L10n.t(.exportCredentialMetadata), systemImage: "square.and.arrow.up")
                     }
                     .controlSize(.small)
 
@@ -2338,6 +2378,9 @@ struct ProviderQuotaMonitorRow: View {
     private var statusText: String {
         guard !keys.isEmpty else { return L10n.t(.noKeyConfigured) }
         if keys.allSatisfy({ !$0.isActive }) { return L10n.t(.disabled) }
+        if hasUsableActiveKey {
+            return quotaOverviewNeedsAttention ? L10n.t(.needsAttention) : L10n.t(.healthHealthy)
+        }
         if keys.contains(where: { $0.isCredentialExpired }) { return L10n.t(.credentialExpired) }
         if keys.contains(where: { $0.status == .failed }) { return L10n.t(.healthFailed) }
         if keys.contains(where: { $0.isUsageLimitExceeded || $0.isExhausted }) { return L10n.t(.usageLimitExceeded) }
@@ -2348,6 +2391,9 @@ struct ProviderQuotaMonitorRow: View {
     private var providerAvailabilityStatusColor: Color {
         guard !keys.isEmpty else { return .secondary }
         if keys.allSatisfy({ !$0.isActive }) { return .secondary }
+        if hasUsableActiveKey {
+            return quotaOverviewNeedsAttention ? .orange : .green
+        }
         if keys.contains(where: { $0.isCredentialExpired }) { return .orange }
         if keys.contains(where: { $0.status == .failed }) { return .red }
         if keys.contains(where: { $0.isUsageLimitExceeded || $0.isExhausted }) { return .red }
@@ -2370,6 +2416,17 @@ struct ProviderQuotaMonitorRow: View {
         }
     }
 
+    private var hasUsableActiveKey: Bool {
+        keys.contains { key in
+            key.isActive
+                && !key.key.isEmpty
+                && !key.isCredentialExpired
+                && !key.isUsageLimitExceeded
+                && !key.isExhausted
+                && key.status != .failed
+        }
+    }
+
     private var providerActivitySummary: QuotaActivitySummary {
         let constrainedKeyID = stat.mostConstrainedActiveMonitoringKey?.id
         let rankedKeys = [
@@ -2386,6 +2443,21 @@ struct ProviderQuotaMonitorRow: View {
             .map { monitor.activitySummary(for: $0) }
             ?? keys.first.map { monitor.activitySummary(for: $0) }
             ?? .empty
+    }
+
+    private var providerSpeedSummary: QuotaConsumptionSpeedSummary {
+        let constrainedKeyID = stat.mostConstrainedActiveMonitoringKey?.id
+        let rankedKeys = [
+            stat.mostConstrainedActiveMonitoringKey
+        ].compactMap { $0 } + keys.reversed().filter { $0.id != constrainedKeyID }
+
+        for key in rankedKeys {
+            let summary = monitor.consumptionSpeedSummary(for: key)
+            if summary.shouldRender {
+                return summary
+            }
+        }
+        return .empty
     }
 
     private var providerSummaryRowBackground: Color {
@@ -2432,6 +2504,7 @@ struct ProviderQuotaMonitorRow: View {
                         ForEach(keys, id: \.id) { key in
                             ProviderQuotaAccountGroup(
                                 key: key,
+                                latestRefreshHistoryItem: monitor.refreshHistoryItems(for: key).first,
                                 isFocused: navigationStore.focusedCredentialID == key.id,
                                 focusedReason: navigationStore.focusedMenuSignalReason
                             )
@@ -2475,7 +2548,11 @@ struct ProviderQuotaMonitorRow: View {
             toggleCell(alignment: .leading) {
                 VStack(alignment: .leading, spacing: 1) {
                     ProviderQuotaColumnValue(value: keyQuotaText, tint: quotaOverviewRiskColor)
-                    ProviderQuotaInlineActivity(summary: providerActivitySummary, tint: quotaOverviewRiskColor)
+                    ProviderQuotaInlineActivity(
+                        summary: providerActivitySummary,
+                        speedSummary: providerSpeedSummary,
+                        tint: quotaOverviewRiskColor
+                    )
                 }
             }
         } credentialPool: {
@@ -2567,18 +2644,64 @@ struct ProviderQuotaAccountValueText: View {
 
 struct ProviderQuotaInlineActivity: View {
     let summary: QuotaActivitySummary
+    let speedSummary: QuotaConsumptionSpeedSummary
     let tint: Color
 
     private var hasVisibleChange: Bool {
+        if summary.kind == .recovered {
+            return true
+        }
+
         guard let deltaText = summary.deltaText?.trimmingCharacters(in: .whitespacesAndNewlines) else {
             return false
         }
         return !deltaText.isEmpty
     }
 
+    private var shouldRenderActivity: Bool {
+        summary.shouldRender && hasVisibleChange
+    }
+
     var body: some View {
-        if summary.shouldRender && hasVisibleChange {
-            QuotaActivityMeter(summary: summary, tint: tint)
+        if shouldRenderActivity || speedSummary.shouldRender {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                if shouldRenderActivity {
+                    QuotaActivityMeter(summary: summary, tint: tint)
+                }
+
+                if speedSummary.shouldRender {
+                    QuotaSpeedHint(summary: speedSummary, tint: tint)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 10, alignment: .leading)
+        }
+    }
+}
+
+struct QuotaSpeedHint: View {
+    let summary: QuotaConsumptionSpeedSummary
+    let tint: Color
+
+    private var periodLabel: String? {
+        summary.periodName.map { L10n.quotaPeriodCompactTitle($0) }
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 3) {
+            Text(summary.hintText ?? L10n.t(.quotaSpeedFastUse))
+                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .foregroundStyle(tint.opacity(0.74))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
+
+            if let periodLabel {
+                Text(periodLabel)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(tint.opacity(0.58))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.58)
+            }
         }
     }
 }
@@ -2590,7 +2713,8 @@ struct QuotaActivityMeter: View {
     let tint: Color
 
     private var periodLabel: String? {
-        summary.periodName.map { L10n.quotaPeriodCompactTitle($0) }
+        guard summary.kind != .recovered else { return nil }
+        return summary.periodName.map { L10n.quotaPeriodCompactTitle($0) }
     }
 
     private var currentValueText: String? {
@@ -2609,12 +2733,22 @@ struct QuotaActivityMeter: View {
         return L10n.compactDeltaIndicator(deltaText)
     }
 
+    private var recoveryText: String? {
+        summary.kind == .recovered ? L10n.t(.quotaTrendReplenished) : nil
+    }
+
     var body: some View {
         Group {
             if summary.shouldRender {
                 HStack(alignment: .center, spacing: Self.valueSpacing) {
                     HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        if let changeIndicatorText {
+                        if let recoveryText {
+                            Text(recoveryText)
+                                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.68)
+                        } else if let changeIndicatorText {
                             Text(changeIndicatorText)
                                 .font(.system(size: 9, weight: .medium, design: .rounded))
                                 .foregroundStyle(.secondary)
@@ -2844,6 +2978,7 @@ struct ProviderQuotaAccountWindowDetails: View {
 
 struct ProviderQuotaAccountGroup: View {
     let key: APIKey
+    let latestRefreshHistoryItem: QuotaRefreshHistoryItem?
     let isFocused: Bool
     let focusedReason: MenuSignalReason?
 
@@ -2871,26 +3006,29 @@ struct ProviderQuotaAccountGroup: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            ProviderQuotaAccountIdentity(
-                key: key,
-                isFocused: isFocused,
-                focusedReason: focusedReason
-            )
-            .frame(width: 166, alignment: .leading)
+        VStack(spacing: 10) {
+            HStack(alignment: .center, spacing: 14) {
+                ProviderQuotaAccountIdentity(
+                    key: key,
+                    isFocused: isFocused,
+                    focusedReason: focusedReason
+                )
+                .frame(width: 166, alignment: .leading)
 
-            ProviderQuotaAccountQuotaWindows(
-                key: key,
-                fallbackDetailText: fallbackQuotaDetailText
-            )
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .layoutPriority(1)
+                ProviderQuotaAccountQuotaWindows(
+                    key: key,
+                    fallbackDetailText: fallbackQuotaDetailText
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
-            ProviderQuotaAccountMetaPanel(
-                planEndText: key.planEndSummary.isEmpty ? nil : key.planEndSummary,
-                updatedText: updatedText
-            )
-            .frame(width: 260, alignment: .trailing)
+                ProviderQuotaAccountMetaPanel(
+                    planEndText: key.planEndSummary.isEmpty ? nil : key.planEndSummary,
+                    updatedText: updatedText,
+                    refreshItem: latestRefreshHistoryItem
+                )
+                .frame(width: 260, alignment: .trailing)
+            }
         }
         .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
         .padding(.vertical, 12)
@@ -2904,6 +3042,48 @@ struct ProviderQuotaAccountGroup: View {
                     .padding(.leading, 4)
             }
         }
+    }
+}
+
+struct ProviderQuotaRefreshMarker: View {
+    let item: QuotaRefreshHistoryItem
+
+    private var tint: Color {
+        switch item.kind {
+        case .consumed:
+            return .orange
+        case .recovered:
+            return .green
+        case .failed, .unauthorized:
+            return .red
+        case .unsupported, .noSubscription, .skipped:
+            return .secondary
+        case .noChange:
+            return .blue
+        }
+    }
+
+    private var text: String {
+        switch item.kind {
+        case .noChange:
+            return L10n.t(.quotaRefreshMarkerNoChange)
+        case .consumed, .recovered:
+            return L10n.t(.quotaRefreshMarkerUpdated)
+        case .failed, .unauthorized, .unsupported, .noSubscription, .skipped:
+            return item.primaryText
+        }
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 9, weight: .semibold, design: .rounded))
+            .foregroundStyle(tint)
+            .monospacedDigit()
+            .lineLimit(1)
+            .minimumScaleFactor(0.70)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(tint.opacity(0.11), in: Capsule())
     }
 }
 
@@ -3049,13 +3229,14 @@ struct ProviderQuotaAccountQuotaWindowRow: View {
 struct ProviderQuotaAccountMetaPanel: View {
     let planEndText: String?
     let updatedText: String
+    let refreshItem: QuotaRefreshHistoryItem?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let planEndText {
                 metaRow(label: L10n.t(.criticalTime), value: planEndText)
             }
-            metaRow(label: L10n.t(.lastUpdated), value: updatedText)
+            metaRow(label: L10n.t(.lastUpdated), value: updatedText, refreshItem: refreshItem)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
@@ -3066,7 +3247,7 @@ struct ProviderQuotaAccountMetaPanel: View {
         )
     }
 
-    private func metaRow(label: String, value: String) -> some View {
+    private func metaRow(label: String, value: String, refreshItem: QuotaRefreshHistoryItem? = nil) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(label)
                 .font(.system(size: 10, weight: .medium))
@@ -3080,6 +3261,11 @@ struct ProviderQuotaAccountMetaPanel: View {
                 weight: .medium,
                 minimumScaleFactor: 0.58
             )
+
+            if let refreshItem {
+                ProviderQuotaRefreshMarker(item: refreshItem)
+                    .fixedSize(horizontal: true, vertical: false)
+            }
         }
     }
 }

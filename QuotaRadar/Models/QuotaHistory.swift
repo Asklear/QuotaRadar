@@ -6,6 +6,7 @@ enum QuotaSnapshotOutcome: String, Codable, Equatable {
     case unauthorized
     case noSubscription
     case failed
+    case skipped
 }
 
 struct QuotaWindowSnapshot: Codable, Equatable {
@@ -711,16 +712,62 @@ struct QuotaActivitySummary: Equatable {
             .filter { matchesQuotaHistoryScope($0, key: key) && $0.recordedAt <= now && $0.outcome == .success && $0.remaining != nil }
             .sorted { $0.recordedAt < $1.recordedAt }
 
-        guard let latest = balanceSnapshots.last,
-              let previous = balanceSnapshots.dropLast().last,
-              let latestRemaining = latest.remaining,
-              let previousRemaining = previous.remaining else {
+        let recentCutoff = now.addingTimeInterval(-QuotaTrendSummary.recentWindow)
+        let recentSnapshots = balanceSnapshots.filter { $0.recordedAt >= recentCutoff }
+        let activitySnapshots = recentSnapshots.count >= 2 ? recentSnapshots : balanceSnapshots
+
+        guard activitySnapshots.count >= 2,
+              let latestRemaining = activitySnapshots.last?.remaining else {
             return empty
         }
 
-        let spent = previousRemaining - latestRemaining
+        let topUpThresholdCents = 100
+        var latestLargeTopUp: (previous: Int, replenished: Int)?
+        for (previous, latest) in zip(activitySnapshots, activitySnapshots.dropFirst()) {
+            guard let previousRemaining = previous.remaining,
+                  let latestRemaining = latest.remaining else { continue }
+            let replenished = latestRemaining - previousRemaining
+            if replenished >= topUpThresholdCents {
+                latestLargeTopUp = (previousRemaining, latestRemaining)
+            }
+        }
+
+        if let latestLargeTopUp {
+            let spentSinceTopUp = max(0, latestLargeTopUp.replenished - latestRemaining)
+            let meaningfulPostTopUpSpend = max(
+                topUpThresholdCents,
+                Int((Double(latestLargeTopUp.replenished) * 0.01).rounded(.up))
+            )
+            if spentSinceTopUp < meaningfulPostTopUpSpend {
+                return recoveredActivity(periodName: "balance", currentText: key.remainingBadgeText, language: language)
+            }
+            if spentSinceTopUp > 0 {
+                let spentText = moneyText(cents: spentSinceTopUp, language: language)
+                return QuotaActivitySummary(
+                    kind: .moneyBalance,
+                    periodName: "balance",
+                    currentText: key.remainingBadgeText,
+                    activityText: L10n.format(.quotaRefreshDeltaConsumed, spentText, language: language),
+                    deltaText: "-\(spentText)",
+                    consumedPercentPoints: nil,
+                    consumedUnits: spentSinceTopUp,
+                    usedFraction: nil,
+                    shouldRender: true
+                )
+            }
+        }
+
+        guard let latestChange = zip(activitySnapshots, activitySnapshots.dropFirst()).reversed().first(where: { previous, latest in
+            previous.remaining != latest.remaining
+        }),
+              let previousRemaining = latestChange.0.remaining,
+              let changedRemaining = latestChange.1.remaining else {
+            return empty
+        }
+
+        let spent = previousRemaining - changedRemaining
         guard spent > 0 else {
-            if latestRemaining > previousRemaining {
+            if changedRemaining > previousRemaining {
                 return recoveredActivity(periodName: "balance", currentText: key.remainingBadgeText, language: language)
             }
             return empty
@@ -801,6 +848,216 @@ struct QuotaActivitySummary: Equatable {
         }
     }
 
+}
+
+struct QuotaConsumptionSpeedSummary: Equatable {
+    private static let lowQuotaThresholdPercent = 20.0
+    private static let minimumConsumedPercentPoints = 10.0
+    private static let minimumPercentPointsPerDay = 8.0
+    private static let maximumProjectedDaysToLowQuota = 3.0
+    private static let minimumObservationSpan: TimeInterval = 30 * 60
+
+    var periodName: String?
+    var hintText: String?
+    var consumedPercentPoints: Double
+    var percentPointsPerDay: Double
+    var projectedDaysToLowQuota: Double?
+    var observationCount: Int
+    var shouldRender: Bool
+
+    static let empty = QuotaConsumptionSpeedSummary(
+        periodName: nil,
+        hintText: nil,
+        consumedPercentPoints: 0,
+        percentPointsPerDay: 0,
+        projectedDaysToLowQuota: nil,
+        observationCount: 0,
+        shouldRender: false
+    )
+
+    static func speedSummary(
+        for key: APIKey,
+        snapshots: [QuotaSnapshot],
+        now: Date = Date(),
+        language: AppLanguage = AppLanguageStore.shared.language
+    ) -> QuotaConsumptionSpeedSummary {
+        guard !key.provider.usesMoneyBalance else { return empty }
+
+        let windowNames = speedWindowNames(for: key)
+        if !windowNames.isEmpty {
+            for windowName in windowNames {
+                let summary = windowedSpeedSummary(
+                    for: key,
+                    snapshots: snapshots,
+                    windowName: windowName,
+                    now: now,
+                    language: language
+                )
+                if summary.shouldRender {
+                    return summary
+                }
+            }
+            return empty
+        }
+
+        return fixedSpeedSummary(for: key, snapshots: snapshots, now: now, language: language)
+    }
+
+    private static func fixedSpeedSummary(
+        for key: APIKey,
+        snapshots: [QuotaSnapshot],
+        now: Date,
+        language: AppLanguage
+    ) -> QuotaConsumptionSpeedSummary {
+        let comparableSnapshots = snapshots
+            .filter { matchesQuotaHistoryScope($0, key: key) && $0.recordedAt <= now && $0.isComparableQuotaSnapshot }
+            .sorted { $0.recordedAt < $1.recordedAt }
+        let currentResetSegment = latestQuotaResetSegment(from: comparableSnapshots) { $0.resetAt }
+        let selectedSnapshots = selectedComparableSnapshots(from: currentResetSegment, now: now)
+
+        guard selectedSnapshots.count >= 2,
+              let firstSnapshot = selectedSnapshots.first,
+              let latestSnapshot = selectedSnapshots.last,
+              let firstPercent = firstSnapshot.percentRemaining,
+              let latestPercent = latestSnapshot.percentRemaining else {
+            return empty
+        }
+
+        return projectedSpeedSummary(
+            periodName: nil,
+            firstRecordedAt: firstSnapshot.recordedAt,
+            latestRecordedAt: latestSnapshot.recordedAt,
+            firstPercent: firstPercent,
+            latestPercent: latestPercent,
+            observationCount: selectedSnapshots.count,
+            language: language
+        )
+    }
+
+    private static func windowedSpeedSummary(
+        for key: APIKey,
+        snapshots: [QuotaSnapshot],
+        windowName: String,
+        now: Date,
+        language: AppLanguage
+    ) -> QuotaConsumptionSpeedSummary {
+        let windowSnapshots = snapshots
+            .filter { matchesQuotaHistoryScope($0, key: key) && $0.recordedAt <= now && $0.outcome == .success }
+            .sorted { $0.recordedAt < $1.recordedAt }
+            .compactMap { snapshot -> (snapshot: QuotaSnapshot, window: QuotaWindowSnapshot)? in
+                snapshot.quotaWindow(named: windowName).map { (snapshot, $0) }
+            }
+        let currentResetSegment = latestQuotaResetSegment(from: windowSnapshots) { $0.window.resetAt }
+        let selectedSnapshots = selectedWindowSnapshots(from: currentResetSegment, now: now)
+
+        guard selectedSnapshots.count >= 2,
+              let first = selectedSnapshots.first,
+              let latest = selectedSnapshots.last else {
+            return empty
+        }
+
+        return projectedSpeedSummary(
+            periodName: latest.window.name,
+            firstRecordedAt: first.snapshot.recordedAt,
+            latestRecordedAt: latest.snapshot.recordedAt,
+            firstPercent: first.window.remainingPercent,
+            latestPercent: latest.window.remainingPercent,
+            observationCount: selectedSnapshots.count,
+            language: language
+        )
+    }
+
+    private static func projectedSpeedSummary(
+        periodName: String?,
+        firstRecordedAt: Date,
+        latestRecordedAt: Date,
+        firstPercent: Double,
+        latestPercent: Double,
+        observationCount: Int,
+        language: AppLanguage
+    ) -> QuotaConsumptionSpeedSummary {
+        let observationSpan = latestRecordedAt.timeIntervalSince(firstRecordedAt)
+        guard observationSpan >= minimumObservationSpan else { return empty }
+
+        let consumedPercentPoints = firstPercent - latestPercent
+        guard consumedPercentPoints >= minimumConsumedPercentPoints else { return empty }
+
+        let days = max(observationSpan / (24 * 60 * 60), 1.0 / 24.0)
+        let percentPointsPerDay = consumedPercentPoints / days
+        guard percentPointsPerDay >= minimumPercentPointsPerDay else { return empty }
+
+        let projectedDaysToLowQuota: Double?
+        if latestPercent > lowQuotaThresholdPercent {
+            projectedDaysToLowQuota = (latestPercent - lowQuotaThresholdPercent) / percentPointsPerDay
+        } else {
+            projectedDaysToLowQuota = 0
+        }
+
+        guard let projectedDaysToLowQuota,
+              projectedDaysToLowQuota <= maximumProjectedDaysToLowQuota else {
+            return empty
+        }
+
+        return QuotaConsumptionSpeedSummary(
+            periodName: periodName,
+            hintText: L10n.t(.quotaSpeedFastUse, language: language),
+            consumedPercentPoints: consumedPercentPoints,
+            percentPointsPerDay: percentPointsPerDay,
+            projectedDaysToLowQuota: projectedDaysToLowQuota,
+            observationCount: observationCount,
+            shouldRender: true
+        )
+    }
+
+    private static func selectedComparableSnapshots(from snapshots: [QuotaSnapshot], now: Date) -> [QuotaSnapshot] {
+        let recentCutoff = now.addingTimeInterval(-QuotaTrendSummary.recentWindow)
+        let recentSnapshots = snapshots.filter { $0.recordedAt >= recentCutoff }
+        let selected = recentSnapshots.count >= 2 ? recentSnapshots : Array(snapshots.suffix(5))
+        return selected
+    }
+
+    private static func selectedWindowSnapshots(
+        from snapshots: [(snapshot: QuotaSnapshot, window: QuotaWindowSnapshot)],
+        now: Date
+    ) -> [(snapshot: QuotaSnapshot, window: QuotaWindowSnapshot)] {
+        let recentCutoff = now.addingTimeInterval(-QuotaTrendSummary.recentWindow)
+        let recentSnapshots = snapshots.filter { $0.snapshot.recordedAt >= recentCutoff }
+        let selected = recentSnapshots.count >= 2 ? recentSnapshots : Array(snapshots.suffix(5))
+        return selected
+    }
+
+    private static func speedWindowNames(for key: APIKey) -> [String] {
+        var seenNormalizedNames = Set<String>()
+        return key.quotaWindowDetails
+            .compactMap { window -> (name: String, normalizedName: String, rank: Int)? in
+                guard QuotaWindowSnapshot.percent(from: window.percentText) != nil else { return nil }
+                return (window.name, QuotaWindowSnapshot.normalizedName(window.name), quotaWindowDurationRank(window.name))
+            }
+            .sorted { lhs, rhs in
+                if lhs.rank != rhs.rank {
+                    return lhs.rank > rhs.rank
+                }
+                return lhs.name < rhs.name
+            }
+            .compactMap { window in
+                guard !seenNormalizedNames.contains(window.normalizedName) else { return nil }
+                seenNormalizedNames.insert(window.normalizedName)
+                return window.name
+            }
+    }
+
+    private static func quotaWindowDurationRank(_ name: String) -> Int {
+        switch QuotaWindowSnapshot.normalizedName(name) {
+        case "month", "monthly", "package", "package-period", "package period", "total", "总", "月":
+            return 300
+        case "week", "weekly", "7d", "seven_day", "seven-day", "7-day", "周":
+            return 200
+        case "5h", "five_hour", "five-hour", "5-hour", "5hour", "5 小时", "5小时":
+            return 100
+        default:
+            return 0
+        }
+    }
 }
 
 struct QuotaRefreshDeltaSummary: Equatable {
@@ -888,6 +1145,341 @@ struct QuotaRefreshDeltaSummary: Equatable {
         return QuotaRefreshDeltaSummary(
             refreshDeltaText: L10n.t(.quotaRefreshDeltaNoChange, language: language)
         )
+    }
+}
+
+enum QuotaRefreshHistoryKind: String, Codable, Equatable {
+    case noChange
+    case consumed
+    case recovered
+    case failed
+    case unauthorized
+    case unsupported
+    case noSubscription
+    case skipped
+}
+
+struct QuotaRefreshHistoryItem: Equatable, Identifiable {
+    var recordedAt: Date
+    var kind: QuotaRefreshHistoryKind
+    var primaryText: String
+    var valueText: String?
+    var deltaText: String?
+    var detailText: String?
+    var httpStatusText: String?
+    var repeatCount: Int = 1
+
+    var id: String {
+        "\(recordedAt.timeIntervalSince1970)-\(kind.rawValue)-\(primaryText)-\(repeatCount)"
+    }
+
+    static func items(
+        for key: APIKey,
+        snapshots: [QuotaSnapshot],
+        limit: Int = 4,
+        now: Date = Date(),
+        language: AppLanguage = AppLanguageStore.shared.language
+    ) -> [QuotaRefreshHistoryItem] {
+        let orderedSnapshots = snapshots
+            .filter { matchesQuotaHistoryScope($0, key: key) && $0.recordedAt <= now }
+            .sorted { $0.recordedAt < $1.recordedAt }
+
+        var previousSuccess: QuotaSnapshot?
+        var chronologicalItems: [QuotaRefreshHistoryItem] = []
+
+        for snapshot in orderedSnapshots {
+            if snapshot.outcome == .success {
+                guard let previousSuccessSnapshot = previousSuccess else {
+                    previousSuccess = snapshot
+                    continue
+                }
+                chronologicalItems.append(
+                    successItem(
+                        current: snapshot,
+                        previous: previousSuccessSnapshot,
+                        key: key,
+                        language: language
+                    )
+                )
+                previousSuccess = snapshot
+            } else {
+                chronologicalItems.append(nonSuccessItem(for: snapshot, key: key, language: language))
+            }
+        }
+
+        let collapsedItems = collapseNoChangeRuns(chronologicalItems)
+        return Array(collapsedItems.reversed().prefix(max(0, limit)))
+    }
+
+    private static func collapseNoChangeRuns(_ items: [QuotaRefreshHistoryItem]) -> [QuotaRefreshHistoryItem] {
+        var collapsed: [QuotaRefreshHistoryItem] = []
+
+        for item in items {
+            if item.kind == .noChange,
+               let lastIndex = collapsed.indices.last,
+               collapsed[lastIndex].kind == .noChange {
+                collapsed[lastIndex].recordedAt = item.recordedAt
+                collapsed[lastIndex].valueText = item.valueText
+                collapsed[lastIndex].detailText = item.detailText
+                collapsed[lastIndex].httpStatusText = item.httpStatusText
+                collapsed[lastIndex].repeatCount += item.repeatCount
+            } else {
+                collapsed.append(item)
+            }
+        }
+
+        return collapsed
+    }
+
+    private static func successItem(
+        current: QuotaSnapshot,
+        previous: QuotaSnapshot,
+        key: APIKey,
+        language: AppLanguage
+    ) -> QuotaRefreshHistoryItem {
+        let valueText = refreshedValueText(for: current, key: key, language: language)
+
+        if isRecovered(current: current, previous: previous, key: key) {
+            return QuotaRefreshHistoryItem(
+                recordedAt: current.recordedAt,
+                kind: .recovered,
+                primaryText: L10n.t(.quotaRefreshDeltaRecovered, language: language),
+                valueText: valueText,
+                detailText: current.quotaLabel,
+                httpStatusText: httpStatusText(for: current, language: language)
+            )
+        }
+
+        if let deltaText = consumedDeltaText(current: current, previous: previous, key: key, language: language) {
+            return QuotaRefreshHistoryItem(
+                recordedAt: current.recordedAt,
+                kind: .consumed,
+                primaryText: L10n.format(
+                    .quotaRefreshDeltaConsumed,
+                    String(deltaText.dropFirst()),
+                    language: language
+                ),
+                valueText: valueText,
+                deltaText: deltaText,
+                detailText: current.quotaLabel,
+                httpStatusText: httpStatusText(for: current, language: language)
+            )
+        }
+
+        return QuotaRefreshHistoryItem(
+            recordedAt: current.recordedAt,
+            kind: .noChange,
+            primaryText: L10n.t(.quotaRefreshDeltaNoChange, language: language),
+            valueText: valueText,
+            detailText: current.quotaLabel,
+            httpStatusText: httpStatusText(for: current, language: language)
+        )
+    }
+
+    private static func nonSuccessItem(
+        for snapshot: QuotaSnapshot,
+        key: APIKey,
+        language: AppLanguage
+    ) -> QuotaRefreshHistoryItem {
+        let kind: QuotaRefreshHistoryKind
+        let primaryText: String
+
+        switch snapshot.outcome {
+        case .success:
+            kind = .noChange
+            primaryText = L10n.t(.quotaRefreshDeltaNoChange, language: language)
+        case .unsupported:
+            kind = .unsupported
+            primaryText = L10n.t(.quotaUnavailable, language: language)
+        case .unauthorized:
+            kind = .unauthorized
+            primaryText = key.provider.supportsDashboardReauthentication
+                ? L10n.t(.credentialExpired, language: language)
+                : L10n.t(.quotaErrorInvalidAPIKey, language: language)
+        case .noSubscription:
+            kind = .noSubscription
+            primaryText = L10n.t(.noSubscribedPlan, language: language)
+        case .failed:
+            kind = .failed
+            primaryText = L10n.t(.quotaRefreshDeltaFailed, language: language)
+        case .skipped:
+            kind = .skipped
+            primaryText = L10n.t(.automaticRefreshSkipped, language: language)
+        }
+
+        return QuotaRefreshHistoryItem(
+            recordedAt: snapshot.recordedAt,
+            kind: kind,
+            primaryText: primaryText,
+            valueText: refreshedValueText(for: snapshot, key: key, language: language),
+            detailText: snapshot.quotaLabel,
+            httpStatusText: httpStatusText(for: snapshot, language: language)
+        )
+    }
+
+    private static func isRecovered(current: QuotaSnapshot, previous: QuotaSnapshot, key: APIKey) -> Bool {
+        if quotaResetBoundaryChanged(current: current, previous: previous, key: key) {
+            return true
+        }
+
+        if key.provider.usesMoneyBalance,
+           let currentRemaining = current.remaining,
+           let previousRemaining = previous.remaining {
+            return currentRemaining > previousRemaining
+        }
+
+        if let currentWindow = selectedWindowSnapshot(from: current, key: key),
+           let previousWindow = previous.quotaWindow(named: currentWindow.name) {
+            return currentWindow.remainingPercent - previousWindow.remainingPercent >= 1
+        }
+
+        if let currentPercent = current.percentRemaining,
+           let previousPercent = previous.percentRemaining {
+            return currentPercent - previousPercent >= 1
+        }
+
+        return false
+    }
+
+    private static func consumedDeltaText(
+        current: QuotaSnapshot,
+        previous: QuotaSnapshot,
+        key: APIKey,
+        language: AppLanguage
+    ) -> String? {
+        if key.provider.usesMoneyBalance,
+           let currentRemaining = current.remaining,
+           let previousRemaining = previous.remaining,
+           previousRemaining > currentRemaining {
+            return "-\(moneyText(cents: previousRemaining - currentRemaining, language: language))"
+        }
+
+        if let currentWindow = selectedWindowSnapshot(from: current, key: key),
+           let previousWindow = previous.quotaWindow(named: currentWindow.name) {
+            let consumedPercentPoints = previousWindow.remainingPercent - currentWindow.remainingPercent
+            if consumedPercentPoints >= 1 {
+                return "-\(L10n.percentPointDelta(consumedPercentPoints))"
+            }
+        }
+
+        if current.limit == previous.limit,
+           let currentRemaining = current.remaining,
+           let previousRemaining = previous.remaining,
+           previousRemaining > currentRemaining {
+            return "-\(previousRemaining - currentRemaining)"
+        }
+
+        if let currentPercent = current.percentRemaining,
+           let previousPercent = previous.percentRemaining {
+            let consumedPercentPoints = previousPercent - currentPercent
+            if consumedPercentPoints >= 1 {
+                return "-\(L10n.percentPointDelta(consumedPercentPoints))"
+            }
+        }
+
+        return nil
+    }
+
+    private static func quotaResetBoundaryChanged(
+        current: QuotaSnapshot,
+        previous: QuotaSnapshot,
+        key: APIKey
+    ) -> Bool {
+        if !quotaResetMatches(previous.resetAt, current.resetAt) {
+            return true
+        }
+
+        guard let currentWindow = selectedWindowSnapshot(from: current, key: key),
+              let previousWindow = previous.quotaWindow(named: currentWindow.name) else {
+            return false
+        }
+
+        return !quotaResetMatches(previousWindow.resetAt, currentWindow.resetAt)
+    }
+
+    private static func selectedWindowSnapshot(from snapshot: QuotaSnapshot, key: APIKey) -> QuotaWindowSnapshot? {
+        if let preferredName = largestQuotaWindowName(for: key),
+           let preferredWindow = snapshot.quotaWindow(named: preferredName) {
+            return preferredWindow
+        }
+
+        return snapshot.quotaWindows
+            .filter { $0.remainingPercent.isFinite }
+            .max { lhs, rhs in
+                let lhsRank = quotaWindowDurationRank(lhs.name)
+                let rhsRank = quotaWindowDurationRank(rhs.name)
+                if lhsRank != rhsRank {
+                    return lhsRank < rhsRank
+                }
+                return lhs.name < rhs.name
+            }
+    }
+
+    private static func largestQuotaWindowName(for key: APIKey) -> String? {
+        key.quotaWindowDetails
+            .compactMap { window -> (name: String, rank: Int)? in
+                guard QuotaWindowSnapshot.percent(from: window.percentText) != nil else { return nil }
+                return (window.name, quotaWindowDurationRank(window.name))
+            }
+            .max { lhs, rhs in
+                if lhs.rank != rhs.rank {
+                    return lhs.rank < rhs.rank
+                }
+                return lhs.name < rhs.name
+            }?
+            .name
+    }
+
+    private static func quotaWindowDurationRank(_ name: String) -> Int {
+        switch QuotaWindowSnapshot.normalizedName(name) {
+        case "month", "monthly", "package", "package-period", "package period", "total", "总", "月":
+            return 300
+        case "week", "weekly", "7d", "seven_day", "seven-day", "7-day", "周":
+            return 200
+        case "5h", "five_hour", "five-hour", "5-hour", "5hour", "5 小时", "5小时":
+            return 100
+        default:
+            return 0
+        }
+    }
+
+    private static func refreshedValueText(for snapshot: QuotaSnapshot, key: APIKey, language: AppLanguage) -> String? {
+        if key.provider.usesMoneyBalance, let remaining = snapshot.remaining {
+            return moneyText(cents: remaining, language: language)
+        }
+
+        if let window = selectedWindowSnapshot(from: snapshot, key: key) {
+            return L10n.percentPoints(window.remainingPercent)
+        }
+
+        if let remaining = snapshot.remaining, let limit = snapshot.limit {
+            return "\(remaining) / \(limit)"
+        }
+
+        if let remaining = snapshot.remaining {
+            return "\(remaining)"
+        }
+
+        return snapshot.quotaLabel
+    }
+
+    private static func httpStatusText(for snapshot: QuotaSnapshot, language: AppLanguage) -> String? {
+        if let httpStatus = snapshot.httpStatus {
+            return "HTTP \(httpStatus)"
+        }
+        if snapshot.outcome == .skipped {
+            return L10n.t(.httpNotRequested, language: language)
+        }
+        return nil
+    }
+
+    private static func moneyText(cents: Int, language: AppLanguage) -> String {
+        switch language {
+        case .english:
+            return String(format: "CNY %.2f", Double(cents) / 100.0)
+        case .simplifiedChinese, .traditionalChinese, .japanese, .korean:
+            return APIKey.formatCNYCents(cents)
+        }
     }
 }
 

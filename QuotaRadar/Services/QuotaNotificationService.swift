@@ -6,6 +6,7 @@ enum QuotaThresholdNotificationKind: String, Codable, Equatable {
     case quotaExhausted
     case repeatedFailures
     case lowQuota
+    case quotaRecovered
 }
 
 struct QuotaThresholdNotificationEvent: Identifiable, Equatable {
@@ -69,8 +70,8 @@ final class QuotaThresholdNotificationService {
         self.store = store
     }
 
-    func notifyIfNeeded(for keys: [APIKey]) {
-        let activeEvents = Self.events(for: keys)
+    func notifyIfNeeded(for keys: [APIKey], snapshots: [QuotaSnapshot] = [], now: Date = Date()) {
+        let activeEvents = Self.events(for: keys, snapshots: snapshots, now: now)
         store.clearResolvedEvents(retainingActive: activeEvents)
         let freshEvents = store.freshEvents(from: activeEvents)
         guard !freshEvents.isEmpty else { return }
@@ -94,8 +95,12 @@ final class QuotaThresholdNotificationService {
         }
     }
 
-    static func events(for keys: [APIKey]) -> [QuotaThresholdNotificationEvent] {
-        keys.compactMap(notificationEvent)
+    static func events(
+        for keys: [APIKey],
+        snapshots: [QuotaSnapshot] = [],
+        now: Date = Date()
+    ) -> [QuotaThresholdNotificationEvent] {
+        (keys.compactMap(notificationEvent) + recoveryEvents(for: keys, snapshots: snapshots, now: now))
             .sorted { lhs, rhs in
                 if lhs.kind.priority != rhs.kind.priority {
                     return lhs.kind.priority < rhs.kind.priority
@@ -128,6 +133,35 @@ final class QuotaThresholdNotificationService {
         }
 
         return nil
+    }
+
+    private static func recoveryEvents(
+        for keys: [APIKey],
+        snapshots: [QuotaSnapshot],
+        now: Date
+    ) -> [QuotaThresholdNotificationEvent] {
+        guard !snapshots.isEmpty else { return [] }
+
+        return keys.compactMap { key in
+            guard key.isActive,
+                  !key.key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  !key.isStoredAPIKeyOnlyCredential else {
+                return nil
+            }
+
+            guard let latestRefreshItem = QuotaRefreshHistoryItem.items(
+                for: key,
+                snapshots: snapshots,
+                limit: 1,
+                now: now
+            ).first,
+                  latestRefreshItem.kind == .recovered,
+                  now.timeIntervalSince(latestRefreshItem.recordedAt) <= QuotaRefreshDeltaSummary.recentRefreshWindow else {
+                return nil
+            }
+
+            return event(kind: .quotaRecovered, key: key)
+        }
     }
 
     private static func isBelowLowQuotaThreshold(_ key: APIKey) -> Bool {
@@ -180,6 +214,8 @@ private extension QuotaThresholdNotificationKind {
             return 2
         case .lowQuota:
             return 3
+        case .quotaRecovered:
+            return 4
         }
     }
 
@@ -193,6 +229,8 @@ private extension QuotaThresholdNotificationKind {
             return L10n.t(.notificationRepeatedFailuresTitle)
         case .lowQuota:
             return L10n.t(.notificationLowQuotaTitle)
+        case .quotaRecovered:
+            return L10n.t(.notificationQuotaRecoveredTitle)
         }
     }
 
@@ -207,6 +245,8 @@ private extension QuotaThresholdNotificationKind {
             return L10n.format(.notificationRepeatedFailuresBody, providerName, key.consecutiveFailureCount)
         case .lowQuota:
             return L10n.format(.notificationLowQuotaBody, providerName, key.remainingBadgeText)
+        case .quotaRecovered:
+            return L10n.format(.notificationQuotaRecoveredBody, providerName)
         }
     }
 }

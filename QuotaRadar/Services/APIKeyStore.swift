@@ -171,6 +171,10 @@ struct APIKeyStore {
         defaults.removeObject(forKey: legacyKey)
     }
 
+    func exportMetadata(_ keys: [APIKey]) throws -> Data {
+        try CredentialMetadataExporter.export(keys)
+    }
+
     func delete(id: UUID) {
         secretStore.delete(account: id.uuidString)
     }

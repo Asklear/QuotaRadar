@@ -508,14 +508,35 @@ enum QuotaParsers {
                 let codingPlanUsageDTO: Usage?
             }
 
+            struct FlexibleQuotaAmount: Decodable {
+                let value: Double
+
+                init(from decoder: Decoder) throws {
+                    let container = try decoder.singleValueContainer()
+                    if let double = try? container.decode(Double.self) {
+                        value = double
+                    } else if let int = try? container.decode(Int.self) {
+                        value = Double(int)
+                    } else if let string = try? container.decode(String.self),
+                              let double = Double(string) {
+                        value = double
+                    } else {
+                        throw DecodingError.dataCorruptedError(
+                            in: container,
+                            debugDescription: "Expected a numeric quota amount"
+                        )
+                    }
+                }
+            }
+
             struct Usage: Decodable {
-                let packageLeft: Int?
-                let packageLimit: Int?
-                let packageUsage: Int?
-                let rp5hLimit: Int?
-                let rp5hUsage: Int?
-                let rpwLimit: Int?
-                let rpwUsage: Int?
+                let packageLeft: FlexibleQuotaAmount?
+                let packageLimit: FlexibleQuotaAmount?
+                let packageUsage: FlexibleQuotaAmount?
+                let rp5hLimit: FlexibleQuotaAmount?
+                let rp5hUsage: FlexibleQuotaAmount?
+                let rpwLimit: FlexibleQuotaAmount?
+                let rpwUsage: FlexibleQuotaAmount?
             }
 
             let code: Int?
@@ -537,15 +558,15 @@ enum QuotaParsers {
 
         let validFrom = parseLocalDateTime(plan.validFrom)
         let planEndsAt = parseLocalDateTime(plan.expiresAt)
-        var windows: [(name: String, remaining: Int, limit: Int, resetAt: Date?)] = []
-        func clampedReportedUsed(limit: Int, used: Int?) -> Int {
-            min(limit, max(0, used ?? 0))
+        var windows: [(name: String, remaining: Double, limit: Double, resetAt: Date?)] = []
+        func clampedReportedUsed(limit: Double, used: CodingPlanListResponse.FlexibleQuotaAmount?) -> Double {
+            min(limit, max(0, used?.value ?? 0))
         }
-        func clampedReportedRemaining(limit: Int, remaining: Int?) -> Int {
-            min(limit, max(0, remaining ?? limit))
+        func clampedReportedRemaining(limit: Double, remaining: CodingPlanListResponse.FlexibleQuotaAmount?) -> Double {
+            min(limit, max(0, remaining?.value ?? limit))
         }
 
-        if let limit = usage.rp5hLimit, limit > 0 {
+        if let limit = usage.rp5hLimit?.value, limit > 0 {
             let used = clampedReportedUsed(limit: limit, used: usage.rp5hUsage)
             windows.append((
                 "5h",
@@ -554,7 +575,7 @@ enum QuotaParsers {
                 inferredXFYunWindowReset(startedAt: validFrom, interval: 5 * 60 * 60, now: now)
             ))
         }
-        if let limit = usage.rpwLimit, limit > 0 {
+        if let limit = usage.rpwLimit?.value, limit > 0 {
             let used = clampedReportedUsed(limit: limit, used: usage.rpwUsage)
             windows.append((
                 "week",
@@ -563,7 +584,7 @@ enum QuotaParsers {
                 inferredXFYunWindowReset(startedAt: validFrom, interval: 7 * 24 * 60 * 60, now: now)
             ))
         }
-        if let limit = usage.packageLimit, limit > 0 {
+        if let limit = usage.packageLimit?.value, limit > 0 {
             if let packageUsage = usage.packageUsage {
                 let used = clampedReportedUsed(limit: limit, used: packageUsage)
                 windows.append(("month", limit - used, limit, planEndsAt))
@@ -582,7 +603,7 @@ enum QuotaParsers {
                 name: window.name,
                 remainingPercent: Double(window.remaining) / Double(window.limit) * 100,
                 resetAt: window.resetAt,
-                remainingText: "\(window.remaining) / \(window.limit)"
+                remainingText: "\(formatQuotaAmount(window.remaining)) / \(formatQuotaAmount(window.limit))"
             )
         }
         let label = percentWindows
@@ -639,6 +660,7 @@ enum QuotaParsers {
         }
 
         let orderedWindows = orderPercentWindows(windows)
+        try requireCalibratedResetWindows(orderedWindows, names: ["week", "month"])
         return percentQuotaResult(
             windows: orderedWindows,
             label: orderedWindows
@@ -776,6 +798,7 @@ enum QuotaParsers {
         }
 
         let orderedWindows = orderPercentWindows(windows)
+        try requireCalibratedResetWindows(orderedWindows, names: ["5h", "week"])
         return percentQuotaResult(
             windows: orderedWindows,
             planDisplayName: object.flatMap(planDisplayName),
@@ -864,6 +887,7 @@ enum QuotaParsers {
         }
 
         let orderedWindows = orderPercentWindows(windows)
+        try requireCalibratedResetWindows(orderedWindows, names: ["5h", "week"])
         return percentQuotaResult(
             windows: orderedWindows,
             planDisplayName: planDisplayName(from: object),
@@ -1374,6 +1398,30 @@ enum QuotaParsers {
         )
     }
 
+    private static func requireCalibratedResetWindows(_ windows: [PercentQuotaWindow], names requiredNames: Set<String>) throws {
+        let availableNamesWithReset = Set(
+            windows
+                .filter { $0.resetAt != nil }
+                .map { normalizedQuotaWindowName($0.name) }
+        )
+        guard requiredNames.isSubset(of: availableNamesWithReset) else {
+            throw QuotaError.schemaDrift
+        }
+    }
+
+    private static func normalizedQuotaWindowName(_ name: String) -> String {
+        switch name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "5h", "five_hour", "five-hour", "rolling", "session":
+            return "5h"
+        case "week", "weekly", "seven_day", "seven-day":
+            return "week"
+        case "month", "monthly":
+            return "month"
+        default:
+            return name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+    }
+
     private static func quotaWindowText(_ window: PercentQuotaWindow) -> QuotaWindowText {
         QuotaWindowText(
             name: window.name,
@@ -1432,6 +1480,10 @@ enum QuotaParsers {
             return "\(Int(rounded.rounded()))%"
         }
         return String(format: "%.1f%%", locale: Locale(identifier: "en_US_POSIX"), rounded)
+    }
+
+    private static func formatQuotaAmount(_ value: Double) -> String {
+        "\(Int(max(0, value).rounded(.down)))"
     }
 
     private static func parseLocalDateTime(_ value: String?) -> Date? {
@@ -2230,6 +2282,7 @@ enum QuotaParsers {
 
 enum QuotaError: Error, LocalizedError {
     case invalidResponse
+    case schemaDrift
     case networkError(Error)
     case rateLimited(resetAt: Date?)
     case unauthorized
@@ -2246,6 +2299,8 @@ enum QuotaError: Error, LocalizedError {
         switch self {
         case .invalidResponse:
             return .localized(.quotaErrorInvalidResponse)
+        case .schemaDrift:
+            return .localized(.quotaErrorSchemaDrift)
         case .networkError(let error):
             if let networkErrorKey = Self.knownNetworkErrorKey(error) {
                 return .localized(networkErrorKey)
@@ -2307,7 +2362,7 @@ enum QuotaError: Error, LocalizedError {
             return statusCode
         case .rateLimited:
             return 429
-        case .invalidResponse, .networkError, .notSupported, .noSubscription, .cooldown:
+        case .invalidResponse, .schemaDrift, .networkError, .notSupported, .noSubscription, .cooldown:
             return nil
         }
     }

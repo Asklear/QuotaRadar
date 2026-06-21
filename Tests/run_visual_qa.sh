@@ -22,6 +22,7 @@ VISUAL_QA_WINDOW_CLASSES="13-inch|wide"
 VISUAL_QA_SCENARIOS=(
     "zh-Hans-light-13-inch|zh-Hans|light|900x600|0.58"
     "zh-Hans-dark-wide-transparent-zero|zh-Hans|dark|1280x760|0.00"
+    "zh-Hans-light-dense-accounts|zh-Hans|light|1280x760|0.58"
     "en-light-wide|en|light|1280x760|0.58"
     "en-dark-13-inch|en|dark|900x600|0.58"
 )
@@ -149,7 +150,9 @@ checklist = {
     "surfaces": ["main_window", "menu_bar", "focused_provider", "expanded_provider"],
     "stress_cases": [
         "multi_key_provider",
+        "dense_single_provider_accounts",
         "long_provider_name",
+        "long_localized_plan_name",
         "long_error_message",
         "transparent_menu_readability",
         "compact_13_inch_window",
@@ -662,6 +665,25 @@ try (mainWindowID.map { "\($0)\n" } ?? "").write(to: mainWindowIDURL, atomically
 SWIFT
 }
 
+capture_status_panel_bounds_with_retry() {
+    local windows_file="$1"
+    local panel_bounds_file="$2"
+    local main_window_id_file="$3"
+    local attempt=1
+    local max_attempts=8
+
+    while [ "${attempt}" -le "${max_attempts}" ]; do
+        capture_windows_for_scenario "${windows_file}" "${panel_bounds_file}" "${main_window_id_file}"
+        if [ -s "${panel_bounds_file}" ]; then
+            return 0
+        fi
+        sleep 0.5
+        attempt=$((attempt + 1))
+    done
+
+    return 1
+}
+
 run_scenario() {
     local scenario="$1"
     local language="$2"
@@ -691,7 +713,7 @@ run_scenario() {
 
     sleep 4
 
-    capture_windows_for_scenario "${windows_file}" "${panel_bounds_file}" "${main_window_id_file}"
+    capture_status_panel_bounds_with_retry "${windows_file}" "${panel_bounds_file}" "${main_window_id_file}" || true
 
     assert_file_nonempty "${panel_bounds_file}" "Visual QA could not find the status-panel window bounds for ${scenario}"
     IFS=, read -r x y width height <"${panel_bounds_file}" || true

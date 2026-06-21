@@ -7,6 +7,19 @@
 
 This matrix is the entry point for adding providers: define credential type, usage source, reset cycle, and whether checks consume real quota before wiring UI, automatic refresh, and connection tests.
 
+## Calibration Status
+
+Latest local redacted calibration: 2026-06-21 16:53 CST. Calibration reads Quota Radar local metadata, quota history, and current refresh results only; it does not record real API keys, cookies, or personal quota values.
+
+| Provider | Status | Last Verified | Evidence Chain | Current Semantics | Fallback Behavior |
+| --- | --- | --- | --- | --- | --- |
+| DeepSeek | Verified | 2026-06-21 16:53 CST | Official `/user/balance` returned HTTP 200, and local metadata plus recent snapshots are money-balance results. | Shows CNY balance only; no reset/end. Balance increases are treated as top-up/recovery, not consumption. Top-level `limit = remaining` is balance normalization, not a fixed plan ceiling. | If the balance field moves, keep the credential actionable and surface recalibration instead of showing a generic failed check. |
+| XFYun Spark Coding Plan | Verified | 2026-06-21 16:53 CST | `/api/v1/gpt-finetune/coding-plan/list` returned package name, `validFrom/expiresAt`, and three-window usage fields; local metadata and recent snapshots preserve five-hour/weekly/package-period windows. | Official fields are used counts. The parser converts them to remaining count / total. Five-hour/weekly resets are inferred from `validFrom`; the package-period window uses `expiresAt`. | If package fields drift, reject the response as recalibration-needed and keep old snapshots for trend context. |
+| Volcengine Coding Plan | Verified | 2026-06-21 16:53 CST | `GetCodingPlanUsage` returned three-window percentages and resets; `ListSubscribeTrade` returned package name and end time, both persisted in local metadata. | The current endpoint confirms percentages and resets, not concrete remaining/total counts. Package name and end date are low-churn metadata: refreshed at most once daily, and immediately when the user manually refreshes. | If usage or subscription fields drift, show recalibration-needed and avoid inventing remaining counts. |
+| Claude Subscription | Verified | 2026-06-21 16:53 CST | `/api/organizations`, `/usage`, and `/subscription_details` currently return plan name, five-hour/weekly windows, resets, and subscription-cycle end. | No monthly window is shown; Anthropic API/prepaid credits stay separate. Older successful snapshots may lack reset from previous app versions, while the latest refresh preserves reset fields. | If organization or usage fields drift, ask for recalibration instead of treating the login as invalid. |
+| Codex Subscription | Verified | 2026-06-21 16:53 CST | `/api/auth/session`, `/backend-api/wham/usage`, and `/backend-api/subscriptions?account_id=...` currently return plan name, five-hour/weekly windows, resets, and subscription-cycle end. | No monthly window is shown. Subscription lifecycle uses ChatGPT session `account.id`; the `wham/usage` account id is not used for lifecycle lookup. | If lifecycle fields drift, keep usage parsing separate and surface recalibration for the lifecycle part. |
+| Tavily | Verified | 2026-06-21 16:53 CST | Official `/usage` currently returns key/account usage, and multiple keys are recorded as independent snapshots. | Month-start reset is computed from product policy. Exhausted keys staying at 0 are expected, not a schema drift signal. | Stable zero quota remains a quota state; HTTP or schema failures become actionable diagnostics. |
+
 ## AI Search
 
 | Provider | Category | Credential Type | Usage Source | Reset / Window | Check Consumes Quota | Diagnostic Endpoint | Notes |
