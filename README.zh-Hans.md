@@ -6,7 +6,7 @@
   <a href="./README.md">English</a>
 </p>
 
-Quota Radar 是一个 macOS 状态栏应用，用来监控搜索 API 余额和 LLM coding plan 额度。它按紧凑监控工具的思路设计：状态栏只展示最小的可行动信号，弹窗优先提示风险，主窗口解释当前额度、近期动态、关键时间、状态和操作。
+Quota Radar 是一个 macOS 状态栏应用，用来监控搜索 API 余额和 LLM coding plan 额度。它按紧凑监控工具的思路设计：状态栏只展示最小的可行动信号，弹窗优先提示风险，主窗口解释关键额度、近期变化、关键时间、刷新状态和操作。
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue)
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
@@ -21,7 +21,7 @@ Quota Radar 是一个 macOS 状态栏应用，用来监控搜索 API 余额和 L
 </p>
 
 <p align="center">
-  <em>主窗口展示 provider 当前额度、近期动态、关键时间、状态和操作；展开后按账号压缩为套餐、剩余额度、重置/到期和更新时间。截图来自真实运行画面，密钥由应用自动打码。</em>
+  <em>主窗口展示 provider 关键额度、凭据池、关键时间、状态和操作；近期变化只跟在对应额度下方，展开账号后把套餐、额度周期、关键时间和刷新状态分开显示。截图来自真实运行画面，密钥由应用自动打码。</em>
 </p>
 
 <p align="center">
@@ -35,8 +35,9 @@ Quota Radar 是一个 macOS 状态栏应用，用来监控搜索 API 余额和 L
 ## 功能
 
 - 风险优先的状态栏弹窗：低额度、即将到期、刷新失败和近期消耗会优先出现。
-- 主窗口按 `Provider`、`Current`、`Activity`、`Time`、`Status` 和操作组织额度概览。
+- 主窗口按 `Provider`、`关键额度`、`凭据池`、`关键时间`、`状态` 和操作组织额度概览。
 - 每个 provider 支持多个账号；账号行展示套餐名、剩余额度、重置/到期时间和更新时间。
+- 近期变化只放在对应额度旁边；`上次更新` 只表达刷新状态，不再重复展示消耗变化。
 - 支持 API Key 与网页登录授权；部分订阅类 provider 可额外保存可复制 API Key。
 - 凭据本地存储在 `~/Library/Application Support/QuotaRadar/secrets.json`，权限为 `0600`。
 - 支持 `.env`、cURL 和 `~/.claude/settings.json` 导入。

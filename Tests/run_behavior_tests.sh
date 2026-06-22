@@ -2429,12 +2429,51 @@ assert_no_match 'provider: providerColumnWidth \+ extraWidth' \
 assert_no_match 'keyQuota: keyQuotaWidth \+ extraWidth' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Key quota column must not absorb spare table width after Activity is hidden"
-assert_no_match 'activitySummary: monitor\.activitySummary\(for: key\)' \
+assert_match 'activitySummary: monitor\.activitySummary\(for: key\)' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Expanded account rows should not repeat activity summaries after the compact four-column account layout"
-assert_no_match 'summary: activitySummary' \
+  "Expanded account rows should attach account-specific recent changes to the quota area"
+assert_no_match 'speedSummary: monitor\.consumptionSpeedSummary\(for: key\)' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Expanded account rows should not render a second activity meter inside the compact account layout"
+  "Expanded account rows should keep speed-risk hints out of the quota-window table"
+assert_no_match 'refreshItem\.deltaText' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Last Updated refresh markers should stay status-only instead of showing quota deltas"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
+try:
+    quota_windows = source.split("struct ProviderQuotaAccountQuotaWindows: View", 1)[1].split("struct CodexResetCreditRow: View", 1)[0]
+except IndexError:
+    print("FAIL: Expanded account quota window block should exist", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaInlineActivity(" not in quota_windows:
+    print("FAIL: Expanded account quota blocks should render recent changes below the quota windows", file=sys.stderr)
+    sys.exit(1)
+if "summary: activitySummary" not in quota_windows:
+    print("FAIL: Expanded account quota blocks should use the account-specific activity summary", file=sys.stderr)
+    sys.exit(1)
+if "speedSummary: .empty" not in quota_windows:
+    print("FAIL: Expanded account quota blocks should render only recent changes, not speed-risk hints", file=sys.stderr)
+    sys.exit(1)
+try:
+    meta_panel = source.split("struct ProviderQuotaAccountMetaPanel: View", 1)[1].split("struct ProviderQuotaTimingColumn: View", 1)[0]
+except IndexError:
+    print("FAIL: Expanded account metadata panel should exist", file=sys.stderr)
+    sys.exit(1)
+if "activitySummary" in meta_panel or "speedSummary" in meta_panel or "deltaText" in meta_panel:
+    print("FAIL: Last Updated metadata should stay refresh-status-only and not render quota activity", file=sys.stderr)
+    sys.exit(1)
+try:
+    inline_activity = source.split("struct ProviderQuotaInlineActivity: View", 1)[1].split("struct QuotaSpeedHint: View", 1)[0]
+except IndexError:
+    print("FAIL: Inline quota activity component should exist", file=sys.stderr)
+    sys.exit(1)
+if "else if speedSummary.shouldRender" not in inline_activity:
+    print("FAIL: Inline quota activity should prefer real recent changes over speed-risk hints instead of rendering both side by side", file=sys.stderr)
+    sys.exit(1)
+PY
 assert_match 'summary: providerActivitySummary' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Provider summary rows should keep meaningful activity attached to the quota reading"

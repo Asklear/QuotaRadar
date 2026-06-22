@@ -66,6 +66,8 @@ For web-login authorization providers, prefer in-app reauthentication or paste a
 
 The `Quota Overview` page shows quota summaries for configured providers only. Providers without saved credentials do not appear as placeholders in `Quota Overview`, `Credentials`, or `Diagnostics`.
 
+Provider rows are organized around `Key Quota`, `Credential Pool`, `Critical Time`, and `Status`. Recent quota changes appear under the quota value they describe, while `Last Updated` in expanded account rows shows only refresh status such as updated, no change, failed, or skipped.
+
 The menu bar popover prioritizes today's quota risk, expiring credentials, and items needing attention, with quick refresh for individual providers.
 
 ## 6. Settings

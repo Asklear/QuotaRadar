@@ -2559,6 +2559,7 @@ struct ProviderQuotaMonitorRow: View {
                         ForEach(focusedCredentialFirstDisplayKeys, id: \.id) { key in
                             ProviderQuotaAccountGroup(
                                 key: key,
+                                activitySummary: monitor.activitySummary(for: key),
                                 latestRefreshHistoryItem: monitor.refreshHistoryItems(for: key).first,
                                 isFocused: focusedCredentialIDForDisplay == key.id,
                                 focusedReason: navigationStore.focusedMenuSignalReason,
@@ -2750,9 +2751,7 @@ struct ProviderQuotaInlineActivity: View {
             HStack(alignment: .firstTextBaseline, spacing: 5) {
                 if shouldRenderActivity {
                     QuotaActivityMeter(summary: summary, tint: tint)
-                }
-
-                if speedSummary.shouldRender {
+                } else if speedSummary.shouldRender {
                     QuotaSpeedHint(summary: speedSummary, tint: tint)
                         .fixedSize(horizontal: true, vertical: false)
                 }
@@ -3061,6 +3060,7 @@ struct ProviderQuotaAccountWindowDetails: View {
 
 struct ProviderQuotaAccountGroup: View {
     let key: APIKey
+    let activitySummary: QuotaActivitySummary
     let latestRefreshHistoryItem: QuotaRefreshHistoryItem?
     let isFocused: Bool
     let focusedReason: MenuSignalReason?
@@ -3102,6 +3102,7 @@ struct ProviderQuotaAccountGroup: View {
 
                 ProviderQuotaAccountQuotaWindows(
                     key: key,
+                    activitySummary: activitySummary,
                     fallbackDetailText: fallbackQuotaDetailText,
                     isResettingCodexQuota: isResettingCodexQuota,
                     onResetCodexQuota: onResetCodexQuota
@@ -3224,6 +3225,7 @@ struct ProviderQuotaAccountIdentity: View {
 
 struct ProviderQuotaAccountQuotaWindows: View {
     let key: APIKey
+    let activitySummary: QuotaActivitySummary
     let fallbackDetailText: String?
     let isResettingCodexQuota: Bool
     let onResetCodexQuota: () -> Void
@@ -3255,6 +3257,13 @@ struct ProviderQuotaAccountQuotaWindows: View {
                     )
                 }
             }
+
+            ProviderQuotaInlineActivity(
+                summary: activitySummary,
+                speedSummary: .empty,
+                tint: key.status.color
+            )
+            .padding(.leading, visibleWindows.isEmpty ? 0 : 74)
 
             if key.provider == .codexSubscription,
                let resetCreditCount = key.codexResetCreditCount {

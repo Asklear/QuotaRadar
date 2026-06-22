@@ -6,7 +6,7 @@
   <a href="./README.zh-Hans.md">简体中文</a>
 </p>
 
-Quota Radar is a macOS menu bar app for monitoring search API balances and LLM coding-plan quotas. It is designed like a compact monitoring utility: the menu bar shows the smallest actionable signal, the popover triages risk, and the main window explains current quota, activity, timing, status, and actions.
+Quota Radar is a macOS menu bar app for monitoring search API balances and LLM coding-plan quotas. It is designed like a compact monitoring utility: the menu bar shows the smallest actionable signal, the popover triages risk, and the main window explains key quota, recent change, timing, refresh status, and actions.
 
 ![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue)
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
@@ -21,7 +21,7 @@ Current version: `v0.3.8`.
 </p>
 
 <p align="center">
-  <em>The main window shows provider-level Current, Activity, Time, Status, and actions; expanded accounts are compressed into Plan, Remaining, Critical Time, and Updated. Screenshots are captured from the running app, with credentials masked by Quota Radar.</em>
+  <em>The main window shows provider-level Key Quota, Credential Pool, Critical Time, Status, and actions. Recent change stays under Key Quota; expanded accounts keep plan, quota windows, critical time, and refresh status separated. Screenshots are captured from the running app, with credentials masked by Quota Radar.</em>
 </p>
 
 <p align="center">
@@ -35,8 +35,9 @@ Current version: `v0.3.8`.
 ## Features
 
 - Risk-first menu bar popover for low quota, expiring plans, failed checks, and recent activity.
-- Main quota overview organized by `Provider`, `Current`, `Activity`, `Time`, `Status`, and actions.
+- Main quota overview organized by `Provider`, `Key Quota`, `Credential Pool`, `Critical Time`, `Status`, and actions.
 - Multiple accounts per provider, with account-level plan, remaining quota, reset/expiry timing, and update time.
+- Recent quota changes stay beside the quota they describe; `Last Updated` stays a refresh-status signal instead of repeating consumption deltas.
 - API-key and web-login authorization credentials, including companion API keys for providers whose quota checks require web login.
 - Local secret storage in `~/Library/Application Support/QuotaRadar/secrets.json` with `0600` permissions.
 - `.env`, cURL, and `~/.claude/settings.json` import paths for supported providers.

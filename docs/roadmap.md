@@ -52,6 +52,7 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Keep money-balance providers such as DeepSeek, Bocha, and WeChat Search from showing low-value `No reset cycle` timing copy.
 - [x] Keep expanded account rows aligned with the original layout: account identity on the left, quota windows in the middle, and Critical Time / Last Updated in the right-side metadata panel.
 - [x] Show quota-window details as reset time first, with remaining/total counts in parentheses for request-count providers such as XFYun Spark.
+- [x] Keep recent account activity inside the quota-window area and keep Last Updated status-only, so expanded rows do not mix consumption deltas, speed hints, and refresh freshness.
 - [x] Restore Diagnostics category folding by AI Search and LLM.
 - [x] Stabilize visual QA menu-bar screenshots with window-level capture so transparent popovers do not include the user's desktop background.
 
