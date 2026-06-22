@@ -19,6 +19,7 @@ class QuotaMonitor: ObservableObject {
     @Published var apiKeys: [APIKey] = []
     @Published var isRefreshing = false
     @Published var refreshingProviders: Set<Provider> = []
+    @Published var resettingCodexQuotaKeyIDs: Set<UUID> = []
     @Published var lastError: String?
     @Published var refreshMessage: String?
     @Published private(set) var providerOrder: [Provider] = []
@@ -235,6 +236,54 @@ class QuotaMonitor: ObservableObject {
         refresh(targetProviders: [provider], mode: mode)
     }
 
+    func resetCodexQuota(for keyID: UUID) {
+        guard !resettingCodexQuotaKeyIDs.contains(keyID) else { return }
+        ensureSecretsLoaded()
+        guard let index = apiKeys.firstIndex(where: { $0.id == keyID }),
+              apiKeys[index].canResetCodexQuota else {
+            return
+        }
+
+        resettingCodexQuotaKeyIDs.insert(keyID)
+        refreshMessage = nil
+        lastError = nil
+        let resetKey = apiKeys[index]
+
+        Task {
+            do {
+                let result = try await service.resetCodexSubscriptionQuota(key: resetKey)
+                guard let currentIndex = self.apiKeys.firstIndex(where: { $0.id == keyID }) else {
+                    self.resettingCodexQuotaKeyIDs.remove(keyID)
+                    return
+                }
+                var updatedKey = self.apiKeys[currentIndex]
+                self.applySuccessfulQuotaResult(result, to: &updatedKey, now: Date())
+                self.apiKeys[currentIndex] = updatedKey
+                self.recordQuotaSnapshot(for: updatedKey, outcome: .success)
+                self.refreshMessage = L10n.t(.updatedJustNow)
+                self.lastError = nil
+                self.saveKeys()
+                QuotaThresholdNotificationService.shared.notifyIfNeeded(
+                    for: self.apiKeys,
+                    snapshots: self.quotaSnapshots
+                )
+            } catch {
+                if let currentIndex = self.apiKeys.firstIndex(where: { $0.id == keyID }) {
+                    self.apiKeys[currentIndex].lastHTTPStatus = (error as? QuotaError)?.httpStatus
+                    self.apiKeys[currentIndex].lastDiagnosticMessage = error.localizedDescription
+                    self.apiKeys[currentIndex].lastDiagnosticText = (error as? QuotaError)?.localizedTextDescriptor
+                    self.apiKeys[currentIndex].consecutiveFailureCount += 1
+                    self.apiKeys[currentIndex].lastUpdated = Date()
+                    self.recordQuotaSnapshot(for: self.apiKeys[currentIndex], outcome: .failed)
+                    self.saveKeys()
+                }
+                self.refreshMessage = nil
+                self.lastError = error.localizedDescription
+            }
+            self.resettingCodexQuotaKeyIDs.remove(keyID)
+        }
+    }
+
     func refreshQuotaConsumingProviders(mode: RefreshMode = .quotaConsumingAutomatic) {
         let providers = Set(Provider.visibleCases.filter {
             $0.capability.matchesAutomaticRefreshLane(consumesSearchQuota: true)
@@ -336,18 +385,7 @@ class QuotaMonitor: ObservableObject {
 
                 do {
                     let result = try await service.checkQuota(for: key, bypassCooldown: mode == .manual)
-                    key.remaining = result.remaining
-                    key.limit = result.limit
-                    key.resetAt = result.resetAt
-                    key.planEndsAt = result.planEndsAt
-                    key.planDisplayName = result.planDisplayName
-                    key.quotaLabel = result.quotaLabel
-                    key.quotaText = result.quotaText
-                    key.lastHTTPStatus = result.httpStatus
-                    key.lastDiagnosticMessage = result.diagnosticMessage
-                    key.lastDiagnosticText = result.diagnosticText
-                    key.consecutiveFailureCount = 0
-                    key.lastUpdated = Date()
+                    applySuccessfulQuotaResult(result, to: &key, now: Date())
                     recordQuotaSnapshot(for: key, outcome: .success)
                     updatedKeys.append(key)
                 } catch {
@@ -362,6 +400,7 @@ class QuotaMonitor: ObservableObject {
                         key.resetAt = nil
                         key.planEndsAt = nil
                         key.planDisplayName = nil
+                        key.codexResetCreditsRemaining = nil
                         key.quotaLabel = key.provider.localizedUnsupportedQuotaLabel()
                         key.quotaText = LocalizedTextDescriptor.localized(.quotaUnavailable)
                         key.lastHTTPStatus = nil
@@ -380,6 +419,7 @@ class QuotaMonitor: ObservableObject {
                         key.resetAt = nil
                         key.planEndsAt = nil
                         key.planDisplayName = nil
+                        key.codexResetCreditsRemaining = nil
                         key.quotaLabel = "No subscribed plan"
                         key.quotaText = LocalizedTextDescriptor.localized(.noSubscribedPlan)
                         key.lastHTTPStatus = 200
@@ -394,6 +434,7 @@ class QuotaMonitor: ObservableObject {
                         key.resetAt = nil
                         key.planEndsAt = nil
                         key.planDisplayName = nil
+                        key.codexResetCreditsRemaining = nil
                         key.lastHTTPStatus = (error as? QuotaError)?.httpStatus ?? 401
                         if key.provider.supportsDashboardReauthentication {
                             key.quotaLabel = L10n.t(.credentialExpired)
@@ -416,6 +457,7 @@ class QuotaMonitor: ObservableObject {
                         key.resetAt = nil
                         key.planEndsAt = nil
                         key.planDisplayName = nil
+                        key.codexResetCreditsRemaining = nil
                         key.lastHTTPStatus = (error as? QuotaError)?.httpStatus
                         key.quotaLabel = error.localizedDescription
                         key.quotaText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
@@ -499,10 +541,32 @@ class QuotaMonitor: ObservableObject {
     // MARK: - Persistence
 
     private func saveKeys() {
+        if Self.usesVisualQAFixtures {
+            return
+        }
         store.save(apiKeys)
     }
 
+    private func applySuccessfulQuotaResult(_ result: QuotaResult, to key: inout APIKey, now: Date) {
+        key.remaining = result.remaining
+        key.limit = result.limit
+        key.resetAt = result.resetAt
+        key.planEndsAt = result.planEndsAt
+        key.planDisplayName = result.planDisplayName
+        key.codexResetCreditsRemaining = result.codexResetCreditsRemaining
+        key.quotaLabel = result.quotaLabel
+        key.quotaText = result.quotaText
+        key.lastHTTPStatus = result.httpStatus
+        key.lastDiagnosticMessage = result.diagnosticMessage
+        key.lastDiagnosticText = result.diagnosticText
+        key.consecutiveFailureCount = 0
+        key.lastUpdated = now
+    }
+
     private func recordQuotaSnapshot(for key: APIKey, outcome: QuotaSnapshotOutcome) {
+        if Self.usesVisualQAFixtures {
+            return
+        }
         let snapshot = QuotaSnapshot(
             keyID: key.id,
             provider: key.provider,
@@ -548,6 +612,9 @@ class QuotaMonitor: ObservableObject {
     }
 
     private func ensureSecretsLoaded() {
+        if Self.usesVisualQAFixtures {
+            return
+        }
         apiKeys = store.loadSecrets(for: apiKeys)
     }
 
@@ -580,6 +647,7 @@ class QuotaMonitor: ObservableObject {
                 replacement.resetAt = existingKey.resetAt
                 replacement.planEndsAt = existingKey.planEndsAt
                 replacement.planDisplayName = existingKey.planDisplayName
+                replacement.codexResetCreditsRemaining = existingKey.codexResetCreditsRemaining
                 replacement.lastUpdated = existingKey.lastUpdated
                 replacement.lastHTTPStatus = existingKey.lastHTTPStatus
                 replacement.lastDiagnosticMessage = existingKey.lastDiagnosticMessage
@@ -682,6 +750,7 @@ extension QuotaMonitor {
                 limit: 1000,
                 planEndsAt: soonPlanEnd,
                 planDisplayName: "Pro",
+                codexResetCreditsRemaining: 3,
                 lastUpdated: now,
                 quotaText: .quotaWindows([
                     QuotaWindowText(name: "5h", percentText: "96%", resetAt: hourReset, remainingText: "96 / 100"),
@@ -806,6 +875,7 @@ extension QuotaMonitor {
         resetAt: Date? = nil,
         planEndsAt: Date? = nil,
         planDisplayName: String? = nil,
+        codexResetCreditsRemaining: Int? = nil,
         lastUpdated: Date? = nil,
         lastHTTPStatus: Int? = nil,
         lastDiagnosticMessage: String? = nil,
@@ -819,6 +889,7 @@ extension QuotaMonitor {
         apiKey.resetAt = resetAt
         apiKey.planEndsAt = planEndsAt
         apiKey.planDisplayName = planDisplayName
+        apiKey.codexResetCreditsRemaining = codexResetCreditsRemaining
         apiKey.lastUpdated = lastUpdated
         apiKey.lastHTTPStatus = lastHTTPStatus
         apiKey.lastDiagnosticMessage = lastDiagnosticMessage

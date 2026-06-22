@@ -21,6 +21,7 @@ struct CredentialMetadataExporter {
         let resetAt: Date?
         let planEndsAt: Date?
         let planDisplayName: String?
+        let codexResetCreditsRemaining: Int?
         let lastUpdated: Date?
         let lastHTTPStatus: Int?
         let consecutiveFailureCount: Int
@@ -56,6 +57,7 @@ private extension CredentialMetadataExporter.CredentialRecord {
         resetAt = credential.resetAt
         planEndsAt = credential.planEndsAt
         planDisplayName = credential.planDisplayName
+        codexResetCreditsRemaining = credential.codexResetCreditsRemaining
         lastUpdated = credential.lastUpdated
         lastHTTPStatus = credential.lastHTTPStatus
         consecutiveFailureCount = credential.consecutiveFailureCount

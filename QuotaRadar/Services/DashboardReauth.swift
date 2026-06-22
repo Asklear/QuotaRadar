@@ -104,8 +104,16 @@ struct DashboardCapturedCredential {
 }
 
 enum DashboardCredentialCapturePolicy {
-    static let automaticRetryDelays: [TimeInterval] = [0.35, 1.0, 2.0]
     static let manualRetryDelays: [TimeInterval] = [0.25, 0.75, 1.5]
+
+    static func automaticRetryDelays(for provider: Provider) -> [TimeInterval] {
+        switch provider {
+        case .volcengineCodingPlan, .volcengineTokenPlan:
+            return [0.35, 1.0, 2.0, 4.0, 7.0]
+        default:
+            return [0.35, 1.0, 2.0]
+        }
+    }
 
     static func isCredentialReady(
         _ credential: DashboardCapturedCredential,

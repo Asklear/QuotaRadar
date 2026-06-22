@@ -13,6 +13,7 @@ struct QuotaResult {
     var httpStatus: Int? = nil
     var diagnosticMessage: String? = nil
     var diagnosticText: LocalizedTextDescriptor? = nil
+    var codexResetCreditsRemaining: Int? = nil
 
     init(
         remaining: Int,
@@ -25,7 +26,8 @@ struct QuotaResult {
         quotaWindows: [QuotaWindowText] = [],
         httpStatus: Int? = nil,
         diagnosticMessage: String? = nil,
-        diagnosticText: LocalizedTextDescriptor? = nil
+        diagnosticText: LocalizedTextDescriptor? = nil,
+        codexResetCreditsRemaining: Int? = nil
     ) {
         self.remaining = remaining
         self.limit = limit
@@ -40,6 +42,7 @@ struct QuotaResult {
         self.httpStatus = httpStatus
         self.diagnosticMessage = diagnosticMessage
         self.diagnosticText = diagnosticText ?? diagnosticMessage.flatMap(LocalizedTextDescriptor.fromLegacyLabel)
+        self.codexResetCreditsRemaining = codexResetCreditsRemaining
     }
 }
 
@@ -760,7 +763,21 @@ enum QuotaParsers {
                 let reset_at: Double?
             }
 
+            struct RateLimitResetCredits: Decodable {
+                let available_count: Int?
+
+                enum CodingKeys: String, CodingKey {
+                    case available_count
+                }
+
+                init(from decoder: Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    available_count = try? container.decode(Int.self, forKey: .available_count)
+                }
+            }
+
             let rate_limit: RateLimit?
+            let rate_limit_reset_credits: RateLimitResetCredits?
         }
 
         let response = try JSONDecoder().decode(UsageResponse.self, from: data)
@@ -799,18 +816,30 @@ enum QuotaParsers {
 
         let orderedWindows = orderPercentWindows(windows)
         try requireCalibratedResetWindows(orderedWindows, names: ["5h", "week"])
+        let resetCreditsRemaining: Int?
+        if let availableCount = response.rate_limit_reset_credits?.available_count,
+           availableCount >= 0 {
+            resetCreditsRemaining = availableCount
+        } else {
+            resetCreditsRemaining = nil
+        }
         return percentQuotaResult(
             windows: orderedWindows,
             planDisplayName: object.flatMap(planDisplayName),
             label: orderedWindows
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
-                .joined(separator: " · ")
+                .joined(separator: " · "),
+            codexResetCreditsRemaining: resetCreditsRemaining
         )
     }
 
     static func parseCodexSubscriptionLifecycle(_ data: Data) throws -> SubscriptionLifecycleInfo {
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw QuotaError.invalidResponse
+        }
+
+        if let accountsCheckLifecycle = codexAccountsCheckLifecycleInfo(from: object) {
+            return accountsCheckLifecycle
         }
 
         return SubscriptionLifecycleInfo(
@@ -825,7 +854,7 @@ enum QuotaParsers {
                     "expiresAt",
                 ]
             ),
-            planDisplayName: planDisplayName(from: object)
+            planDisplayName: codexPlanDisplayName(from: object) ?? planDisplayName(from: object)
         )
     }
 
@@ -887,7 +916,6 @@ enum QuotaParsers {
         }
 
         let orderedWindows = orderPercentWindows(windows)
-        try requireCalibratedResetWindows(orderedWindows, names: ["5h", "week"])
         return percentQuotaResult(
             windows: orderedWindows,
             planDisplayName: planDisplayName(from: object),
@@ -1375,7 +1403,8 @@ enum QuotaParsers {
         windows: [PercentQuotaWindow],
         planEndsAt: Date? = nil,
         planDisplayName: String? = nil,
-        label: String
+        label: String,
+        codexResetCreditsRemaining: Int? = nil
     ) -> QuotaResult {
         let tightest = windows.min { lhs, rhs in
             lhs.remainingPercent < rhs.remainingPercent
@@ -1394,7 +1423,8 @@ enum QuotaParsers {
             planEndsAt: planEndsAt,
             planDisplayName: planDisplayName,
             quotaLabel: label,
-            quotaWindows: orderPercentWindows(windows).map(quotaWindowText)
+            quotaWindows: orderPercentWindows(windows).map(quotaWindowText),
+            codexResetCreditsRemaining: codexResetCreditsRemaining
         )
     }
 
@@ -2153,6 +2183,10 @@ enum QuotaParsers {
     }
 
     private static func claudeOrganizationPlanDisplayName(from source: [String: Any]) -> String? {
+        if let maxTier = claudeMaxTierDisplayName(from: source) {
+            return maxTier
+        }
+
         if let capabilities = source["capabilities"] as? [Any] {
             let capabilityNames = capabilities.compactMap(stringValue).map { $0.lowercased() }
             let capabilityPlans = [
@@ -2187,6 +2221,162 @@ enum QuotaParsers {
             }
         }
         return nil
+    }
+
+    private static func claudeMaxTierDisplayName(from source: [String: Any]) -> String? {
+        let tierKeys = [
+            "rate_limit_tier",
+            "rateLimitTier",
+            "tier",
+            "tierName",
+            "tier_name",
+            "planType",
+            "plan_type",
+            "subscriptionType",
+            "subscription_type",
+            "planName",
+            "plan_name",
+        ]
+        let tierValues = tierKeys.compactMap { stringValue(source[$0]) }
+        let hasMaxCapability = (source["capabilities"] as? [Any])?
+            .compactMap(stringValue)
+            .map { $0.lowercased() }
+            .contains("claude_max") == true
+
+        for value in tierValues {
+            let normalized = value
+                .lowercased()
+                .replacingOccurrences(of: "-", with: "_")
+                .replacingOccurrences(of: " ", with: "_")
+            if normalized.contains("20x") && (normalized.contains("max") || hasMaxCapability) {
+                return "Max 20x"
+            }
+            if normalized.contains("5x") && (normalized.contains("max") || hasMaxCapability) {
+                return "Max 5x"
+            }
+        }
+        return nil
+    }
+
+    private static func codexAccountsCheckLifecycleInfo(from object: [String: Any]) -> SubscriptionLifecycleInfo? {
+        guard let accounts = object["accounts"] as? [String: Any] else {
+            return nil
+        }
+
+        let accountObjects = accounts.values.compactMap { $0 as? [String: Any] }
+        guard !accountObjects.isEmpty else {
+            return nil
+        }
+
+        let selected = accountObjects.first { accountObject in
+            guard let entitlement = accountObject["entitlement"] as? [String: Any] else {
+                return false
+            }
+            return boolValue(entitlement["has_active_subscription"]) == true
+        } ?? accountObjects[0]
+
+        let entitlement = selected["entitlement"] as? [String: Any]
+        let account = selected["account"] as? [String: Any]
+        var sources = [[String: Any]]()
+        if let entitlement {
+            sources.append(entitlement)
+        }
+        if let account {
+            sources.append(account)
+        }
+        sources.append(selected)
+
+        let dateKeys = [
+            "renews_at",
+            "renewsAt",
+            "active_until",
+            "activeUntil",
+            "current_period_end",
+            "currentPeriodEnd",
+            "expires_at",
+            "expiresAt",
+            "ends_at",
+            "endsAt",
+        ]
+        let planEndsAt = sources.compactMap { firstDateValue(in: $0, keys: dateKeys) }.first
+        let detectedPlanDisplayName = sources.compactMap { source -> String? in
+            codexPlanDisplayName(from: source)
+        }.first
+            ?? sources.compactMap { source -> String? in
+                planDisplayName(from: source)
+            }.first
+
+        guard planEndsAt != nil || detectedPlanDisplayName != nil else {
+            return nil
+        }
+        return SubscriptionLifecycleInfo(
+            planEndsAt: planEndsAt,
+            planDisplayName: detectedPlanDisplayName
+        )
+    }
+
+    private static func codexPlanDisplayName(from source: [String: Any]) -> String? {
+        let planKeys = [
+            "subscription_plan",
+            "subscriptionPlan",
+            "plan_id",
+            "planID",
+            "planId",
+            "plan_type",
+            "planType",
+            "revenuecat_offering_id",
+            "revenuecatOfferingId",
+        ]
+        for key in planKeys {
+            if let plan = codexPlanDisplayName(fromRawValue: stringValue(source[key])) {
+                return plan
+            }
+        }
+
+        if let offeringIDs = source["revenuecat_offering_ids"] as? [Any] {
+            for offeringID in offeringIDs {
+                if let plan = codexPlanDisplayName(fromRawValue: stringValue(offeringID)) {
+                    return plan
+                }
+            }
+        }
+
+        if let entitlement = source["entitlement"] as? [String: Any],
+           let plan = codexPlanDisplayName(from: entitlement) {
+            return plan
+        }
+        if let account = source["account"] as? [String: Any],
+           let plan = codexPlanDisplayName(from: account) {
+            return plan
+        }
+
+        return nil
+    }
+
+    private static func codexPlanDisplayName(fromRawValue value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+        guard !normalized.isEmpty else { return nil }
+
+        switch normalized {
+        case "chatgptpro", "chatgpt_pro", "chatgptproplan", "chatgpt_pro_plan", "pro_20x":
+            return "Pro 20x"
+        case "chatgptprolite", "chatgpt_pro_lite", "chatgptproliteplan", "chatgpt_pro_lite_plan", "pro_lite", "pro_5x":
+            return "Pro 5x"
+        case "chatgptplus", "chatgpt_plus", "chatgptplusplan", "chatgpt_plus_plan", "plus":
+            return "Plus"
+        case "chatgptteam", "chatgpt_team", "team":
+            return "Team"
+        case "free", "chatgptfree", "chatgpt_free":
+            return "Free"
+        case "pro":
+            return "Pro"
+        default:
+            return nil
+        }
     }
 
     private static func firstDateValue(in source: [String: Any], keys: [String]) -> Date? {
@@ -3370,6 +3560,9 @@ actor QuotaService {
         request.setValue("same-origin", forHTTPHeaderField: "sec-fetch-site")
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
         request.setValue("Bearer \(sessionContext.accessToken)", forHTTPHeaderField: "Authorization")
+        if let accountID = sessionContext.accountID {
+            request.setValue(accountID, forHTTPHeaderField: "chatgpt-account-id")
+        }
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -3394,6 +3587,57 @@ actor QuotaService {
         }
 
         return withHTTPStatus(result, from: httpResponse)
+    }
+
+    func resetCodexSubscriptionQuota(key: APIKey) async throws -> QuotaResult {
+        guard key.provider == .codexSubscription else {
+            throw QuotaError.notSupported
+        }
+        let credential = DashboardCredential(key.key)
+        guard !credential.cookie.isEmpty else {
+            throw QuotaError.unauthorized
+        }
+        let sessionContext = try await fetchChatGPTSessionContext(cookie: credential.cookie)
+        guard let accountID = sessionContext.accountID, !accountID.isEmpty else {
+            throw QuotaError.invalidResponse
+        }
+
+        var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("zh-CN,zh;q=0.9", forHTTPHeaderField: "Accept-Language")
+        request.setValue("zh-CN", forHTTPHeaderField: "oai-language")
+        request.setValue("codex_cli_rs", forHTTPHeaderField: "originator")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        request.setValue(credential.cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://chatgpt.com/codex", forHTTPHeaderField: "Referer")
+        request.setValue("\"Chromium\";v=\"148\", \"Google Chrome\";v=\"148\", \"Not/A)Brand\";v=\"99\"", forHTTPHeaderField: "sec-ch-ua")
+        request.setValue("?0", forHTTPHeaderField: "sec-ch-ua-mobile")
+        request.setValue("\"macOS\"", forHTTPHeaderField: "sec-ch-ua-platform")
+        request.setValue("empty", forHTTPHeaderField: "sec-fetch-dest")
+        request.setValue("cors", forHTTPHeaderField: "sec-fetch-mode")
+        request.setValue("same-origin", forHTTPHeaderField: "sec-fetch-site")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue("Bearer \(sessionContext.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(accountID, forHTTPHeaderField: "chatgpt-account-id")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "redeem_request_id": UUID().uuidString.lowercased()
+        ])
+
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw QuotaError.invalidResponse
+        }
+
+        return try await checkCodexSubscriptionQuota(key: key)
     }
 
     private func fetchChatGPTSessionContext(cookie: String) async throws -> ChatGPTSessionContext {
@@ -3454,6 +3698,54 @@ actor QuotaService {
         request.setValue("same-origin", forHTTPHeaderField: "sec-fetch-site")
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+        let lifecycle = try QuotaParsers.parseCodexSubscriptionLifecycle(data)
+
+        guard let accountCheckLifecycle = try? await fetchCodexAccountsCheckLifecycle(
+            cookie: cookie,
+            accessToken: accessToken,
+            accountID: accountID
+        ) else {
+            return lifecycle
+        }
+        return SubscriptionLifecycleInfo(
+            planEndsAt: accountCheckLifecycle.planEndsAt ?? lifecycle.planEndsAt,
+            planDisplayName: accountCheckLifecycle.planDisplayName ?? lifecycle.planDisplayName
+        )
+    }
+
+    private func fetchCodexAccountsCheckLifecycle(
+        cookie: String,
+        accessToken: String,
+        accountID: String
+    ) async throws -> SubscriptionLifecycleInfo {
+        var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/accounts/check/v4-2023-04-27")!)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("zh-CN,zh;q=0.9", forHTTPHeaderField: "Accept-Language")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        request.setValue(cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://chatgpt.com/codex", forHTTPHeaderField: "Referer")
+        request.setValue("\"Chromium\";v=\"148\", \"Google Chrome\";v=\"148\", \"Not/A)Brand\";v=\"99\"", forHTTPHeaderField: "sec-ch-ua")
+        request.setValue("?0", forHTTPHeaderField: "sec-ch-ua-mobile")
+        request.setValue("\"macOS\"", forHTTPHeaderField: "sec-ch-ua-platform")
+        request.setValue("empty", forHTTPHeaderField: "sec-fetch-dest")
+        request.setValue("cors", forHTTPHeaderField: "sec-fetch-mode")
+        request.setValue("same-origin", forHTTPHeaderField: "sec-fetch-site")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(accountID, forHTTPHeaderField: "chatgpt-account-id")
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {

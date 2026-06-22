@@ -270,14 +270,20 @@ struct QuotaWindowText: Codable, Equatable {
         L10n.quotaWindowResetDisplay(name, percentText, resetAt: resetAt)
     }
 
+    var remainingParentheticalText: String? {
+        guard let remainingText else { return nil }
+        return L10n.parenthesized(remainingText)
+    }
+
     var detailValueText: String? {
-        if let remainingText {
-            return remainingText
-        }
         if let resetAt {
-            return L10n.format(.resetDate, L10n.shortDateTime(resetAt))
+            let resetText = L10n.format(.resetDate, L10n.shortDateTime(resetAt))
+            if let remainingParentheticalText {
+                return "\(resetText)\(L10n.parentheticalSuffix(remainingParentheticalText))"
+            }
+            return resetText
         }
-        return nil
+        return remainingText
     }
 }
 
@@ -508,6 +514,11 @@ enum L10n {
         case costlyQuotaRefreshMessage
         case testConnectionConsumesQuota
         case reset
+        case codexResetCreditsRemaining
+        case codexResetQuotaAction
+        case codexResetQuotaConfirmTitle
+        case codexResetQuotaConfirmMessage
+        case codexResetQuotaConfirmAction
         case resetDate
         case planEndsDate
         case quotaActivity
@@ -735,6 +746,24 @@ enum L10n {
             formatter.dateFormat = includesYear ? "yyyy년 M월 d일 HH:mm" : "M월 d일 HH:mm"
         }
         return formatter.string(from: date)
+    }
+
+    static func parenthesized(_ text: String, language: AppLanguage = AppLanguageStore.shared.language) -> String {
+        switch language {
+        case .simplifiedChinese, .traditionalChinese, .japanese:
+            return "（\(text)）"
+        case .english, .korean:
+            return "(\(text))"
+        }
+    }
+
+    static func parentheticalSuffix(_ parentheticalText: String, language: AppLanguage = AppLanguageStore.shared.language) -> String {
+        switch language {
+        case .simplifiedChinese, .traditionalChinese, .japanese:
+            return parentheticalText
+        case .english, .korean:
+            return " \(parentheticalText)"
+        }
     }
 
     static func percentPoints(_ value: Double) -> String {
@@ -1403,7 +1432,7 @@ enum L10n {
         .featureRealtime: "Provider-level quota refresh",
         .featureGlass: "Frosted glass menu bar UI",
         .featureMenuBar: "Menu bar quick access",
-        .version: "Version 0.3.7",
+        .version: "Version 0.3.8",
         .importNoKeys: "No supported API keys found in %@.",
         .importSummary: "Imported %d new and updated %d key(s).",
         .refreshAlreadyRunning: "Refresh already running",
@@ -1421,6 +1450,11 @@ enum L10n {
         .costlyQuotaRefreshMessage: "Refreshing this provider sends a real quota-consuming request. Continue only if you want to spend one request.",
         .testConnectionConsumesQuota: "Test and consume quota",
         .reset: "Reset",
+        .codexResetCreditsRemaining: "%d credits",
+        .codexResetQuotaAction: "Use reset",
+        .codexResetQuotaConfirmTitle: "Use a Codex reset?",
+        .codexResetQuotaConfirmMessage: "Use one reset credit for %@. Quota Radar will refresh this account after the reset.",
+        .codexResetQuotaConfirmAction: "Use reset credit",
         .resetDate: "Resets %@",
         .planEndsDate: "Plan ends %@",
         .quotaActivity: "Activity",
@@ -1733,7 +1767,7 @@ enum L10n {
         .featureRealtime: "按服务商单独刷新额度",
         .featureGlass: "磨砂玻璃状态栏界面",
         .featureMenuBar: "状态栏快速访问",
-        .version: "版本 0.3.7",
+        .version: "版本 0.3.8",
         .importNoKeys: "在 %@ 中没有找到支持的 API 密钥。",
         .importSummary: "已导入 %d 个，新更新 %d 个密钥。",
         .refreshAlreadyRunning: "刷新正在进行",
@@ -1751,6 +1785,11 @@ enum L10n {
         .costlyQuotaRefreshMessage: "刷新该服务商会发出一次真实请求并消耗额度。确认需要消耗 1 次请求后再继续。",
         .testConnectionConsumesQuota: "测试并消耗额度",
         .reset: "重置",
+        .codexResetCreditsRemaining: "可用 %d 次",
+        .codexResetQuotaAction: "使用重置",
+        .codexResetQuotaConfirmTitle: "使用一次 Codex 重置？",
+        .codexResetQuotaConfirmMessage: "将为 %@ 消耗 1 次重置次数。完成后 Quota Radar 会刷新这个账号的额度。",
+        .codexResetQuotaConfirmAction: "使用重置次数",
         .resetDate: "%@ 重置",
         .planEndsDate: "套餐 %@ 到期",
         .quotaActivity: "动态",
@@ -1994,6 +2033,11 @@ enum L10n {
         .costlyQuotaRefreshTitle: "這次刷新會消耗額度",
         .costlyQuotaRefreshMessage: "刷新此服務商會發出一次真實請求並消耗額度。確認需要消耗 1 次請求後再繼續。",
         .testConnectionConsumesQuota: "測試並消耗額度",
+        .codexResetCreditsRemaining: "可用 %d 次",
+        .codexResetQuotaAction: "使用重置",
+        .codexResetQuotaConfirmTitle: "使用一次 Codex 重置？",
+        .codexResetQuotaConfirmMessage: "將為 %@ 消耗 1 次重置次數。完成後 Quota Radar 會刷新此帳號的額度。",
+        .codexResetQuotaConfirmAction: "使用重置次數",
         .disabled: "停用",
         .quotaUnavailable: "額度不可用",
         .noSubscribedPlan: "未發現訂閱套餐",
@@ -2043,7 +2087,7 @@ enum L10n {
         .moveProviderUp: "上移",
         .moveProviderDown: "下移",
         .remaining: "剩餘",
-        .version: "版本 0.3.7",
+        .version: "版本 0.3.8",
         .credentialExpired: "憑證已過期",
         .notificationLowQuotaTitle: "額度偏低",
         .notificationLowQuotaBody: "%@ 剩餘 %@。",
@@ -2285,7 +2329,7 @@ enum L10n {
         .featureRealtime: "プロバイダー単位のクォータ更新",
         .featureGlass: "フロストガラスのメニューバー UI",
         .featureMenuBar: "メニューバーから素早くアクセス",
-        .version: "バージョン 0.3.7",
+        .version: "バージョン 0.3.8",
         .importNoKeys: "%@ に対応する認証情報が見つかりません。",
         .importSummary: "%d 件を新規インポートし、%d 件を更新しました。",
         .refreshAlreadyRunning: "更新中です",
@@ -2302,6 +2346,11 @@ enum L10n {
         .costlyQuotaRefreshTitle: "この更新はクォータを消費します",
         .costlyQuotaRefreshMessage: "このプロバイダーの更新は実際のリクエストを送信し、クォータを 1 回分消費します。続行しますか。",
         .testConnectionConsumesQuota: "テストして消費",
+        .codexResetCreditsRemaining: "%d 回使用可",
+        .codexResetQuotaAction: "リセット使用",
+        .codexResetQuotaConfirmTitle: "Codex リセットを使用しますか？",
+        .codexResetQuotaConfirmMessage: "%@ にリセットクレジットを 1 回使用します。完了後、Quota Radar がこのアカウントのクォータを更新します。",
+        .codexResetQuotaConfirmAction: "リセットクレジットを使用",
         .resetDate: "%@ にリセット",
         .planEndsDate: "プラン終了 %@",
         .quotaActivity: "使用状況",
@@ -2614,7 +2663,7 @@ enum L10n {
         .featureRealtime: "공급자별 할당량 새로 고침",
         .featureGlass: "반투명 메뉴 막대 UI",
         .featureMenuBar: "메뉴 막대 빠른 접근",
-        .version: "버전 0.3.7",
+        .version: "버전 0.3.8",
         .importNoKeys: "%@에서 지원되는 자격 증명을 찾을 수 없습니다.",
         .importSummary: "새로 %d개 가져오고 %d개 키를 업데이트했습니다.",
         .refreshAlreadyRunning: "새로 고침 중입니다",
@@ -2631,6 +2680,11 @@ enum L10n {
         .costlyQuotaRefreshTitle: "이 새로 고침은 할당량을 소비합니다",
         .costlyQuotaRefreshMessage: "이 공급자 새로 고침은 실제 요청을 보내 할당량 1회를 소비합니다. 계속하시겠습니까?",
         .testConnectionConsumesQuota: "테스트하고 할당량 소비",
+        .codexResetCreditsRemaining: "%d회 사용 가능",
+        .codexResetQuotaAction: "재설정 사용",
+        .codexResetQuotaConfirmTitle: "Codex 재설정을 사용할까요?",
+        .codexResetQuotaConfirmMessage: "%@에 재설정 크레딧 1회를 사용합니다. 완료 후 Quota Radar가 이 계정의 할당량을 새로 고칩니다.",
+        .codexResetQuotaConfirmAction: "재설정 크레딧 사용",
         .resetDate: "%@ 재설정",
         .planEndsDate: "%@ 플랜 종료",
         .quotaActivity: "활동",

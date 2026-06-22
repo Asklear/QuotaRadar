@@ -23,6 +23,7 @@ struct APIKeyStore {
         var resetAt: Date?
         var planEndsAt: Date?
         var planDisplayName: String?
+        var codexResetCreditsRemaining: Int?
         var lastUpdated: Date?
         var lastHTTPStatus: Int?
         var lastDiagnosticMessage: String?
@@ -45,6 +46,7 @@ struct APIKeyStore {
             resetAt = key.resetAt
             planEndsAt = key.planEndsAt
             planDisplayName = key.planDisplayName
+            codexResetCreditsRemaining = key.codexResetCreditsRemaining
             lastUpdated = key.lastUpdated
             lastHTTPStatus = key.lastHTTPStatus
             lastDiagnosticMessage = key.lastDiagnosticMessage
@@ -93,6 +95,7 @@ struct APIKeyStore {
                 resetAt: resetAt,
                 planEndsAt: planEndsAt,
                 planDisplayName: planDisplayName,
+                codexResetCreditsRemaining: codexResetCreditsRemaining,
                 lastUpdated: lastUpdated,
                 lastHTTPStatus: lastHTTPStatus,
                 lastDiagnosticMessage: lastDiagnosticMessage,

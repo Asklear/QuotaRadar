@@ -43,6 +43,8 @@ jobs:
             What's new in ${{ github.ref_name }}:
             - Tightened the menu bar into a shorter Attention Feed with fewer duplicate metadata lines.
             - Made menu-bar-to-main-window handoff more reliable by focusing the most relevant account when a provider-level signal is collapsed.
+            - Added Codex reset-credit visibility and an account-row reset action for eligible ChatGPT/Codex subscriptions.
+            - Display concrete subscription tiers where provider fields expose them, including Codex Pro 5x / Pro 20x and Claude Max 5x / Max 20x.
             - Added provider trust calibration metadata and documented fallback behavior when provider fields drift.
             - Added credential metadata export for backup/debugging without exporting API keys, cookies, tokens, or authorization values.
             - Expanded visual QA with dense single-provider account fixtures and refreshed README screenshots.
@@ -51,6 +53,8 @@ jobs:
             中文说明：
             - 将状态栏继续收紧为短小的 Attention Feed，减少重复 metadata。
             - 当状态栏信号按 provider 折叠时，主程序会自动聚焦最相关账号，提升从状态栏跳转回主窗口的可靠性。
+            - 增加 Codex 重置次数显示，并在符合条件的 ChatGPT/Codex 订阅账号行提供使用重置入口。
+            - 在 provider 字段可识别时显示具体订阅倍率，包括 Codex Pro 5x / Pro 20x 和 Claude Max 5x / Max 20x。
             - 增加 provider 可信度校准 metadata，并记录接口字段漂移时的降级口径。
             - 增加凭据 metadata 导出，便于备份和排查问题，但不导出 API key、Cookie、token 或授权值。
             - 扩展密集账号视觉 QA，并刷新 README 截图。

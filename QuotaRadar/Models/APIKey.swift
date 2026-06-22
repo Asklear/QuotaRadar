@@ -605,7 +605,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         case .opencodeGo:
             return ["auth"]
         case .claudeSubscription:
-            return ["sessionKey"]
+            return ["sessionKey|sessionKeyLC"]
         case .codexSubscription:
             return ["__Secure-next-auth.session-token|__Secure-next-auth.session-token.*|__search-next-auth"]
         case .kimiSubscription:
@@ -1563,6 +1563,7 @@ struct APIKey: Identifiable, Codable, Equatable {
     var resetAt: Date?
     var planEndsAt: Date?
     var planDisplayName: String?
+    var codexResetCreditsRemaining: Int?
     var lastUpdated: Date?
     var lastHTTPStatus: Int?
     var lastDiagnosticMessage: String?
@@ -1611,6 +1612,24 @@ struct APIKey: Identifiable, Codable, Equatable {
         }
         guard let quotaLabel else { return false }
         return L10n.localizedValues(for: .credentialExpired).contains(quotaLabel.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    var codexResetCreditCount: Int? {
+        guard provider == .codexSubscription else { return nil }
+        guard let codexResetCreditsRemaining, codexResetCreditsRemaining >= 0 else { return nil }
+        return codexResetCreditsRemaining
+    }
+
+    var canResetCodexQuota: Bool {
+        guard provider == .codexSubscription,
+              isActive,
+              !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !isStoredAPIKeyOnlyCredential,
+              let codexResetCreditCount,
+              codexResetCreditCount > 0 else {
+            return false
+        }
+        return true
     }
 
     var isUsableWithUnknownQuota: Bool {
@@ -2061,7 +2080,7 @@ struct APIKey: Identifiable, Codable, Equatable {
     var quotaResetSummary: String {
         guard isActive else { return L10n.t(.disabled) }
 
-        if let resetAt {
+        if let resetAt, resetAt.timeIntervalSinceNow > 0 {
             return L10n.format(.resetDate, L10n.shortDateTime(resetAt))
         }
 
@@ -2086,11 +2105,13 @@ struct APIKey: Identifiable, Codable, Equatable {
            abs(resetAt.timeIntervalSince(monthlyResetAt)) < 1 {
             return ""
         }
-        if resetAt != nil { return quotaResetSummary }
+        if let resetAt, resetAt.timeIntervalSinceNow > 0 { return quotaResetSummary }
 
         switch provider {
-        case .tavily, .deepseek, .wxmp, .bocha, .anysearch:
+        case .tavily, .anysearch:
             return quotaResetSummary
+        case .deepseek, .wxmp, .bocha:
+            return ""
         case .brave, .serpapi, .serper, .exa, .querit, .anthropic, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
             return ""
         }
@@ -2098,7 +2119,15 @@ struct APIKey: Identifiable, Codable, Equatable {
 
     var quotaWindowDetails: [QuotaWindowText] {
         guard isActive, quotaText?.kind == .quotaWindows else { return [] }
-        return quotaText?.quotaWindows ?? []
+        let now = Date()
+        return (quotaText?.quotaWindows ?? []).map { window in
+            guard let resetAt = window.resetAt, resetAt <= now else {
+                return window
+            }
+            var window = window
+            window.resetAt = nil
+            return window
+        }
     }
 
     var planEndSummary: String {
@@ -2398,7 +2427,11 @@ struct ProviderStats: Identifiable {
     }
 
     var sortedMonitoringKeysByCurrentQuota: [APIKey] {
-        APIKey.sortedByCurrentQuota(monitoredKeys)
+        APIKey.sortedByCurrentQuota(activeMonitoringKeys)
+    }
+
+    var hasActiveMonitoringCredentials: Bool {
+        !activeMonitoringKeys.isEmpty
     }
 
     var credentialDiagnosticItems: [CredentialDiagnosticItem] {
@@ -2472,7 +2505,7 @@ struct ProviderStats: Identifiable {
     var totalLimitDisplayText: String {
         if hasUnlimitedQuota { return L10n.t(.unlimited) }
         if provider.usesMoneyBalance {
-            return L10n.t(.noResetCycle)
+            return ""
         }
         if usesPercentageQuota {
             return monthlyQuotaWindowDisplay
@@ -2523,6 +2556,10 @@ struct ProviderStats: Identifiable {
             .filter({ $0.timeIntervalSinceNow > 0 })
             .min() {
             return L10n.format(.planEndsDate, L10n.shortDateTime(planEnd, includesYear: true))
+        }
+
+        if provider.usesMoneyBalance {
+            return ""
         }
 
         if let firstReset = activeCredentialKeys
@@ -2732,7 +2769,7 @@ struct ProviderStats: Identifiable {
     }
 
     private var activeCredentialKeys: [APIKey] {
-        monitoredKeys.filter { $0.isActive && !$0.key.isEmpty }
+        activeMonitoringKeys
     }
 
     private var bestActiveMonitoringKey: APIKey? {
@@ -2789,6 +2826,10 @@ struct ProviderStats: Identifiable {
 
     private var monitoredKeys: [APIKey] {
         keys.filter { !$0.isStoredAPIKeyOnlyCredential }
+    }
+
+    private var activeMonitoringKeys: [APIKey] {
+        monitoredKeys.filter { $0.isActive && !$0.key.isEmpty }
     }
 
     private var primaryMonitoringKey: APIKey? {

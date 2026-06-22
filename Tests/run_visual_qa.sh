@@ -301,6 +301,46 @@ if width < min_width or height < min_height:
 PY
 }
 
+capture_window_png() {
+    local window_id="$1"
+    local output_path="$2"
+
+    swift - "${window_id}" "${output_path}" <<'SWIFT'
+import CoreGraphics
+import Foundation
+import ImageIO
+
+guard CommandLine.arguments.count == 3,
+      let numericWindowID = UInt32(CommandLine.arguments[1]) else {
+    exit(1)
+}
+
+let outputURL = URL(fileURLWithPath: CommandLine.arguments[2])
+guard let image = CGWindowListCreateImage(
+    .null,
+    [.optionIncludingWindow],
+    CGWindowID(numericWindowID),
+    [.boundsIgnoreFraming, .bestResolution]
+) else {
+    exit(1)
+}
+
+guard let destination = CGImageDestinationCreateWithURL(
+    outputURL as CFURL,
+    "public.png" as CFString,
+    1,
+    nil
+) else {
+    exit(1)
+}
+
+CGImageDestinationAddImage(destination, image, nil)
+if !CGImageDestinationFinalize(destination) {
+    exit(1)
+}
+SWIFT
+}
+
 assert_main_table_alignment() {
     local screenshot="$1"
     local scenario="$2"
@@ -357,12 +397,40 @@ report_path = Path(sys.argv[2])
 scenario = sys.argv[3]
 image = Image.open(path).convert("RGBA")
 width, height = image.size
-outer_ignore = max(48, min(width, height) // 50)
 edge = max(6, min(width, height) // 140)
-left = outer_ignore
-top = outer_ignore
-right = width - outer_ignore
-bottom = height - outer_ignore
+
+content_x = []
+content_y = []
+for y in range(height):
+    for x in range(width):
+        red, green, blue, alpha = image.getpixel((x, y))
+        if alpha >= 32 and max(red, green, blue) > 12:
+            content_x.append(x)
+            content_y.append(y)
+
+if content_x and content_y:
+    content_left = min(content_x)
+    content_top = min(content_y)
+    content_right = max(content_x) + 1
+    content_bottom = max(content_y) + 1
+else:
+    content_left = 0
+    content_top = 0
+    content_right = width
+    content_bottom = height
+
+outer_ignore = max(48, min(width, height) // 50)
+content_inset = max(18, edge * 3)
+left = max(outer_ignore, content_left + content_inset)
+top = max(outer_ignore, content_top + content_inset)
+right = min(width - outer_ignore, content_right - content_inset)
+bottom = min(height - outer_ignore, content_bottom - content_inset)
+
+if right <= left + edge * 2 or bottom <= top + edge * 2:
+    left = outer_ignore
+    top = outer_ignore
+    right = width - outer_ignore
+    bottom = height - outer_ignore
 
 interior_luminance = []
 for y in range(top + edge, bottom - edge):
@@ -395,7 +463,10 @@ report = (
     f"path={path}\n"
     f"scenario={scenario}\n"
     f"size={width}x{height}\n"
+    f"content_bounds={content_left},{content_top},{content_right},{content_bottom}\n"
     f"outer_ignore={outer_ignore}\n"
+    f"content_inset={content_inset}\n"
+    f"sample_bounds={left},{top},{right},{bottom}\n"
     f"edge_width={edge}\n"
     f"background_luminance={background_luminance:.2f}\n"
     f"edge_ink_ratio={edge_ink_ratio:.4f}\n"
@@ -717,7 +788,17 @@ run_scenario() {
 
     assert_file_nonempty "${panel_bounds_file}" "Visual QA could not find the status-panel window bounds for ${scenario}"
     IFS=, read -r x y width height <"${panel_bounds_file}" || true
-    screencapture -x -R"${x},${y},${width},${height}" "${menu_screenshot}"
+    local menu_window_id
+    menu_window_id="$(
+        sed -nE 's/^id=([0-9]+).*owner=Quota Radar.*width=([0-9]+) height=([0-9]+).*$/\1 \2 \3/p' "${windows_file}" \
+            | awk '$2 >= 540 && $2 <= 660 && $3 >= 720 && $3 <= 820 { print $1; exit }'
+    )"
+    if [ -n "${menu_window_id}" ]; then
+        capture_window_png "${menu_window_id}" "${menu_screenshot}" || \
+            screencapture -x -R"${x},${y},${width},${height}" "${menu_screenshot}"
+    else
+        screencapture -x -R"${x},${y},${width},${height}" "${menu_screenshot}"
+    fi
     assert_file_nonempty "${menu_screenshot}" "Visual QA did not capture the menu-bar popover for ${scenario}"
     assert_png_minimum_size "${menu_screenshot}" 540 720 "menu-bar popover ${scenario}"
 

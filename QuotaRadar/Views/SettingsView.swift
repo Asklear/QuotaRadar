@@ -1981,7 +1981,7 @@ struct ProvidersView: View {
                 provider: provider,
                 keys: APIKey.sortedByCurrentQuota(monitor.apiKeys.filter { $0.provider == provider })
             )
-            guard !stat.sortedMonitoringKeysByCurrentQuota.isEmpty else { return nil }
+            guard stat.hasActiveMonitoringCredentials else { return nil }
             return stat
         }
         let grouped = Dictionary(grouping: stats) { $0.provider.statusBarCategoryTitle }
@@ -2357,6 +2357,7 @@ struct ProviderQuotaMonitorRow: View {
     @ObservedObject private var navigationStore = SettingsNavigationStore.shared
     @State private var isExpanded = false
     @State private var showingReauth = false
+    @State private var codexResetConfirmationKey: APIKey?
 
     private var provider: Provider { stat.provider }
     private var keys: [APIKey] { stat.sortedMonitoringKeysByCurrentQuota }
@@ -2490,6 +2491,18 @@ struct ProviderQuotaMonitorRow: View {
         return fallbackFocusedCredential?.id
     }
 
+    private var focusedCredentialFirstDisplayKeys: [APIKey] {
+        guard let focusedCredentialID = focusedCredentialIDForDisplay,
+              let focusedIndex = keys.firstIndex(where: { $0.id == focusedCredentialID }) else {
+            return keys
+        }
+
+        var displayKeys = keys
+        let focusedKey = displayKeys.remove(at: focusedIndex)
+        displayKeys.insert(focusedKey, at: 0)
+        return displayKeys
+    }
+
     private var fallbackFocusedCredential: APIKey? {
         guard navigationStore.focusedProvider == provider else { return nil }
 
@@ -2543,12 +2556,16 @@ struct ProviderQuotaMonitorRow: View {
                         .transition(.opacity)
                 } else {
                     VStack(spacing: 8) {
-                        ForEach(keys, id: \.id) { key in
+                        ForEach(focusedCredentialFirstDisplayKeys, id: \.id) { key in
                             ProviderQuotaAccountGroup(
                                 key: key,
                                 latestRefreshHistoryItem: monitor.refreshHistoryItems(for: key).first,
                                 isFocused: focusedCredentialIDForDisplay == key.id,
-                                focusedReason: navigationStore.focusedMenuSignalReason
+                                focusedReason: navigationStore.focusedMenuSignalReason,
+                                isResettingCodexQuota: monitor.resettingCodexQuotaKeyIDs.contains(key.id),
+                                onResetCodexQuota: {
+                                    codexResetConfirmationKey = key
+                                }
                             )
                         }
                     }
@@ -2564,6 +2581,30 @@ struct ProviderQuotaMonitorRow: View {
                 provider: provider,
                 key: keys.first
             )
+        }
+        .confirmationDialog(
+            L10n.t(.codexResetQuotaConfirmTitle),
+            isPresented: Binding(
+                get: { codexResetConfirmationKey != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        codexResetConfirmationKey = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(L10n.t(.codexResetQuotaConfirmAction), role: .destructive) {
+                if let key = codexResetConfirmationKey {
+                    monitor.resetCodexQuota(for: key.id)
+                }
+                codexResetConfirmationKey = nil
+            }
+            Button(L10n.t(.cancel), role: .cancel) {
+                codexResetConfirmationKey = nil
+            }
+        } message: {
+            Text(L10n.format(.codexResetQuotaConfirmMessage, codexResetConfirmationKey?.accountDisplayTitle ?? ""))
         }
     }
 
@@ -3023,6 +3064,8 @@ struct ProviderQuotaAccountGroup: View {
     let latestRefreshHistoryItem: QuotaRefreshHistoryItem?
     let isFocused: Bool
     let focusedReason: MenuSignalReason?
+    let isResettingCodexQuota: Bool
+    let onResetCodexQuota: () -> Void
 
     private var updatedText: String {
         guard let lastUpdated = key.lastUpdated else { return L10n.t(.notChecked) }
@@ -3044,7 +3087,7 @@ struct ProviderQuotaAccountGroup: View {
     }
 
     private var rowBackground: Color {
-        isFocused ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.026)
+        isFocused ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.026)
     }
 
     var body: some View {
@@ -3059,7 +3102,9 @@ struct ProviderQuotaAccountGroup: View {
 
                 ProviderQuotaAccountQuotaWindows(
                     key: key,
-                    fallbackDetailText: fallbackQuotaDetailText
+                    fallbackDetailText: fallbackQuotaDetailText,
+                    isResettingCodexQuota: isResettingCodexQuota,
+                    onResetCodexQuota: onResetCodexQuota
                 )
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
@@ -3075,6 +3120,13 @@ struct ProviderQuotaAccountGroup: View {
         .padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)
         .padding(.vertical, 12)
         .background(rowBackground, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(
+                    isFocused ? Color.accentColor.opacity(0.32) : Color.primary.opacity(0.035),
+                    lineWidth: 1
+                )
+        }
         .overlay(alignment: .leading) {
             if isFocused {
                 Capsule()
@@ -3173,6 +3225,8 @@ struct ProviderQuotaAccountIdentity: View {
 struct ProviderQuotaAccountQuotaWindows: View {
     let key: APIKey
     let fallbackDetailText: String?
+    let isResettingCodexQuota: Bool
+    let onResetCodexQuota: () -> Void
 
     private var visibleWindows: [QuotaWindowText] {
         key.quotaWindowDetails.filter { !$0.name.isEmpty && !$0.percentText.isEmpty }
@@ -3201,7 +3255,84 @@ struct ProviderQuotaAccountQuotaWindows: View {
                     )
                 }
             }
+
+            if key.provider == .codexSubscription,
+               let resetCreditCount = key.codexResetCreditCount {
+                if !visibleWindows.isEmpty {
+                    Divider()
+                        .opacity(0.45)
+                }
+
+                CodexResetCreditRow(
+                    resetCreditCount: resetCreditCount,
+                    canReset: key.canResetCodexQuota,
+                    isResettingCodexQuota: isResettingCodexQuota,
+                    onResetCodexQuota: onResetCodexQuota
+                )
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+struct CodexResetCreditRow: View {
+    let resetCreditCount: Int
+    let canReset: Bool
+    let isResettingCodexQuota: Bool
+    let onResetCodexQuota: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            ProviderQuotaAccountValueText(
+                value: L10n.t(.reset),
+                tint: .secondary,
+                weight: .medium,
+                minimumScaleFactor: 0.72
+            )
+            .frame(width: 62, alignment: .leading)
+
+            ProviderQuotaAccountValueText(
+                value: L10n.format(.codexResetCreditsRemaining, resetCreditCount),
+                tint: resetCreditCount > 0 ? .accentColor : .secondary,
+                weight: .semibold,
+                design: .rounded,
+                minimumScaleFactor: 0.66
+            )
+            .frame(width: 72, alignment: .leading)
+
+            Button(action: onResetCodexQuota) {
+                HStack(spacing: 4) {
+                    if isResettingCodexQuota {
+                        ProgressView()
+                            .controlSize(.small)
+                            .scaleEffect(0.62)
+                    } else {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(canReset ? Color.accentColor : Color.secondary)
+                    }
+
+                    Text(L10n.t(.codexResetQuotaAction))
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(canReset ? Color.accentColor : Color.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+                .padding(.horizontal, 7)
+                .frame(height: 22)
+                .background(
+                    Capsule(style: .continuous)
+                        .fill(Color.primary.opacity(canReset ? 0.065 : 0.035))
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(isResettingCodexQuota || !canReset)
+            .opacity(canReset || isResettingCodexQuota ? 1 : 0.45)
+            .help(L10n.t(.codexResetQuotaAction))
+            .accessibilityLabel(L10n.t(.codexResetQuotaAction))
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(minHeight: 24, alignment: .leading)
     }
 }
 
@@ -3261,10 +3392,11 @@ struct ProviderQuotaAccountQuotaWindowRow: View {
                 value: detailText ?? "",
                 tint: .secondary,
                 weight: .medium,
-                minimumScaleFactor: 0.62
+                minimumScaleFactor: 0.50
             )
+            .layoutPriority(1)
         }
-        .frame(minHeight: 20, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)
     }
 }
 
@@ -3290,12 +3422,13 @@ struct ProviderQuotaAccountMetaPanel: View {
     }
 
     private func metaRow(label: String, value: String, refreshItem: QuotaRefreshHistoryItem? = nil) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(label)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.tertiary)
                 .lineLimit(1)
-                .frame(width: 56, alignment: .leading)
+                .minimumScaleFactor(0.62)
+                .frame(width: 70, alignment: .leading)
 
             ProviderQuotaAccountValueText(
                 value: value,
@@ -3370,13 +3503,21 @@ struct DiagnosticsView: View {
         }
     }
 
+    private var diagnosticCategories: [ProviderCategoryStats] {
+        let grouped = Dictionary(grouping: stats) { $0.provider.statusBarCategoryTitle }
+        return Provider.categoryDisplayOrder.compactMap { title in
+            guard let stats = grouped[title], !stats.isEmpty else { return nil }
+            return ProviderCategoryStats(title: title, stats: stats)
+        }
+    }
+
     var body: some View {
         ModernPage(
             title: L10n.t(.diagnosticsTab),
             subtitle: L10n.t(.diagnosticsDescription),
             systemImage: "stethoscope"
         ) {
-            if stats.isEmpty {
+            if diagnosticCategories.isEmpty {
                 EmptyContentPanel(
                     title: L10n.t(.noApiKeys),
                     systemImage: "stethoscope",
@@ -3384,14 +3525,42 @@ struct DiagnosticsView: View {
                     action: nil
                 )
             } else {
-                VStack(spacing: 12) {
-                    ForEach(stats) { stat in
-                        CredentialDiagnosticProviderSection(stat: stat)
+                VStack(spacing: 14) {
+                    ForEach(diagnosticCategories) { category in
+                        CredentialDiagnosticCategorySection(category: category)
                     }
                 }
             }
         }
         .navigationTitle(L10n.t(.diagnosticsTab))
+    }
+}
+
+struct CredentialDiagnosticCategorySection: View {
+    let category: ProviderCategoryStats
+    @State private var isExpanded = true
+
+    var body: some View {
+        VStack(spacing: 10) {
+            CollapsibleBanner(
+                title: L10n.categoryTitle(category.title),
+                subtitle: L10n.format(.categoryCounts, category.providerCount, category.keyCount),
+                systemImage: category.title == "AI Search" ? "magnifyingglass.circle.fill" : "cpu.fill",
+                accessory: L10n.format(.activeCount, category.activeKeyCount),
+                isExpanded: isExpanded
+            ) {
+                withAnimation(settingsCollapseAnimation) { isExpanded.toggle() }
+            }
+
+            if isExpanded {
+                VStack(spacing: 12) {
+                    ForEach(category.stats) { stat in
+                        CredentialDiagnosticProviderSection(stat: stat)
+                    }
+                }
+                .transition(.opacity)
+            }
+        }
     }
 }
 

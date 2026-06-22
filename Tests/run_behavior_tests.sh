@@ -59,9 +59,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.3\.7' \
+assert_match '0\.3\.8' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.3.7 should be recorded in Info.plist"
+  "Quota Radar 0.3.8 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -637,6 +637,19 @@ if "monitor.orderedVisibleProviders.compactMap" not in diagnostics:
 if "credentialDiagnosticItems.isEmpty" not in diagnostics:
     print("FAIL: Diagnostics should hide providers that do not have any diagnostic credential group configured", file=sys.stderr)
     sys.exit(1)
+if "diagnosticCategories" not in diagnostics or "Provider.categoryDisplayOrder.compactMap" not in diagnostics:
+    print("FAIL: Diagnostics should group providers by shared AI Search / LLM category order", file=sys.stderr)
+    sys.exit(1)
+if "CredentialDiagnosticCategorySection" not in diagnostics:
+    print("FAIL: Diagnostics should render collapsible AI Search / LLM category sections", file=sys.stderr)
+    sys.exit(1)
+if "struct CredentialDiagnosticCategorySection: View" not in source:
+    print("FAIL: Diagnostics category section should exist", file=sys.stderr)
+    sys.exit(1)
+diagnostic_category_section = source.split("struct CredentialDiagnosticCategorySection: View", 1)[1].split("struct CredentialDiagnosticProviderSection", 1)[0]
+if "CollapsibleBanner" not in diagnostic_category_section or "@State private var isExpanded = true" not in diagnostic_category_section:
+    print("FAIL: Diagnostics category sections should use the shared collapsible banner behavior", file=sys.stderr)
+    sys.exit(1)
 if "ProviderQuotaEmptyKeyRow()" in diagnostic_section:
     print("FAIL: Diagnostics should not render empty credential placeholder rows for providers without configured credentials", file=sys.stderr)
     sys.exit(1)
@@ -810,6 +823,9 @@ assert_match 'capture_status_panel_bounds_with_retry' \
 assert_match 'showStatusPanelAtAutomationFallbackPosition' \
   "QuotaRadar/AppDelegate.swift" \
   "Visual QA status-panel automation should have a fallback when the status item button is not ready"
+assert_match 'if isVisualQAAutomation \{' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Visual QA status-panel automation should keep the menu popover on the main screen for reliable screenshots"
 assert_match 'CGWindowListCopyWindowInfo' \
   "Tests/run_visual_qa.sh" \
   "Visual QA should record real window coordinates so menu bar clipping can be diagnosed"
@@ -879,6 +895,42 @@ assert_match 'https://chatgpt\.com/api/auth/session' \
 assert_match 'Bearer .*accessToken.*forHTTPHeaderField: "Authorization"' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Codex subscription usage requests should authenticate with the ChatGPT session Bearer token"
+assert_match 'rate_limit_reset_credits' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Codex subscription usage should parse available reset-credit metadata from the wham usage response"
+assert_match 'available_count' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Codex reset-credit parsing should read the available_count field"
+assert_match 'https://chatgpt\.com/backend-api/wham/rate-limit-reset-credits/consume' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Codex quota reset should call the wham reset-credit consume endpoint"
+assert_match 'https://chatgpt\.com/backend-api/accounts/check/v4-2023-04-27' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Codex subscription refresh should query accounts/check for concrete Pro 20x/5x plan tiers"
+assert_match 'redeem_request_id' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Codex quota reset should send a unique redeem_request_id"
+assert_match 'chatgpt-account-id' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Codex quota reset should scope the consume request to the selected ChatGPT account"
+assert_match 'func resetCodexQuota' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose an account-scoped Codex quota reset action"
+assert_match 'resettingCodexQuotaKeyIDs' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should track in-flight Codex reset actions by credential id"
+assert_match 'codexResetCreditsRemaining' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "QuotaResult should carry Codex reset-credit availability"
+assert_match 'codexResetCreditsRemaining' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "APIKey should persist Codex reset-credit availability for the account row"
+assert_match 'codexResetCreditsRemaining' \
+  "QuotaRadar/Services/APIKeyStore.swift" \
+  "APIKeyStore metadata should persist Codex reset-credit availability"
+assert_no_match 'codexResetCredit.*Expir' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Codex reset-credit UI should not invent an expiry field unless the provider returns one"
 assert_no_match 'diagnosticMessage: "Querit account endpoint returned monthly request quota\."' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Querit refresh should not overwrite the parser's usage-only unknown-limit diagnostic"
@@ -1119,9 +1171,31 @@ assert_match 'failure_reasons' \
 assert_match 'scenario_screenshots' \
   "Tests/run_visual_qa.sh" \
   "Visual QA summary should list stable screenshot names for every scenario"
+assert_match 'capture_window_png "\$\{menu_window_id\}" "\$\{menu_screenshot\}"' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should capture the menu popover through CoreGraphics window id before falling back to fragile multi-display rectangles"
 assert_match 'visualQAFixtureKeys' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "QuotaMonitor should expose deterministic visual QA fixture data behind an automation environment flag"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+source = Path("QuotaRadar/Models/QuotaMonitor.swift").read_text()
+checks = {
+    "saveKeys": ("private func saveKeys()", "store.save(apiKeys)", "Visual QA fixture mode must not save test credentials into the production APIKeyStore"),
+    "recordQuotaSnapshot": ("private func recordQuotaSnapshot", "quotaSnapshots = historyStore.append", "Visual QA fixture mode must not write fixture quota snapshots into production history"),
+    "ensureSecretsLoaded": ("private func ensureSecretsLoaded()", "apiKeys = store.loadSecrets", "Visual QA fixture mode must not hydrate test keys from the production secret store"),
+}
+for name, (start, end, message) in checks.items():
+    try:
+        block = source.split(start, 1)[1].split(end, 1)[0]
+    except IndexError:
+        print(f"FAIL: could not inspect QuotaMonitor.{name}", file=sys.stderr)
+        sys.exit(1)
+    if "if Self.usesVisualQAFixtures" not in block or "return" not in block:
+        print(f"FAIL: {message}", file=sys.stderr)
+        sys.exit(1)
+PY
 assert_match 'visualQADenseAccountFixtureKeys' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "Visual QA fixtures should include a dense single-provider account pack to catch expanded-row layout regressions"
@@ -1617,6 +1691,12 @@ assert_match 'navigationStore\.focusedProvider == provider' \
 assert_match 'focusedCredentialIDForDisplay == key\.id' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Expanded provider account rows should use the exact or fallback menu-bar focus target"
+assert_match 'focusedCredentialFirstDisplayKeys' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Expanded provider account rows should promote the menu-bar focused credential into the visible account area"
+assert_match 'ForEach\(focusedCredentialFirstDisplayKeys, id: \\.id\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Expanded provider account rows should render from the focus-promoted account order"
 assert_match 'fallbackFocusedCredential' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Provider-collapsed menu bar signals should fall back to the most relevant account in the main window"
@@ -1637,8 +1717,8 @@ except IndexError:
 if "monitor.orderedVisibleProviders.compactMap" not in providers_view:
     print("FAIL: Quota overview should preserve custom provider order while hiding providers without configured monitoring credentials", file=sys.stderr)
     sys.exit(1)
-if "sortedMonitoringKeysByCurrentQuota.isEmpty" not in providers_view:
-    print("FAIL: Quota overview should hide providers that do not have any quota-monitoring credential configured", file=sys.stderr)
+if "hasActiveMonitoringCredentials" not in providers_view:
+    print("FAIL: Quota overview should hide providers without active quota-monitoring credentials", file=sys.stderr)
     sys.exit(1)
 
 try:
@@ -2586,11 +2666,33 @@ if "QuotaWindowDetails(windows: detailKey.quotaWindowDetails)" in source:
 if "ProviderQuotaAccountQuotaWindows(" not in account_table:
     print("FAIL: Expanded account groups should render quota windows inside the account group body", file=sys.stderr)
     sys.exit(1)
+if "CodexResetCreditRow(" not in account_table:
+    print("FAIL: Codex reset-credit controls should live in the expanded account row near quota windows", file=sys.stderr)
+    sys.exit(1)
+if "isResettingCodexQuota" not in account_table or "onResetCodexQuota" not in account_table:
+    print("FAIL: Expanded account rows should receive account-scoped Codex reset state and action callbacks", file=sys.stderr)
+    sys.exit(1)
+if "provider == .codexSubscription" not in account_table:
+    print("FAIL: Codex reset-credit controls should be gated to Codex subscription credentials", file=sys.stderr)
+    sys.exit(1)
+if "Provider.codexSubscription" in account_table:
+    print("FAIL: Codex reset-credit account rows should gate on the selected key provider instead of a provider-level constant", file=sys.stderr)
+    sys.exit(1)
 if "periodText: L10n.t(.remaining)" in account_table:
     print("FAIL: Expanded account groups should not repeat Remaining as both section label and fallback row label", file=sys.stderr)
     sys.exit(1)
 if "ProviderQuotaAccountMetaPanel(" not in account_table:
     print("FAIL: Expanded account groups should show plan expiry and last update once in a compact meta panel", file=sys.stderr)
+    sys.exit(1)
+account_group_body = account_table.split("var body: some View", 1)[1].split("struct ProviderQuotaRefreshMarker", 1)[0]
+identity_position = account_group_body.find("ProviderQuotaAccountIdentity(")
+windows_position = account_group_body.find("ProviderQuotaAccountQuotaWindows(")
+meta_position = account_group_body.find("ProviderQuotaAccountMetaPanel(")
+if not (0 <= identity_position < windows_position < meta_position):
+    print("FAIL: Expanded account groups should keep quota windows between identity and the original right-side critical-time/last-updated panel", file=sys.stderr)
+    sys.exit(1)
+if "Spacer(minLength: 12)" in account_group_body and account_group_body.find("Spacer(minLength: 12)") < meta_position:
+    print("FAIL: Expanded account groups should not replace the quota-window column with a spacer before the right-side time panel", file=sys.stderr)
     sys.exit(1)
 if "planEndText: key.planEndSummary.isEmpty ? nil : key.planEndSummary" not in account_table:
     print("FAIL: Expanded account meta panel should show package expiry only when the account exposes one", file=sys.stderr)
@@ -2606,11 +2708,75 @@ except IndexError:
 if "window.detailValueText" not in window_details:
     print("FAIL: Expanded quota window rows should include reset or remaining detail next to the period value", file=sys.stderr)
     sys.exit(1)
+quota_windows_container = window_details.split("struct CodexResetCreditRow: View", 1)[0]
+if ".frame(maxWidth: .infinity, alignment: .leading)" not in quota_windows_container:
+    print("FAIL: Expanded quota window containers should fill the available account width so reset details are readable", file=sys.stderr)
+    sys.exit(1)
+try:
+    quota_window_row = source.split("struct ProviderQuotaAccountQuotaWindowRow: View", 1)[1].split("struct ProviderQuotaAccountMetaPanel", 1)[0]
+except IndexError:
+    print("FAIL: Expanded account quota window row should exist", file=sys.stderr)
+    sys.exit(1)
+if "HStack(alignment: .firstTextBaseline, spacing: 12)" not in quota_window_row or "value: detailText ?? \"\"" not in quota_window_row:
+    print("FAIL: Expanded quota window rows should keep remaining percentage and reset detail on the same horizontal line", file=sys.stderr)
+    sys.exit(1)
+if "let resetText: String?" in quota_window_row or "if let resetText" in quota_window_row:
+    print("FAIL: Expanded quota window rows should not split reset timing into a separate vertical line", file=sys.stderr)
+    sys.exit(1)
+if ".frame(width: 72, alignment: .leading)" not in quota_window_row or ".frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)" not in quota_window_row:
+    print("FAIL: Expanded quota window rows should claim the available width for reset details instead of shrinking to a narrow intrinsic row", file=sys.stderr)
+    sys.exit(1)
 if "ProviderQuotaAccountGridRow(" in account_table or "ProviderQuotaWindowDetailGridRow(" in account_table:
     print("FAIL: Expanded account groups should not reuse table grid rows that recreate empty columns", file=sys.stderr)
     sys.exit(1)
 if "L10n.t(.lastUpdated)" not in account_table:
     print("FAIL: Expanded account meta panel should keep last-updated visible once per account", file=sys.stderr)
+    sys.exit(1)
+if "struct CodexResetCreditRow: View" not in source:
+    print("FAIL: Settings should define a compact CodexResetCreditRow for account-level reset credits", file=sys.stderr)
+    sys.exit(1)
+codex_reset_row = source.split("struct CodexResetCreditRow: View", 1)[1].split("struct ProviderQuotaAccountSingleQuotaRow", 1)[0]
+if "codexResetCreditsRemaining" not in codex_reset_row or "codexResetQuotaAction" not in codex_reset_row:
+    print("FAIL: Codex reset-credit row should show available credits and a localized reset action", file=sys.stderr)
+    sys.exit(1)
+if "let resetText: String?" in codex_reset_row or "if let resetText" in codex_reset_row:
+    print("FAIL: Codex reset-credit row should not group reset dates with the manual reset action; keep both aligned by column rules", file=sys.stderr)
+    sys.exit(1)
+if "HStack(alignment: .firstTextBaseline, spacing: 12)" not in codex_reset_row:
+    print("FAIL: Codex reset-credit row should align with quota-window period/value/detail columns", file=sys.stderr)
+    sys.exit(1)
+if ".frame(width: 62, alignment: .leading)" not in codex_reset_row or ".frame(width: 72, alignment: .leading)" not in codex_reset_row:
+    print("FAIL: Codex reset-credit count should use the same period and value column widths as reset-date rows", file=sys.stderr)
+    sys.exit(1)
+if "Button(" not in codex_reset_row or ".disabled(" not in codex_reset_row:
+    print("FAIL: Codex reset-credit row should render a disabled-safe button", file=sys.stderr)
+    sys.exit(1)
+if ".buttonStyle(.bordered)" in codex_reset_row:
+    print("FAIL: Codex reset-credit action should not use a bordered button in the compact monitor row", file=sys.stderr)
+    sys.exit(1)
+if "Text(L10n.t(.codexResetQuotaAction))" not in codex_reset_row:
+    print("FAIL: Codex reset-credit action should keep visible localized text so users understand the reset function", file=sys.stderr)
+    sys.exit(1)
+if "Image(systemName: \"arrow.counterclockwise\")" not in codex_reset_row:
+    print("FAIL: Codex reset-credit action should keep a compact reset icon next to the explanatory text", file=sys.stderr)
+    sys.exit(1)
+if ".buttonStyle(.plain)" not in codex_reset_row or ".frame(height: 22)" not in codex_reset_row:
+    print("FAIL: Codex reset-credit action should match compact monitoring controls with a fixed-height inline action", file=sys.stderr)
+    sys.exit(1)
+if ".frame(maxWidth: .infinity, alignment: .leading)" not in codex_reset_row:
+    print("FAIL: Codex reset-credit action should align to the same detail-column start as reset-date text", file=sys.stderr)
+    sys.exit(1)
+if "resetText: nextResetText" in account_table or "private var nextResetText: String?" in account_table:
+    print("FAIL: Expanded Codex reset-credit rows should not duplicate reset timing inside the manual action row", file=sys.stderr)
+    sys.exit(1)
+if "Capsule(style: .continuous)" not in codex_reset_row:
+    print("FAIL: Codex reset-credit action should use a low-noise capsule treatment instead of a standard button bezel", file=sys.stderr)
+    sys.exit(1)
+if ".accessibilityLabel(L10n.t(.codexResetQuotaAction))" not in codex_reset_row:
+    print("FAIL: Codex reset-credit action should keep an accessible localized action label", file=sys.stderr)
+    sys.exit(1)
+if "codexResetQuotaConfirmTitle" not in source or "confirmationDialog" not in source:
+    print("FAIL: Codex quota reset should ask for confirmation before consuming a reset credit", file=sys.stderr)
     sys.exit(1)
 try:
     action_group = source.split("struct ProviderQuotaActionGroup: View", 1)[1].split("struct AddCredentialProviderList", 1)[0]
@@ -3568,6 +3734,15 @@ assert_match 'scheduleCookieCaptureRetry' \
 assert_match 'DashboardCredentialCapturePolicy\.automaticRetryDelays' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Automatic dashboard credential capture should wait for provider cookies to settle before giving up"
+assert_match 'automaticRetryDelays\(for provider: Provider\)' \
+  "QuotaRadar/Services/DashboardReauth.swift" \
+  "Dashboard reauthentication should allow provider-specific delayed cookie capture"
+assert_match 'captureWebStorageFieldsIfAllowed' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard credential capture should read WebStorage only when the visible page is on an allowed provider domain"
+assert_match 'guard !didEmitCookies, let webView else' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard cookie capture should rely on provider-domain cookie filtering instead of requiring the visible WebView URL to have returned to the provider domain"
 assert_match 'reauthStillUnauthorized' \
   "QuotaRadar/Models/AppLanguage.swift" \
   "Dashboard reauthentication should explain when captured cookies still fail provider login validation"
@@ -4680,6 +4855,10 @@ require(localizedSerperExhausted.quotaDisplayText == "没有可用的 Serper 积
 let localizedDeepSeekMoney = APIKey(name: "DEEPSEEK_API_KEY", key: "deepseek", provider: .deepseek, remaining: 1250, limit: 1250, quotaLabel: "CNY 12.50 available")
 require(localizedDeepSeekMoney.quotaDisplayText == "可用人民币 12.50 元", "DeepSeek money balance labels should be localized as RMB, not credits")
 require(localizedDeepSeekMoney.remainingBadgeText == "¥12.50", "DeepSeek money balance badge should show currency amount, not 100%")
+require(localizedDeepSeekMoney.visibleQuotaResetSummary == "", "DeepSeek compact quota rows should not show no-reset-cycle placeholder copy")
+let deepSeekMoneyStats = ProviderStats(provider: .deepseek, keys: [localizedDeepSeekMoney])
+require(deepSeekMoneyStats.totalLimitDisplayText == "", "DeepSeek balance provider overview should not show a no-reset-cycle placeholder")
+require(deepSeekMoneyStats.criticalTimeDisplayText == "", "DeepSeek balance provider critical time should stay blank when there is no reset or expiry")
 let localizedBochaBalance = APIKey(name: "BOCHA_API_KEY", key: "bocha", provider: .bocha, remaining: 1400, limit: 1400, quotaLabel: "CNY 14.00 balance")
 require(localizedBochaBalance.quotaDisplayText == "余额人民币 14.00 元", "Bocha money balance labels should be localized as RMB, not credits")
 require(localizedBochaBalance.remainingBadgeText == "¥14.00", "Bocha money balance badge should show currency amount, not 100%")
@@ -4690,6 +4869,8 @@ require(L10n.localizedQuotaLabel("Querit account endpoint returned monthly reque
 require(L10n.localizedQuotaLabel("Querit account endpoint returned monthly usage, but no plan quota limit.", language: .simplifiedChinese) == "Querit 账户接口返回了月度已用请求，但没有返回套餐上限。", "Querit usage-only diagnostics should localize centrally")
 let moneyStats = ProviderStats(provider: .bocha, keys: [localizedBochaBalance])
 require(moneyStats.totalRemainingDisplayText == "¥14.00", "Money-balance provider overview should show RMB amount instead of cents")
+require(moneyStats.totalLimitDisplayText == "", "Money-balance provider overview should leave reset-cycle columns blank instead of showing no-reset-cycle copy")
+require(moneyStats.criticalTimeDisplayText == "", "Money-balance provider critical time should stay blank when there is no reset or expiry")
 require(moneyStats.statusBarProviderBadgeText == "¥14.00", "Money-balance status bar badge should show RMB amount instead of percentage")
 let localizedExaUsage = APIKey(name: "EXA_ADMIN", key: "exa", provider: .exa, remaining: Int.max, limit: Int.max, quotaLabel: "USD 45.67 used")
 require(localizedExaUsage.quotaDisplayText == "可用 · 额度未知", "Exa usage-only checks should not expose used-cost wording in the main quota UI")
@@ -4873,6 +5054,22 @@ let claudeWindowResetKey = APIKey(
 require(claudeWindowResetKey.visibleQuotaResetSummary == "", "Claude subscription should not duplicate 5h/week reset timing in the last-updated timing column")
 require(claudeWindowResetKey.quotaRowSubtitle == "", "Claude subscription should not repeat multi-window quota text in the compact credential row")
 require(claudeWindowResetKey.quotaWindowDetails.count == 2, "Claude subscription should keep reset timing attached to the five-hour and weekly quota rows")
+let expiredClaudeFiveHourReset = Date().addingTimeInterval(-60 * 60)
+let futureClaudeWeeklyReset = Date().addingTimeInterval(60 * 60)
+let staleClaudeWindowResetKey = APIKey(
+    name: "CLAUDE_SUBSCRIPTION_SESSION",
+    key: "cookie",
+    provider: .claudeSubscription,
+    resetAt: expiredClaudeFiveHourReset,
+    quotaText: LocalizedTextDescriptor.quotaWindows([
+        QuotaWindowText(name: "5h", percentText: "0%", resetAt: expiredClaudeFiveHourReset),
+        QuotaWindowText(name: "week", percentText: "90%", resetAt: futureClaudeWeeklyReset)
+    ])
+)
+let staleClaudeWindowDetails = staleClaudeWindowResetKey.quotaWindowDetails
+require(staleClaudeWindowDetails.first(where: { $0.name == "5h" })?.resetAt == nil, "Claude expired five-hour reset should not keep showing a past reset time")
+require(staleClaudeWindowDetails.first(where: { $0.name == "week" })?.resetAt != nil, "Claude future weekly reset should remain visible")
+require(staleClaudeWindowResetKey.visibleQuotaResetSummary == "", "Claude expired top-level reset should not reappear above multi-window quota rows")
 let planOnlyKey = APIKey(
     name: "XFYUN_CODING_PLAN_COOKIE",
     key: "cookie",
@@ -5002,6 +5199,9 @@ AppLanguageStore.shared.language = .english
 var disabledKey = APIKey(name: "BRAVE_DISABLED", key: "brave", provider: .brave, remaining: 1000, limit: 1000)
 disabledKey.isActive = false
 require(disabledKey.remainingBadgeText == "Off", "Remaining badge should show inactive keys as Off")
+let disabledProviderStat = ProviderStats(provider: .brave, keys: [disabledKey])
+require(disabledProviderStat.sortedMonitoringKeysByCurrentQuota.isEmpty, "Quota monitoring should hide providers when all monitoring credentials are disabled")
+require(!disabledProviderStat.hasActiveMonitoringCredentials, "Quota overview should treat all-disabled provider credentials as hidden from monitoring")
 let sortedStat = ProviderStats(
     provider: .brave,
     keys: [
@@ -6306,6 +6506,11 @@ require(!DashboardCredentialCapturePolicy.shouldRetryCapture(
     completedRetryCount: 0,
     retryDelays: DashboardCredentialCapturePolicy.manualRetryDelays
 ), "Complete Volcengine login cookies should save immediately without waiting for more retries")
+let defaultAutomaticCredentialDelays = DashboardCredentialCapturePolicy.automaticRetryDelays(for: .claudeSubscription)
+let volcengineAutomaticCredentialDelays = DashboardCredentialCapturePolicy.automaticRetryDelays(for: .volcengineCodingPlan)
+require(defaultAutomaticCredentialDelays == [0.35, 1.0, 2.0], "Default dashboard credential auto-capture retry timing should stay compact")
+require(volcengineAutomaticCredentialDelays.count > defaultAutomaticCredentialDelays.count, "Volcengine dashboard credential auto-capture should keep watching longer during first-login SSO cookie settling")
+require(volcengineAutomaticCredentialDelays.last ?? 0 >= 7.0, "Volcengine dashboard credential auto-capture should wait long enough for first-login cookies to settle")
 let reauthedVolcengineSecret = DashboardCookieBuilder.reauthenticatedSecret(
     cookieHeader: "AccountID=account-redacted; csrfToken=n; digest=d; userInfo=u",
     existingSecret: #"{"cookie":"old","csrfToken":"old","projectName":"default","xWebId":"web-id"}"#
@@ -6358,6 +6563,16 @@ require(DashboardReauthConfig(provider: .codexSubscription)?.cookieDomains == ["
 require(DashboardReauthConfig(provider: .kimiSubscription)?.cookieDomains == ["kimi.com", "www.kimi.com"], "Kimi subscription should capture kimi.com web-login authorization")
 require(DashboardReauthConfig(provider: .claudeAPIUsage) == nil, "Claude API usage should not expose dashboard reauthentication")
 require(DashboardReauthConfig(provider: .codexAPIUsage) == nil, "Codex API usage should not expose dashboard reauthentication")
+require(DashboardReauthConfig(provider: .claudeSubscription)?.requiredCookieNames == ["sessionKey|sessionKeyLC"], "Claude subscription should accept either current sessionKey or sessionKeyLC login cookies")
+let claudeRequiredCookies = Provider.claudeSubscription.dashboardAuthenticationCookieNames
+require(DashboardCookieBuilder.containsRequiredCookie(
+    inCookieHeader: "sessionKeyLC=claude-session",
+    requiredNames: claudeRequiredCookies
+), "Claude subscription should save login authorization when WebKit only exposes sessionKeyLC")
+require(DashboardCookieBuilder.containsRequiredCookie(
+    inCookieHeader: "sessionKey=claude-session",
+    requiredNames: claudeRequiredCookies
+), "Claude subscription should keep accepting the original sessionKey cookie")
 require(DashboardReauthConfig(provider: .opencodeGo)?.requiredCookieNames == ["auth"], "OpenCode Go should auto-save only after auth cookies exist")
 require(DashboardReauthConfig(provider: .querit)?.requiredCookieNames.contains("osduss") == true, "Querit should auto-save only after account cookies exist")
 require(DashboardReauthConfig(provider: .codexSubscription)?.requiredCookieNames.joined(separator: "|").contains("__search-next-auth") == true, "Codex subscription should auto-save after any recognized ChatGPT auth cookie exists")
@@ -6582,6 +6797,31 @@ for forbiddenExportField in ["\"key\"", "cookie", "authorization", "token", "sec
 AppLanguageStore.shared.language = .simplifiedChinese
 require(structuredMetadata[0].quotaDisplayText == "850 / 1000 月度积分", "APIKey quota display should prefer structured descriptors over persisted English labels")
 AppLanguageStore.shared.language = .english
+
+let codexResetCreditKey = APIKey(
+    id: UUID(),
+    name: "CODEX_SUBSCRIPTION_SESSION",
+    key: "__Secure-next-auth.session-token=redacted",
+    provider: .codexSubscription,
+    remaining: 3000,
+    limit: 10000,
+    planDisplayName: "Pro",
+    codexResetCreditsRemaining: 2,
+    quotaText: .quotaWindows([
+        QuotaWindowText(name: "5h", percentText: "100%", resetAt: Date(timeIntervalSince1970: 1780924878)),
+        QuotaWindowText(name: "week", percentText: "30%", resetAt: Date(timeIntervalSince1970: 1781140147))
+    ]),
+    quotaLabel: "5h 100% · week 30%"
+)
+store.save([codexResetCreditKey])
+let codexResetCreditMetadata = store.load()
+require(codexResetCreditMetadata[0].codexResetCreditsRemaining == 2, "APIKeyStore should persist Codex reset-credit availability")
+require(codexResetCreditMetadata[0].canResetCodexQuota == false, "Metadata-only Codex keys should not expose reset while the secret is not hydrated")
+let codexHydratedResetCreditMetadata = store.loadSecrets(for: codexResetCreditMetadata)
+require(codexHydratedResetCreditMetadata[0].canResetCodexQuota, "Hydrated Codex keys with available credits should expose the reset action")
+let exportedCodexMetadata = String(data: try! store.exportMetadata([codexResetCreditKey]), encoding: .utf8)!
+require(exportedCodexMetadata.contains("\"codexResetCreditsRemaining\":2"), "Credential metadata export should include non-secret Codex reset-credit availability")
+require(!exportedCodexMetadata.contains("__Secure-next-auth.session-token"), "Credential metadata export should not include dashboard cookies")
 
 let legacyDashboardNoteID = UUID()
 let legacyDashboardNoteJSON = """
@@ -6871,12 +7111,13 @@ require(xfyun.remaining == 3963, "XFYun should use the tightest remaining coding
 require(xfyun.quotaLabel == "5h 39.6% · week 96.1% · month 94.8%", "XFYun should display remaining percentages computed from official used counts")
 AppLanguageStore.shared.language = .simplifiedChinese
 require(xfyun.quotaText?.render() == "5 小时 39.6% · 周 96.1% · 月 94.8%", "Structured quota-window descriptors should render period labels in the current UI language")
-require(xfyun.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.detailValueText == "2378 / 6000", "XFYun quota-window details should use the same remaining/total semantics as other providers")
+require(xfyun.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.remainingText == "2378 / 6000", "XFYun quota-window details should use the same remaining/total semantics as other providers")
 AppLanguageStore.shared.language = .english
 require(xfyun.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.remainingText == "2378 / 6000", "XFYun should display five-hour remaining and maximum request counts")
 require(xfyun.quotaText?.quotaWindows.first(where: { $0.name == "week" })?.remainingText == "432546 / 450000", "XFYun should display weekly remaining and maximum request counts")
 require(xfyun.quotaText?.quotaWindows.first(where: { $0.name == "month" })?.remainingText == "853441 / 900000", "XFYun should display monthly remaining and maximum request counts")
-require(xfyun.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.detailValueText == "2378 / 6000", "XFYun quota-window details should not use provider-specific used-count labels")
+let xfyunEnglishFiveHourDetail = xfyun.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.detailValueText ?? ""
+require(xfyunEnglishFiveHourDetail.hasPrefix("Resets ") && xfyunEnglishFiveHourDetail.hasSuffix(" (2378 / 6000)"), "XFYun quota-window details should show reset timing first and count details in parentheses")
 let xfyunDisplayKey = APIKey(name: "XFYUN_CODING_PLAN_COOKIE", key: "cookie", provider: .xfyunCodingPlan, quotaText: xfyun.quotaText, quotaLabel: xfyun.quotaLabel)
 require(xfyunDisplayKey.quotaWindowDetails.count == 3, "XFYun should render cycle detail rows with remaining/maximum counts even when reset times are not exposed")
 let xfyunDecimalUsage = try! QuotaParsers.parseXFYunCodingPlanList(Data("""
@@ -6893,6 +7134,9 @@ let xfyunWindowed = try! QuotaParsers.parseXFYunCodingPlanList(Data("""
 require(xfyunWindowed.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.resetAt == localTestDate("2026-06-16 21:48:58"), "XFYun should infer the next five-hour reset boundary from validFrom")
 require(xfyunWindowed.quotaText?.quotaWindows.first(where: { $0.name == "week" })?.resetAt == localTestDate("2026-06-18 17:48:58"), "XFYun should infer the next weekly reset boundary from validFrom")
 require(xfyunWindowed.quotaText?.quotaWindows.first(where: { $0.name == "month" })?.resetAt == localTestDate("2026-06-28 17:48:58"), "XFYun should use package expiry as the total-package reset boundary")
+AppLanguageStore.shared.language = .simplifiedChinese
+require(xfyunWindowed.quotaText?.quotaWindows.first(where: { $0.name == "week" })?.detailValueText == "6月18日 17:48 重置（432546 / 450000）", "Quota-window details should show reset timing first and append count details in parentheses")
+AppLanguageStore.shared.language = .english
 require(xfyunWindowed.resetAt == localTestDate("2026-06-16 21:48:58"), "XFYun should expose the tightest inferred quota window reset")
 require(xfyun.planEndsAt != nil, "XFYun should expose the package expiry as the plan end date")
 require(xfyun.planDisplayName == "高效版", "XFYun should expose the concrete coding-plan package name when present")
@@ -7033,6 +7277,14 @@ let claudeOrganizationContext = try! QuotaParsers.parseClaudeOrganizationContext
 """.utf8))
 require(claudeOrganizationContext.id == "org-redacted", "Claude subscription organization context should preserve the active organization uuid")
 require(claudeOrganizationContext.planDisplayName == "Pro", "Claude subscription organization context should expose claude_pro as the concrete plan name")
+let claudeMax20xOrganizationContext = try! QuotaParsers.parseClaudeOrganizationContext(Data("""
+[{"uuid":"org-redacted","name":"Personal","active":true,"billing_type":"stripe_subscription","rate_limit_tier":"max_20x","capabilities":["chat","claude_max"]}]
+""".utf8))
+require(claudeMax20xOrganizationContext.planDisplayName == "Max 20x", "Claude subscription organization context should expose max_20x as Max 20x")
+let claudeMax5xOrganizationContext = try! QuotaParsers.parseClaudeOrganizationContext(Data("""
+[{"uuid":"org-redacted","name":"Personal","active":true,"billing_type":"stripe_subscription","rate_limit_tier":"max_5x","capabilities":["chat","claude_max"]}]
+""".utf8))
+require(claudeMax5xOrganizationContext.planDisplayName == "Max 5x", "Claude subscription organization context should expose max_5x as Max 5x")
 
 let claudeUsage = try! QuotaParsers.parseClaudeSubscriptionUsage(Data("""
 {"five_hour":{"utilization":24.5,"resets_at":"2026-06-09T10:00:00Z"},"seven_day":{"utilization":"70","resets_at":"2026-06-15T00:00:00Z"},"seven_day_opus":{"utilization":95,"resets_at":"2026-06-15T00:00:00Z"}}
@@ -7050,15 +7302,12 @@ let claudeSubscriptionDisplayKey = APIKey(name: "CLAUDE_SUBSCRIPTION_COOKIE", ke
 let claudeSubscriptionStat = ProviderStats(provider: .claudeSubscription, keys: [claudeSubscriptionDisplayKey])
 require(claudeSubscriptionStat.totalRemainingDisplayText == "week 30%", "Claude subscription provider remaining should display the tightest percentage window")
 
-do {
-    _ = try QuotaParsers.parseClaudeSubscriptionUsage(Data("""
-{"five_hour":{"utilization":24.5},"seven_day":{"utilization":"70","resets_at":"2026-06-15T00:00:00Z"}}
+let claudeUsageWithMissingFiveHourReset = try! QuotaParsers.parseClaudeSubscriptionUsage(Data("""
+{"five_hour":{"limit_dollars":null,"remaining_dollars":null,"resets_at":null,"used_dollars":null,"utilization":100},"seven_day":{"limit_dollars":null,"remaining_dollars":null,"resets_at":"2026-06-15T00:00:00.000000Z","used_dollars":null,"utilization":37.5},"limits":[{"group":"default","is_active":true,"kind":"rolling","percent":100,"resets_at":null,"severity":"normal"}],"spend":{"enabled":false,"percent":0}}
 """.utf8))
-    fail("Claude subscription usage should reject calibrated quota windows when reset timestamps disappear")
-} catch QuotaError.schemaDrift {
-} catch {
-    fail("Claude subscription missing reset timestamp should throw schemaDrift, got \(error)")
-}
+require(claudeUsageWithMissingFiveHourReset.quotaLabel == "5h 0% · week 62.5%", "Claude subscription should verify successfully when the current usage endpoint omits five-hour reset timing")
+require(claudeUsageWithMissingFiveHourReset.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.resetAt == nil, "Claude five-hour quota row should omit reset timing when the provider no longer returns it")
+require(claudeUsageWithMissingFiveHourReset.quotaText?.quotaWindows.first(where: { $0.name == "week" })?.resetAt != nil, "Claude weekly quota row should keep reset timing when present")
 
 let claudeSubscriptionDetails = try! QuotaParsers.parseClaudeSubscriptionDetails(Data("""
 {"subscription_type":"pro","next_charge_date":"2026-07-08T16:42:25Z"}
@@ -7074,7 +7323,7 @@ let expectedClaudePlanEnd = claudePlanFormatter.date(from: "2026-07-09T09:57:27Z
 require(abs(claudeDetailsFromChargeAt.planEndsAt!.timeIntervalSince1970 - expectedClaudePlanEnd.timeIntervalSince1970) < 1, "Claude subscription details should prefer next_charge_at over date-only next_charge_date")
 
 let codexUsage = try! QuotaParsers.parseCodexWhamUsage(Data("""
-{"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_after_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":70,"limit_window_seconds":604800,"reset_after_seconds":233270,"reset_at":1781140147}},"additional_rate_limits":[{"limit_name":"GPT-5.3-Codex-Spark","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_after_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":0,"limit_window_seconds":604800,"reset_after_seconds":604800,"reset_at":1781511678}}}],"credits":{"has_credits":false,"unlimited":false,"balance":"0"}}
+{"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_after_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":70,"limit_window_seconds":604800,"reset_after_seconds":233270,"reset_at":1781140147}},"additional_rate_limits":[{"limit_name":"GPT-5.3-Codex-Spark","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_after_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":0,"limit_window_seconds":604800,"reset_after_seconds":604800,"reset_at":1781511678}}}],"credits":{"has_credits":false,"unlimited":false,"balance":"0"},"rate_limit_reset_credits":{"available_count":3}}
 """.utf8))
 require(codexUsage.remaining == 3000, "Codex subscription usage should use the tightest remaining quota window")
 require(codexUsage.limit == 10000, "Codex subscription usage should use percentage basis points")
@@ -7083,6 +7332,15 @@ require(codexUsage.quotaText?.kind == .quotaWindows, "Codex subscription usage s
 require(codexUsage.resetAt != nil, "Codex subscription usage should expose the tightest quota window reset date")
 require(codexUsage.planEndsAt == nil, "Codex wham usage does not expose subscription end date")
 require(codexUsage.planDisplayName == "Pro", "Codex wham usage should expose plan_type as a concrete plan name")
+require(codexUsage.codexResetCreditsRemaining == 3, "Codex wham usage should expose available reset credits")
+let codexNegativeResetCredits = try! QuotaParsers.parseCodexWhamUsage(Data("""
+{"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":70,"limit_window_seconds":604800,"reset_at":1781140147}},"rate_limit_reset_credits":{"available_count":-1}}
+""".utf8))
+require(codexNegativeResetCredits.codexResetCreditsRemaining == nil, "Codex reset-credit parser should ignore negative available_count values")
+let codexStringResetCredits = try! QuotaParsers.parseCodexWhamUsage(Data("""
+{"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":70,"limit_window_seconds":604800,"reset_at":1781140147}},"rate_limit_reset_credits":{"available_count":"3"}}
+""".utf8))
+require(codexStringResetCredits.codexResetCreditsRemaining == nil, "Codex reset-credit parser should ignore non-numeric available_count values")
 do {
     _ = try QuotaParsers.parseCodexWhamUsage(Data("""
 {"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000},"secondary_window":{"used_percent":70,"limit_window_seconds":604800,"reset_at":1781140147}}}
@@ -7097,6 +7355,19 @@ let codexLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
 """.utf8))
 require(codexLifecycle.planEndsAt != nil, "Codex subscription lifecycle should parse active_until as the plan end date")
 require(codexLifecycle.planDisplayName == "Pro", "Codex subscription lifecycle should expose plan_type as a concrete plan name")
+let codexPro20xLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
+{"active_start":"2026-06-08T16:42:25Z","active_until":"2026-07-08T16:42:25Z","billing_period":"monthly","plan_type":"pro","subscription_plan":"chatgptpro","will_renew":true}
+""".utf8))
+require(codexPro20xLifecycle.planDisplayName == "Pro 20x", "Codex subscription lifecycle should expose chatgptpro as Pro 20x")
+let codexPro5xLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
+{"active_start":"2026-06-08T16:42:25Z","active_until":"2026-07-08T16:42:25Z","billing_period":"monthly","plan_type":"pro","subscription_plan":"chatgptprolite","will_renew":true}
+""".utf8))
+require(codexPro5xLifecycle.planDisplayName == "Pro 5x", "Codex subscription lifecycle should expose chatgptprolite as Pro 5x")
+let codexAccountsCheckLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
+{"accounts":{"account-redacted":{"account":{"plan_type":"pro"},"entitlement":{"has_active_subscription":true,"subscription_plan":"chatgptpro","renews_at":"2026-07-08T16:42:25+00:00","billing_period":"monthly","billing_currency":"JPY"}}}}
+""".utf8))
+require(codexAccountsCheckLifecycle.planEndsAt != nil, "Codex accounts/check lifecycle should parse entitlement renews_at as the plan end date")
+require(codexAccountsCheckLifecycle.planDisplayName == "Pro 20x", "Codex accounts/check lifecycle should expose entitlement subscription_plan as the concrete Pro tier")
 
 let kimiUsage = try! QuotaParsers.parseKimiSubscriptionUsage(
     subscriptionData: Data("""

@@ -202,6 +202,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc func showStatusPanelForAutomation() {
+        if isVisualQAAutomation {
+            showStatusPanelAtAutomationFallbackPosition()
+            return
+        }
+
         if let button = statusItem?.button {
             showStatusPanel(relativeTo: button)
             stopPopoverMouseExitMonitor()

@@ -629,10 +629,7 @@ struct DashboardWebView: NSViewRepresentable {
         }
 
         private func captureCredentialIfReady(completedRetryCount: Int) {
-            guard !didEmitCookies,
-                  let webView,
-                  let host = webView.url?.host,
-                  matchesAllowedDomain(host) else {
+            guard !didEmitCookies, let webView else {
                 return
             }
 
@@ -643,7 +640,7 @@ struct DashboardWebView: NSViewRepresentable {
                     domains: self.cookieDomains
                 )
 
-                self.captureWebStorageFields(from: webView) { [weak self] webStorageFields in
+                self.captureWebStorageFieldsIfAllowed(from: webView) { [weak self] webStorageFields in
                     guard let self, !self.didEmitCookies else { return }
                     let capturedCredential = DashboardCapturedCredential(
                         provider: self.provider,
@@ -659,12 +656,12 @@ struct DashboardWebView: NSViewRepresentable {
                             capturedCredential,
                             requiredNames: self.requiredCookieNames,
                             completedRetryCount: completedRetryCount,
-                            retryDelays: DashboardCredentialCapturePolicy.automaticRetryDelays
+                            retryDelays: DashboardCredentialCapturePolicy.automaticRetryDelays(for: self.provider)
                         ) else {
                             return
                         }
 
-                        let delay = DashboardCredentialCapturePolicy.automaticRetryDelays[completedRetryCount]
+                        let delay = DashboardCredentialCapturePolicy.automaticRetryDelays(for: self.provider)[completedRetryCount]
                         DispatchQueue.main.async {
                             self.scheduleCookieCaptureRetry(
                                 completedRetryCount: completedRetryCount + 1,
@@ -681,6 +678,15 @@ struct DashboardWebView: NSViewRepresentable {
                     }
                 }
             }
+        }
+
+        private func captureWebStorageFieldsIfAllowed(from webView: WKWebView, completion: @escaping ([String: String]) -> Void) {
+            guard let host = webView.url?.host, matchesAllowedDomain(host) else {
+                completion([:])
+                return
+            }
+
+            captureWebStorageFields(from: webView, completion: completion)
         }
 
         private func captureWebStorageFields(from webView: WKWebView, completion: @escaping ([String: String]) -> Void) {

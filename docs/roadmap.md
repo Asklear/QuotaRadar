@@ -41,6 +41,20 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Refresh README screenshots with window/panel captures only, avoiding desktop backgrounds in release-facing images.
 - [x] Bump version metadata and release notes for `v0.3.6`.
 
+## v0.3.8 Reset And Account Layout Polish
+
+- [x] Read Codex subscription reset-credit availability from `rate_limit_reset_credits.available_count` and persist it as non-secret credential metadata.
+- [x] Add a guarded Codex `Use reset` action in the expanded account quota row. The action consumes one reset credit only after confirmation, refreshes the same account after the reset, and records the resulting quota snapshot.
+- [x] Document that no Codex reset-credit expiry field has been observed yet; Quota Radar stores and displays only the available count.
+- [x] Let Claude web-login authorization accept both `sessionKey` and `sessionKeyLC`, matching the current cookies exposed by WebKit.
+- [x] Keep Volcengine automatic login capture watching longer during first-login SSO cookie settling, so the first reauthentication attempt can save without closing and reopening the window.
+- [x] Hide providers from Quota Overview when all monitoring credentials are disabled.
+- [x] Keep money-balance providers such as DeepSeek, Bocha, and WeChat Search from showing low-value `No reset cycle` timing copy.
+- [x] Keep expanded account rows aligned with the original layout: account identity on the left, quota windows in the middle, and Critical Time / Last Updated in the right-side metadata panel.
+- [x] Show quota-window details as reset time first, with remaining/total counts in parentheses for request-count providers such as XFYun Spark.
+- [x] Restore Diagnostics category folding by AI Search and LLM.
+- [x] Stabilize visual QA menu-bar screenshots with window-level capture so transparent popovers do not include the user's desktop background.
+
 ## v0.3.7 Monitoring Trust And Attention
 
 - [x] Add a compact last-refresh status marker beside Last Updated in expanded provider rows, so users can see whether the latest refresh updated, had no change, failed, or was skipped without adding a history list.
