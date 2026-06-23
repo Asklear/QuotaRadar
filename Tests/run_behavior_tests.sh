@@ -59,9 +59,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.3\.8' \
+assert_match '0\.3\.9' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.3.8 should be recorded in Info.plist"
+  "Quota Radar 0.3.9 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -89,6 +89,36 @@ assert_match 'drawStatusIconInnerScreen' \
 assert_no_match '控制台会话 Cookie|控制台會話 Cookie|dashboard session cookies|dashboard-session Cookie|ダッシュボードセッション Cookie|대시보드 세션 Cookie' \
   "QuotaRadar/Models/AppLanguage.swift" \
   "User-facing credential copy should avoid gray dashboard-session Cookie wording"
+assert_match 'QUOTARADAR_LIVE_ACCEPTANCE=1' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should require an explicit environment opt-in before hitting provider endpoints"
+assert_match '--live' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should require a visible --live flag before hitting provider endpoints"
+assert_match 'live-acceptance-src' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should compile from a temporary source tree so the app target does not need to become a library"
+assert_match 'QuotaRadarApp.swift' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should exclude the SwiftUI @main app entry from its temporary CLI target"
+assert_match 'No secrets, cookies, tokens, or raw provider responses are printed' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should document its no-secret output boundary"
+assert_match 'LiveAcceptanceRow' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance should use a structured sanitized row model"
+assert_match 'Provider.visibleCases.filter \{ \$0.supportsDashboardReauthentication \}' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance should cover every visible dashboard-login provider"
+assert_match 'store.loadSecrets' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance should hydrate local secrets only inside the acceptance runner"
+assert_match 'com\.gaorongvc\.quotaradar' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance should read the app UserDefaults domain instead of the temporary CLI domain"
+assert_no_match 'print\(.*key|print\(.*cookie|print\(.*token|print\(.*secret' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance output must not print raw keys, cookies, tokens, or secrets"
 for icon_name in aliyun tencentCloud volcengine xfyun; do
   test -s "QuotaRadar/Assets.xcassets/ProviderIcons/${icon_name}.iconset/icon_32x32@2x.png" \
     || fail "shared official provider icon asset is missing: ${icon_name}"
@@ -300,6 +330,116 @@ assert_match 'struct ProviderTrustCalibration' \
 assert_match 'var trustCalibration: ProviderTrustCalibration' \
   "QuotaRadar/Models/APIKey.swift" \
   "Each provider should expose trust calibration metadata from the same source as capability semantics"
+test -s "docs/provider-calibration.md" || fail "English provider calibration backlog should exist"
+test -s "docs/provider-calibration.zh-Hans.md" || fail "Chinese provider calibration backlog should exist"
+assert_match 'Observed Before Fixture' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should require real observed fields before adding parser fixtures"
+assert_match 'Long-Tail Calibration Queue' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should track long-tail provider packages separately from the main provider matrix"
+assert_match 'Claude Subscription OAuth usage/limits' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should include the Claude OAuth usage follow-up"
+assert_match 'OpenAI prepaid credits' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should keep prepaid credits separate from Codex subscription quota"
+assert_match '先观察再加 fixture' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese provider calibration backlog should require observed fields before parser fixtures"
+assert_match '长尾校准队列' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese provider calibration backlog should track long-tail provider packages separately from the main provider matrix"
+assert_match 'calibrationStatus' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance output should include sanitized provider calibration status"
+assert_match 'lastVerifiedAt' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance output should include sanitized last-verified timestamps"
+assert_match 'calibrationEvidence' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance output should include sanitized calibration evidence summaries"
+assert_match 'fallbackBehavior' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance output should include sanitized fallback behavior for schema drift"
+assert_match 'mktemp -d "\$\{ROOT_DIR\}/build/live-acceptance-src' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should use a per-run temporary source directory so concurrent QA commands do not race"
+assert_match 'trap cleanup EXIT' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should clean up its per-run temporary source directory"
+assert_match 'QuotaMonitor\.refreshCandidateKeys' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance should reuse quota monitor refresh candidates so providers with shared dashboard authorization are accepted"
+assert_match 'targetProviders: Set\(\[provider\]\)' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance should derive shared dashboard authorization candidates per provider"
+assert_match '2026-06-23 13:06 CST' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider trust calibration metadata should record the latest redacted live acceptance timestamp"
+assert_match '2026-06-23 13:06 CST' \
+  "docs/providers.md" \
+  "English provider docs should record the latest redacted live acceptance timestamp"
+assert_match '2026-06-23 13:06 CST' \
+  "docs/providers.zh-Hans.md" \
+  "Chinese provider docs should record the latest redacted live acceptance timestamp"
+assert_match 'Live acceptance snapshot: 2026-06-23 13:06 CST' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should retain the latest sanitized live acceptance snapshot summary"
+assert_match 'Aliyun Coding Plan.*Missing saved account' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should distinguish missing saved accounts from failed calibration"
+assert_match 'Tencent Cloud Coding Plan.*Missing saved account' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should distinguish missing Tencent saved accounts from failed calibration"
+assert_match 'OpenAI prepaid credits.*Docs reviewed 2026-06-23' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should record the OpenAI prepaid docs-only observation"
+assert_match 'GET/organization/costs' \
+  "docs/provider-calibration.md" \
+  "OpenAI prepaid calibration should distinguish organization costs from prepaid balance"
+assert_match 'No public prepaid credit balance API confirmed' \
+  "docs/provider-calibration.md" \
+  "OpenAI prepaid calibration should not claim an endpoint before it is observed"
+assert_match 'Claude Subscription OAuth usage/limits.*Docs reviewed 2026-06-23' \
+  "docs/provider-calibration.md" \
+  "Claude OAuth calibration should record docs-only observation separately from live endpoint proof"
+assert_match 'org:admin' \
+  "docs/provider-calibration.md" \
+  "Claude OAuth calibration should distinguish admin API tokens from personal subscription OAuth"
+assert_match 'Kimi WebBridge.*live browser observation' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should record that browser-level Claude observation ran"
+assert_match 'Claude web usage/prepaid credits.*Live browser observation 2026-06-23' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should record the Claude prepaid browser observation"
+assert_match 'prepaid/credits' \
+  "docs/provider-calibration.md" \
+  "Claude prepaid calibration should record the observed web endpoint without account identifiers"
+assert_match 'OpenAI Platform login missing' \
+  "docs/provider-calibration.md" \
+  "OpenAI prepaid calibration should record why live browser observation could not verify a prepaid endpoint"
+assert_match 'OpenAI prepaid credits.*文档观察 2026-06-23' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese provider calibration backlog should record the OpenAI prepaid docs-only observation"
+assert_match '未确认公开 prepaid credit balance API' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese OpenAI prepaid calibration should not claim an endpoint before it is observed"
+assert_match 'Claude Subscription OAuth usage/limits.*文档观察 2026-06-23' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese Claude OAuth calibration should record docs-only observation separately from live endpoint proof"
+assert_match 'Claude web usage/prepaid credits.*浏览器实测 2026-06-23' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese provider calibration backlog should record the Claude prepaid browser observation"
+assert_match 'prepaid/credits' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese Claude prepaid calibration should record the observed web endpoint without account identifiers"
+assert_match 'live acceptance 快照：2026-06-23 13:06 CST' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese provider calibration backlog should retain the latest sanitized live acceptance snapshot summary"
+assert_match 'Aliyun Coding Plan.*缺少已保存账号' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese provider calibration backlog should distinguish missing saved accounts from failed calibration"
 assert_match 'var capability: ProviderCapability' \
   "QuotaRadar/Models/APIKey.swift" \
   "Each provider should expose capability metadata"
@@ -426,6 +566,15 @@ assert_match 'softprops/action-gh-release' \
 assert_match 'final class GitHubReleaseUpdater' \
   "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
   "QuotaRadar should include a GitHub Release updater service"
+assert_match '#if QUOTARADAR_DISABLE_GITHUB_UPDATER' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater should compile to a no-op implementation for white-label builds"
+assert_match 'static let isUpdateCheckingAvailable = false' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "White-label updater should tell the UI update checks are unavailable"
+assert_match '#else' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater should keep the normal GitHub Release implementation outside the white-label branch"
 assert_match 'https://api\.github\.com/repos/Asklear/QuotaRadar/releases/latest' \
   "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
   "Updater should check the Asklear/QuotaRadar latest GitHub Release endpoint"
@@ -438,6 +587,68 @@ assert_match 'releases/download' \
 assert_match 'QuotaRadar\.dmg' \
   "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
   "Updater should select the published QuotaRadar.dmg release asset"
+test -s "docs/release-qa.md" || fail "English release QA checklist should exist"
+test -s "docs/release-qa.zh-Hans.md" || fail "Chinese release QA checklist should exist"
+assert_match 'Standard Updater Build' \
+  "docs/release-qa.md" \
+  "Release QA should split the standard updater build into its own checklist"
+assert_match 'White-Label No-Updater Build' \
+  "docs/release-qa.md" \
+  "Release QA should split the white-label no-updater build into its own checklist"
+assert_match 'build/QuotaRadar\.dmg' \
+  "docs/release-qa.md" \
+  "Standard release QA should verify the standard DMG artifact"
+assert_match 'build/QuotaRadar-WhiteLabel\.dmg' \
+  "docs/release-qa.md" \
+  "White-label release QA should verify the white-label DMG artifact"
+assert_match 'https://api\.github\.com/repos/Asklear/QuotaRadar/releases/latest' \
+  "docs/release-qa.md" \
+  "Standard release QA should explicitly scan for the expected GitHub Release API URL"
+assert_match 'https://github\.com/Asklear/QuotaRadar/releases/latest' \
+  "docs/release-qa.md" \
+  "Standard release QA should explicitly scan for the expected GitHub latest-release fallback URL"
+assert_match 'QUOTARADAR_DISABLE_GITHUB_UPDATER' \
+  "docs/release-qa.md" \
+  "White-label release QA should verify the updater compile flag boundary"
+assert_match 'strings .*QuotaRadar-WhiteLabel\.dmg' \
+  "docs/release-qa.md" \
+  "White-label release QA should include a DMG string scan for leaked updater URLs"
+assert_match 'secret|cookie|token|authorization' \
+  "docs/release-qa.md" \
+  "Release QA should include explicit secret scanning terms"
+assert_match 'Tests/run_visual_qa\.sh' \
+  "docs/release-qa.md" \
+  "Release QA should include visual screenshot QA"
+assert_match 'codesign --verify' \
+  "docs/release-qa.md" \
+  "Release QA should verify app code signatures"
+assert_match 'hdiutil verify' \
+  "docs/release-qa.md" \
+  "Release QA should verify DMG integrity"
+assert_match '标准 Updater 构建' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese release QA should split the standard updater build into its own checklist"
+assert_match '白牌 No-Updater 构建' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese release QA should split the white-label no-updater build into its own checklist"
+assert_match 'build/QuotaRadar\.dmg' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese standard release QA should verify the standard DMG artifact"
+assert_match 'build/QuotaRadar-WhiteLabel\.dmg' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese white-label release QA should verify the white-label DMG artifact"
+assert_match 'GitHub Release URL 扫描' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese release QA should explicitly name the GitHub Release URL scan"
+assert_match 'secret|cookie|token|authorization' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese release QA should include explicit secret scanning terms"
+assert_match 'Tests/run_visual_qa\.sh' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese release QA should include visual screenshot QA"
+assert_match 'hdiutil verify' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese release QA should verify DMG integrity"
 assert_match 'releaseNotes' \
   "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
   "Updater should preserve GitHub release notes for the update prompt"
@@ -459,6 +670,9 @@ assert_match 'open -a' \
 assert_match 'checkForUpdatesIfNeededOnLaunch' \
   "QuotaRadar/AppDelegate.swift" \
   "QuotaRadar should automatically check GitHub Releases after launch"
+assert_match 'GitHubReleaseUpdater\.isUpdateCheckingAvailable' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Launch update checks should be gated by updater availability for white-label builds"
 assert_match 'Check for Updates' \
   "QuotaRadar/Models/AppLanguage.swift" \
   "Updater controls should have English localization"
@@ -471,6 +685,21 @@ assert_match 'L10n\.t\(\.checkForUpdates\)' \
 assert_match 'SidebarUpdateFooter' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings sidebar should keep version and update status in the lower-left footer"
+assert_match 'if GitHubReleaseUpdater\.isUpdateCheckingAvailable' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should hide update-check controls for white-label builds"
+assert_match '-DQUOTARADAR_DISABLE_GITHUB_UPDATER' \
+  "install.sh" \
+  "White-label install builds should pass the Swift flag that removes GitHub updater URLs"
+assert_match '--white-label' \
+  "install.sh" \
+  "install.sh should expose a white-label build option"
+assert_match '--white-label' \
+  "scripts/package_dmg.sh" \
+  "DMG packaging should expose a white-label build option"
+assert_match 'QuotaRadar-WhiteLabel\.dmg' \
+  "scripts/package_dmg.sh" \
+  "White-label packaging should write a separate DMG name"
 assert_match 'case sidebarStatistics' \
   "QuotaRadar/Models/AppLanguage.swift" \
   "Settings sidebar metrics should have a dedicated Statistics label instead of reusing the product name"
@@ -1072,6 +1301,12 @@ assert_match 'openMenuSignalForAutomationIfRequested' \
 assert_match 'openProviderFromStatusPopover\(item\.provider, credentialID: item\.key\.id, reason: item\.signalReason\)' \
   "QuotaRadar/AppDelegate.swift" \
   "Menu signal focus automation should exercise the same provider/account/reason handoff as status bar row clicks"
+assert_match 'layout\.attentionItems\.first \?\? layout\.visibleItems\.first' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Menu attention focus automation should fall back to the first globally visible feed item after signal sections are compressed"
+assert_match 'layout\.attentionItems\.first \{ \$0\.signalReason == \.failed \} \?\? layout\.attentionItems\.first \?\? layout\.visibleItems\.first' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Menu failed focus automation should still open a useful feed item when no explicit failure row exists"
 assert_match 'QUOTARADAR_OPEN_MENU_SIGNAL_FOR_AUTOMATION="\$\{signal\}"' \
   "Tests/run_visual_qa.sh" \
   "Visual QA should capture a focused main-window state through the menu signal automation hook"
@@ -1105,9 +1340,9 @@ assert_match 'assert_file_nonempty "\$\{PANEL_BOUNDS_FILE\}"' \
 assert_match 'assert_file_nonempty "\$\{MAIN_WINDOW_ID_FILE\}"' \
   "Tests/run_visual_qa.sh" \
   "Visual QA should fail when it cannot identify the main settings window"
-assert_match 'assert_png_minimum_size "\$\{OUTPUT_DIR\}/menu-bar-popover\.png" 540 720' \
+assert_match 'assert_png_minimum_size "\$\{OUTPUT_DIR\}/menu-bar-popover\.png" 500 500' \
   "Tests/run_visual_qa.sh" \
-  "Visual QA should assert the menu-bar popover screenshot is complete enough to catch clipped panels"
+  "Visual QA should assert the compressed menu-bar popover screenshot is complete enough to catch clipped panels"
 assert_match 'assert_png_minimum_size "\$\{focused_screenshot\}" 900 600' \
   "Tests/run_visual_qa.sh" \
   "Visual QA should assert the focused main-window screenshot is large enough for account-highlight review"
@@ -1381,6 +1616,12 @@ except IndexError:
 if "MenuSectionHeader(title: L10n.t(.sidebarStatistics)" not in summary_card:
     print("FAIL: Status bar summary metrics should be headed by Statistics", file=sys.stderr)
     sys.exit(1)
+if "HStack(alignment: .center, spacing: 10)" not in summary_card:
+    print("FAIL: Status bar summary should be a compact one-line monitoring strip, not a tall card", file=sys.stderr)
+    sys.exit(1)
+if "VStack(alignment: .leading, spacing: 10)" in summary_card:
+    print("FAIL: Status bar summary should not spend vertical space on a large card layout", file=sys.stderr)
+    sys.exit(1)
 if "L10n.t(.apiQuotaTitle)" in summary_card or "L10n.t(.quotaRiskToday)" in summary_card:
     print("FAIL: Status bar summary metrics should not repeat the product name or risk title above metrics", file=sys.stderr)
     sys.exit(1)
@@ -1407,15 +1648,12 @@ required_order = [
     "HeaderView(",
     "MenuRiskSummaryCard(summary: monitor.menuQuotaSummary)",
     "MenuWatchedProviderItemsView(monitor: monitor, items: signalLayout.watchedProviderItems)",
-    "MenuLowQuotaItemsView(items: signalLayout.lowQuotaItems)",
-    "MenuExpiringQuotaItemsView(items: signalLayout.expiringSoonItems)",
-    "MenuAttentionItemsView(monitor: monitor, items: signalLayout.attentionItems)",
-    "MenuRecentUsageItemsView(monitor: monitor, items: signalLayout.recentUsageItems)",
+    "MenuSignalFeedView(monitor: monitor, layout: signalLayout)",
     "MenuHiddenQuotaItemsView("
 ]
 positions = [body.find(fragment) for fragment in required_order]
 if any(position < 0 for position in positions):
-    print("FAIL: Status bar popover should render every signal section directly in the taller fixed panel", file=sys.stderr)
+    print("FAIL: Status bar popover should render a compact summary, watchlist, unified signal feed, and overflow entry", file=sys.stderr)
     sys.exit(1)
 if positions != sorted(positions):
     print("FAIL: Status bar popover should preserve risk-first ordering before recent changes", file=sys.stderr)
@@ -1433,9 +1671,6 @@ assert_no_match 'struct MenuSignalSectionsScrollView<Content: View>' \
 assert_match 'struct MenuSectionHeader' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar sections should use a consistent compact monitoring header"
-assert_match 'MenuAttentionItemsView' \
-  "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar popover should keep credentials needing attention as secondary detail below provider statistics"
 assert_match 'let signalLayout = monitor\.menuSignalLayout' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar popover should render from a single globally capped signal layout"
@@ -1445,24 +1680,33 @@ assert_match 'MenuWatchedProviderItemsView' \
 assert_no_match 'ForEach\(monitor\.menuAttentionQuotaItems' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar attention rows should not bypass the global signal cap"
-assert_match 'MenuLowQuotaItemsView' \
-  "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar popover should reserve space for low-quota providers, not only expired or exhausted credentials"
 assert_no_match 'ForEach\(monitor\.menuLowQuotaItems' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar low-quota rows should not bypass the global signal cap"
-assert_match 'MenuExpiringQuotaItemsView' \
-  "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar popover should reserve space for credentials whose plan or balance expires soon"
 assert_no_match 'ForEach\(monitor\.menuExpiringQuotaItems' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar expiring-soon rows should not bypass the global signal cap"
-assert_match 'MenuRecentUsageItemsView' \
-  "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar popover should include a compact recent usage section"
 assert_no_match 'ForEach\(monitor\.menuRecentUsageQuotaItems' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar recent usage rows should not bypass the global signal cap"
+assert_match 'struct MenuSignalFeedView' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should merge risk, expiry, and recent changes into one compact attention feed"
+assert_match 'MenuSignalFeedView\(monitor: monitor, layout: signalLayout\)' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should render one globally ranked signal feed instead of one card per signal type"
+assert_no_match 'MenuLowQuotaItemsView\(items: signalLayout\.lowQuotaItems\)' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should not spend separate cards on low-quota rows"
+assert_no_match 'MenuExpiringQuotaItemsView\(items: signalLayout\.expiringSoonItems\)' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should not spend separate cards on expiring rows"
+assert_no_match 'MenuAttentionItemsView\(monitor: monitor, items: signalLayout\.attentionItems\)' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should not spend a separate card on failed/exhausted rows"
+assert_no_match 'MenuRecentUsageItemsView\(monitor: monitor, items: signalLayout\.recentUsageItems\)' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should not spend a separate card on recent usage rows"
 assert_match 'MenuHiddenQuotaItemsView' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar popover should show an entry point when more signal rows are hidden by the fixed-height panel"
@@ -1496,37 +1740,52 @@ import sys
 
 source = Path("QuotaRadar/Views/MenuContentView.swift").read_text()
 try:
-    recent_view = source.split("struct MenuRecentUsageItemsView: View", 1)[1].split("struct MenuExpiringQuotaItemRow: View", 1)[0]
+    feed_view = source.split("struct MenuSignalFeedView: View", 1)[1].split("struct MenuHiddenQuotaItemsView: View", 1)[0]
 except IndexError:
-    print("FAIL: MenuRecentUsageItemsView should exist before recent usage row details", file=sys.stderr)
+    print("FAIL: MenuSignalFeedView should exist before hidden signal entry", file=sys.stderr)
     sys.exit(1)
-if "detail: L10n.t(.recentUsageDetail)" in recent_view:
-    print("FAIL: Menu recent usage section should not rely on weak right-side detail headers for explanation", file=sys.stderr)
+for fragment in [
+    "layout.attentionItems",
+    "layout.lowQuotaItems",
+    "layout.expiringSoonItems",
+    "layout.recentUsageItems"
+]:
+    if fragment not in feed_view:
+        print(f"FAIL: MenuSignalFeedView should merge {fragment} into the same compact feed", file=sys.stderr)
+        sys.exit(1)
+if "MonitorModule(spacing: 6)" not in feed_view:
+    print("FAIL: MenuSignalFeedView should use one compact module instead of one card per signal type", file=sys.stderr)
     sys.exit(1)
-if "onRefresh: { monitor.refreshProvider(item.provider) }" not in recent_view:
-    print("FAIL: Menu recent usage rows should allow refreshing the provider from the same compact row", file=sys.stderr)
+if "MenuSignalFeedItemRow(" not in feed_view:
+    print("FAIL: MenuSignalFeedView should render unified compact feed rows", file=sys.stderr)
     sys.exit(1)
-if "onOpenProvider: { openProvider(item) }" not in recent_view:
-    print("FAIL: Menu recent usage rows should open and focus the provider in the main app", file=sys.stderr)
+if "section.id != sections.first?.id" not in feed_view:
+    print("FAIL: MenuSignalFeedView should avoid repeating the feed title as the first subgroup label", file=sys.stderr)
     sys.exit(1)
-if "activitySummary: monitor.activitySummary(for: item.key)" not in recent_view:
-    print("FAIL: Menu recent usage rows should render from QuotaActivitySummary so money-balance providers can appear", file=sys.stderr)
+if "onRefresh: { monitor.refreshProvider(item.provider) }" not in feed_view:
+    print("FAIL: Menu signal feed rows should allow refreshing the provider from the same compact row", file=sys.stderr)
+    sys.exit(1)
+if "onOpenProvider: { openProvider(item) }" not in feed_view:
+    print("FAIL: Menu signal feed rows should open and focus the provider in the main app", file=sys.stderr)
+    sys.exit(1)
+if "activitySummary: monitor.activitySummary(for: item.key)" not in feed_view:
+    print("FAIL: Menu signal feed rows should render recent activity from QuotaActivitySummary", file=sys.stderr)
     sys.exit(1)
 try:
-    watched_view = source.split("struct MenuWatchedProviderItemsView: View", 1)[1].split("struct MenuLowQuotaItemsView: View", 1)[0]
+    watched_view = source.split("struct MenuWatchedProviderItemsView: View", 1)[1].split("struct MenuSignalFeedView: View", 1)[0]
 except IndexError:
-    print("FAIL: MenuWatchedProviderItemsView should exist before low quota items", file=sys.stderr)
+    print("FAIL: MenuWatchedProviderItemsView should exist before the unified signal feed", file=sys.stderr)
     sys.exit(1)
 if "MenuWatchedProviderItemRow(" not in watched_view:
     print("FAIL: Menu watched providers should use a dedicated compact watchlist row instead of recent-change rows", file=sys.stderr)
     sys.exit(1)
-if "MenuRecentUsageItemRow(" in watched_view or "activitySummary:" in watched_view:
+if "MenuSignalFeedItemRow(" in watched_view or "activitySummary:" in watched_view:
     print("FAIL: Menu watched providers should not repeat recent-change activity explanations in the watchlist section", file=sys.stderr)
     sys.exit(1)
 try:
     watched_row = source.split("struct MenuWatchedProviderItemRow: View", 1)[1].split("struct MenuRecentUsageItemRow: View", 1)[0]
 except IndexError:
-    print("FAIL: MenuWatchedProviderItemRow should exist before recent usage rows", file=sys.stderr)
+    print("FAIL: MenuWatchedProviderItemRow should exist before recent usage compatibility row", file=sys.stderr)
     sys.exit(1)
 if "let isRefreshing: Bool" not in watched_row or "let onRefresh: () -> Void" not in watched_row:
     print("FAIL: Menu watched provider rows should keep the compact refresh affordance", file=sys.stderr)
@@ -1534,16 +1793,19 @@ if "let isRefreshing: Bool" not in watched_row or "let onRefresh: () -> Void" no
 if "activitySummary" in watched_row or "activityText" in watched_row or "compactDeltaIndicator" in watched_row:
     print("FAIL: Menu watched provider rows should show current provider state, not trend/delta copy", file=sys.stderr)
     sys.exit(1)
+if "noAttentionItems" in feed_view or "checkmark.seal.fill" in feed_view:
+    print("FAIL: Menu signal feed should not spend space on a calm empty-state row", file=sys.stderr)
+    sys.exit(1)
 try:
-    attention_view = source.split("struct MenuAttentionItemsView: View", 1)[1].split("struct MenuRecentUsageItemsView: View", 1)[0]
+    monitor_module = source.split("struct MonitorModule<Content: View>: View", 1)[1].split("struct MenuSectionHeader: View", 1)[0]
 except IndexError:
-    print("FAIL: MenuAttentionItemsView should exist before recent usage items", file=sys.stderr)
+    print("FAIL: MonitorModule should exist before section headers", file=sys.stderr)
     sys.exit(1)
-if "if !items.isEmpty" not in attention_view:
-    print("FAIL: Menu attention section should disappear when there are no actionable items", file=sys.stderr)
+if ".padding(.horizontal, 11)" not in monitor_module or ".padding(.vertical, 8)" not in monitor_module:
+    print("FAIL: Menu modules should use compact list-style padding instead of large card padding", file=sys.stderr)
     sys.exit(1)
-if "noAttentionItems" in attention_view or "checkmark.seal.fill" in attention_view:
-    print("FAIL: Menu attention section should not spend space on a calm empty-state row", file=sys.stderr)
+if "cornerRadius: 10" not in monitor_module:
+    print("FAIL: Menu modules should use smaller radii so the popover reads as monitoring rows, not large cards", file=sys.stderr)
     sys.exit(1)
 for noisy_header in [
     "MenuSectionHeader(title: L10n.t(.sidebarStatistics), detail:",
@@ -1561,10 +1823,7 @@ if "struct MenuSignalReasonBadge: View" not in source:
     sys.exit(1)
 for row_name in [
     "MenuWatchedProviderItemRow",
-    "MenuRecentUsageItemRow",
-    "MenuCompactQuotaItemRow",
-    "MenuQuotaItemRow",
-    "MenuExpiringQuotaItemRow"
+    "MenuSignalFeedItemRow"
 ]:
     try:
         row_scope = source.split(f"struct {row_name}: View", 1)[1].split("\nstruct ", 1)[0]
@@ -1585,12 +1844,12 @@ if "static func moduleFillOpacity(for transparency: Double)" not in components_s
     print("FAIL: Status bar modules should have a stronger base fill so background content does not bleed through", file=sys.stderr)
     sys.exit(1)
 try:
-    recent_row = source.split("struct MenuRecentUsageItemRow: View", 1)[1].split("struct MenuQuotaItemRow: View", 1)[0]
+    recent_row = source.split("struct MenuSignalFeedItemRow: View", 1)[1].split("\nstruct ", 1)[0]
 except IndexError:
-    print("FAIL: MenuRecentUsageItemRow should exist before generic quota item rows", file=sys.stderr)
+    print("FAIL: MenuSignalFeedItemRow should exist before shared refresh controls", file=sys.stderr)
     sys.exit(1)
 if "let activitySummary: QuotaActivitySummary" not in recent_row:
-    print("FAIL: Menu recent usage rows should accept activity summaries instead of percentage-only trend summaries", file=sys.stderr)
+    print("FAIL: Menu signal feed rows should accept activity summaries instead of percentage-only trend summaries", file=sys.stderr)
     sys.exit(1)
 if "let trendSummary: QuotaTrendSummary" in recent_row:
     print("FAIL: Menu recent usage rows should not depend on percentage-only trend summaries", file=sys.stderr)
@@ -1604,8 +1863,8 @@ if "let onOpenProvider: () -> Void" not in recent_row:
 if "ProviderRefreshButton(provider: item.provider" not in recent_row:
     print("FAIL: Menu recent usage rows should render the centralized provider refresh gate", file=sys.stderr)
     sys.exit(1)
-if "MenuSignalReasonBadge(text: L10n.t(.recentProviderUsage)" not in recent_row:
-    print("FAIL: Menu recent usage rows should label their reason as Recent Change instead of a generic quota-status reason", file=sys.stderr)
+if "MenuSignalReasonBadge(text: reasonText" not in recent_row:
+    print("FAIL: Menu signal feed rows should label each row with its concrete reason", file=sys.stderr)
     sys.exit(1)
 if "quotaTrendDecreasing" in recent_row:
     print("FAIL: Menu recent usage rows should not show old textual trend labels such as 7d -2pt", file=sys.stderr)
@@ -1619,11 +1878,7 @@ if "activitySummary.activityText" not in recent_row:
 if "key.usageCount" in recent_row or "key.lastUsed" in recent_row:
     print("FAIL: Menu recent usage rows should not fall back to legacy usage counts or last-used timestamps", file=sys.stderr)
     sys.exit(1)
-try:
-    attention_row = source.split("struct MenuQuotaItemRow: View", 1)[1].split("struct RefreshButton", 1)[0]
-except IndexError:
-    print("FAIL: MenuQuotaItemRow should exist before shared refresh controls", file=sys.stderr)
-    sys.exit(1)
+attention_row = recent_row
 if "QuotaWindowDetails(" in attention_row:
     print("FAIL: Menu bar attention rows should not expand every quota window; one compact quota line is enough", file=sys.stderr)
     sys.exit(1)
@@ -1844,8 +2099,11 @@ if not menu_match or not limit_match:
     sys.exit(1)
 height = int(menu_match.group(2))
 visible_limit = int(limit_match.group(1))
-if visible_limit >= 6 and height < 720:
-    print("FAIL: Fixed status bar panel is too short for six visible signal rows", file=sys.stderr)
+if visible_limit > 4:
+    print("FAIL: Status bar attention feed should cap automatic signals at four visible rows", file=sys.stderr)
+    sys.exit(1)
+if height < 480 or height > 520:
+    print("FAIL: Status bar panel should stay compressed instead of becoming a tall dashboard", file=sys.stderr)
     sys.exit(1)
 PY
 assert_no_match 'Label\(L10n\.t\(\.providersHeader\), systemImage: "rectangle\.grid\.1x2"\)' \
@@ -2043,17 +2301,17 @@ assert_match 'hostingController\.view\.wantsLayer = true' \
 assert_match 'backgroundColor = NSColor\.clear\.cgColor' \
   "QuotaRadar/AppDelegate.swift" \
   "Status bar hosting view should not paint an opaque background over the frosted glass"
-assert_match 'menuSize = CGSize\(width: 560, height: 740\)' \
+assert_match 'menuSize = CGSize\(width: 520, height: 500\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar risk popover should be tall enough to show the fixed attention feed without clipping"
+  "Status bar risk popover should stay compressed like a monitoring popover instead of a tall dashboard"
 menu_height="$(awk -F'height: ' '/menuSize = CGSize/ { gsub(/[^0-9.].*/, "", $2); print $2; exit }' QuotaRadar/Views/MenuContentView.swift)"
 if [[ -z "$menu_height" ]]; then
   fail "Status bar popover should keep menuSize height as a numeric constant"
 fi
-if awk "BEGIN { exit !($menu_height >= 720 && $menu_height <= 760) }"; then
+if awk "BEGIN { exit !($menu_height >= 480 && $menu_height <= 520) }"; then
   :
 else
-  fail "Status bar popover height should fit the fixed attention feed without becoming a full dashboard"
+  fail "Status bar popover height should fit a compressed attention feed without becoming a full dashboard"
 fi
 provider_overview_column_count="$(awk '
   /private let columns = \[/ { inside = 1; count = 0; next }
@@ -3758,9 +4016,18 @@ assert_match 'didAutoSave = false' \
 assert_no_match 'monitor\.refreshProvider\(provider\)' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should not close first and refresh later because invalid cookies look like no-op"
-assert_match 'readCookiesForManualSave' \
+assert_match 'captureCredentialForManualSave' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Manual dashboard credential save should re-read cookies instead of reusing a stale first failed capture"
+assert_no_match 'WKWebsiteDataStore\.default\(\)\.httpCookieStore\.getAllCookies' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Manual dashboard credential save should read from the current authentication WebView instead of a global cookie store"
+assert_match 'manualCaptureRequestID' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Manual dashboard credential save should signal the embedded WebView to capture the current login state"
+assert_match 'captureCredential\(from: webView\)' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Manual dashboard credential save should share the automatic cookie and WebStorage capture path"
 assert_match 'DashboardCredentialCapturePolicy\.isCredentialReady\(latestCapturedCredential' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Manual dashboard credential save should reuse only a completed captured credential"
@@ -3785,7 +4052,7 @@ assert_match 'guard !didEmitCookies, let webView else' \
 assert_match 'reauthStillUnauthorized' \
   "QuotaRadar/Models/AppLanguage.swift" \
   "Dashboard reauthentication should explain when captured cookies still fail provider login validation"
-assert_match 'WKWebsiteDataStore\.default\(\)\.httpCookieStore' \
+assert_match 'configuration\.websiteDataStore = \.default\(\)' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should read only cookies from the in-app WebKit data store"
 assert_match 'monitor\.updateKey' \
@@ -4071,9 +4338,15 @@ assert_match 'parseOpenCodeGoUsage' \
 assert_match 'https://claude\.ai/api/organizations' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Claude subscription should discover the active organization through claude.ai organizations"
+assert_match 'https://claude\.ai/api/organizations/.*/prepaid/credits' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Anthropic Credits should replay the observed claude.ai prepaid credits endpoint with saved web-login authorization"
 assert_match 'fetchClaudeOrganizationContext' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Claude subscription should preserve plan evidence from the organizations endpoint"
+assert_match 'parseAnthropicPrepaidCredits' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Anthropic Credits responses should be parsed separately from Claude subscription quota windows"
 assert_match 'shouldRefreshLowChurnAccountMetadata\(for: key, bypassCooldown: bypassCooldown\)' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Low-churn account/package metadata should be refreshed on manual checks or at most once per day automatically"
@@ -4430,6 +4703,7 @@ require(!keys.contains { $0.name == "CODEX_SESSION_COOKIE" }, "Codex subscriptio
 require(!Provider.visibleCases.contains(.anthropic), "Legacy Anthropic provider should stay hidden in favor of Claude API/OAuth provider entries")
 require(!Provider.visibleCases.contains(.claudeAPIUsage), "Claude API usage should stay hidden until the user has admin usage monitoring configured")
 require(Provider.visibleCases.contains(.claudeSubscription), "Claude subscription should appear in provider pickers and visible app sections")
+require(Provider.visibleCases.contains(.anthropicCredits), "Anthropic Credits should appear as a separate provider after the prepaid credits endpoint is observed")
 require(!Provider.visibleCases.contains(.codexAPIUsage), "Codex API usage should stay hidden until the user has admin usage monitoring configured")
 require(Provider.visibleCases.contains(.codexSubscription), "Codex subscription should appear in provider pickers and visible app sections")
 require(Provider.visibleCases.contains(.kimiSubscription), "Kimi subscription should appear in provider pickers and visible app sections")
@@ -4485,6 +4759,7 @@ require(Provider.aliyunTokenPlan.category == "LLM", "Aliyun Token Plan should be
 require(Provider.tencentCloudCodingPlan.category == "LLM", "Tencent Cloud Coding Plan should be grouped as an LLM quota provider")
 require(Provider.tencentCloudTokenPlan.category == "LLM", "Tencent Cloud Token Plan should be grouped as an LLM quota provider")
 require(Provider.claudeAPIUsage.category == "LLM", "Claude API usage should be grouped as an LLM quota provider")
+require(Provider.anthropicCredits.category == "LLM", "Anthropic Credits should be grouped as an LLM balance provider")
 require(Provider.codexSubscription.category == "LLM", "Codex subscription should be grouped as an LLM quota provider")
 require(Provider.kimiSubscription.category == "LLM", "Kimi subscription should be grouped as an LLM quota provider")
 require(Provider.xfyunCodingPlan.providerFamilyDisplayName(language: .simplifiedChinese) == "讯飞星火", "XFYun Coding Plan should expose XFYun Spark as the first-level provider family")
@@ -4497,6 +4772,9 @@ require(Provider.tencentCloudTokenPlan.planTypeDisplayName(language: .english) =
 require(Provider.claudeAPIUsage.providerFamilyDisplayName(language: .english) == "Claude", "Claude API usage should expose Claude as provider family")
 require(Provider.claudeAPIUsage.planTypeDisplayName(language: .english) == "API Usage", "Claude API usage should expose API Usage as second-level plan name")
 require(Provider.claudeSubscription.planTypeDisplayName(language: .english) == "Subscription", "Claude subscription should expose Subscription as the provider-level product type")
+require(Provider.anthropicCredits.providerFamilyDisplayName(language: .english) == "Anthropic", "Anthropic Credits should expose Anthropic as the provider family")
+require(Provider.anthropicCredits.planTypeDisplayName(language: .english) == "Credits", "Anthropic Credits should expose credits as the provider-level product type")
+require(Provider.anthropicCredits.planTypeDisplayName(language: .simplifiedChinese) == "余额", "Anthropic Credits should expose a localized credits product type")
 require(Provider.codexAPIUsage.providerFamilyDisplayName(language: .english) == "Codex", "Codex API usage should expose Codex as provider family")
 require(Provider.codexSubscription.planTypeDisplayName(language: .english) == "Subscription", "Codex subscription should expose Subscription as the provider-level product type")
 require(Provider.kimiSubscription.providerFamilyDisplayName(language: .english) == "Kimi", "Kimi subscription should expose Kimi as provider family")
@@ -4520,6 +4798,7 @@ require(Provider.tencentCloudCodingPlan.supportsQuotaQuery, "Tencent Cloud Codin
 require(Provider.tencentCloudTokenPlan.supportsQuotaQuery, "Tencent Cloud Token Plan should expose quota checks through the official TokenHub API")
 require(!Provider.claudeAPIUsage.supportsQuotaQuery, "Claude API usage should not claim quota checks until Admin API credentials are modeled and verified")
 require(Provider.claudeSubscription.supportsQuotaQuery, "Claude subscription should support quota checks through verified claude.ai organization usage endpoints")
+require(Provider.anthropicCredits.supportsQuotaQuery, "Anthropic Credits should support balance checks through the observed claude.ai prepaid credits endpoint")
 require(!Provider.codexAPIUsage.supportsQuotaQuery, "Codex API usage should not claim quota checks until OpenAI Admin usage credentials are modeled and verified")
 require(Provider.codexSubscription.supportsQuotaQuery, "Codex subscription should support quota checks through the verified ChatGPT wham endpoint")
 require(Provider.kimiSubscription.supportsQuotaQuery, "Kimi subscription should support quota checks through the Kimi membership endpoints")
@@ -4544,6 +4823,12 @@ require(Provider.codexSubscription.capability.usageSource == .dashboardAPI, "Cod
 require(Provider.codexSubscription.capability.canTestConnection, "Codex subscription should expose refresh after the wham endpoint is wired in QuotaService")
 require(Provider.claudeSubscription.capability.usageSource == .dashboardAPI, "Claude subscription should expose quota status through claude.ai organization dashboard APIs")
 require(Provider.claudeSubscription.capability.canTestConnection, "Claude subscription should expose refresh after organization usage endpoints are wired in QuotaService")
+require(Provider.anthropicCredits.capability.credentialKind == .dashboardCookie, "Anthropic Credits should use Claude web login authorization instead of Anthropic API keys")
+require(Provider.anthropicCredits.capability.usageSource == .dashboardAPI, "Anthropic Credits should use the observed claude.ai dashboard prepaid credits endpoint")
+require(Provider.anthropicCredits.capability.supportsBalance, "Anthropic Credits should present prepaid credits as a balance, not subscription quota")
+require(!Provider.anthropicCredits.capability.supportsReset, "Anthropic Credits should not invent a reset cycle")
+require(Provider.anthropicCredits.capability.canTestConnection, "Anthropic Credits should offer a non-consuming dashboard balance check")
+require(Provider.anthropicCredits.capability.allowsAutomaticRefresh, "Anthropic Credits should be eligible for normal no-cost automatic refresh once saved")
 require(Provider.brave.capability.supportsQuota, "Brave capability should expose quota when rate-limit headers are returned")
 require(Provider.brave.capability.supportsReset, "Brave capability should expose reset timing when rate-limit headers are returned")
 require(Provider.brave.capability.quotaRefreshKind == .costlyCheck, "Brave quota refresh should be modeled as a costly check because it spends a real search")
@@ -4891,6 +5176,12 @@ let localizedSerperCredits = APIKey(name: "SERPER_API_KEY", key: "serper", provi
 require(localizedSerperCredits.quotaDisplayText == "剩余 24 积分", "Serper credits-left labels should be localized in Simplified Chinese")
 let localizedSerperExhausted = APIKey(name: "SERPER_API_KEY", key: "serper", provider: .serper, remaining: 0, limit: 0, quotaLabel: "No Serper credits available")
 require(localizedSerperExhausted.quotaDisplayText == "没有可用的 Serper 积分", "Serper exhausted credit labels should be localized in Simplified Chinese")
+let localizedAnthropicCredits = APIKey(name: "ANTHROPIC_CREDITS_SESSION", key: "claude-session", provider: .anthropicCredits, remaining: 42, limit: 42, quotaLabel: "42 credits left")
+require(localizedAnthropicCredits.quotaDisplayText == "剩余 42 积分", "Anthropic Credits should localize prepaid credits as credits, not as Claude subscription quota")
+require(localizedAnthropicCredits.remainingBadgeText == "42", "Anthropic Credits badges should show the credit balance instead of a fake percentage")
+let anthropicCreditsStats = ProviderStats(provider: .anthropicCredits, keys: [localizedAnthropicCredits])
+require(anthropicCreditsStats.totalRemainingDisplayText == "42", "Anthropic Credits provider overview should show the credit balance")
+require(anthropicCreditsStats.totalLimitDisplayText == "", "Anthropic Credits provider overview should leave reset-cycle columns blank")
 let localizedDeepSeekMoney = APIKey(name: "DEEPSEEK_API_KEY", key: "deepseek", provider: .deepseek, remaining: 1250, limit: 1250, quotaLabel: "CNY 12.50 available")
 require(localizedDeepSeekMoney.quotaDisplayText == "可用人民币 12.50 元", "DeepSeek money balance labels should be localized as RMB, not credits")
 require(localizedDeepSeekMoney.remainingBadgeText == "¥12.50", "DeepSeek money balance badge should show currency amount, not 100%")
@@ -6584,10 +6875,25 @@ require(Provider.tencentCloudCodingPlan.supportsDashboardReauthentication, "Tenc
 require(!Provider.tencentCloudTokenPlan.supportsDashboardReauthentication, "Tencent Cloud Token Plan should keep using API keys instead of web-login reauthentication")
 require(!Provider.claudeAPIUsage.supportsDashboardReauthentication, "Claude API usage should use API keys instead of web-login reauthentication")
 require(Provider.claudeSubscription.supportsDashboardReauthentication, "Claude subscription should support web-login authorization capture")
+require(Provider.anthropicCredits.supportsDashboardReauthentication, "Anthropic Credits should support Claude web-login authorization capture")
 require(!Provider.codexAPIUsage.supportsDashboardReauthentication, "Codex API usage should use API keys instead of web-login reauthentication")
 require(Provider.codexSubscription.supportsDashboardReauthentication, "Codex subscription should support web-login authorization capture")
 require(Provider.kimiSubscription.supportsDashboardReauthentication, "Kimi subscription should support web-login authorization capture")
 require(!Provider.brave.supportsDashboardReauthentication, "Brave should not use dashboard-cookie reauthentication")
+let expectedDashboardReauthProviders: Set<Provider> = [
+    .querit,
+    .xfyunCodingPlan,
+    .volcengineCodingPlan,
+    .opencodeGo,
+    .aliyunCodingPlan,
+    .tencentCloudCodingPlan,
+    .claudeSubscription,
+    .anthropicCredits,
+    .codexSubscription,
+    .kimiSubscription
+]
+let actualDashboardReauthProviders = Set(Provider.allCases.filter(\.supportsDashboardReauthentication))
+require(actualDashboardReauthProviders == expectedDashboardReauthProviders, "Dashboard reauthentication provider coverage should stay explicit and complete")
 require(DashboardReauthConfig(provider: .opencodeGo)?.cookieDomains == ["opencode.ai"], "OpenCode Go should capture only opencode.ai cookies")
 require(DashboardReauthConfig(provider: .xfyunCodingPlan)?.cookieDomains == ["xfyun.cn", "maas.xfyun.cn"], "XFYun should capture maas.xfyun.cn and domain-wide xfyun.cn cookies")
 require(DashboardReauthConfig(provider: .xfyunTokenPlan) == nil, "XFYun Token Plan should not expose dashboard-cookie reauthentication")
@@ -6598,11 +6904,13 @@ require(DashboardReauthConfig(provider: .aliyunCodingPlan)?.cookieDomains == ["a
 require(DashboardReauthConfig(provider: .aliyunTokenPlan) == nil, "Aliyun Token Plan should not capture cookies without a verified dashboard quota endpoint")
 require(DashboardReauthConfig(provider: .tencentCloudCodingPlan)?.cookieDomains == ["cloud.tencent.com", "console.cloud.tencent.com"], "Tencent Cloud Coding Plan should capture Tencent Cloud web login authorization for quota endpoint verification")
 require(DashboardReauthConfig(provider: .claudeSubscription)?.cookieDomains == ["claude.ai"], "Claude subscription should capture claude.ai web-login authorization")
+require(DashboardReauthConfig(provider: .anthropicCredits)?.cookieDomains == ["claude.ai"], "Anthropic Credits should capture the same claude.ai login authorization")
 require(DashboardReauthConfig(provider: .codexSubscription)?.cookieDomains == ["chatgpt.com"], "Codex subscription should capture ChatGPT web-login authorization")
 require(DashboardReauthConfig(provider: .kimiSubscription)?.cookieDomains == ["kimi.com", "www.kimi.com"], "Kimi subscription should capture kimi.com web-login authorization")
 require(DashboardReauthConfig(provider: .claudeAPIUsage) == nil, "Claude API usage should not expose dashboard reauthentication")
 require(DashboardReauthConfig(provider: .codexAPIUsage) == nil, "Codex API usage should not expose dashboard reauthentication")
 require(DashboardReauthConfig(provider: .claudeSubscription)?.requiredCookieNames == ["sessionKey|sessionKeyLC"], "Claude subscription should accept either current sessionKey or sessionKeyLC login cookies")
+require(DashboardReauthConfig(provider: .anthropicCredits)?.requiredCookieNames == ["sessionKey|sessionKeyLC"], "Anthropic Credits should accept either current Claude session cookie")
 let claudeRequiredCookies = Provider.claudeSubscription.dashboardAuthenticationCookieNames
 require(DashboardCookieBuilder.containsRequiredCookie(
     inCookieHeader: "sessionKeyLC=claude-session",
@@ -6642,7 +6950,163 @@ require(DashboardCookieBuilder.missingRequiredCredentialNames(
 ).isEmpty, "Kimi reauthentication should accept accessToken captured from web storage when the auth cookie is not exposed")
 require(kimiCapturedFromStorage.reauthenticatedSecret(existingSecret: nil).contains("\"accessToken\""), "Kimi reauthentication should save storage-derived token metadata as JSON instead of a raw preference cookie")
 
-for provider in [Provider.querit, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo, .claudeSubscription, .codexSubscription, .kimiSubscription] {
+struct FirstSaveDashboardProviderScenario {
+    let provider: Provider
+    let cookies: [HTTPCookie]
+    let webStorageFields: [String: String]
+    let expectedSecretFragments: [String]
+}
+
+func firstSaveCookie(_ name: String, value: String = "v", domain: String) -> HTTPCookie {
+    HTTPCookie(properties: [
+        .domain: domain,
+        .path: "/",
+        .name: name,
+        .value: value,
+        .secure: "TRUE"
+    ])!
+}
+
+let firstSaveDashboardProviderScenarios: [FirstSaveDashboardProviderScenario] = [
+    FirstSaveDashboardProviderScenario(
+        provider: .claudeSubscription,
+        cookies: [
+            firstSaveCookie("sessionKeyLC", value: "claude-session", domain: ".claude.ai")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["sessionKeyLC=claude-session"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .codexSubscription,
+        cookies: [
+            firstSaveCookie("__search-next-auth", value: "chatgpt-session", domain: ".chatgpt.com")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["__search-next-auth=chatgpt-session"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .volcengineCodingPlan,
+        cookies: [
+            firstSaveCookie("AccountID", value: "account-redacted", domain: ".volcengine.com"),
+            firstSaveCookie("csrfToken", value: "csrf-redacted", domain: "console.volcengine.com"),
+            firstSaveCookie("digest", value: "digest-redacted", domain: ".volcengine.com")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["AccountID=account-redacted", "csrfToken=csrf-redacted", "digest=digest-redacted"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .xfyunCodingPlan,
+        cookies: [
+            firstSaveCookie("account_id", value: "account-redacted", domain: ".xfyun.cn"),
+            firstSaveCookie("atp-auth-token", value: "atp-redacted", domain: "maas.xfyun.cn"),
+            firstSaveCookie("ssoSessionId", value: "sso-redacted", domain: ".xfyun.cn"),
+            firstSaveCookie("tenantToken", value: "tenant-redacted", domain: "maas.xfyun.cn")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["account_id=account-redacted", "atp-auth-token=atp-redacted", "ssoSessionId=sso-redacted", "tenantToken=tenant-redacted"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .kimiSubscription,
+        cookies: [
+            firstSaveCookie("locale_mode", value: "implicit", domain: ".kimi.com")
+        ],
+        webStorageFields: [
+            "access_token": "kimi-storage-token",
+            "x-msh-device-id": "device-redacted",
+            "x-msh-session-id": "session-redacted",
+            "x-traffic-id": "traffic-redacted"
+        ],
+        expectedSecretFragments: ["\"accessToken\"", "\"deviceID\"", "\"sessionID\"", "\"trafficID\""]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .opencodeGo,
+        cookies: [
+            firstSaveCookie("auth", value: "opencode-auth", domain: ".opencode.ai")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["auth=opencode-auth"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .querit,
+        cookies: [
+            firstSaveCookie("osduss", value: "querit-session", domain: ".querit.ai"),
+            firstSaveCookie("osfuid", value: "querit-user", domain: ".querit.ai"),
+            firstSaveCookie("passOsRefreshTk", value: "querit-refresh", domain: ".querit.ai")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["osduss=querit-session", "osfuid=querit-user", "passOsRefreshTk=querit-refresh"]
+    )
+]
+
+let expectedFirstSaveProviders: [Provider] = [
+    .claudeSubscription,
+    .codexSubscription,
+    .volcengineCodingPlan,
+    .xfyunCodingPlan,
+    .kimiSubscription,
+    .opencodeGo,
+    .querit
+]
+require(firstSaveDashboardProviderScenarios.map(\.provider) == expectedFirstSaveProviders, "First-save regression matrix should explicitly cover Claude, Codex, Volcengine, XFYun, Kimi, OpenCode Go, and Querit")
+
+for scenario in firstSaveDashboardProviderScenarios {
+    guard let config = DashboardReauthConfig(provider: scenario.provider) else {
+        require(false, "\(scenario.provider.rawValue) should have a first-save dashboard reauthentication config")
+        continue
+    }
+
+    let cookieHeader = DashboardCookieBuilder.cookieHeader(
+        from: scenario.cookies,
+        domains: config.cookieDomains
+    )
+    let capturedCredential = DashboardCapturedCredential(
+        provider: scenario.provider,
+        cookieHeader: cookieHeader,
+        webStorageFields: scenario.webStorageFields
+    )
+
+    require(capturedCredential.hasCredentialMaterial, "\(scenario.provider.rawValue) first-save capture should contain credential material")
+    require(DashboardCredentialCapturePolicy.isCredentialReady(
+        capturedCredential,
+        requiredNames: config.requiredCookieNames
+    ), "\(scenario.provider.rawValue) first-save capture should be ready once required cookies or WebStorage fields are present")
+    require(!DashboardCredentialCapturePolicy.shouldRetryCapture(
+        capturedCredential,
+        requiredNames: config.requiredCookieNames,
+        completedRetryCount: 0,
+        retryDelays: DashboardCredentialCapturePolicy.manualRetryDelays
+    ), "\(scenario.provider.rawValue) first-save capture should not retry after all required fields are present")
+
+    let savedSecret = capturedCredential.reauthenticatedSecret(existingSecret: nil)
+    for fragment in scenario.expectedSecretFragments {
+        require(savedSecret.contains(fragment), "\(scenario.provider.rawValue) first-save saved secret should preserve \(fragment)")
+    }
+
+    if !scenario.cookies.isEmpty {
+        let partialCookies = Array(scenario.cookies.dropLast())
+        let partialHeader = DashboardCookieBuilder.cookieHeader(
+            from: partialCookies,
+            domains: config.cookieDomains
+        )
+        let partialCredential = DashboardCapturedCredential(
+            provider: scenario.provider,
+            cookieHeader: partialHeader,
+            webStorageFields: scenario.provider == .kimiSubscription ? [:] : scenario.webStorageFields
+        )
+        require(!DashboardCredentialCapturePolicy.isCredentialReady(
+            partialCredential,
+            requiredNames: config.requiredCookieNames
+        ), "\(scenario.provider.rawValue) first-save capture should reject partial login material")
+        require(DashboardCredentialCapturePolicy.shouldRetryCapture(
+            partialCredential,
+            requiredNames: config.requiredCookieNames,
+            completedRetryCount: 0,
+            retryDelays: DashboardCredentialCapturePolicy.manualRetryDelays
+        ), "\(scenario.provider.rawValue) first-save capture should retry after early partial login material")
+    }
+}
+
+for provider in Provider.allCases where provider.supportsDashboardReauthentication {
     guard let config = DashboardReauthConfig(provider: provider) else {
         require(false, "\(provider.rawValue) should expose dashboard reauthentication config")
         continue
@@ -6908,6 +7372,104 @@ SWIFT
 swiftc QuotaRadar/Models/AppLanguage.swift QuotaRadar/Models/APIKey.swift QuotaRadar/Services/FileSecretStore.swift QuotaRadar/Services/APIKeyStore.swift QuotaRadar/Services/CredentialMetadataExporter.swift "$TMP_DIR/main.swift" -o "$TMP_DIR/secret-store-test"
 "$TMP_DIR/secret-store-test"
 
+echo "== Quota monitor behavior =="
+cat >"$TMP_DIR/main.swift" <<'SWIFT'
+import Foundation
+
+func require(_ condition: @autoclosure () -> Bool, _ message: String) {
+    if !condition() {
+        FileHandle.standardError.write(Data("FAIL: \(message)\n".utf8))
+        exit(1)
+    }
+}
+
+let claudeAuthorizationID = UUID(uuidString: "20000000-0000-0000-0000-000000000001")!
+let claudeAuthorization = APIKey(
+    id: claudeAuthorizationID,
+    name: "CLAUDE_SUBSCRIPTION_SESSION",
+    key: "sessionKey=redacted",
+    provider: .claudeSubscription,
+    remaining: 6400,
+    limit: 10000,
+    planDisplayName: "Pro",
+    lastUpdated: Date(timeIntervalSince1970: 1_800_000_000),
+    quotaLabel: "5h 80% · week 64%"
+)
+
+let anthopicRefreshKeys = QuotaMonitor.refreshCandidateKeys(
+    from: [claudeAuthorization],
+    targetProviders: [.anthropicCredits]
+)
+let derivedAnthropicCredentials = anthopicRefreshKeys.filter { $0.provider == .anthropicCredits }
+require(derivedAnthropicCredentials.count == 1, "Refreshing Anthropic Credits should derive one monitoring credential from an existing Claude web-login authorization")
+let derivedAnthropicCredential = derivedAnthropicCredentials[0]
+require(derivedAnthropicCredential.id != claudeAuthorizationID, "Derived Anthropic Credits credentials should persist as an independent account row")
+require(derivedAnthropicCredential.name == Provider.anthropicCredits.defaultCredentialName, "Derived Anthropic Credits credentials should use the Anthropic Credits default credential name")
+require(derivedAnthropicCredential.key == "sessionKey=redacted", "Derived Anthropic Credits credentials should reuse only the saved Claude web-login secret")
+require(derivedAnthropicCredential.linkedAuthorizationID == claudeAuthorizationID, "Derived Anthropic Credits credentials should remember the source Claude authorization")
+require(derivedAnthropicCredential.remaining == nil, "Derived Anthropic Credits credentials should not copy Claude subscription quota values")
+require(derivedAnthropicCredential.limit == nil, "Derived Anthropic Credits credentials should not copy Claude subscription limits")
+require(derivedAnthropicCredential.quotaLabel == nil, "Derived Anthropic Credits credentials should not copy Claude subscription quota labels")
+require(derivedAnthropicCredential.lastUpdated == nil, "Derived Anthropic Credits credentials should require its own refresh timestamp")
+require(anthopicRefreshKeys.contains { $0.id == claudeAuthorizationID }, "Refresh candidates should keep the source Claude credential in the list for preservation")
+
+let directAnthropicCredential = APIKey(
+    id: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!,
+    name: "ANTHROPIC_CREDITS_SESSION",
+    key: "sessionKey=anthropic-redacted",
+    provider: .anthropicCredits
+)
+let directAnthropicRefreshKeys = QuotaMonitor.refreshCandidateKeys(
+    from: [claudeAuthorization, directAnthropicCredential],
+    targetProviders: [.anthropicCredits]
+)
+require(
+    directAnthropicRefreshKeys.filter { $0.provider == .anthropicCredits }.map(\.id) == [directAnthropicCredential.id],
+    "Refreshing Anthropic Credits should not derive duplicate credentials once a direct Anthropic Credits row exists"
+)
+
+let inactiveDirectAnthropicCredential = APIKey(
+    id: UUID(uuidString: "20000000-0000-0000-0000-000000000003")!,
+    name: "ANTHROPIC_CREDITS_SESSION",
+    key: "sessionKey=anthropic-disabled",
+    provider: .anthropicCredits,
+    isActive: false
+)
+let inactiveDirectAnthropicRefreshKeys = QuotaMonitor.refreshCandidateKeys(
+    from: [claudeAuthorization, inactiveDirectAnthropicCredential],
+    targetProviders: [.anthropicCredits]
+)
+require(
+    inactiveDirectAnthropicRefreshKeys.filter { $0.provider == .anthropicCredits }.map(\.id) == [inactiveDirectAnthropicCredential.id],
+    "Disabled direct Anthropic Credits credentials should suppress derived credentials so user intent is respected"
+)
+
+let unrelatedRefreshKeys = QuotaMonitor.refreshCandidateKeys(
+    from: [claudeAuthorization],
+    targetProviders: [.codexSubscription]
+)
+require(!unrelatedRefreshKeys.contains { $0.provider == .anthropicCredits }, "Refreshing unrelated providers should not create derived Anthropic Credits credentials")
+SWIFT
+
+swiftc \
+  QuotaRadar/Models/AppLanguage.swift \
+  QuotaRadar/Models/AppAppearance.swift \
+  QuotaRadar/Models/APIKey.swift \
+  QuotaRadar/Models/AIQuoteLibrary.swift \
+  QuotaRadar/Models/QuotaHistory.swift \
+  QuotaRadar/Services/FileSecretStore.swift \
+  QuotaRadar/Services/APIKeyStore.swift \
+  QuotaRadar/Services/CredentialMetadataExporter.swift \
+  QuotaRadar/Services/QuotaHistoryStore.swift \
+  QuotaRadar/Services/QuotaNotificationService.swift \
+  QuotaRadar/Services/EnvImporter.swift \
+  QuotaRadar/Services/ClaudeSettingsImporter.swift \
+  QuotaRadar/Services/QuotaService.swift \
+  QuotaRadar/Models/QuotaMonitor.swift \
+  "$TMP_DIR/main.swift" \
+  -o "$TMP_DIR/quota-monitor-test"
+"$TMP_DIR/quota-monitor-test"
+
 echo "== Quota parser behavior =="
 cat >"$TMP_DIR/main.swift" <<'SWIFT'
 import Foundation
@@ -7108,6 +7670,20 @@ require(exaUsage.quotaText?.render() == "已用 USD 45.67", "Structured money de
 let exaUsageDisplayKey = APIKey(name: "EXA_ADMIN", key: "exa", provider: .exa, remaining: exaUsage.remaining, limit: exaUsage.limit, quotaText: exaUsage.quotaText, quotaLabel: exaUsage.quotaLabel)
 require(exaUsageDisplayKey.quotaDisplayText == "可用 · 额度未知", "Exa parser usage evidence should not leak used-cost wording into the main quota UI")
 AppLanguageStore.shared.language = .english
+
+let anthropicPrepaidCredits = try! QuotaParsers.parseAnthropicPrepaidCredits(Data("""
+{"amount":42,"auto_reload_settings":null,"currency":null,"last_paid_purchase_cents":null,"pending_invoice_amount_cents":null}
+""".utf8))
+require(anthropicPrepaidCredits.remaining == 42, "Anthropic prepaid credits should expose amount as remaining credits")
+require(anthropicPrepaidCredits.limit == 42, "Anthropic prepaid credits should not invent a larger limit")
+require(anthropicPrepaidCredits.quotaLabel == "42 credits left", "Anthropic prepaid credits should display a credits balance")
+require(anthropicPrepaidCredits.quotaText?.key == .creditsLeftFormat, "Anthropic prepaid credits should carry a structured credits-left descriptor")
+require(anthropicPrepaidCredits.resetAt == nil, "Anthropic prepaid credits should not invent a reset cycle")
+let emptyAnthropicPrepaidCredits = try! QuotaParsers.parseAnthropicPrepaidCredits(Data("""
+{"amount":0,"auto_reload_settings":null,"currency":null}
+""".utf8))
+require(emptyAnthropicPrepaidCredits.remaining == 0, "Empty Anthropic prepaid credits should be exhausted")
+require(emptyAnthropicPrepaidCredits.quotaLabel == "No Anthropic credits available", "Empty Anthropic prepaid credits should explain the exhausted balance")
 
 let deepSeek = try! QuotaParsers.parseDeepSeekBalance(Data("""
 {"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"12.50","granted_balance":"0","topped_up_balance":"12.50"}]}
@@ -7324,6 +7900,10 @@ let claudeMax5xOrganizationContext = try! QuotaParsers.parseClaudeOrganizationCo
 [{"uuid":"org-redacted","name":"Personal","active":true,"billing_type":"stripe_subscription","rate_limit_tier":"max_5x","capabilities":["chat","claude_max"]}]
 """.utf8))
 require(claudeMax5xOrganizationContext.planDisplayName == "Max 5x", "Claude subscription organization context should expose max_5x as Max 5x")
+let claudeMax20xCapabilityOrganizationContext = try! QuotaParsers.parseClaudeOrganizationContext(Data("""
+[{"uuid":"org-redacted","name":"Personal","active":true,"billing_type":"stripe_subscription","rateLimitTier":"rate_limit_20x","capabilities":["chat","claude_max"]}]
+""".utf8))
+require(claudeMax20xCapabilityOrganizationContext.planDisplayName == "Max 20x", "Claude subscription organization context should combine claude_max capability with a 20x rate tier")
 
 let claudeUsage = try! QuotaParsers.parseClaudeSubscriptionUsage(Data("""
 {"five_hour":{"utilization":24.5,"resets_at":"2026-06-09T10:00:00Z"},"seven_day":{"utilization":"70","resets_at":"2026-06-15T00:00:00Z"},"seven_day_opus":{"utilization":95,"resets_at":"2026-06-15T00:00:00Z"}}
@@ -7360,6 +7940,14 @@ require(claudeDetailsFromChargeAt.planEndsAt != nil, "Claude subscription detail
 let claudePlanFormatter = ISO8601DateFormatter()
 let expectedClaudePlanEnd = claudePlanFormatter.date(from: "2026-07-09T09:57:27Z")!
 require(abs(claudeDetailsFromChargeAt.planEndsAt!.timeIntervalSince1970 - expectedClaudePlanEnd.timeIntervalSince1970) < 1, "Claude subscription details should prefer next_charge_at over date-only next_charge_date")
+let claudeMax20xSubscriptionDetails = try! QuotaParsers.parseClaudeSubscriptionDetails(Data("""
+{"subscription":{"tierName":"Claude Max 20x"},"next_charge_at":"2026-07-09T09:57:27Z"}
+""".utf8))
+require(claudeMax20xSubscriptionDetails.planDisplayName == "Max 20x", "Claude subscription details should normalize nested Claude Max 20x tier names")
+let claudeMax5xSubscriptionDetails = try! QuotaParsers.parseClaudeSubscriptionDetails(Data("""
+{"subscription":{"plan_type":"max-5x"},"next_charge_at":"2026-07-09T09:57:27Z"}
+""".utf8))
+require(claudeMax5xSubscriptionDetails.planDisplayName == "Max 5x", "Claude subscription details should normalize nested max-5x tier names")
 
 let codexUsage = try! QuotaParsers.parseCodexWhamUsage(Data("""
 {"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_after_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":70,"limit_window_seconds":604800,"reset_after_seconds":233270,"reset_at":1781140147}},"additional_rate_limits":[{"limit_name":"GPT-5.3-Codex-Spark","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_after_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":0,"limit_window_seconds":604800,"reset_after_seconds":604800,"reset_at":1781511678}}}],"credits":{"has_credits":false,"unlimited":false,"balance":"0"},"rate_limit_reset_credits":{"available_count":3}}
@@ -7407,6 +7995,18 @@ let codexAccountsCheckLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecy
 """.utf8))
 require(codexAccountsCheckLifecycle.planEndsAt != nil, "Codex accounts/check lifecycle should parse entitlement renews_at as the plan end date")
 require(codexAccountsCheckLifecycle.planDisplayName == "Pro 20x", "Codex accounts/check lifecycle should expose entitlement subscription_plan as the concrete Pro tier")
+let codexAccountsCheckPro5xLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
+{"accounts":{"account-redacted":{"account":{"plan_type":"pro"},"entitlement":{"has_active_subscription":true,"subscription_plan":"chatgptprolite","renews_at":"2026-07-08T16:42:25+00:00","billing_period":"monthly","billing_currency":"USD"}}}}
+""".utf8))
+require(codexAccountsCheckPro5xLifecycle.planDisplayName == "Pro 5x", "Codex accounts/check lifecycle should expose entitlement chatgptprolite as Pro 5x")
+let codexRevenueCatOfferingLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
+{"active_until":"2026-07-08T16:42:25Z","revenuecat_offering_ids":["chatgpt_pro_lite"]}
+""".utf8))
+require(codexRevenueCatOfferingLifecycle.planDisplayName == "Pro 5x", "Codex subscription lifecycle should inspect RevenueCat offering IDs for Pro 5x")
+let codexHumanReadableProLiteLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
+{"active_until":"2026-07-08T16:42:25Z","subscription_plan":"ChatGPT Pro Lite"}
+""".utf8))
+require(codexHumanReadableProLiteLifecycle.planDisplayName == "Pro 5x", "Codex subscription lifecycle should normalize human-readable ChatGPT Pro Lite values")
 
 let kimiUsage = try! QuotaParsers.parseKimiSubscriptionUsage(
     subscriptionData: Data("""

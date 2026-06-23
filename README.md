@@ -12,7 +12,7 @@ Quota Radar is a macOS menu bar app for monitoring search API balances and LLM c
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Current version: `v0.3.8`.
+Current version: `v0.3.9`.
 
 ## Screenshots
 
@@ -29,19 +29,20 @@ Current version: `v0.3.8`.
 </p>
 
 <p align="center">
-  <em>The menu bar popover keeps the most important quota signals visible without turning into a dashboard.</em>
+  <em>The menu bar popover is a compact attention feed: a one-line risk summary, a short watchlist, and a risk-ranked list of the few quota signals that need action.</em>
 </p>
 
 ## Features
 
-- Risk-first menu bar popover for low quota, expiring plans, failed checks, and recent activity.
+- Risk-first menu bar popover for low quota, expiring plans, failed checks, and recent activity, with row clicks jumping to the matching provider and account in the main window.
 - Main quota overview organized by `Provider`, `Key Quota`, `Credential Pool`, `Critical Time`, `Status`, and actions.
 - Multiple accounts per provider, with account-level plan, remaining quota, reset/expiry timing, and update time.
 - Recent quota changes stay beside the quota they describe; `Last Updated` stays a refresh-status signal instead of repeating consumption deltas.
 - API-key and web-login authorization credentials, including companion API keys for providers whose quota checks require web login.
 - Local secret storage in `~/Library/Application Support/QuotaRadar/secrets.json` with `0600` permissions.
 - `.env`, cURL, and `~/.claude/settings.json` import paths for supported providers.
-- Configurable automatic refresh, quota-consuming refresh protection, proxy settings, color scheme, launch at login, and GitHub Release update checks.
+- Configurable automatic refresh, quota-consuming refresh protection, proxy settings, color scheme, launch at login, and GitHub Release update checks in standard builds.
+- White-label / no-updater build mode for distribution packages that should not embed the upstream GitHub Release URL.
 
 ## Quick Start
 
@@ -64,11 +65,22 @@ bash Tests/run_behavior_tests.sh
 
 For the full setup flow, see [Quickstart](./docs/quickstart.md).
 
+## White-Label Build
+
+Use this mode when you need a DMG without automatic update checks and without embedded upstream GitHub Release URLs:
+
+```bash
+scripts/package_dmg.sh --rebuild --white-label
+open build/QuotaRadar-WhiteLabel.dmg
+```
+
+The white-label flag is compile-time, not a runtime preference. It hides update-check UI, disables launch-time update checks, and removes the hardcoded GitHub Release endpoints from the app bundle.
+
 ## Supported Providers
 
 AI Search providers include Tavily, Brave Search, SerpAPI, Serper, Exa, Bocha, AnySearch, Querit, and WeChat Search.
 
-LLM / plan providers include Claude Subscription, Codex Subscription, Kimi, DeepSeek, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
+LLM / plan providers include Claude Subscription, Anthropic Credits, Codex Subscription, Kimi, DeepSeek, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
 
 Provider credential types, quota fields, reset windows, plan expiry, parser notes, and hidden extension stubs are documented in [Providers](./docs/providers.md).
 
@@ -76,6 +88,8 @@ Provider credential types, quota fields, reset windows, plan expiry, parser note
 
 - [Quickstart](./docs/quickstart.md)
 - [Providers](./docs/providers.md)
+- [Provider Calibration](./docs/provider-calibration.md)
+- [Release QA](./docs/release-qa.md)
 - [Roadmap](./docs/roadmap.md)
 - [中文 README](./README.zh-Hans.md)
 
@@ -91,9 +105,9 @@ open build/QuotaRadar.dmg
 Manual GitHub Release upload:
 
 ```bash
-gh release create v0.3.8 build/QuotaRadar.dmg \
-  --title "Quota Radar v0.3.8" \
-  --notes "Unsigned DMG for trusted users. macOS may require removing quarantine on first launch."
+gh release create v0.3.9 build/QuotaRadar.dmg \
+  --title "Quota Radar v0.3.9" \
+  --notes "Compact iStat-style attention feed, provider/account handoff from menu bar signals, reset/white-label improvements, and unsigned DMG for trusted users."
 ```
 
 Unsigned DMGs do not require an Apple Developer Program account, but macOS Gatekeeper may block downloaded copies. Install only if you trust the source repository and release. If macOS says the app is damaged or cannot be opened:

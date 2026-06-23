@@ -1,6 +1,30 @@
 import AppKit
 import Foundation
 
+#if QUOTARADAR_DISABLE_GITHUB_UPDATER
+
+@MainActor
+final class GitHubReleaseUpdater: ObservableObject {
+    static let shared = GitHubReleaseUpdater()
+    static let isUpdateCheckingAvailable = false
+
+    @Published private(set) var isChecking = false
+    @Published private(set) var isDownloading = false
+    @Published private(set) var statusMessage: String?
+
+    var currentVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+    }
+
+    func checkForUpdatesFromUI() {
+        statusMessage = nil
+    }
+
+    func checkForUpdatesIfNeededOnLaunch() {}
+}
+
+#else
+
 struct GitHubReleaseUpdate: Identifiable, Equatable {
     let tagName: String
     let version: String
@@ -16,6 +40,7 @@ struct GitHubReleaseUpdate: Identifiable, Equatable {
 @MainActor
 final class GitHubReleaseUpdater: ObservableObject {
     static let shared = GitHubReleaseUpdater()
+    static let isUpdateCheckingAvailable = true
 
     @Published private(set) var isChecking = false
     @Published private(set) var isDownloading = false
@@ -471,3 +496,5 @@ private extension String {
         return String(dropFirst(prefix.count))
     }
 }
+
+#endif

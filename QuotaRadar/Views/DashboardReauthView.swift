@@ -15,6 +15,7 @@ struct DashboardReauthSheet: View {
     @State private var isSaving = false
     @State private var didAutoSave = false
     @State private var latestCapturedCredential: DashboardCapturedCredential?
+    @State private var manualCaptureRequestID = 0
 
     init(monitor: QuotaMonitor, provider: Provider, key: APIKey?, onSaved: ((APIKey) -> Void)? = nil) {
         self.monitor = monitor
@@ -82,9 +83,14 @@ struct DashboardReauthSheet: View {
                     url: config.loginURL,
                     cookieDomains: config.cookieDomains,
                     requiredCookieNames: config.requiredCookieNames,
+                    manualCaptureRequestID: manualCaptureRequestID,
                     onCredentialAvailable: { credential in
                         latestCapturedCredential = credential
                         autoSaveCredential(credential)
+                    },
+                    onManualCredentialCaptured: { capturedCredential in
+                        latestCapturedCredential = capturedCredential
+                        persistCredential(capturedCredential, allowEmptyStatus: true, dismissAfterSave: true)
                     }
                 )
                     .frame(width: 760, height: 520)
@@ -149,45 +155,7 @@ struct DashboardReauthSheet: View {
         latestCapturedCredential = nil
         isSaving = true
         statusMessage = L10n.t(.autoSavingCookie)
-        readCookiesForManualSave(config: config, completedRetryCount: 0)
-    }
-
-    private func readCookiesForManualSave(config: DashboardReauthConfig, completedRetryCount: Int) {
-        WKWebsiteDataStore.default().httpCookieStore.getAllCookies { cookies in
-            let cookieHeader = DashboardCookieBuilder.cookieHeader(
-                from: cookies,
-                domains: config.cookieDomains
-            )
-
-            DispatchQueue.main.async {
-                let capturedCredential = DashboardCapturedCredential(
-                    provider: provider,
-                    cookieHeader: cookieHeader
-                )
-
-                if DashboardCredentialCapturePolicy.shouldRetryCapture(
-                    capturedCredential,
-                    requiredNames: config.requiredCookieNames,
-                    completedRetryCount: completedRetryCount,
-                    retryDelays: DashboardCredentialCapturePolicy.manualRetryDelays
-                ) {
-                    let delay = DashboardCredentialCapturePolicy.manualRetryDelays[completedRetryCount]
-                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                        guard isSaving else { return }
-                        readCookiesForManualSave(config: config, completedRetryCount: completedRetryCount + 1)
-                    }
-                    return
-                }
-
-                if DashboardCredentialCapturePolicy.isCredentialReady(
-                    capturedCredential,
-                    requiredNames: config.requiredCookieNames
-                ) {
-                    latestCapturedCredential = capturedCredential
-                }
-                persistCredential(capturedCredential, allowEmptyStatus: true, dismissAfterSave: true)
-            }
-        }
+        manualCaptureRequestID += 1
     }
 
     private func autoSaveCredential(_ credential: DashboardCapturedCredential) {
@@ -426,7 +394,9 @@ struct DashboardWebView: NSViewRepresentable {
     let url: URL
     let cookieDomains: [String]
     let requiredCookieNames: [String]
+    let manualCaptureRequestID: Int
     let onCredentialAvailable: (DashboardCapturedCredential) -> Void
+    let onManualCredentialCaptured: (DashboardCapturedCredential) -> Void
 
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -444,6 +414,7 @@ struct DashboardWebView: NSViewRepresentable {
         if webView.url == nil, !context.coordinator.hasStartedLoading {
             context.coordinator.start(webView: webView, url: url)
         }
+        context.coordinator.handleManualCaptureRequest(manualCaptureRequestID)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -451,7 +422,9 @@ struct DashboardWebView: NSViewRepresentable {
             provider: provider,
             cookieDomains: cookieDomains,
             requiredCookieNames: requiredCookieNames,
-            onCredentialAvailable: onCredentialAvailable
+            initialManualCaptureRequestID: manualCaptureRequestID,
+            onCredentialAvailable: onCredentialAvailable,
+            onManualCredentialCaptured: onManualCredentialCaptured
         )
     }
 
@@ -460,7 +433,9 @@ struct DashboardWebView: NSViewRepresentable {
         private let cookieDomains: [String]
         private let requiredCookieNames: [String]
         private let onCredentialAvailable: (DashboardCapturedCredential) -> Void
+        private let onManualCredentialCaptured: (DashboardCapturedCredential) -> Void
         private var didEmitCookies = false
+        private var lastManualCaptureRequestID: Int
         private weak var webView: WKWebView?
         private var observedCookieStore: WKHTTPCookieStore?
         private var oauthPopupWindows: [ObjectIdentifier: OAuthPopupWindow] = [:]
@@ -471,12 +446,16 @@ struct DashboardWebView: NSViewRepresentable {
             provider: Provider,
             cookieDomains: [String],
             requiredCookieNames: [String],
-            onCredentialAvailable: @escaping (DashboardCapturedCredential) -> Void
+            initialManualCaptureRequestID: Int,
+            onCredentialAvailable: @escaping (DashboardCapturedCredential) -> Void,
+            onManualCredentialCaptured: @escaping (DashboardCapturedCredential) -> Void
         ) {
             self.provider = provider
             self.cookieDomains = cookieDomains
             self.requiredCookieNames = requiredCookieNames
+            self.lastManualCaptureRequestID = initialManualCaptureRequestID
             self.onCredentialAvailable = onCredentialAvailable
+            self.onManualCredentialCaptured = onManualCredentialCaptured
         }
 
         deinit {
@@ -617,6 +596,12 @@ struct DashboardWebView: NSViewRepresentable {
             scheduleCookieCaptureRetry(completedRetryCount: 0)
         }
 
+        func handleManualCaptureRequest(_ requestID: Int) {
+            guard requestID != lastManualCaptureRequestID else { return }
+            lastManualCaptureRequestID = requestID
+            captureCredentialForManualSave(completedRetryCount: 0)
+        }
+
         private func scheduleCookieCaptureRetry(completedRetryCount: Int, delay: TimeInterval = 0) {
             guard !didEmitCookies else { return }
             pendingCookieCaptureWorkItem?.cancel()
@@ -633,49 +618,85 @@ struct DashboardWebView: NSViewRepresentable {
                 return
             }
 
+            captureCredential(from: webView) { [weak self] capturedCredential in
+                guard let self, !self.didEmitCookies else { return }
+                guard DashboardCredentialCapturePolicy.isCredentialReady(
+                    capturedCredential,
+                    requiredNames: self.requiredCookieNames
+                ) else {
+                    guard DashboardCredentialCapturePolicy.shouldRetryCapture(
+                        capturedCredential,
+                        requiredNames: self.requiredCookieNames,
+                        completedRetryCount: completedRetryCount,
+                        retryDelays: DashboardCredentialCapturePolicy.automaticRetryDelays(for: self.provider)
+                    ) else {
+                        return
+                    }
+
+                    let delay = DashboardCredentialCapturePolicy.automaticRetryDelays(for: self.provider)[completedRetryCount]
+                    DispatchQueue.main.async {
+                        self.scheduleCookieCaptureRetry(
+                            completedRetryCount: completedRetryCount + 1,
+                            delay: delay
+                        )
+                    }
+                    return
+                }
+
+                self.didEmitCookies = true
+                self.pendingCookieCaptureWorkItem?.cancel()
+                DispatchQueue.main.async {
+                    self.onCredentialAvailable(capturedCredential)
+                }
+            }
+        }
+
+        private func captureCredentialForManualSave(completedRetryCount: Int) {
+            guard let webView else {
+                DispatchQueue.main.async {
+                    self.onManualCredentialCaptured(DashboardCapturedCredential(provider: self.provider, cookieHeader: ""))
+                }
+                return
+            }
+
+            captureCredential(from: webView) { [weak self] capturedCredential in
+                guard let self else { return }
+                if DashboardCredentialCapturePolicy.shouldRetryCapture(
+                    capturedCredential,
+                    requiredNames: self.requiredCookieNames,
+                    completedRetryCount: completedRetryCount,
+                    retryDelays: DashboardCredentialCapturePolicy.manualRetryDelays
+                ) {
+                    let delay = DashboardCredentialCapturePolicy.manualRetryDelays[completedRetryCount]
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                        self.captureCredentialForManualSave(completedRetryCount: completedRetryCount + 1)
+                    }
+                    return
+                }
+
+                DispatchQueue.main.async {
+                    self.onManualCredentialCaptured(capturedCredential)
+                }
+            }
+        }
+
+        private func captureCredential(from webView: WKWebView, completion: @escaping (DashboardCapturedCredential) -> Void) {
             webView.configuration.websiteDataStore.httpCookieStore.getAllCookies { [weak self, weak webView] cookies in
-                guard let self, let webView, !self.didEmitCookies else { return }
+                guard let self, let webView else { return }
                 let cookieHeader = DashboardCookieBuilder.cookieHeader(
                     from: cookies,
                     domains: self.cookieDomains
                 )
 
                 self.captureWebStorageFieldsIfAllowed(from: webView) { [weak self] webStorageFields in
-                    guard let self, !self.didEmitCookies else { return }
+                    guard let self else { return }
                     let capturedCredential = DashboardCapturedCredential(
                         provider: self.provider,
                         cookieHeader: cookieHeader,
                         webStorageFields: webStorageFields
                     )
 
-                    guard DashboardCredentialCapturePolicy.isCredentialReady(
-                        capturedCredential,
-                        requiredNames: self.requiredCookieNames
-                    ) else {
-                        guard DashboardCredentialCapturePolicy.shouldRetryCapture(
-                            capturedCredential,
-                            requiredNames: self.requiredCookieNames,
-                            completedRetryCount: completedRetryCount,
-                            retryDelays: DashboardCredentialCapturePolicy.automaticRetryDelays(for: self.provider)
-                        ) else {
-                            return
-                        }
-
-                        let delay = DashboardCredentialCapturePolicy.automaticRetryDelays(for: self.provider)[completedRetryCount]
-                        DispatchQueue.main.async {
-                            self.scheduleCookieCaptureRetry(
-                                completedRetryCount: completedRetryCount + 1,
-                                delay: delay
-                            )
-                        }
-                        return
-                    }
-
-                    self.didEmitCookies = true
-                    self.pendingCookieCaptureWorkItem?.cancel()
-                    DispatchQueue.main.async {
-                        self.onCredentialAvailable(capturedCredential)
-                    }
+                    completion(capturedCredential)
                 }
             }
         }

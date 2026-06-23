@@ -65,7 +65,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         startAppearanceModeMonitoring()
         startLanguageMonitoring()
         showManagedSettingsWindowOnLaunch()
-        GitHubReleaseUpdater.shared.checkForUpdatesIfNeededOnLaunch()
+        if GitHubReleaseUpdater.isUpdateCheckingAvailable {
+            GitHubReleaseUpdater.shared.checkForUpdatesIfNeededOnLaunch()
+        }
         showStatusPanelForAutomationIfRequested()
         openMenuSignalForAutomationIfRequested()
     }
@@ -280,9 +282,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         switch normalizedSignal {
         case "attention", "needs-attention", "needsattention":
-            return layout.attentionItems.first
+            return layout.attentionItems.first ?? layout.visibleItems.first
         case "failed", "failure", "check-failed", "checkfailed":
-            return layout.attentionItems.first { $0.signalReason == .failed }
+            return layout.attentionItems.first { $0.signalReason == .failed } ?? layout.attentionItems.first ?? layout.visibleItems.first
         case "low", "low-quota", "lowquota":
             return layout.lowQuotaItems.first
         case "expiring", "expiring-soon", "expiringsoon":

@@ -208,7 +208,10 @@ struct SidebarUpdateFooter: View {
     }
 
     private var statusText: String {
-        updater.statusMessage ?? L10n.t(.checkForUpdates)
+        if GitHubReleaseUpdater.isUpdateCheckingAvailable {
+            return updater.statusMessage ?? L10n.t(.checkForUpdates)
+        }
+        return updater.currentVersion
     }
 
     var body: some View {
@@ -230,27 +233,29 @@ struct SidebarUpdateFooter: View {
                         .minimumScaleFactor(0.8)
                 }
 
-                Spacer(minLength: 6)
+                if GitHubReleaseUpdater.isUpdateCheckingAvailable {
+                    Spacer(minLength: 6)
 
-                Button {
-                    updater.checkForUpdatesFromUI()
-                } label: {
-                    ZStack {
-                        if isBusy {
-                            ProgressView()
-                                .controlSize(.small)
-                                .scaleEffect(0.66)
-                        } else {
-                            Image(systemName: "arrow.down.circle")
-                                .font(.system(size: 13, weight: .semibold))
+                    Button {
+                        updater.checkForUpdatesFromUI()
+                    } label: {
+                        ZStack {
+                            if isBusy {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .scaleEffect(0.66)
+                            } else {
+                                Image(systemName: "arrow.down.circle")
+                                    .font(.system(size: 13, weight: .semibold))
+                            }
                         }
+                        .frame(width: 24, height: 24)
                     }
-                    .frame(width: 24, height: 24)
+                    .buttonStyle(.plain)
+                    .disabled(isBusy)
+                    .help(L10n.t(.checkForUpdatesDescription))
+                    .accessibilityLabel(L10n.t(.checkForUpdates))
                 }
-                .buttonStyle(.plain)
-                .disabled(isBusy)
-                .help(L10n.t(.checkForUpdatesDescription))
-                .accessibilityLabel(L10n.t(.checkForUpdates))
             }
         }
         .padding(.horizontal, 8)
@@ -3849,16 +3854,18 @@ struct AppSettingsView: View {
                     SettingsFootnote(icon: "exclamationmark.triangle.fill", text: error, tint: .red)
                 }
 
-                SettingsDivider()
+                if GitHubReleaseUpdater.isUpdateCheckingAvailable {
+                    SettingsDivider()
 
-                SettingsPreferenceRow(
-                    icon: "arrow.down.circle",
-                    title: L10n.t(.automaticUpdateCheck),
-                    subtitle: L10n.t(.automaticUpdateCheckDescription)
-                ) {
-                    Toggle("", isOn: $appearanceStore.automaticallyCheckForUpdates)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
+                    SettingsPreferenceRow(
+                        icon: "arrow.down.circle",
+                        title: L10n.t(.automaticUpdateCheck),
+                        subtitle: L10n.t(.automaticUpdateCheckDescription)
+                    ) {
+                        Toggle("", isOn: $appearanceStore.automaticallyCheckForUpdates)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                    }
                 }
             }
 
@@ -4499,21 +4506,23 @@ struct AboutView: View {
 
                     Spacer()
 
-                    Button {
-                        updater.checkForUpdatesFromUI()
-                    } label: {
-                        HStack(spacing: 6) {
-                            if updater.isChecking || updater.isDownloading {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .scaleEffect(0.72)
+                    if GitHubReleaseUpdater.isUpdateCheckingAvailable {
+                        Button {
+                            updater.checkForUpdatesFromUI()
+                        } label: {
+                            HStack(spacing: 6) {
+                                if updater.isChecking || updater.isDownloading {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .scaleEffect(0.72)
+                                }
+                                Text(L10n.t(.checkForUpdates))
                             }
-                            Text(L10n.t(.checkForUpdates))
                         }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(updater.isChecking || updater.isDownloading)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .disabled(updater.isChecking || updater.isDownloading)
                 }
             }
 

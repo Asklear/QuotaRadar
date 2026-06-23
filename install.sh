@@ -4,6 +4,7 @@
 # Run: ./install.sh to install the existing build/Quota Radar.app when present.
 # Run: ./install.sh --rebuild to rebuild and install.
 # Run: ./install.sh --bundle-only --rebuild to create build/Quota Radar.app without copying to /Applications.
+# Run: ./install.sh --bundle-only --rebuild --white-label to build without GitHub Release updater URLs.
 
 set -e
 
@@ -15,6 +16,7 @@ BUILD_DIR="${PROJECT_DIR}/build"
 RESOURCE_BUNDLE_NAME="${PRODUCT_NAME}_${PRODUCT_NAME}.bundle"
 BUNDLE_ONLY=false
 REBUILD=false
+WHITE_LABEL=false
 
 for arg in "$@"; do
     case "$arg" in
@@ -24,13 +26,24 @@ for arg in "$@"; do
         --rebuild)
             REBUILD=true
             ;;
+        --white-label)
+            WHITE_LABEL=true
+            ;;
         *)
             echo "❌ Unknown option: $arg"
-            echo "Usage: ./install.sh [--bundle-only] [--rebuild]"
+            echo "Usage: ./install.sh [--bundle-only] [--rebuild] [--white-label]"
             exit 1
             ;;
     esac
 done
+
+if [ "${QUOTARADAR_WHITE_LABEL:-0}" = "1" ]; then
+    WHITE_LABEL=true
+fi
+
+if [ "${WHITE_LABEL}" = true ]; then
+    REBUILD=true
+fi
 
 APP_BUNDLE="${BUILD_DIR}/${DISPLAY_NAME}.app"
 
@@ -47,6 +60,9 @@ else
 fi
 
 echo "📁 Project: ${PROJECT_DIR}"
+if [ "${WHITE_LABEL}" = true ]; then
+    echo "🏷️  Build mode: white-label, GitHub Release updater disabled"
+fi
 
 # Create build directory
 mkdir -p "${BUILD_DIR}"
@@ -62,19 +78,26 @@ if [ "${REBUILD}" = true ]; then
     echo "🔨 Building Release version..."
     cd "${PROJECT_DIR}"
 
+    SWIFT_BUILD_ARGS=(-c release)
+    SWIFT_SCRATCH_PATH="${PROJECT_DIR}/.build"
+    if [ "${WHITE_LABEL}" = true ]; then
+        SWIFT_SCRATCH_PATH="${PROJECT_DIR}/.build-white-label"
+        SWIFT_BUILD_ARGS+=(--scratch-path "${SWIFT_SCRATCH_PATH}" -Xswiftc -DQUOTARADAR_DISABLE_GITHUB_UPDATER)
+    fi
+
     # Use swift package manager to build
-    swift build -c release 2>&1 | tee "${BUILD_DIR}/build.log" || {
+    swift build "${SWIFT_BUILD_ARGS[@]}" 2>&1 | tee "${BUILD_DIR}/build.log" || {
         echo "❌ Build failed. Check ${BUILD_DIR}/build.log"
         exit 1
     }
 
     # Find the built executable
-    EXECUTABLE="${PROJECT_DIR}/.build/release/${PRODUCT_NAME}"
+    EXECUTABLE="${SWIFT_SCRATCH_PATH}/release/${PRODUCT_NAME}"
 
     if [ ! -f "${EXECUTABLE}" ]; then
         echo "❌ Executable not found at ${EXECUTABLE}"
         echo "🔍 Searching for executable..."
-        find "${PROJECT_DIR}/.build" -name "${PRODUCT_NAME}" -type f 2>/dev/null | head -5
+        find "${SWIFT_SCRATCH_PATH}" -name "${PRODUCT_NAME}" -type f 2>/dev/null | head -5
         exit 1
     fi
 
@@ -97,7 +120,7 @@ if [ "${REBUILD}" = true ]; then
     cp "${PROJECT_DIR}/${SOURCE_DIR}/QuotaRadar.entitlements" "${RESOURCES}/" 2>/dev/null || true
     cp "${PROJECT_DIR}/${SOURCE_DIR}/Resources/QuotaRadar.icns" "${RESOURCES}/QuotaRadar.icns"
 
-    RESOURCE_BUNDLE="${PROJECT_DIR}/.build/release/${RESOURCE_BUNDLE_NAME}"
+    RESOURCE_BUNDLE="${SWIFT_SCRATCH_PATH}/release/${RESOURCE_BUNDLE_NAME}"
     if [ -d "${RESOURCE_BUNDLE}" ]; then
         cp -R "${RESOURCE_BUNDLE}" "${RESOURCES}/"
     else

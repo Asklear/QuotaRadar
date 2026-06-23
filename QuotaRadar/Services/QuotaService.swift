@@ -308,6 +308,26 @@ enum QuotaParsers {
         )
     }
 
+    static func parseAnthropicPrepaidCredits(_ data: Data) throws -> QuotaResult {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let amount = firstDoubleValue(in: object, keys: ["amount", "balance", "credits", "credit_balance"]),
+              amount >= 0 else {
+            throw QuotaError.invalidResponse
+        }
+
+        let credits = Int(amount.rounded(.down))
+        let label = credits > 0
+            ? "\(credits) credits left"
+            : "No Anthropic credits available"
+
+        return QuotaResult(
+            remaining: credits,
+            limit: credits,
+            resetAt: nil,
+            quotaLabel: label
+        )
+    }
+
     static func parseQueritAccount(_ data: Data) throws -> QuotaResult {
         struct FlexibleInt: Decodable {
             let value: Int
@@ -957,8 +977,7 @@ enum QuotaParsers {
                     ]
                 )
             },
-            planDisplayName: planDisplayName(from: object)
-                ?? nestedSubscription.flatMap(planDisplayName)
+            planDisplayName: claudeSubscriptionDetailsPlanDisplayName(from: object)
         )
     }
 
@@ -2258,6 +2277,21 @@ enum QuotaParsers {
         return nil
     }
 
+    private static func claudeSubscriptionDetailsPlanDisplayName(from source: [String: Any]) -> String? {
+        if let maxTier = claudeMaxTierDisplayName(from: source) {
+            return maxTier
+        }
+        if let nestedSubscription = source["subscription"] as? [String: Any] {
+            if let maxTier = claudeMaxTierDisplayName(from: nestedSubscription) {
+                return maxTier
+            }
+            if let nestedPlan = planDisplayName(from: nestedSubscription) {
+                return nestedPlan
+            }
+        }
+        return planDisplayName(from: source)
+    }
+
     private static func codexAccountsCheckLifecycleInfo(from object: [String: Any]) -> SubscriptionLifecycleInfo? {
         guard let accounts = object["accounts"] as? [String: Any] else {
             return nil
@@ -2359,12 +2393,14 @@ enum QuotaParsers {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
             .replacingOccurrences(of: "-", with: "_")
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: "_")
         guard !normalized.isEmpty else { return nil }
 
         switch normalized {
-        case "chatgptpro", "chatgpt_pro", "chatgptproplan", "chatgpt_pro_plan", "pro_20x":
+        case "chatgptpro", "chatgpt_pro", "chatgptproplan", "chatgpt_pro_plan", "chatgpt_pro_20x", "pro_20x":
             return "Pro 20x"
-        case "chatgptprolite", "chatgpt_pro_lite", "chatgptproliteplan", "chatgpt_pro_lite_plan", "pro_lite", "pro_5x":
+        case "chatgptprolite", "chatgpt_pro_lite", "chatgptproliteplan", "chatgpt_pro_lite_plan", "chatgpt_pro_5x", "pro_lite", "pro_5x":
             return "Pro 5x"
         case "chatgptplus", "chatgpt_plus", "chatgptplusplan", "chatgpt_plus_plan", "plus":
             return "Plus"
@@ -2722,6 +2758,8 @@ actor QuotaService {
             throw QuotaError.notSupported
         case .claudeSubscription:
             return try await checkClaudeSubscriptionQuota(key: key, bypassCooldown: bypassCooldown)
+        case .anthropicCredits:
+            return try await checkAnthropicCreditsQuota(key: key)
         case .codexSubscription:
             return try await checkCodexSubscriptionQuota(key: key)
         case .kimiSubscription:
@@ -3052,6 +3090,43 @@ actor QuotaService {
             result.planDisplayName = lifecycle.planDisplayName ?? result.planDisplayName
         }
 
+        return withHTTPStatus(result, from: httpResponse)
+    }
+
+    /// Anthropic Credits: claude.ai organization dashboard prepaid credits endpoint.
+    /// The secret is a Claude web login Cookie header captured by reauthentication.
+    private func checkAnthropicCreditsQuota(key: APIKey) async throws -> QuotaResult {
+        let credential = DashboardCredential(key.key)
+        guard !credential.cookie.isEmpty else {
+            throw QuotaError.unauthorized
+        }
+
+        let organizationContext = try await fetchClaudeOrganizationContext(cookie: credential.cookie)
+        guard let encodedOrganizationID = organizationContext.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            throw QuotaError.invalidResponse
+        }
+
+        var request = URLRequest(url: URL(string: "https://claude.ai/api/organizations/\(encodedOrganizationID)/prepaid/credits")!)
+        request.httpMethod = "GET"
+        applyClaudeDashboardHeaders(
+            to: &request,
+            cookie: credential.cookie,
+            referer: "https://claude.ai/settings/usage"
+        )
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        var result = try QuotaParsers.parseAnthropicPrepaidCredits(data)
+        result.planDisplayName = organizationContext.planDisplayName ?? key.planDisplayName ?? result.planDisplayName
         return withHTTPStatus(result, from: httpResponse)
     }
 

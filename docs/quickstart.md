@@ -21,6 +21,13 @@ Install into `/Applications`:
 ./install.sh
 ```
 
+Build a white-label bundle with update checks removed:
+
+```bash
+./install.sh --bundle-only --rebuild --white-label
+scripts/package_dmg.sh --rebuild --white-label
+```
+
 ## 2. Open The UI
 
 Click the Quota Radar quota-radar icon in the macOS menu bar.
@@ -68,17 +75,19 @@ The `Quota Overview` page shows quota summaries for configured providers only. P
 
 Provider rows are organized around `Key Quota`, `Credential Pool`, `Critical Time`, and `Status`. Recent quota changes appear under the quota value they describe, while `Last Updated` in expanded account rows shows only refresh status such as updated, no change, failed, or skipped.
 
-The menu bar popover prioritizes today's quota risk, expiring credentials, and items needing attention, with quick refresh for individual providers.
+The menu bar popover is intentionally short: it shows a one-line risk summary, up to two watched providers, and a small risk-ranked attention feed for low quota, failed checks, expiry, and recent activity. Click a feed row to open the matching provider/account in the main window, or use the row refresh button for a quick provider refresh.
 
 ## 6. Settings
 
-Use `Settings` to switch Simplified Chinese, Traditional Chinese, English, Japanese, and Korean; adjust menu bar popover transparency; configure launch at login; enable automatic update checks; set the network proxy; and set automatic refresh intervals. Automatic refresh can also be turned off.
+Use `Settings` to switch Simplified Chinese, Traditional Chinese, English, Japanese, and Korean; adjust menu bar popover transparency; configure launch at login; enable automatic update checks in standard builds; set the network proxy; and set automatic refresh intervals. Automatic refresh can also be turned off.
 
 Network proxy supports System, Direct, and Custom. Custom proxy accepts values such as `http://127.0.0.1:7890` or `socks5://127.0.0.1:7890`.
 
 To keep frequently used providers near the top, enable `Custom Provider Order`, click `Configure`, and drag provider rows. This order is shared by Quota Overview, Credentials, Diagnostics, and the menu bar popover.
 
-The lower-left corner of the main window shows the installed version and update status. When automatic update checks are enabled, the app only checks GitHub Releases. If a new version is available, Quota Radar shows release notes and does not download silently. It downloads the DMG and replaces the installed app only after you click `Download and Install`.
+The lower-left corner of the main window shows the installed version and update status. When automatic update checks are enabled in standard builds, the app only checks GitHub Releases. If a new version is available, Quota Radar shows release notes and does not download silently. It downloads the DMG and replaces the installed app only after you click `Download and Install`.
+
+White-label builds are compiled with `QUOTARADAR_DISABLE_GITHUB_UPDATER`; they hide update-check controls, skip launch-time update checks, and do not embed the upstream GitHub Release URL.
 
 ## 7. Local Data Locations
 
@@ -95,6 +104,20 @@ This file is outside the repository and should never be pushed to GitHub.
 ```bash
 bash Tests/run_behavior_tests.sh
 ```
+
+Run the saved web-login provider acceptance matrix without calling provider endpoints:
+
+```bash
+scripts/live_acceptance.sh
+```
+
+Run live quota endpoint acceptance explicitly:
+
+```bash
+QUOTARADAR_LIVE_ACCEPTANCE=1 scripts/live_acceptance.sh --live
+```
+
+The live acceptance output is a sanitized matrix. It does not print secrets, cookies, tokens, credential labels, or raw provider responses.
 
 To install the existing bundle without rebuilding:
 

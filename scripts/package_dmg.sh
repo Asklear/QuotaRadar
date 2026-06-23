@@ -5,6 +5,9 @@
 # Local/self-use:
 #   scripts/package_dmg.sh
 #
+# White-label/no-updater distribution:
+#   scripts/package_dmg.sh --rebuild --white-label
+#
 # Developer ID distribution:
 #   DEVELOPER_ID_APPLICATION="Developer ID Application: Example (TEAMID)" \
 #   NOTARYTOOL_PROFILE="notary-profile" \
@@ -30,6 +33,7 @@ DMG_PATH="${BUILD_DIR}/${PRODUCT_NAME}.dmg"
 VOLUME_NAME="${DISPLAY_NAME}"
 REBUILD=false
 NOTARIZE=false
+WHITE_LABEL=false
 
 for arg in "$@"; do
     case "$arg" in
@@ -39,17 +43,32 @@ for arg in "$@"; do
         --notarize)
             NOTARIZE=true
             ;;
+        --white-label)
+            WHITE_LABEL=true
+            ;;
         *)
             echo "Unknown option: $arg"
-            echo "Usage: scripts/package_dmg.sh [--rebuild] [--notarize]"
+            echo "Usage: scripts/package_dmg.sh [--rebuild] [--notarize] [--white-label]"
             exit 1
             ;;
     esac
 done
 
+if [ "${QUOTARADAR_WHITE_LABEL:-0}" = "1" ]; then
+    WHITE_LABEL=true
+fi
+
+if [ "${WHITE_LABEL}" = true ]; then
+    REBUILD=true
+    DMG_PATH="${BUILD_DIR}/QuotaRadar-WhiteLabel.dmg"
+fi
+
 INSTALL_ARGS=(--bundle-only)
 if [ "${REBUILD}" = true ] || [ ! -d "${APP_BUNDLE}" ]; then
     INSTALL_ARGS+=(--rebuild)
+fi
+if [ "${WHITE_LABEL}" = true ]; then
+    INSTALL_ARGS+=(--white-label)
 fi
 "${PROJECT_DIR}/install.sh" "${INSTALL_ARGS[@]}"
 

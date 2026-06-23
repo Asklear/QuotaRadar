@@ -13,7 +13,7 @@ class QuotaMonitor: ObservableObject {
     private static let providerOrderDefaultsKey = "providerOrder"
     private static let customProviderOrderEnabledDefaultsKey = "customProviderOrderEnabled"
     private static let menuWatchedProvidersDefaultsKey = "menuWatchedProviders"
-    private static let menuSignalItemLimit = 6
+    private static let menuSignalItemLimit = 4
     private static let menuWatchedProviderLimit = 2
 
     @Published var apiKeys: [APIKey] = []
@@ -320,6 +320,48 @@ class QuotaMonitor: ObservableObject {
         )
     }
 
+    nonisolated static func refreshCandidateKeys(
+        from keys: [APIKey],
+        targetProviders: Set<Provider>?
+    ) -> [APIKey] {
+        var candidates = keys
+
+        for provider in Provider.visibleCases {
+            if let targetProviders, !targetProviders.contains(provider) {
+                continue
+            }
+            guard let sourceProvider = sharedDashboardAuthorizationSourceProvider(for: provider) else {
+                continue
+            }
+            let hasDirectMonitoringCredential = keys.contains {
+                $0.provider == provider && !$0.isStoredAPIKeyOnlyCredential
+            }
+            guard !hasDirectMonitoringCredential else {
+                continue
+            }
+
+            let sourceCredentials = keys.filter {
+                $0.provider == sourceProvider
+                    && $0.isActive
+                    && !$0.isStoredAPIKeyOnlyCredential
+                    && !$0.key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            }
+
+            for (index, sourceCredential) in sourceCredentials.enumerated() {
+                candidates.append(
+                    derivedDashboardCredential(
+                        from: sourceCredential,
+                        provider: provider,
+                        ordinal: index + 1,
+                        sourceCount: sourceCredentials.count
+                    )
+                )
+            }
+        }
+
+        return candidates
+    }
+
     private func refresh(targetProviders: Set<Provider>?, mode: RefreshMode) {
         guard !isRefreshing else {
             if mode == .manual {
@@ -347,7 +389,7 @@ class QuotaMonitor: ObservableObject {
             var failedKeys: [String] = []
             var foundTargetKey = false
 
-            for var key in apiKeys {
+            for var key in Self.refreshCandidateKeys(from: apiKeys, targetProviders: targetProviders) {
                 guard Provider.visibleCases.contains(key.provider) else {
                     updatedKeys.append(key)
                     continue
@@ -583,6 +625,49 @@ class QuotaMonitor: ObservableObject {
         )
         quotaSnapshots = historyStore.append(snapshot, existing: quotaSnapshots)
         historyStore.save(quotaSnapshots)
+    }
+
+    private nonisolated static func sharedDashboardAuthorizationSourceProvider(for provider: Provider) -> Provider? {
+        switch provider {
+        case .anthropicCredits:
+            return .claudeSubscription
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .deepseek, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
+            return nil
+        }
+    }
+
+    private nonisolated static func derivedDashboardCredential(
+        from sourceCredential: APIKey,
+        provider: Provider,
+        ordinal: Int,
+        sourceCount: Int
+    ) -> APIKey {
+        var credential = sourceCredential
+        credential.id = UUID()
+        credential.name = sourceCount == 1
+            ? provider.defaultCredentialName
+            : "\(provider.defaultCredentialName)_\(ordinal)"
+        credential.provider = provider
+        credential.note = sourceCredential.name == sourceCredential.provider.defaultCredentialName
+            ? nil
+            : sourceCredential.name
+        credential.linkedAuthorizationID = sourceCredential.id
+        credential.remaining = nil
+        credential.limit = nil
+        credential.resetAt = nil
+        credential.planEndsAt = nil
+        credential.planDisplayName = nil
+        credential.codexResetCreditsRemaining = nil
+        credential.lastUpdated = nil
+        credential.lastHTTPStatus = nil
+        credential.lastDiagnosticMessage = nil
+        credential.lastDiagnosticText = nil
+        credential.consecutiveFailureCount = 0
+        credential.quotaText = nil
+        credential.quotaLabel = nil
+        credential.usageCount = 0
+        credential.lastUsed = nil
+        return credential
     }
 
     private func setProviderOrder(_ order: [Provider]) {

@@ -41,12 +41,16 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Refresh README screenshots with window/panel captures only, avoiding desktop backgrounds in release-facing images.
 - [x] Bump version metadata and release notes for `v0.3.6`.
 
-## v0.3.8 Reset And Account Layout Polish
+## v0.3.9 Reset, White-Label Build, And Account Layout Polish
 
+- [x] Compress the menu bar popover into a more iStat / Stats-like attention feed: the panel is shorter, the summary is a one-line strip, and low quota, failures, expiry, and recent activity share one risk-ranked list instead of separate cards.
+- [x] Keep each menu-bar feed row actionable: clicking a low quota, expiring, attention, or recent activity row opens the main window and focuses the matching provider/account/reason, while the row still keeps a compact refresh action.
+- [x] Add menu-signal automation fallback so collapsed provider-level attention signals still focus the most relevant visible account when a dedicated failure row is not present.
 - [x] Read Codex subscription reset-credit availability from `rate_limit_reset_credits.available_count` and persist it as non-secret credential metadata.
 - [x] Add a guarded Codex `Use reset` action in the expanded account quota row. The action consumes one reset credit only after confirmation, refreshes the same account after the reset, and records the resulting quota snapshot.
 - [x] Document that no Codex reset-credit expiry field has been observed yet; Quota Radar stores and displays only the available count.
 - [x] Let Claude web-login authorization accept both `sessionKey` and `sessionKeyLC`, matching the current cookies exposed by WebKit.
+- [x] Harden dashboard reauthentication capture for web-login providers: manual save now reads cookies and WebStorage from the current embedded WebView, avoiding first-login failures caused by reading the global WebKit data store too early.
 - [x] Keep Volcengine automatic login capture watching longer during first-login SSO cookie settling, so the first reauthentication attempt can save without closing and reopening the window.
 - [x] Hide providers from Quota Overview when all monitoring credentials are disabled.
 - [x] Keep money-balance providers such as DeepSeek, Bocha, and WeChat Search from showing low-value `No reset cycle` timing copy.
@@ -55,6 +59,9 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Keep recent account activity inside the quota-window area and keep Last Updated status-only, so expanded rows do not mix consumption deltas, speed hints, and refresh freshness.
 - [x] Restore Diagnostics category folding by AI Search and LLM.
 - [x] Stabilize visual QA menu-bar screenshots with window-level capture so transparent popovers do not include the user's desktop background.
+- [x] Add a white-label / no-updater build mode that compiles out GitHub Release update checks, hides update UI, skips launch-time update requests, and avoids embedding the upstream GitHub Release URL in the app bundle.
+- [x] Add `install.sh --white-label` and `scripts/package_dmg.sh --white-label`, with a separate `.build-white-label` scratch directory and `build/QuotaRadar-WhiteLabel.dmg` artifact.
+- [x] Verify the white-label DMG with code-signature validation and release-safety string scans for upstream GitHub Release URLs.
 
 ## v0.3.7 Monitoring Trust And Attention
 
@@ -167,7 +174,7 @@ The broader UI redesign toward a native, dense, low-distraction macOS monitoring
 - [x] Simplify the credential page title hierarchy so the page title and local heading do not repeat the same wording.
 - [x] Show the basic expected credential type for each provider:
   - API key: Tavily, SerpAPI, Serper, Bocha, DeepSeek, Exa Team Management service key plus target API key id, and similar providers.
-  - Web login authorization: Querit, Claude Subscription, Codex Subscription, Kimi Subscription, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
+  - Web login authorization: Querit, Claude Subscription, Anthropic Credits, Codex Subscription, Kimi Subscription, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
   - Verified integrations: Aliyun Coding Plan can check subscription state through `aliclaw.coding-plan` and now parses 5-hour/weekly/monthly request-count fields when exposed; Tencent Cloud Coding Plan parses request-count quota cycles through dashboard `cgi/capi?cmd=DescribePkg&serviceType=hunyuan`. Business invocation API keys for both can be stored and shown, but they are not used for quota monitoring.
   - Sample still needed: the current Aliyun Coding Plan account returns no subscription; usage-field parsing is reserved, and if a subscribed account still does not expose usage details, keep "Usable · quota unknown".
   - Hidden extension stubs: XFYun Spark Token Plan, Volcengine Token Plan, Aliyun Token Plan, and Tencent Cloud Token Plan. They are not shown, imported, or refreshed until usable quota fields, measurement units, and real credential samples are confirmed.
@@ -178,7 +185,7 @@ The broader UI redesign toward a native, dense, low-distraction macOS monitoring
   - For Querit, `QUERIT_API_KEY` is stored only as a copyable API key; quota monitoring still stores web login authorization and uses the dashboard Account API.
   - For Kimi, extract the Bearer access token, `x-msh-device-id`, `x-msh-session-id`, `x-traffic-id`, and optional `kimi-auth` cookie.
 - [x] Add companion API-key storage for providers that use web login authorization for quota monitoring but still need user-facing API-key management:
-  - Querit, Claude Subscription, Codex Subscription, Kimi Subscription, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
+  - Querit, Claude Subscription, Anthropic Credits, Codex Subscription, Kimi Subscription, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
   - Companion API keys are copyable and editable, but do not create separate quota-monitoring or diagnostic rows.
   - Companion API keys are linked to the matching web login authorization; when multiple accounts exist, reauthentication requires an explicit save target.
 - [x] Make reauthentication auto-save:
@@ -194,7 +201,7 @@ The broader UI redesign toward a native, dense, low-distraction macOS monitoring
   - `Credential Expired`
   - `Quota API Unavailable`
   - `Check Consumes Quota`
-- [ ] Add export/backup for credential metadata, but do not export secrets by default.
+- [x] Add export/backup for credential metadata, but do not export secrets by default.
 - [x] Extend WebView reauthentication persistence beyond cookie store: support confirmed providers whose login token is stored in localStorage or sessionStorage. Kimi uses this when the web session writes `access_token` without a `kimi-auth` cookie.
 
 ## P2: Connectivity Tests And Diagnostics
@@ -260,21 +267,28 @@ Acceptance criteria for a new provider:
 - [x] Moonshot / Kimi: Kimi Subscription is wired through web login authorization / Bearer access token. `BillingService/GetUsages` reads five-hour/weekly windows, remaining counts, and reset times, while `GetSubscription` reads subscription balance and expiry fields. No independent monthly rate-limit window is confirmed yet.
 - [ ] Kimi Code OAuth unified authentication: the official `/coding/v1/usages` path returns a compatible `usage/limits` shape, but it requires a Device Code OAuth token. Add it later as a fallback/advanced path under one "Authenticate Kimi" action, not as a second primary button.
 - [x] Plan-name detection phase 1: added `planDisplayName` through `QuotaResult`, `APIKey`, persistence, refresh saves, quota overview, menu bar popover, and diagnostics. Fixtures now cover Kimi membership names, XFYun Spark package names, Aliyun instance names / types, and Tencent Cloud package names.
-- [ ] Plan-name detection remaining validation: Claude / Codex / Volcengine and similar providers need real response-field confirmation first. If an endpoint only returns internal enums, add localized display mappings and cover typical values such as `Pro`, `Max`, and `Plus`.
+- [x] Plan-name detection phase 2: validate saved-account plan display for Claude `Pro`, Codex `Pro 20x`, Volcengine `Lite`, Kimi `Adagio`, and XFYun Spark package names through live quota checks.
+- [x] Plan-name detection phase 3: harden parser fixtures and display mappings for Claude `Max 5x` / `Max 20x` across organization and subscription-detail tier shapes, and Codex `Pro 5x` / `Pro 20x` across lifecycle fields, `accounts/check`, RevenueCat offering IDs, and human-readable plan strings.
+- [x] Release QA split: add separate standard-updater and white-label/no-updater checklists covering GitHub Release URL scans, secret scans, screenshot QA, code-signature checks, DMG integrity, and mount checks.
+- [x] Provider package long-tail calibration setup: add a dedicated calibration backlog and make live acceptance export sanitized calibration status, evidence, and fallback behavior so future provider/package samples can be collected without secrets.
+- [ ] Provider package long-tail samples: collect additional cloud-provider package names and uncommon live tier samples, then add localized mappings and fixtures only after the response fields are observed.
 - [ ] Zhipu / GLM: check account balance and call quota.
 - [ ] MiniMax: check balance and token usage.
 - [ ] Baidu Qianfan: check account resource packages.
 - [ ] Tencent Hunyuan: check account resource packages.
 - [ ] SiliconFlow: check balance and API-key usage.
-- [ ] Anthropic: currently hidden from the main UI; re-evaluate only if the user wants it and usage can be queried reliably.
+- [ ] Anthropic API key usage: the legacy Anthropic API-key provider remains hidden from the main UI; re-evaluate only if API usage can be queried reliably with the right organization/admin scope.
 
 ### Pay-as-you-go / Prepaid Credits Candidates
 
 Keep this separate from Claude / Codex subscription quota. Subscription quota tracks five-hour, weekly, monthly windows and plan expiry. Prepaid credits track API / Workbench / platform-call balances, so future integrations should be shown as separate provider types instead of pretending to be subscription remaining quota.
 
-- [ ] Anthropic prepaid credits: research the Console prepaid credits balance endpoint, organization scope, required web-login authorization fields, and replay stability. If confirmed, expose it as a Claude API credits / Anthropic credits provider, not Claude Subscription.
-- [ ] OpenAI prepaid credits: research OpenAI platform billing / credit grant / prepaid balance readability, organization/project scope, and whether it requires an Admin key or web-login authorization. If confirmed, expose it as an OpenAI API credits provider, not Codex Subscription.
-- [ ] Claude Subscription follow-up: the current `claude.ai/api/organizations` path can expose five-hour/weekly windows in some login sessions, but `subscription_details` and organization selection are not stable enough. Claude Code style OAuth login is confirmed as a viable auth direction; next, verify whether an OAuth usage/limits endpoint reliably returns five-hour windows, weekly windows, reset times, and subscription-cycle dates, then keep the web organization endpoint as a fallback instead of the final source of truth.
+- [x] Anthropic prepaid credits preflight: live browser observation on 2026-06-23 found `claude.ai/api/organizations/<org>/prepaid/credits` with balance-like fields such as `amount`; Quota Radar now exposes a separate `Anthropic Credits` provider using Claude web-login authorization, parser fixture coverage, and balance-style display instead of mixing it into Claude Subscription.
+- [x] Anthropic Credits Claude-session replay: a sanitized replay on 2026-06-23 15:56 CST used an existing saved Claude Subscription web-login authorization, returned HTTP 200, and parsed the prepaid credits balance without printing the value.
+- [x] Anthropic Credits derived-row refresh: when no direct Anthropic Credits row exists, refreshing Anthropic Credits derives an independent monitoring row from the saved Claude Subscription authorization and clears all Claude quota metadata before querying prepaid credits.
+- [x] Anthropic Credits direct-row acceptance: `scripts/live_acceptance.sh --provider "Anthropic Credits" --live --json` passed after an Anthropic Credits monitoring row was derived and saved from the Claude authorization.
+- [ ] OpenAI prepaid credits: official docs expose organization usage/cost reporting such as `GET/organization/costs`, but no public prepaid credit balance API is confirmed. Browser observation could not verify a Platform balance endpoint because the current browser session redirected to OpenAI Platform login. Keep this blocked until a logged-in Platform session or official balance API is observed.
+- [ ] Claude Subscription follow-up: the current `claude.ai/api/organizations/<org>/usage` path was re-observed through the live browser on 2026-06-23 and exposes five-hour / weekly utilization windows. Claude Code style OAuth login remains a possible future auth direction, but do not replace the web organization endpoint until an OAuth `usage/limits` endpoint is actually observed with reset and subscription-cycle fields.
 
 ## P4: Frontend Aesthetics And Interaction
 
@@ -356,12 +370,12 @@ Keep this separate from Claude / Codex subscription quota. Subscription quota tr
 
 ## Next Starting Plan
 
-The first P6 history/trend/alert pass is complete. The latest polish pass moved the app closer to a compact monitoring-tool workflow.
+The first P6 history/trend/alert pass and the v0.3.9 white-label / reauthentication pass are complete. The next work should reduce provider drift risk and make release validation more repeatable.
 
-1. [x] Continue visual QA on dense account rows, especially many accounts per provider and long localized provider messages.
-2. [x] Add provider trust calibration metadata and document fallback behavior when provider fields drift.
-3. [x] Tighten the menu bar attention feed so rows stay short, actionable, and less metadata-heavy.
-4. [x] Add credential metadata export/backup, without exporting secrets by default.
+1. [x] Add a lightweight live-acceptance matrix for saved web-login providers, covering saved authorization presence, plan name, quota, reset time, plan end, reset-credit count, and live refresh result without printing secrets.
+2. [x] Turn the dashboard reauthentication first-save fix into broader regression coverage across Claude, Codex, Volcengine, XFYun Spark, Kimi, OpenCode Go, and Querit.
+3. [x] Harden parser fixtures and localized display mappings for Claude Max and Codex Pro 5x/20x variants using representative organization, subscription-detail, lifecycle, accounts/check, RevenueCat, and human-readable shapes.
+4. [x] Split release QA into standard updater and white-label/no-updater checklists, so GitHub Release URL scans, secret scans, screenshots, and DMG verification are explicit for both artifacts.
 
 ## Not Prioritized Yet
 

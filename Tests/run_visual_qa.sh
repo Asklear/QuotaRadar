@@ -717,7 +717,7 @@ for window in windows {
         report.append("id=\(id) layer=\(layer) owner=\(owner) name=\(name) x=\(x) y=\(y) width=\(width) height=\(height)")
     }
 
-    if owner == "Quota Radar", width >= 540, width <= 660, height >= 720, height <= 820 {
+    if owner == "Quota Radar", width >= 500, width <= 620, height >= 480, height <= 600 {
         statusPanelBounds = (x, y, width, height)
     }
 
@@ -791,7 +791,7 @@ run_scenario() {
     local menu_window_id
     menu_window_id="$(
         sed -nE 's/^id=([0-9]+).*owner=Quota Radar.*width=([0-9]+) height=([0-9]+).*$/\1 \2 \3/p' "${windows_file}" \
-            | awk '$2 >= 540 && $2 <= 660 && $3 >= 720 && $3 <= 820 { print $1; exit }'
+            | awk '$2 >= 500 && $2 <= 620 && $3 >= 480 && $3 <= 600 { print $1; exit }'
     )"
     if [ -n "${menu_window_id}" ]; then
         capture_window_png "${menu_window_id}" "${menu_screenshot}" || \
@@ -800,7 +800,7 @@ run_scenario() {
         screencapture -x -R"${x},${y},${width},${height}" "${menu_screenshot}"
     fi
     assert_file_nonempty "${menu_screenshot}" "Visual QA did not capture the menu-bar popover for ${scenario}"
-    assert_png_minimum_size "${menu_screenshot}" 540 720 "menu-bar popover ${scenario}"
+    assert_png_minimum_size "${menu_screenshot}" 500 500 "menu-bar popover ${scenario}"
 
     assert_file_nonempty "${main_window_id_file}" "Visual QA could not identify the main settings window for ${scenario}"
     local main_window_id
@@ -934,7 +934,7 @@ done
 
 assert_file_nonempty "${PANEL_BOUNDS_FILE}" "Visual QA could not find the status-panel window bounds"
 assert_file_nonempty "${MAIN_WINDOW_ID_FILE}" "Visual QA could not identify the main settings window"
-assert_png_minimum_size "${OUTPUT_DIR}/menu-bar-popover.png" 540 720 "menu-bar popover"
+assert_png_minimum_size "${OUTPUT_DIR}/menu-bar-popover.png" 500 500 "menu-bar popover"
 
 for signal in "${FOCUS_SIGNALS[@]}"; do
     capture_focused_signal "${signal}"
