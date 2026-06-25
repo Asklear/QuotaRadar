@@ -96,14 +96,40 @@ enum NetworkProxyModeOption: String, CaseIterable, Identifiable {
     }
 }
 
+enum AppThemeModeOption: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .system:
+            return L10n.t(.appearanceModeSystem)
+        case .light:
+            return L10n.t(.appearanceModeLight)
+        case .dark:
+            return L10n.t(.appearanceModeDark)
+        }
+    }
+}
+
 final class AppAppearanceStore: ObservableObject {
     static let shared = AppAppearanceStore()
+    static let appearanceModeKey = "appearanceMode"
     static let statusBarTransparencyKey = "statusBarTransparency"
     static let autoRefreshIntervalKey = "autoRefreshInterval"
     static let quotaConsumingAutoRefreshIntervalKey = "quotaConsumingAutoRefreshInterval"
     static let networkProxyModeKey = "networkProxyMode"
     static let customProxyURLKey = "customProxyURL"
     static let automaticallyCheckForUpdatesKey = "automaticallyCheckForUpdates"
+
+    @Published var appearanceMode: AppThemeModeOption {
+        didSet {
+            defaults.set(appearanceMode.rawValue, forKey: Self.appearanceModeKey)
+        }
+    }
 
     @Published var statusBarTransparency: Double {
         didSet {
@@ -150,7 +176,16 @@ final class AppAppearanceStore: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        if defaults.object(forKey: Self.statusBarTransparencyKey) == nil {
+        if let rawValue = defaults.string(forKey: Self.appearanceModeKey),
+           let mode = AppThemeModeOption(rawValue: rawValue) {
+            appearanceMode = mode
+        } else {
+            appearanceMode = .system
+        }
+
+        if let visualQATransparency = Self.visualQAStatusBarTransparencyOverride {
+            statusBarTransparency = visualQATransparency
+        } else if defaults.object(forKey: Self.statusBarTransparencyKey) == nil {
             statusBarTransparency = 0.58
         } else {
             statusBarTransparency = Self.clamped(defaults.double(forKey: Self.statusBarTransparencyKey))
@@ -188,6 +223,14 @@ final class AppAppearanceStore: ObservableObject {
 
     private static func clamped(_ value: Double) -> Double {
         min(max(value, 0.0), 1.0)
+    }
+
+    private static var visualQAStatusBarTransparencyOverride: Double? {
+        guard let rawValue = ProcessInfo.processInfo.environment["QUOTARADAR_VISUAL_QA_TRANSPARENCY"],
+              let value = Double(rawValue) else {
+            return nil
+        }
+        return clamped(value)
     }
 
     static func configuredURLSessionConfiguration(defaults: UserDefaults = .standard) -> URLSessionConfiguration {

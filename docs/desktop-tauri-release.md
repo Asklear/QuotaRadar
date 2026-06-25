@@ -1,6 +1,6 @@
 # Desktop Tauri Release
 
-This document defines the release boundary for the cross-platform Tauri preview. The Swift macOS app remains the stable Quota Radar release track until this Tauri app reaches parity.
+This document defines the release boundary for the cross-platform Tauri migration track. The Swift macOS app remains the stable Quota Radar release track; the Tauri app is not a preview candidate until it catches up with Swift mainline features and visual parity.
 
 ## Platform package targets
 
@@ -10,7 +10,7 @@ This document defines the release boundary for the cross-platform Tauri preview.
 - Windows: NSIS/MSI package targets when built on Windows
 - Linux: AppImage, deb, and rpm package targets where the runner has the required system tooling
 
-The CI preview still runs `pnpm tauri build --no-bundle --ci`. That command proves the desktop app compiles on macOS, Windows, and Linux without producing unsigned installers on every pull request.
+The CI preview still runs `pnpm tauri build --no-bundle --ci`. That command proves the desktop app compiles on macOS, Windows, and Linux without producing unsigned installers on every pull request; it does not mean the app is feature- or visually ready for preview users.
 
 ## Unsigned preview boundary
 

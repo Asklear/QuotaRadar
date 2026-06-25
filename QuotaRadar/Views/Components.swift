@@ -12,6 +12,44 @@ extension EnvironmentValues {
     }
 }
 
+enum StatusBarGlassMetrics {
+    private static func clamped(_ transparency: Double) -> Double {
+        min(max(transparency, 0.0), 1.0)
+    }
+
+    static func menuSurfaceOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 1.0 : 0.78 + (1 - clamped(transparency)) * 0.18
+    }
+
+    static func materialOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 0.0 : 0.28 + (1 - clamped(transparency)) * 0.62
+    }
+
+    static func baseFillOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 1.0 : 0.08 + (1 - clamped(transparency)) * 0.42
+    }
+
+    static func leadingHighlightOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 0.0 : 0.04 + (1 - clamped(transparency)) * 0.10
+    }
+
+    static func trailingHighlightOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 0.0 : 0.02 + (1 - clamped(transparency)) * 0.06
+    }
+
+    static func headerFillOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 1.0 : 0.22 + (1 - clamped(transparency)) * 0.30
+    }
+
+    static func moduleMaterialOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 0.0 : 0.22 + (1 - clamped(transparency)) * 0.34
+    }
+
+    static func moduleFillOpacity(for transparency: Double) -> Double {
+        transparency <= 0 ? 1.0 : 0.16 + (1 - clamped(transparency)) * 0.28
+    }
+}
+
 // MARK: - App Mark
 
 struct QuotaRadarMark: View {
@@ -59,19 +97,19 @@ struct GlassBackground: View {
     let transparency: Double
 
     private var materialOpacity: Double {
-        0.28 + (1 - transparency) * 0.62
+        StatusBarGlassMetrics.materialOpacity(for: transparency)
     }
 
     private var baseFillOpacity: Double {
-        0.08 + (1 - transparency) * 0.42
+        StatusBarGlassMetrics.baseFillOpacity(for: transparency)
     }
 
     private var leadingHighlightOpacity: Double {
-        0.04 + (1 - transparency) * 0.10
+        StatusBarGlassMetrics.leadingHighlightOpacity(for: transparency)
     }
 
     private var trailingHighlightOpacity: Double {
-        0.02 + (1 - transparency) * 0.06
+        StatusBarGlassMetrics.trailingHighlightOpacity(for: transparency)
     }
 
     var body: some View {
@@ -153,7 +191,7 @@ struct ProviderIcon: View {
         switch provider {
         case .claudeAPIUsage, .claudeSubscription:
             return true
-        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .codexAPIUsage, .codexSubscription, .kimiSubscription, .deepseek, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .anthropicCredits, .codexAPIUsage, .codexSubscription, .kimiSubscription, .deepseek, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
             return false
         }
     }
@@ -415,5 +453,48 @@ struct RefreshButton: View {
         .opacity(isEnabled ? 1 : 0.45)
         .help(helpText ?? L10n.t(.refreshQuotaAction))
         .accessibilityLabel(accessibilityLabelText ?? L10n.t(.refreshQuotaAction))
+    }
+}
+
+struct ProviderRefreshButton: View {
+    let provider: Provider
+    @Binding var isRefreshing: Bool
+    var isEnabled = true
+    var size: CGFloat = 32
+    var helpText: String? = nil
+    var accessibilityLabelText: String? = nil
+    let action: () -> Void
+
+    @State private var showingCostlyRefreshConfirmation = false
+
+    private var defaultActionLabel: String {
+        isRefreshing ? L10n.t(.refreshingQuotaAction) :
+            provider.capability.requiresCostlyConfirmation ? L10n.t(.refreshQuotaConsumesQuotaAction) :
+            L10n.t(.refreshQuotaAction)
+    }
+
+    var body: some View {
+        RefreshButton(
+            isRefreshing: $isRefreshing,
+            isEnabled: isEnabled,
+            size: size,
+            helpText: helpText ?? defaultActionLabel,
+            accessibilityLabelText: accessibilityLabelText ?? defaultActionLabel,
+            action: requestRefresh
+        )
+        .confirmationDialog(L10n.t(.costlyQuotaRefreshTitle), isPresented: $showingCostlyRefreshConfirmation, titleVisibility: .visible) {
+            Button(L10n.t(.refreshQuotaConsumesQuotaAction), role: .destructive, action: action)
+            Button(L10n.t(.cancel), role: .cancel) {}
+        } message: {
+            Text(L10n.t(.costlyQuotaRefreshMessage))
+        }
+    }
+
+    private func requestRefresh() {
+        guard provider.capability.requiresCostlyConfirmation else {
+            action()
+            return
+        }
+        showingCostlyRefreshConfirmation = true
     }
 }

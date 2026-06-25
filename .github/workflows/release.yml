@@ -41,18 +41,28 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
-            - Added an in-app GitHub Release update entry point in the lower-left sidebar footer, showing the installed version, update status, and a manual check button.
-            - Automatic update checks now run after launch, but they only detect new versions and show release notes. Quota Radar never downloads or replaces the app silently.
-            - Confirmed installs download QuotaRadar.dmg, replace /Applications/Quota Radar.app, clear quarantine, and relaunch the app.
-            - Update checks reuse the app's network proxy settings, and fall back to the GitHub latest-release redirect if the unauthenticated GitHub API is rate-limited.
-            - Refreshed README menu bar screenshots and documentation so the screenshots, Quickstart, and Roadmap match the current risk-first menu bar popover.
+            - Tightened the menu bar into a shorter Attention Feed with fewer duplicate metadata lines.
+            - Made menu-bar-to-main-window handoff more reliable by focusing the most relevant account when a provider-level signal is collapsed.
+            - Added Codex reset-credit visibility and an account-row reset action for eligible ChatGPT/Codex subscriptions.
+            - Display concrete subscription tiers where provider fields expose them, including Codex Pro 5x / Pro 20x and Claude Max 5x / Max 20x.
+            - Kept recent quota changes under Key Quota and account quota windows, while Last Updated now stays refresh-status-only.
+            - Suppressed speed-risk hints inside expanded quota-window tables so account detail rows do not show duplicated or floating activity labels.
+            - Added provider trust calibration metadata and documented fallback behavior when provider fields drift.
+            - Added credential metadata export for backup/debugging without exporting API keys, cookies, tokens, or authorization values.
+            - Expanded visual QA with dense single-provider account fixtures and refreshed README screenshots.
+            - Added reset-aware speed hints and recovery notifications while keeping Last Updated focused on refresh status only.
 
             中文说明：
-            - 新增应用内 GitHub Release 更新入口：主窗口左下角显示当前版本、更新状态和手动检查按钮。
-            - 支持启动后自动检查更新，但只检测新版并展示更新说明，不会静默下载或自动覆盖安装。
-            - 用户确认后才会下载 QuotaRadar.dmg、替换 /Applications/Quota Radar.app、清除 quarantine 并重新启动。
-            - 更新检查复用应用内网络代理设置；GitHub API 未认证 rate limit 时，会降级通过 latest-release 重定向解析版本和下载地址。
-            - 更新 README 状态栏截图和文档说明，让截图、Quickstart、Roadmap 与当前风险优先状态栏弹窗保持一致。
+            - 将状态栏继续收紧为短小的 Attention Feed，减少重复 metadata。
+            - 当状态栏信号按 provider 折叠时，主程序会自动聚焦最相关账号，提升从状态栏跳转回主窗口的可靠性。
+            - 增加 Codex 重置次数显示，并在符合条件的 ChatGPT/Codex 订阅账号行提供使用重置入口。
+            - 在 provider 字段可识别时显示具体订阅倍率，包括 Codex Pro 5x / Pro 20x 和 Claude Max 5x / Max 20x。
+            - 将近期额度变化保留在关键额度和账号额度周期下方，“上次更新”只保留刷新状态。
+            - 展开账号的额度周期表不再显示速度风险提示，避免出现重复或漂浮的动态标签。
+            - 增加 provider 可信度校准 metadata，并记录接口字段漂移时的降级口径。
+            - 增加凭据 metadata 导出，便于备份和排查问题，但不导出 API key、Cookie、token 或授权值。
+            - 扩展密集账号视觉 QA，并刷新 README 截图。
+            - 增加 reset-aware 消耗速度提示和恢复通知，同时让“上次更新”只表达刷新状态。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.
 

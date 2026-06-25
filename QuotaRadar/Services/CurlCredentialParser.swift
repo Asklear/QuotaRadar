@@ -82,7 +82,7 @@ struct CurlCredentialParser {
             if let trafficID = headers["x-traffic-id"] {
                 fields["trafficID"] = trafficID
             }
-        case .querit, .xfyunCodingPlan, .claudeSubscription, .codexSubscription:
+        case .querit, .xfyunCodingPlan, .claudeSubscription, .anthropicCredits, .codexSubscription:
             break
         case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .claudeAPIUsage, .codexAPIUsage, .deepseek, .xfyunTokenPlan, .volcengineTokenPlan, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
             break

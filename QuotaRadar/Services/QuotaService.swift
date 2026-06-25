@@ -6,29 +6,34 @@ struct QuotaResult {
     let limit: Int
     let resetAt: Date?
     var planEndsAt: Date?
+    var planDisplayName: String?
     var quotaLabel: String? = nil
     var quotaText: LocalizedTextDescriptor? = nil
     var quotaWindows: [QuotaWindowText] = []
     var httpStatus: Int? = nil
     var diagnosticMessage: String? = nil
     var diagnosticText: LocalizedTextDescriptor? = nil
+    var codexResetCreditsRemaining: Int? = nil
 
     init(
         remaining: Int,
         limit: Int,
         resetAt: Date?,
         planEndsAt: Date? = nil,
+        planDisplayName: String? = nil,
         quotaLabel: String? = nil,
         quotaText: LocalizedTextDescriptor? = nil,
         quotaWindows: [QuotaWindowText] = [],
         httpStatus: Int? = nil,
         diagnosticMessage: String? = nil,
-        diagnosticText: LocalizedTextDescriptor? = nil
+        diagnosticText: LocalizedTextDescriptor? = nil,
+        codexResetCreditsRemaining: Int? = nil
     ) {
         self.remaining = remaining
         self.limit = limit
         self.resetAt = resetAt
         self.planEndsAt = planEndsAt
+        self.planDisplayName = planDisplayName
         self.quotaLabel = quotaLabel
         self.quotaWindows = quotaWindows
         self.quotaText = quotaText
@@ -37,7 +42,18 @@ struct QuotaResult {
         self.httpStatus = httpStatus
         self.diagnosticMessage = diagnosticMessage
         self.diagnosticText = diagnosticText ?? diagnosticMessage.flatMap(LocalizedTextDescriptor.fromLegacyLabel)
+        self.codexResetCreditsRemaining = codexResetCreditsRemaining
     }
+}
+
+struct SubscriptionLifecycleInfo {
+    var planEndsAt: Date?
+    var planDisplayName: String?
+}
+
+struct ClaudeOrganizationContext {
+    let id: String
+    let planDisplayName: String?
 }
 
 enum QuotaParsers {
@@ -221,6 +237,7 @@ enum QuotaParsers {
             limit: knownLimit,
             resetAt: result.resetAt,
             planEndsAt: result.planEndsAt,
+            planDisplayName: result.planDisplayName,
             quotaLabel: "\(refreshedRemaining) / \(knownLimit) monthly requests"
         )
     }
@@ -288,6 +305,26 @@ enum QuotaParsers {
             limit: Int.max,
             resetAt: nil,
             quotaLabel: "USD \(String(format: "%.2f", totalCost)) used"
+        )
+    }
+
+    static func parseAnthropicPrepaidCredits(_ data: Data) throws -> QuotaResult {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let amount = firstDoubleValue(in: object, keys: ["amount", "balance", "credits", "credit_balance"]),
+              amount >= 0 else {
+            throw QuotaError.invalidResponse
+        }
+
+        let credits = Int(amount.rounded(.down))
+        let label = credits > 0
+            ? "\(credits) credits left"
+            : "No Anthropic credits available"
+
+        return QuotaResult(
+            remaining: credits,
+            limit: credits,
+            resetAt: nil,
+            quotaLabel: label
         )
     }
 
@@ -480,7 +517,7 @@ enum QuotaParsers {
         )
     }
 
-    static func parseXFYunCodingPlanList(_ data: Data) throws -> QuotaResult {
+    static func parseXFYunCodingPlanList(_ data: Data, now: Date = Date()) throws -> QuotaResult {
         struct CodingPlanListResponse: Decodable {
             struct PageData: Decodable {
                 let rows: [Plan]
@@ -488,19 +525,41 @@ enum QuotaParsers {
 
             struct Plan: Decodable {
                 let name: String?
+                let validFrom: String?
                 let expiresAt: String?
                 let status: Int?
                 let codingPlanUsageDTO: Usage?
             }
 
+            struct FlexibleQuotaAmount: Decodable {
+                let value: Double
+
+                init(from decoder: Decoder) throws {
+                    let container = try decoder.singleValueContainer()
+                    if let double = try? container.decode(Double.self) {
+                        value = double
+                    } else if let int = try? container.decode(Int.self) {
+                        value = Double(int)
+                    } else if let string = try? container.decode(String.self),
+                              let double = Double(string) {
+                        value = double
+                    } else {
+                        throw DecodingError.dataCorruptedError(
+                            in: container,
+                            debugDescription: "Expected a numeric quota amount"
+                        )
+                    }
+                }
+            }
+
             struct Usage: Decodable {
-                let packageLeft: Int?
-                let packageLimit: Int?
-                let packageUsage: Int?
-                let rp5hLimit: Int?
-                let rp5hUsage: Int?
-                let rpwLimit: Int?
-                let rpwUsage: Int?
+                let packageLeft: FlexibleQuotaAmount?
+                let packageLimit: FlexibleQuotaAmount?
+                let packageUsage: FlexibleQuotaAmount?
+                let rp5hLimit: FlexibleQuotaAmount?
+                let rp5hUsage: FlexibleQuotaAmount?
+                let rpwLimit: FlexibleQuotaAmount?
+                let rpwUsage: FlexibleQuotaAmount?
             }
 
             let code: Int?
@@ -520,16 +579,42 @@ enum QuotaParsers {
             throw QuotaError.invalidResponse
         }
 
-        var windows: [(name: String, left: Int, limit: Int)] = []
-        if let limit = usage.rp5hLimit, limit > 0 {
-            windows.append(("5h", max(0, limit - (usage.rp5hUsage ?? 0)), limit))
+        let validFrom = parseLocalDateTime(plan.validFrom)
+        let planEndsAt = parseLocalDateTime(plan.expiresAt)
+        var windows: [(name: String, remaining: Double, limit: Double, resetAt: Date?)] = []
+        func clampedReportedUsed(limit: Double, used: CodingPlanListResponse.FlexibleQuotaAmount?) -> Double {
+            min(limit, max(0, used?.value ?? 0))
         }
-        if let limit = usage.rpwLimit, limit > 0 {
-            windows.append(("week", max(0, limit - (usage.rpwUsage ?? 0)), limit))
+        func clampedReportedRemaining(limit: Double, remaining: CodingPlanListResponse.FlexibleQuotaAmount?) -> Double {
+            min(limit, max(0, remaining?.value ?? limit))
         }
-        if let limit = usage.packageLimit, limit > 0 {
-            let left = usage.packageLeft ?? max(0, limit - (usage.packageUsage ?? 0))
-            windows.append(("month", max(0, left), limit))
+
+        if let limit = usage.rp5hLimit?.value, limit > 0 {
+            let used = clampedReportedUsed(limit: limit, used: usage.rp5hUsage)
+            windows.append((
+                "5h",
+                limit - used,
+                limit,
+                inferredXFYunWindowReset(startedAt: validFrom, interval: 5 * 60 * 60, now: now)
+            ))
+        }
+        if let limit = usage.rpwLimit?.value, limit > 0 {
+            let used = clampedReportedUsed(limit: limit, used: usage.rpwUsage)
+            windows.append((
+                "week",
+                limit - used,
+                limit,
+                inferredXFYunWindowReset(startedAt: validFrom, interval: 7 * 24 * 60 * 60, now: now)
+            ))
+        }
+        if let limit = usage.packageLimit?.value, limit > 0 {
+            if let packageUsage = usage.packageUsage {
+                let used = clampedReportedUsed(limit: limit, used: packageUsage)
+                windows.append(("month", limit - used, limit, planEndsAt))
+            } else {
+                let remaining = clampedReportedRemaining(limit: limit, remaining: usage.packageLeft)
+                windows.append(("month", remaining, limit, planEndsAt))
+            }
         }
 
         guard !windows.isEmpty else {
@@ -539,25 +624,20 @@ enum QuotaParsers {
         let percentWindows = windows.map { window in
             PercentQuotaWindow(
                 name: window.name,
-                remainingPercent: Double(window.left) / Double(window.limit) * 100,
-                resetAt: nil,
-                remainingText: "\(window.left) / \(window.limit)"
+                remainingPercent: Double(window.remaining) / Double(window.limit) * 100,
+                resetAt: window.resetAt,
+                remainingText: "\(formatQuotaAmount(window.remaining)) / \(formatQuotaAmount(window.limit))"
             )
         }
-        let basisPoints = percentWindows
-            .map { Int(($0.remainingPercent * 100).rounded(.down)) }
-            .min() ?? 0
         let label = percentWindows
             .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
             .joined(separator: " · ")
 
-        return QuotaResult(
-            remaining: max(0, min(10_000, basisPoints)),
-            limit: 10_000,
-            resetAt: nil,
-            planEndsAt: parseLocalDateTime(plan.expiresAt),
-            quotaLabel: label,
-            quotaWindows: orderPercentWindows(percentWindows).map(quotaWindowText)
+        return percentQuotaResult(
+            windows: percentWindows,
+            planEndsAt: planEndsAt,
+            planDisplayName: normalizedPlanDisplayName(plan.name),
+            label: label
         )
     }
 
@@ -603,11 +683,43 @@ enum QuotaParsers {
         }
 
         let orderedWindows = orderPercentWindows(windows)
+        try requireCalibratedResetWindows(orderedWindows, names: ["week", "month"])
         return percentQuotaResult(
             windows: orderedWindows,
             label: orderedWindows
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                 .joined(separator: " · ")
+        )
+    }
+
+    static func parseVolcengineCodingPlanSubscription(_ data: Data) throws -> SubscriptionLifecycleInfo {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw QuotaError.invalidResponse
+        }
+        let result = object["Result"] as? [String: Any] ?? object
+        let infoList = result["InfoList"] as? [[String: Any]]
+            ?? result["infoList"] as? [[String: Any]]
+            ?? result["items"] as? [[String: Any]]
+            ?? result["data"] as? [[String: Any]]
+            ?? []
+        let codingPlanItems = infoList.filter { item in
+            let resourceType = stringValue(item["ResourceType"] ?? item["resourceType"])?.lowercased()
+            return resourceType == nil || resourceType == "codingplan"
+        }
+        guard let selected = codingPlanItems.first(where: { item in
+            let status = stringValue(item["Status"] ?? item["status"])?.lowercased()
+            return status == "running" || status == "active" || status == "valid"
+        }) ?? codingPlanItems.first else {
+            throw QuotaError.noSubscription
+        }
+
+        return SubscriptionLifecycleInfo(
+            planEndsAt: firstDateValue(
+                in: selected,
+                keys: ["EndTime", "endTime", "ExpireTime", "expireTime", "expiresAt", "expires_at"]
+            ),
+            planDisplayName: planDisplayName(from: selected)
+                ?? normalizedPlanDisplayName(stringValue(selected["BizInfo"] ?? selected["bizInfo"]))
         )
     }
 
@@ -671,10 +783,25 @@ enum QuotaParsers {
                 let reset_at: Double?
             }
 
+            struct RateLimitResetCredits: Decodable {
+                let available_count: Int?
+
+                enum CodingKeys: String, CodingKey {
+                    case available_count
+                }
+
+                init(from decoder: Decoder) throws {
+                    let container = try decoder.container(keyedBy: CodingKeys.self)
+                    available_count = try? container.decode(Int.self, forKey: .available_count)
+                }
+            }
+
             let rate_limit: RateLimit?
+            let rate_limit_reset_credits: RateLimitResetCredits?
         }
 
         let response = try JSONDecoder().decode(UsageResponse.self, from: data)
+        let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         guard let rateLimit = response.rate_limit else {
             throw QuotaError.invalidResponse
         }
@@ -708,28 +835,54 @@ enum QuotaParsers {
         }
 
         let orderedWindows = orderPercentWindows(windows)
+        try requireCalibratedResetWindows(orderedWindows, names: ["5h", "week"])
+        let resetCreditsRemaining: Int?
+        if let availableCount = response.rate_limit_reset_credits?.available_count,
+           availableCount >= 0 {
+            resetCreditsRemaining = availableCount
+        } else {
+            resetCreditsRemaining = nil
+        }
         return percentQuotaResult(
             windows: orderedWindows,
+            planDisplayName: object.flatMap(planDisplayName),
             label: orderedWindows
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
-                .joined(separator: " · ")
+                .joined(separator: " · "),
+            codexResetCreditsRemaining: resetCreditsRemaining
         )
     }
 
-    static func parseCodexSubscriptionLifecycle(_ data: Data) throws -> Date? {
-        struct SubscriptionResponse: Decodable {
-            let active_until: String?
-            let current_period_end: String?
-            let expires_at: String?
+    static func parseCodexSubscriptionLifecycle(_ data: Data) throws -> SubscriptionLifecycleInfo {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw QuotaError.invalidResponse
         }
 
-        let response = try JSONDecoder().decode(SubscriptionResponse.self, from: data)
-        return parseISO8601Date(response.active_until)
-            ?? parseISO8601Date(response.current_period_end)
-            ?? parseISO8601Date(response.expires_at)
+        if let accountsCheckLifecycle = codexAccountsCheckLifecycleInfo(from: object) {
+            return accountsCheckLifecycle
+        }
+
+        return SubscriptionLifecycleInfo(
+            planEndsAt: firstDateValue(
+                in: object,
+                keys: [
+                    "active_until",
+                    "activeUntil",
+                    "current_period_end",
+                    "currentPeriodEnd",
+                    "expires_at",
+                    "expiresAt",
+                ]
+            ),
+            planDisplayName: codexPlanDisplayName(from: object) ?? planDisplayName(from: object)
+        )
     }
 
     static func parseClaudeOrganizationID(_ data: Data) throws -> String {
+        try parseClaudeOrganizationContext(data).id
+    }
+
+    static func parseClaudeOrganizationContext(_ data: Data) throws -> ClaudeOrganizationContext {
         let object = try JSONSerialization.jsonObject(with: data)
         let candidates = claudeOrganizationCandidates(from: object)
         guard !candidates.isEmpty else {
@@ -743,7 +896,10 @@ enum QuotaParsers {
             throw QuotaError.invalidResponse
         }
 
-        return id
+        return ClaudeOrganizationContext(
+            id: id,
+            planDisplayName: selected?.planDisplayName
+        )
     }
 
     static func parseClaudeSubscriptionUsage(_ data: Data) throws -> QuotaResult {
@@ -782,31 +938,23 @@ enum QuotaParsers {
         let orderedWindows = orderPercentWindows(windows)
         return percentQuotaResult(
             windows: orderedWindows,
+            planDisplayName: planDisplayName(from: object),
             label: orderedWindows
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                 .joined(separator: " · ")
         )
     }
 
-    static func parseClaudeSubscriptionDetails(_ data: Data) throws -> Date? {
+    static func parseClaudeSubscriptionDetails(_ data: Data) throws -> SubscriptionLifecycleInfo {
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw QuotaError.invalidResponse
         }
 
-        return firstDateValue(
-            in: object,
-            keys: [
-                "next_charge_at",
-                "next_charge_date",
-                "current_period_end",
-                "active_until",
-                "expires_at",
-                "ends_at",
-            ]
-        )
-        ?? (object["subscription"] as? [String: Any]).flatMap {
-            firstDateValue(
-                in: $0,
+        let nestedSubscription = object["subscription"] as? [String: Any]
+
+        return SubscriptionLifecycleInfo(
+            planEndsAt: firstDateValue(
+                in: object,
                 keys: [
                     "next_charge_at",
                     "next_charge_date",
@@ -816,7 +964,21 @@ enum QuotaParsers {
                     "ends_at",
                 ]
             )
-        }
+            ?? nestedSubscription.flatMap {
+                firstDateValue(
+                    in: $0,
+                    keys: [
+                        "next_charge_at",
+                        "next_charge_date",
+                        "current_period_end",
+                        "active_until",
+                        "expires_at",
+                        "ends_at",
+                    ]
+                )
+            },
+            planDisplayName: claudeSubscriptionDetailsPlanDisplayName(from: object)
+        )
     }
 
     static func parseKimiSubscriptionUsage(subscriptionData: Data, usageData: Data?) throws -> QuotaResult {
@@ -829,6 +991,8 @@ enum QuotaParsers {
 
         let planEndsAt = kimiPlanEndDate(from: subscription)
             ?? usage.flatMap(kimiPlanEndDate)
+        let detectedPlanDisplayName = planDisplayName(from: subscription)
+            ?? usage.flatMap { planDisplayName(from: $0) }
 
         var windows: [PercentQuotaWindow] = []
         if let usage {
@@ -844,6 +1008,7 @@ enum QuotaParsers {
             return percentQuotaResult(
                 windows: orderedWindows,
                 planEndsAt: planEndsAt,
+                planDisplayName: detectedPlanDisplayName,
                 label: orderedWindows
                     .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                     .joined(separator: " · ")
@@ -859,6 +1024,7 @@ enum QuotaParsers {
             limit: Int.max,
             resetAt: nil,
             planEndsAt: planEndsAt,
+            planDisplayName: detectedPlanDisplayName,
             quotaLabel: "Usable · quota unknown",
             quotaText: .localized(.usableUnknownQuota),
             diagnosticMessage: "Kimi membership endpoint returned subscription status, but quota was not exposed.",
@@ -901,6 +1067,12 @@ enum QuotaParsers {
         }
 
         struct Package: Decodable {
+            let PkgName: String?
+            let PackageName: String?
+            let Name: String?
+            let ResourceName: String?
+            let ProductName: String?
+            let Title: String?
             let Status: String?
             let EndTime: String?
             let RemainingDays: Int?
@@ -1031,9 +1203,20 @@ enum QuotaParsers {
         }
 
         let orderedWindows = orderPercentWindows(windows)
+        let planDisplayName = package.flatMap {
+            normalizedPlanDisplayName(
+                $0.PkgName
+                    ?? $0.PackageName
+                    ?? $0.Name
+                    ?? $0.ResourceName
+                    ?? $0.ProductName
+                    ?? $0.Title
+            )
+        }
         return percentQuotaResult(
             windows: orderedWindows,
             planEndsAt: parseLocalDateTime(package?.EndTime),
+            planDisplayName: planDisplayName,
             label: orderedWindows
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                 .joined(separator: " · ")
@@ -1091,6 +1274,7 @@ enum QuotaParsers {
             return percentQuotaResult(
                 windows: orderedWindows,
                 planEndsAt: aliyunTimestampDate(codingPlanInfo["endTime"]),
+                planDisplayName: planDisplayName(from: codingPlanInfo),
                 label: orderedWindows
                     .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                     .joined(separator: " · ")
@@ -1102,6 +1286,7 @@ enum QuotaParsers {
             limit: Int.max,
             resetAt: nil,
             planEndsAt: aliyunTimestampDate(codingPlanInfo["endTime"]),
+            planDisplayName: planDisplayName(from: codingPlanInfo),
             quotaLabel: "Usable · quota unknown",
             quotaText: .localized(.usableUnknownQuota),
             diagnosticMessage: "Aliyun Coding Plan returned subscription status, but usage quota was not exposed.",
@@ -1144,6 +1329,7 @@ enum QuotaParsers {
                     ?? selected["expireTime"]
                     ?? selected["expirationTime"]
             ),
+            planDisplayName: planDisplayName(from: selected),
             label: orderedWindows
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                 .joined(separator: " · ")
@@ -1232,7 +1418,13 @@ enum QuotaParsers {
         var remainingText: String? = nil
     }
 
-    private static func percentQuotaResult(windows: [PercentQuotaWindow], planEndsAt: Date? = nil, label: String) -> QuotaResult {
+    private static func percentQuotaResult(
+        windows: [PercentQuotaWindow],
+        planEndsAt: Date? = nil,
+        planDisplayName: String? = nil,
+        label: String,
+        codexResetCreditsRemaining: Int? = nil
+    ) -> QuotaResult {
         let tightest = windows.min { lhs, rhs in
             lhs.remainingPercent < rhs.remainingPercent
         }
@@ -1248,9 +1440,35 @@ enum QuotaParsers {
             limit: 10_000,
             resetAt: resetAt,
             planEndsAt: planEndsAt,
+            planDisplayName: planDisplayName,
             quotaLabel: label,
-            quotaWindows: orderPercentWindows(windows).map(quotaWindowText)
+            quotaWindows: orderPercentWindows(windows).map(quotaWindowText),
+            codexResetCreditsRemaining: codexResetCreditsRemaining
         )
+    }
+
+    private static func requireCalibratedResetWindows(_ windows: [PercentQuotaWindow], names requiredNames: Set<String>) throws {
+        let availableNamesWithReset = Set(
+            windows
+                .filter { $0.resetAt != nil }
+                .map { normalizedQuotaWindowName($0.name) }
+        )
+        guard requiredNames.isSubset(of: availableNamesWithReset) else {
+            throw QuotaError.schemaDrift
+        }
+    }
+
+    private static func normalizedQuotaWindowName(_ name: String) -> String {
+        switch name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "5h", "five_hour", "five-hour", "rolling", "session":
+            return "5h"
+        case "week", "weekly", "seven_day", "seven-day":
+            return "week"
+        case "month", "monthly":
+            return "month"
+        default:
+            return name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
     }
 
     private static func quotaWindowText(_ window: PercentQuotaWindow) -> QuotaWindowText {
@@ -1313,12 +1531,31 @@ enum QuotaParsers {
         return String(format: "%.1f%%", locale: Locale(identifier: "en_US_POSIX"), rounded)
     }
 
+    private static func formatQuotaAmount(_ value: Double) -> String {
+        "\(Int(max(0, value).rounded(.down)))"
+    }
+
     private static func parseLocalDateTime(_ value: String?) -> Date? {
         guard let value else { return nil }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return formatter.date(from: value)
+    }
+
+    private static func inferredXFYunWindowReset(
+        startedAt start: Date?,
+        interval: TimeInterval,
+        now: Date
+    ) -> Date? {
+        guard let start, interval > 0 else { return nil }
+        if now < start {
+            return start
+        }
+
+        let elapsed = now.timeIntervalSince(start)
+        let completedWindows = floor(elapsed / interval) + 1
+        return start.addingTimeInterval(completedWindows * interval)
     }
 
     private static func parseISO8601Date(_ value: String?) -> Date? {
@@ -1826,10 +2063,108 @@ enum QuotaParsers {
         return nil
     }
 
+    private static func planDisplayName(from source: [String: Any]) -> String? {
+        let nameKeys = [
+            "planDisplayName",
+            "plan_display_name",
+            "displayName",
+            "display_name",
+            "planName",
+            "plan_name",
+            "planType",
+            "plan_type",
+            "subscriptionType",
+            "subscription_type",
+            "tier",
+            "tierName",
+            "tier_name",
+            "packageName",
+            "package_name",
+            "pkgName",
+            "PkgName",
+            "Name",
+            "name",
+            "title",
+            "Title",
+            "productName",
+            "product_name",
+            "commodityName",
+            "commodity_name",
+            "goodsName",
+            "goods_name",
+            "membershipName",
+            "membership_name",
+            "instanceName",
+            "instance_name",
+            "instanceType",
+            "instance_type",
+        ]
+        for key in nameKeys {
+            if let value = normalizedPlanDisplayName(stringValue(source[key])) {
+                return value
+            }
+        }
+
+        let nestedKeys = [
+            "subscription",
+            "plan",
+            "package",
+            "pkg",
+            "goods",
+            "product",
+            "membership",
+            "current_plan",
+            "currentPlan",
+            "codingPlanInfo",
+        ]
+        for key in nestedKeys {
+            if let nested = source[key] as? [String: Any],
+               let value = planDisplayName(from: nested) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func normalizedPlanDisplayName(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let collapsed = value
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !collapsed.isEmpty, collapsed.count <= 80 else { return nil }
+        let lowercased = collapsed.lowercased()
+        let canonicalPlanNames = [
+            "free": "Free",
+            "lite": "Lite",
+            "plus": "Plus",
+            "pro": "Pro",
+            "max": "Max",
+            "team": "Team",
+            "business": "Business",
+            "enterprise": "Enterprise",
+            "starter": "Starter",
+            "standard": "Standard",
+            "premium": "Premium",
+            "ultra": "Ultra",
+        ]
+        if let canonicalPlanName = canonicalPlanNames[lowercased] {
+            return canonicalPlanName
+        }
+        guard !["normal", "valid", "active", "invalid", "true", "false"].contains(lowercased) else {
+            return nil
+        }
+        guard collapsed.range(of: #"^\d+$"#, options: .regularExpression) == nil else {
+            return nil
+        }
+        return collapsed
+    }
+
     private struct ClaudeOrganizationCandidate {
         let id: String?
         let isActive: Bool?
         let isDefault: Bool?
+        let planDisplayName: String?
     }
 
     private static func claudeOrganizationCandidates(from object: Any) -> [ClaudeOrganizationCandidate] {
@@ -1851,7 +2186,8 @@ enum QuotaParsers {
                 ClaudeOrganizationCandidate(
                     id: id,
                     isActive: dictionary["active"] as? Bool ?? dictionary["is_active"] as? Bool,
-                    isDefault: dictionary["default"] as? Bool ?? dictionary["is_default"] as? Bool
+                    isDefault: dictionary["default"] as? Bool ?? dictionary["is_default"] as? Bool,
+                    planDisplayName: claudeOrganizationPlanDisplayName(from: dictionary)
                 )
             )
         }
@@ -1863,6 +2199,220 @@ enum QuotaParsers {
         }
 
         return candidates
+    }
+
+    private static func claudeOrganizationPlanDisplayName(from source: [String: Any]) -> String? {
+        if let maxTier = claudeMaxTierDisplayName(from: source) {
+            return maxTier
+        }
+
+        if let capabilities = source["capabilities"] as? [Any] {
+            let capabilityNames = capabilities.compactMap(stringValue).map { $0.lowercased() }
+            let capabilityPlans = [
+                "claude_pro": "Pro",
+                "claude_max": "Max",
+                "claude_team": "Team",
+                "claude_enterprise": "Enterprise",
+            ]
+            for capabilityName in capabilityNames {
+                if let plan = capabilityPlans[capabilityName] {
+                    return plan
+                }
+            }
+        }
+
+        let planKeys = [
+            "planDisplayName",
+            "plan_display_name",
+            "planName",
+            "plan_name",
+            "planType",
+            "plan_type",
+            "subscriptionType",
+            "subscription_type",
+            "tier",
+            "tierName",
+            "tier_name",
+        ]
+        for key in planKeys {
+            if let value = normalizedPlanDisplayName(stringValue(source[key])) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func claudeMaxTierDisplayName(from source: [String: Any]) -> String? {
+        let tierKeys = [
+            "rate_limit_tier",
+            "rateLimitTier",
+            "tier",
+            "tierName",
+            "tier_name",
+            "planType",
+            "plan_type",
+            "subscriptionType",
+            "subscription_type",
+            "planName",
+            "plan_name",
+        ]
+        let tierValues = tierKeys.compactMap { stringValue(source[$0]) }
+        let hasMaxCapability = (source["capabilities"] as? [Any])?
+            .compactMap(stringValue)
+            .map { $0.lowercased() }
+            .contains("claude_max") == true
+
+        for value in tierValues {
+            let normalized = value
+                .lowercased()
+                .replacingOccurrences(of: "-", with: "_")
+                .replacingOccurrences(of: " ", with: "_")
+            if normalized.contains("20x") && (normalized.contains("max") || hasMaxCapability) {
+                return "Max 20x"
+            }
+            if normalized.contains("5x") && (normalized.contains("max") || hasMaxCapability) {
+                return "Max 5x"
+            }
+        }
+        return nil
+    }
+
+    private static func claudeSubscriptionDetailsPlanDisplayName(from source: [String: Any]) -> String? {
+        if let maxTier = claudeMaxTierDisplayName(from: source) {
+            return maxTier
+        }
+        if let nestedSubscription = source["subscription"] as? [String: Any] {
+            if let maxTier = claudeMaxTierDisplayName(from: nestedSubscription) {
+                return maxTier
+            }
+            if let nestedPlan = planDisplayName(from: nestedSubscription) {
+                return nestedPlan
+            }
+        }
+        return planDisplayName(from: source)
+    }
+
+    private static func codexAccountsCheckLifecycleInfo(from object: [String: Any]) -> SubscriptionLifecycleInfo? {
+        guard let accounts = object["accounts"] as? [String: Any] else {
+            return nil
+        }
+
+        let accountObjects = accounts.values.compactMap { $0 as? [String: Any] }
+        guard !accountObjects.isEmpty else {
+            return nil
+        }
+
+        let selected = accountObjects.first { accountObject in
+            guard let entitlement = accountObject["entitlement"] as? [String: Any] else {
+                return false
+            }
+            return boolValue(entitlement["has_active_subscription"]) == true
+        } ?? accountObjects[0]
+
+        let entitlement = selected["entitlement"] as? [String: Any]
+        let account = selected["account"] as? [String: Any]
+        var sources = [[String: Any]]()
+        if let entitlement {
+            sources.append(entitlement)
+        }
+        if let account {
+            sources.append(account)
+        }
+        sources.append(selected)
+
+        let dateKeys = [
+            "renews_at",
+            "renewsAt",
+            "active_until",
+            "activeUntil",
+            "current_period_end",
+            "currentPeriodEnd",
+            "expires_at",
+            "expiresAt",
+            "ends_at",
+            "endsAt",
+        ]
+        let planEndsAt = sources.compactMap { firstDateValue(in: $0, keys: dateKeys) }.first
+        let detectedPlanDisplayName = sources.compactMap { source -> String? in
+            codexPlanDisplayName(from: source)
+        }.first
+            ?? sources.compactMap { source -> String? in
+                planDisplayName(from: source)
+            }.first
+
+        guard planEndsAt != nil || detectedPlanDisplayName != nil else {
+            return nil
+        }
+        return SubscriptionLifecycleInfo(
+            planEndsAt: planEndsAt,
+            planDisplayName: detectedPlanDisplayName
+        )
+    }
+
+    private static func codexPlanDisplayName(from source: [String: Any]) -> String? {
+        let planKeys = [
+            "subscription_plan",
+            "subscriptionPlan",
+            "plan_id",
+            "planID",
+            "planId",
+            "plan_type",
+            "planType",
+            "revenuecat_offering_id",
+            "revenuecatOfferingId",
+        ]
+        for key in planKeys {
+            if let plan = codexPlanDisplayName(fromRawValue: stringValue(source[key])) {
+                return plan
+            }
+        }
+
+        if let offeringIDs = source["revenuecat_offering_ids"] as? [Any] {
+            for offeringID in offeringIDs {
+                if let plan = codexPlanDisplayName(fromRawValue: stringValue(offeringID)) {
+                    return plan
+                }
+            }
+        }
+
+        if let entitlement = source["entitlement"] as? [String: Any],
+           let plan = codexPlanDisplayName(from: entitlement) {
+            return plan
+        }
+        if let account = source["account"] as? [String: Any],
+           let plan = codexPlanDisplayName(from: account) {
+            return plan
+        }
+
+        return nil
+    }
+
+    private static func codexPlanDisplayName(fromRawValue value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: "-", with: "_")
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: "_")
+        guard !normalized.isEmpty else { return nil }
+
+        switch normalized {
+        case "chatgptpro", "chatgpt_pro", "chatgptproplan", "chatgpt_pro_plan", "chatgpt_pro_20x", "pro_20x":
+            return "Pro 20x"
+        case "chatgptprolite", "chatgpt_pro_lite", "chatgptproliteplan", "chatgpt_pro_lite_plan", "chatgpt_pro_5x", "pro_lite", "pro_5x":
+            return "Pro 5x"
+        case "chatgptplus", "chatgpt_plus", "chatgptplusplan", "chatgpt_plus_plan", "plus":
+            return "Plus"
+        case "chatgptteam", "chatgpt_team", "team":
+            return "Team"
+        case "free", "chatgptfree", "chatgpt_free":
+            return "Free"
+        case "pro":
+            return "Pro"
+        default:
+            return nil
+        }
     }
 
     private static func firstDateValue(in source: [String: Any], keys: [String]) -> Date? {
@@ -1958,6 +2508,7 @@ enum QuotaParsers {
 
 enum QuotaError: Error, LocalizedError {
     case invalidResponse
+    case schemaDrift
     case networkError(Error)
     case rateLimited(resetAt: Date?)
     case unauthorized
@@ -1974,6 +2525,8 @@ enum QuotaError: Error, LocalizedError {
         switch self {
         case .invalidResponse:
             return .localized(.quotaErrorInvalidResponse)
+        case .schemaDrift:
+            return .localized(.quotaErrorSchemaDrift)
         case .networkError(let error):
             if let networkErrorKey = Self.knownNetworkErrorKey(error) {
                 return .localized(networkErrorKey)
@@ -2035,7 +2588,7 @@ enum QuotaError: Error, LocalizedError {
             return statusCode
         case .rateLimited:
             return 429
-        case .invalidResponse, .networkError, .notSupported, .noSubscription, .cooldown:
+        case .invalidResponse, .schemaDrift, .networkError, .notSupported, .noSubscription, .cooldown:
             return nil
         }
     }
@@ -2204,7 +2757,9 @@ actor QuotaService {
         case .claudeAPIUsage, .codexAPIUsage:
             throw QuotaError.notSupported
         case .claudeSubscription:
-            return try await checkClaudeSubscriptionQuota(key: key)
+            return try await checkClaudeSubscriptionQuota(key: key, bypassCooldown: bypassCooldown)
+        case .anthropicCredits:
+            return try await checkAnthropicCreditsQuota(key: key)
         case .codexSubscription:
             return try await checkCodexSubscriptionQuota(key: key)
         case .kimiSubscription:
@@ -2214,7 +2769,7 @@ actor QuotaService {
         case .xfyunCodingPlan:
             return try await checkXFYunCodingPlanQuota(key: key)
         case .volcengineCodingPlan:
-            return try await checkVolcengineCodingPlanQuota(key: key)
+            return try await checkVolcengineCodingPlanQuota(key: key, bypassCooldown: bypassCooldown)
         case .opencodeGo:
             return try await checkOpenCodeGoQuota(key: key)
         case .aliyunCodingPlan:
@@ -2493,14 +3048,14 @@ actor QuotaService {
 
     /// Claude Subscription: claude.ai organization dashboard usage endpoint.
     /// The secret is a Claude web login Cookie header captured by reauthentication.
-    private func checkClaudeSubscriptionQuota(key: APIKey) async throws -> QuotaResult {
+    private func checkClaudeSubscriptionQuota(key: APIKey, bypassCooldown: Bool) async throws -> QuotaResult {
         let credential = DashboardCredential(key.key)
         guard !credential.cookie.isEmpty else {
             throw QuotaError.unauthorized
         }
 
-        let organizationID = try await fetchClaudeOrganizationID(cookie: credential.cookie)
-        guard let encodedOrganizationID = organizationID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+        let organizationContext = try await fetchClaudeOrganizationContext(cookie: credential.cookie)
+        guard let encodedOrganizationID = organizationContext.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
             throw QuotaError.invalidResponse
         }
 
@@ -2524,17 +3079,58 @@ actor QuotaService {
         }
 
         var result = try QuotaParsers.parseClaudeSubscriptionUsage(data)
-        if let planEndsAt = try? await fetchClaudeSubscriptionPlanEnd(
-            cookie: credential.cookie,
-            organizationID: encodedOrganizationID
-        ) {
-            result.planEndsAt = planEndsAt
+        result.planEndsAt = key.planEndsAt ?? result.planEndsAt
+        result.planDisplayName = organizationContext.planDisplayName ?? key.planDisplayName ?? result.planDisplayName
+        if shouldRefreshLowChurnAccountMetadata(for: key, bypassCooldown: bypassCooldown),
+           let lifecycle = try? await fetchClaudeSubscriptionLifecycle(
+                cookie: credential.cookie,
+                organizationID: encodedOrganizationID
+           ) {
+            result.planEndsAt = lifecycle.planEndsAt ?? result.planEndsAt
+            result.planDisplayName = lifecycle.planDisplayName ?? result.planDisplayName
         }
 
         return withHTTPStatus(result, from: httpResponse)
     }
 
-    private func fetchClaudeOrganizationID(cookie: String) async throws -> String {
+    /// Anthropic Credits: claude.ai organization dashboard prepaid credits endpoint.
+    /// The secret is a Claude web login Cookie header captured by reauthentication.
+    private func checkAnthropicCreditsQuota(key: APIKey) async throws -> QuotaResult {
+        let credential = DashboardCredential(key.key)
+        guard !credential.cookie.isEmpty else {
+            throw QuotaError.unauthorized
+        }
+
+        let organizationContext = try await fetchClaudeOrganizationContext(cookie: credential.cookie)
+        guard let encodedOrganizationID = organizationContext.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
+            throw QuotaError.invalidResponse
+        }
+
+        var request = URLRequest(url: URL(string: "https://claude.ai/api/organizations/\(encodedOrganizationID)/prepaid/credits")!)
+        request.httpMethod = "GET"
+        applyClaudeDashboardHeaders(
+            to: &request,
+            cookie: credential.cookie,
+            referer: "https://claude.ai/settings/usage"
+        )
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        var result = try QuotaParsers.parseAnthropicPrepaidCredits(data)
+        result.planDisplayName = organizationContext.planDisplayName ?? key.planDisplayName ?? result.planDisplayName
+        return withHTTPStatus(result, from: httpResponse)
+    }
+
+    private func fetchClaudeOrganizationContext(cookie: String) async throws -> ClaudeOrganizationContext {
         var request = URLRequest(url: URL(string: "https://claude.ai/api/organizations")!)
         request.httpMethod = "GET"
         applyClaudeDashboardHeaders(
@@ -2554,10 +3150,10 @@ actor QuotaService {
             throw QuotaError.invalidResponse
         }
 
-        return try QuotaParsers.parseClaudeOrganizationID(data)
+        return try QuotaParsers.parseClaudeOrganizationContext(data)
     }
 
-    private func fetchClaudeSubscriptionPlanEnd(cookie: String, organizationID: String) async throws -> Date? {
+    private func fetchClaudeSubscriptionLifecycle(cookie: String, organizationID: String) async throws -> SubscriptionLifecycleInfo {
         var request = URLRequest(url: URL(string: "https://claude.ai/api/organizations/\(organizationID)/subscription_details")!)
         request.httpMethod = "GET"
         applyClaudeDashboardHeaders(
@@ -2765,7 +3361,7 @@ actor QuotaService {
 
     /// 火山引擎 Coding Plan: console session endpoint.
     /// The secret can be a raw Cookie header, or JSON with cookie/csrfToken/projectName/xWebId.
-    private func checkVolcengineCodingPlanQuota(key: APIKey) async throws -> QuotaResult {
+    private func checkVolcengineCodingPlanQuota(key: APIKey, bypassCooldown: Bool) async throws -> QuotaResult {
         let credential = DashboardCredential(key.key)
         guard !credential.cookie.isEmpty else {
             throw QuotaError.unauthorized
@@ -2774,19 +3370,7 @@ actor QuotaService {
         let projectName = credential.value(for: ["projectName", "project"]) ?? "default"
         var request = URLRequest(url: URL(string: "https://console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/GetCodingPlanUsage?")!)
         request.httpMethod = "POST"
-        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(credential.cookie, forHTTPHeaderField: "Cookie")
-        request.setValue("https://console.volcengine.com", forHTTPHeaderField: "Origin")
-        request.setValue("https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=subscribe&projectName=\(projectName)", forHTTPHeaderField: "Referer")
-
-        if let csrfToken = credential.value(for: ["csrfToken", "csrf", "xCsrfToken"]) ?? credential.cookieValue(named: "csrfToken") {
-            request.setValue(csrfToken, forHTTPHeaderField: "x-csrf-token")
-        }
-        if let webID = credential.value(for: ["xWebId", "x-web-id", "webId"]) {
-            request.setValue(webID, forHTTPHeaderField: "x-web-id")
-        }
-
+        applyVolcengineDashboardHeaders(to: &request, credential: credential, projectName: projectName)
         request.httpBody = try JSONSerialization.data(withJSONObject: ["ProjectName": projectName])
 
         let (data, response) = try await session.data(for: request)
@@ -2801,10 +3385,80 @@ actor QuotaService {
             throw QuotaError.invalidResponse
         }
 
-        return try withHTTPStatus(
-            QuotaParsers.parseVolcengineCodingPlanUsage(data),
-            from: httpResponse
+        var result = try QuotaParsers.parseVolcengineCodingPlanUsage(data)
+        result.planEndsAt = key.planEndsAt ?? result.planEndsAt
+        result.planDisplayName = key.planDisplayName ?? result.planDisplayName
+        if shouldRefreshLowChurnAccountMetadata(for: key, bypassCooldown: bypassCooldown),
+           let lifecycle = try? await fetchVolcengineCodingPlanSubscription(
+                credential: credential,
+                projectName: projectName
+           ) {
+            result.planEndsAt = lifecycle.planEndsAt ?? result.planEndsAt
+            result.planDisplayName = lifecycle.planDisplayName ?? result.planDisplayName
+        }
+
+        return withHTTPStatus(result, from: httpResponse)
+    }
+
+    private func fetchVolcengineCodingPlanSubscription(
+        credential: DashboardCredential,
+        projectName: String
+    ) async throws -> SubscriptionLifecycleInfo {
+        var request = URLRequest(url: URL(string: "https://console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/ListSubscribeTrade?")!)
+        request.httpMethod = "POST"
+        applyVolcengineDashboardHeaders(to: &request, credential: credential, projectName: projectName)
+        request.httpBody = try JSONSerialization.data(
+            withJSONObject: [
+                "ResourceTypes": ["CodingPlan"],
+                "ResourceNames": [""],
+                "BizInfos": ["lite", "pro"],
+            ]
         )
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        return try QuotaParsers.parseVolcengineCodingPlanSubscription(data)
+    }
+
+    private func applyVolcengineDashboardHeaders(
+        to request: inout URLRequest,
+        credential: DashboardCredential,
+        projectName: String
+    ) {
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(credential.cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://console.volcengine.com", forHTTPHeaderField: "Origin")
+        request.setValue("https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=subscribe&projectName=\(projectName)", forHTTPHeaderField: "Referer")
+
+        if let csrfToken = credential.value(for: ["csrfToken", "csrf", "xCsrfToken"]) ?? credential.cookieValue(named: "csrfToken") {
+            request.setValue(csrfToken, forHTTPHeaderField: "x-csrf-token")
+        }
+        if let webID = credential.value(for: ["xWebId", "x-web-id", "webId"]) {
+            request.setValue(webID, forHTTPHeaderField: "x-web-id")
+        }
+    }
+
+    private func shouldRefreshLowChurnAccountMetadata(for key: APIKey, bypassCooldown: Bool) -> Bool {
+        if bypassCooldown {
+            return true
+        }
+        if key.planDisplayName == nil && key.planEndsAt == nil {
+            return true
+        }
+        guard let lastUpdated = key.lastUpdated else {
+            return true
+        }
+        return !Calendar.current.isDate(lastUpdated, inSameDayAs: Date())
     }
 
     /// OpenCode Go: dashboard server function endpoint.
@@ -2981,6 +3635,9 @@ actor QuotaService {
         request.setValue("same-origin", forHTTPHeaderField: "sec-fetch-site")
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
         request.setValue("Bearer \(sessionContext.accessToken)", forHTTPHeaderField: "Authorization")
+        if let accountID = sessionContext.accountID {
+            request.setValue(accountID, forHTTPHeaderField: "chatgpt-account-id")
+        }
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -2995,15 +3652,67 @@ actor QuotaService {
 
         var result = try QuotaParsers.parseCodexWhamUsage(data)
         if let accountID = sessionContext.accountID,
-           let planEndsAt = try? await fetchCodexSubscriptionPlanEnd(
+           let lifecycle = try? await fetchCodexSubscriptionLifecycle(
                 cookie: credential.cookie,
                 accessToken: sessionContext.accessToken,
                 accountID: accountID
            ) {
-            result.planEndsAt = planEndsAt
+            result.planEndsAt = lifecycle.planEndsAt
+            result.planDisplayName = lifecycle.planDisplayName ?? result.planDisplayName
         }
 
         return withHTTPStatus(result, from: httpResponse)
+    }
+
+    func resetCodexSubscriptionQuota(key: APIKey) async throws -> QuotaResult {
+        guard key.provider == .codexSubscription else {
+            throw QuotaError.notSupported
+        }
+        let credential = DashboardCredential(key.key)
+        guard !credential.cookie.isEmpty else {
+            throw QuotaError.unauthorized
+        }
+        let sessionContext = try await fetchChatGPTSessionContext(cookie: credential.cookie)
+        guard let accountID = sessionContext.accountID, !accountID.isEmpty else {
+            throw QuotaError.invalidResponse
+        }
+
+        var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("zh-CN,zh;q=0.9", forHTTPHeaderField: "Accept-Language")
+        request.setValue("zh-CN", forHTTPHeaderField: "oai-language")
+        request.setValue("codex_cli_rs", forHTTPHeaderField: "originator")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        request.setValue(credential.cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://chatgpt.com/codex", forHTTPHeaderField: "Referer")
+        request.setValue("\"Chromium\";v=\"148\", \"Google Chrome\";v=\"148\", \"Not/A)Brand\";v=\"99\"", forHTTPHeaderField: "sec-ch-ua")
+        request.setValue("?0", forHTTPHeaderField: "sec-ch-ua-mobile")
+        request.setValue("\"macOS\"", forHTTPHeaderField: "sec-ch-ua-platform")
+        request.setValue("empty", forHTTPHeaderField: "sec-fetch-dest")
+        request.setValue("cors", forHTTPHeaderField: "sec-fetch-mode")
+        request.setValue("same-origin", forHTTPHeaderField: "sec-fetch-site")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue("Bearer \(sessionContext.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(accountID, forHTTPHeaderField: "chatgpt-account-id")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "redeem_request_id": UUID().uuidString.lowercased()
+        ])
+
+        let (_, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            throw QuotaError.invalidResponse
+        }
+
+        return try await checkCodexSubscriptionQuota(key: key)
     }
 
     private func fetchChatGPTSessionContext(cookie: String) async throws -> ChatGPTSessionContext {
@@ -3040,11 +3749,11 @@ actor QuotaService {
         )
     }
 
-    private func fetchCodexSubscriptionPlanEnd(
+    private func fetchCodexSubscriptionLifecycle(
         cookie: String,
         accessToken: String,
         accountID: String
-    ) async throws -> Date? {
+    ) async throws -> SubscriptionLifecycleInfo {
         guard let encodedAccountID = accountID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
             throw QuotaError.invalidResponse
         }
@@ -3064,6 +3773,54 @@ actor QuotaService {
         request.setValue("same-origin", forHTTPHeaderField: "sec-fetch-site")
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+        let lifecycle = try QuotaParsers.parseCodexSubscriptionLifecycle(data)
+
+        guard let accountCheckLifecycle = try? await fetchCodexAccountsCheckLifecycle(
+            cookie: cookie,
+            accessToken: accessToken,
+            accountID: accountID
+        ) else {
+            return lifecycle
+        }
+        return SubscriptionLifecycleInfo(
+            planEndsAt: accountCheckLifecycle.planEndsAt ?? lifecycle.planEndsAt,
+            planDisplayName: accountCheckLifecycle.planDisplayName ?? lifecycle.planDisplayName
+        )
+    }
+
+    private func fetchCodexAccountsCheckLifecycle(
+        cookie: String,
+        accessToken: String,
+        accountID: String
+    ) async throws -> SubscriptionLifecycleInfo {
+        var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/accounts/check/v4-2023-04-27")!)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("zh-CN,zh;q=0.9", forHTTPHeaderField: "Accept-Language")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        request.setValue(cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://chatgpt.com/codex", forHTTPHeaderField: "Referer")
+        request.setValue("\"Chromium\";v=\"148\", \"Google Chrome\";v=\"148\", \"Not/A)Brand\";v=\"99\"", forHTTPHeaderField: "sec-ch-ua")
+        request.setValue("?0", forHTTPHeaderField: "sec-ch-ua-mobile")
+        request.setValue("\"macOS\"", forHTTPHeaderField: "sec-ch-ua-platform")
+        request.setValue("empty", forHTTPHeaderField: "sec-fetch-dest")
+        request.setValue("cors", forHTTPHeaderField: "sec-fetch-mode")
+        request.setValue("same-origin", forHTTPHeaderField: "sec-fetch-site")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(accountID, forHTTPHeaderField: "chatgpt-account-id")
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {

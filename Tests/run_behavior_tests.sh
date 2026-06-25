@@ -41,6 +41,15 @@ assert_no_match 'for var key in apiKeys where key\.isActive' \
 assert_no_match '\$\(' \
   "QuotaRadar/Info.plist" \
   "Info.plist in the source bundle must contain concrete app bundle values"
+assert_match '^quotaradar-\*\.png$' \
+  ".gitignore" \
+  "Root-level ad-hoc QuotaRadar screenshot captures should stay out of the release surface"
+assert_match '^task\*\.png$' \
+  ".gitignore" \
+  "Root-level temporary task screenshots should stay out of the release surface"
+assert_match '^tauri-\*\.png$' \
+  ".gitignore" \
+  "Root-level parity screenshots should stay out of the release surface"
 assert_match 'CFBundleIconFile' \
   "QuotaRadar/Info.plist" \
   "Info.plist must declare the app icon file"
@@ -50,9 +59,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.3\.3' \
+assert_match '0\.3\.9' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.3.3 should be recorded in Info.plist"
+  "Quota Radar 0.3.9 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -80,6 +89,36 @@ assert_match 'drawStatusIconInnerScreen' \
 assert_no_match '控制台会话 Cookie|控制台會話 Cookie|dashboard session cookies|dashboard-session Cookie|ダッシュボードセッション Cookie|대시보드 세션 Cookie' \
   "QuotaRadar/Models/AppLanguage.swift" \
   "User-facing credential copy should avoid gray dashboard-session Cookie wording"
+assert_match 'QUOTARADAR_LIVE_ACCEPTANCE=1' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should require an explicit environment opt-in before hitting provider endpoints"
+assert_match '--live' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should require a visible --live flag before hitting provider endpoints"
+assert_match 'live-acceptance-src' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should compile from a temporary source tree so the app target does not need to become a library"
+assert_match 'QuotaRadarApp.swift' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should exclude the SwiftUI @main app entry from its temporary CLI target"
+assert_match 'No secrets, cookies, tokens, or raw provider responses are printed' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should document its no-secret output boundary"
+assert_match 'LiveAcceptanceRow' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance should use a structured sanitized row model"
+assert_match 'Provider.visibleCases.filter \{ \$0.supportsDashboardReauthentication \}' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance should cover every visible dashboard-login provider"
+assert_match 'store.loadSecrets' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance should hydrate local secrets only inside the acceptance runner"
+assert_match 'com\.gaorongvc\.quotaradar' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance should read the app UserDefaults domain instead of the temporary CLI domain"
+assert_no_match 'print\(.*key|print\(.*cookie|print\(.*token|print\(.*secret' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance output must not print raw keys, cookies, tokens, or secrets"
 for icon_name in aliyun tencentCloud volcengine xfyun; do
   test -s "QuotaRadar/Assets.xcassets/ProviderIcons/${icon_name}.iconset/icon_32x32@2x.png" \
     || fail "shared official provider icon asset is missing: ${icon_name}"
@@ -90,6 +129,7 @@ for icon_name in claude codex kimi; do
 done
 python3 - <<'PY'
 from pathlib import Path
+import re
 import sys
 
 source = Path("QuotaRadar/Models/APIKey.swift").read_text()
@@ -115,30 +155,40 @@ assert_match 'case \.codexAPIUsage, \.codexSubscription: return Color\(hex: "111
 [[ -s docs/assets/screenshots/zh-Hans/menu-bar-popover.png ]] || fail "Chinese README menu bar popover screenshot asset should exist"
 [[ -s docs/assets/screenshots/en/quota-overview.png ]] || fail "English README quota overview screenshot asset should exist"
 [[ -s docs/assets/screenshots/en/menu-bar-popover.png ]] || fail "English README menu bar popover screenshot asset should exist"
-assert_match 'docs/assets/screenshots/zh-Hans/quota-overview\.png' \
+assert_match 'docs/assets/screenshots/en/quota-overview\.png' \
   "README.md" \
+  "Default README should show the English quota overview screenshot"
+assert_match 'docs/assets/screenshots/en/menu-bar-popover\.png' \
+  "README.md" \
+  "Default README should show the English menu bar popover screenshot"
+assert_match 'captured from the running app, with credentials masked by Quota Radar' \
+  "README.md" \
+  "Default README should clarify that public screenshots use masked real app captures"
+assert_no_match 'docs/assets/screenshots/zh-Hans/' \
+  "README.md" \
+  "Default README should not link to Simplified Chinese screenshots"
+assert_match 'docs/assets/screenshots/zh-Hans/quota-overview\.png' \
+  "README.zh-Hans.md" \
   "Chinese README should show the Simplified Chinese quota overview screenshot"
 assert_match 'docs/assets/screenshots/zh-Hans/menu-bar-popover\.png' \
-  "README.md" \
+  "README.zh-Hans.md" \
   "Chinese README should show the Simplified Chinese menu bar popover screenshot"
 assert_match '真实运行画面，密钥由应用自动打码' \
-  "README.md" \
+  "README.zh-Hans.md" \
   "Chinese README should clarify that public screenshots use masked real app captures"
 assert_no_match 'docs/assets/screenshots/en/' \
-  "README.md" \
+  "README.zh-Hans.md" \
   "Chinese README should not link to English screenshots"
-assert_match 'docs/assets/screenshots/en/quota-overview\.png' \
-  "README.en.md" \
-  "English README should show the English quota overview screenshot"
-assert_match 'docs/assets/screenshots/en/menu-bar-popover\.png' \
-  "README.en.md" \
-  "English README should show the English menu bar popover screenshot"
-assert_match 'captured from the running app, with credentials masked by Quota Radar' \
-  "README.en.md" \
-  "English README should clarify that public screenshots use masked real app captures"
-assert_no_match 'docs/assets/screenshots/zh-Hans/' \
-  "README.en.md" \
-  "English README should not link to Simplified Chinese screenshots"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+for path, limit in [("README.md", 140), ("README.zh-Hans.md", 140)]:
+    line_count = len(Path(path).read_text().splitlines())
+    if line_count > limit:
+        print(f"FAIL: {path} should stay as a concise project entry ({line_count} lines > {limit})", file=sys.stderr)
+        sys.exit(1)
+PY
 assert_match 'setActivationPolicy\(\.regular\)' \
   "QuotaRadar/AppDelegate.swift" \
   "QuotaRadar should explicitly use a regular activation policy so it appears in Dock"
@@ -241,6 +291,155 @@ assert_match 'struct ProviderCapability' \
 assert_match 'enum CredentialKind' \
   "QuotaRadar/Models/APIKey.swift" \
   "Provider capability metadata should distinguish credential types"
+assert_match 'enum QuotaActionKind' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should centralize quota action semantics"
+assert_match 'let supportsQuota: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should explicitly state whether quota is observable"
+assert_match 'let supportsBalance: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should explicitly state whether balance is observable"
+assert_match 'let supportsPlan: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should explicitly state whether plan metadata is observable"
+assert_match 'let supportsActivity: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should explicitly state whether recent activity can be inferred"
+assert_match 'let supportsReset: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should explicitly state whether reset timing is observable"
+assert_match 'let connectionTestKind: QuotaActionKind' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should distinguish no-cost connection tests from quota refresh"
+assert_match 'let quotaRefreshKind: QuotaActionKind' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should distinguish normal quota refresh from costly checks"
+assert_match 'let allowsAutomaticRefresh: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should be the source of automatic refresh eligibility"
+assert_match 'let requiresCostlyConfirmation: Bool' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider capability metadata should mark providers that need costly-check confirmation"
+assert_match 'enum ProviderCalibrationStatus' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider calibration status should be modeled next to provider capabilities"
+assert_match 'struct ProviderTrustCalibration' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider trust calibration should have a typed model instead of living only in docs"
+assert_match 'var trustCalibration: ProviderTrustCalibration' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Each provider should expose trust calibration metadata from the same source as capability semantics"
+test -s "docs/provider-calibration.md" || fail "English provider calibration backlog should exist"
+test -s "docs/provider-calibration.zh-Hans.md" || fail "Chinese provider calibration backlog should exist"
+assert_match 'Observed Before Fixture' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should require real observed fields before adding parser fixtures"
+assert_match 'Long-Tail Calibration Queue' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should track long-tail provider packages separately from the main provider matrix"
+assert_match 'Claude Subscription OAuth usage/limits' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should include the Claude OAuth usage follow-up"
+assert_match 'OpenAI prepaid credits' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should keep prepaid credits separate from Codex subscription quota"
+assert_match '先观察再加 fixture' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese provider calibration backlog should require observed fields before parser fixtures"
+assert_match '长尾校准队列' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese provider calibration backlog should track long-tail provider packages separately from the main provider matrix"
+assert_match 'calibrationStatus' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance output should include sanitized provider calibration status"
+assert_match 'lastVerifiedAt' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance output should include sanitized last-verified timestamps"
+assert_match 'calibrationEvidence' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance output should include sanitized calibration evidence summaries"
+assert_match 'fallbackBehavior' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance output should include sanitized fallback behavior for schema drift"
+assert_match 'mktemp -d "\$\{ROOT_DIR\}/build/live-acceptance-src' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should use a per-run temporary source directory so concurrent QA commands do not race"
+assert_match 'trap cleanup EXIT' \
+  "scripts/live_acceptance.sh" \
+  "Live acceptance should clean up its per-run temporary source directory"
+assert_match 'QuotaMonitor\.refreshCandidateKeys' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance should reuse quota monitor refresh candidates so providers with shared dashboard authorization are accepted"
+assert_match 'targetProviders: Set\(\[provider\]\)' \
+  "scripts/live_acceptance_main.swift" \
+  "Live acceptance should derive shared dashboard authorization candidates per provider"
+assert_match '2026-06-23 13:06 CST' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider trust calibration metadata should record the latest redacted live acceptance timestamp"
+assert_match '2026-06-23 13:06 CST' \
+  "docs/providers.md" \
+  "English provider docs should record the latest redacted live acceptance timestamp"
+assert_match '2026-06-23 13:06 CST' \
+  "docs/providers.zh-Hans.md" \
+  "Chinese provider docs should record the latest redacted live acceptance timestamp"
+assert_match 'Live acceptance snapshot: 2026-06-23 13:06 CST' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should retain the latest sanitized live acceptance snapshot summary"
+assert_match 'Aliyun Coding Plan.*Missing saved account' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should distinguish missing saved accounts from failed calibration"
+assert_match 'Tencent Cloud Coding Plan.*Missing saved account' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should distinguish missing Tencent saved accounts from failed calibration"
+assert_match 'OpenAI prepaid credits.*Docs reviewed 2026-06-23' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should record the OpenAI prepaid docs-only observation"
+assert_match 'GET/organization/costs' \
+  "docs/provider-calibration.md" \
+  "OpenAI prepaid calibration should distinguish organization costs from prepaid balance"
+assert_match 'No public prepaid credit balance API confirmed' \
+  "docs/provider-calibration.md" \
+  "OpenAI prepaid calibration should not claim an endpoint before it is observed"
+assert_match 'Claude Subscription OAuth usage/limits.*Docs reviewed 2026-06-23' \
+  "docs/provider-calibration.md" \
+  "Claude OAuth calibration should record docs-only observation separately from live endpoint proof"
+assert_match 'org:admin' \
+  "docs/provider-calibration.md" \
+  "Claude OAuth calibration should distinguish admin API tokens from personal subscription OAuth"
+assert_match 'Kimi WebBridge.*live browser observation' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should record that browser-level Claude observation ran"
+assert_match 'Claude web usage/prepaid credits.*Live browser observation 2026-06-23' \
+  "docs/provider-calibration.md" \
+  "Provider calibration backlog should record the Claude prepaid browser observation"
+assert_match 'prepaid/credits' \
+  "docs/provider-calibration.md" \
+  "Claude prepaid calibration should record the observed web endpoint without account identifiers"
+assert_match 'OpenAI Platform login missing' \
+  "docs/provider-calibration.md" \
+  "OpenAI prepaid calibration should record why live browser observation could not verify a prepaid endpoint"
+assert_match 'OpenAI prepaid credits.*文档观察 2026-06-23' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese provider calibration backlog should record the OpenAI prepaid docs-only observation"
+assert_match '未确认公开 prepaid credit balance API' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese OpenAI prepaid calibration should not claim an endpoint before it is observed"
+assert_match 'Claude Subscription OAuth usage/limits.*文档观察 2026-06-23' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese Claude OAuth calibration should record docs-only observation separately from live endpoint proof"
+assert_match 'Claude web usage/prepaid credits.*浏览器实测 2026-06-23' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese provider calibration backlog should record the Claude prepaid browser observation"
+assert_match 'prepaid/credits' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese Claude prepaid calibration should record the observed web endpoint without account identifiers"
+assert_match 'live acceptance 快照：2026-06-23 13:06 CST' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese provider calibration backlog should retain the latest sanitized live acceptance snapshot summary"
+assert_match 'Aliyun Coding Plan.*缺少已保存账号' \
+  "docs/provider-calibration.zh-Hans.md" \
+  "Chinese provider calibration backlog should distinguish missing saved accounts from failed calibration"
 assert_match 'var capability: ProviderCapability' \
   "QuotaRadar/Models/APIKey.swift" \
   "Each provider should expose capability metadata"
@@ -259,38 +458,62 @@ assert_match 'struct CurlCredentialParser' \
 assert_match 'static func parse\(' \
   "QuotaRadar/Services/CurlCredentialParser.swift" \
   "cURL credential parser should expose a parse entry point"
-assert_match 'provider-capabilities\.md' \
+assert_match 'docs/providers\.md' \
   "README.md" \
-  "Chinese README should link provider capability matrix"
-assert_match 'provider-capabilities\.en\.md' \
-  "README.en.md" \
-  "English README should link provider capability matrix"
+  "Default README should link provider documentation"
+assert_match 'docs/providers\.zh-Hans\.md' \
+  "README.zh-Hans.md" \
+  "Chinese README should link provider documentation"
+assert_match 'Last Verified' \
+  "docs/providers.md" \
+  "Provider docs should show when each calibration status was last verified"
+assert_match 'Fallback Behavior' \
+  "docs/providers.md" \
+  "Provider docs should document fallback behavior when quota fields drift"
+assert_match '最近验证' \
+  "docs/providers.zh-Hans.md" \
+  "Chinese provider docs should show when each calibration status was last verified"
+assert_match '降级口径' \
+  "docs/providers.zh-Hans.md" \
+  "Chinese provider docs should document fallback behavior when quota fields drift"
 assert_match '已验证接入: .*腾讯云 coding plan' \
-  "TODO.md" \
+  "docs/roadmap.zh-Hans.md" \
   "Chinese roadmap should classify Tencent Cloud Coding Plan as a verified integration"
 assert_match 'Verified integrations: .*Tencent Cloud Coding Plan' \
-  "TODO.en.md" \
+  "docs/roadmap.md" \
   "English roadmap should classify Tencent Cloud Coding Plan as a verified integration"
 assert_match '阿里云 coding plan' \
-  "docs/provider-capabilities.md" \
+  "docs/providers.zh-Hans.md" \
   "Chinese provider capability matrix should document Aliyun Coding Plan with localized provider copy"
 assert_match 'Tencent Cloud Token Plan' \
-  "docs/provider-capabilities.en.md" \
+  "docs/providers.md" \
   "English provider capability matrix should document Tencent Cloud Token Plan"
 assert_match 'Coding plan 计量口径' \
-  "docs/provider-capabilities.md" \
+  "docs/providers.zh-Hans.md" \
   "Chinese provider capability matrix should document how Coding Plan quotas are measured"
 assert_match 'Token plan 计量口径' \
-  "docs/provider-capabilities.md" \
+  "docs/providers.zh-Hans.md" \
   "Chinese provider capability matrix should document how Token Plan quotas are measured"
 assert_match 'Token Plan Measurement' \
-  "docs/provider-capabilities.en.md" \
+  "docs/providers.md" \
   "English provider capability matrix should document Token Plan measurement semantics"
+assert_match 'Usage-only fields are parser evidence; the main UI still shows "Usable · quota unknown" until a remaining value or plan limit is exposed\.' \
+  "docs/providers.md" \
+  "English provider docs should separate raw usage-only evidence from remaining-first UI semantics"
+assert_match 'usage-only 原始字段只作为解析证据；主界面仍显示“可用 · 额度未知”，直到接口暴露剩余额度或套餐上限。' \
+  "docs/providers.zh-Hans.md" \
+  "Chinese provider docs should separate raw usage-only evidence from remaining-first UI semantics"
+assert_no_match 'Quota Radar 会显示该 key 在指定周期内的已用成本|可读月度已用量' \
+  "README.zh-Hans.md" \
+  "Chinese README should not describe usage-only provider evidence as the main quota display"
+assert_no_match '有管理凭据时可查已用成本|已用量可查，上限未知' \
+  "docs/providers.zh-Hans.md" \
+  "Chinese provider matrix should not make usage-only fields look like a quota display mode"
 assert_match '腾讯云 Token plan.*token' \
-  "docs/provider-capabilities.md" \
+  "docs/providers.zh-Hans.md" \
   "Chinese provider capability matrix should state the current Tencent Cloud Token Plan unit"
 assert_match '阿里云 Token plan.*积分' \
-  "docs/provider-capabilities.md" \
+  "docs/providers.zh-Hans.md" \
   "Chinese provider capability matrix should state the expected Aliyun Token Plan unit"
 assert_no_match '\["LLM", "AI Search"\]' \
   "QuotaRadar/Views/SettingsView.swift" \
@@ -304,30 +527,30 @@ assert_no_match 'Text\(.*(stat\.)?provider\.rawValue|Label\(.*rawValue|provider\
 assert_match 'return \.claudeAPIUsage' \
   "QuotaRadar/Services/EnvImporter.swift" \
   "Claude API usage keys should be imported as a supported provider"
-assert_match '\| Claude \|' \
+assert_match 'Claude Subscription' \
   "README.md" \
-  "Chinese README should list Claude as a currently supported provider"
+  "Default README should list Claude as a currently supported provider"
 assert_match '\| Claude \|' \
-  "README.en.md" \
-  "English README should list Claude as a currently supported provider"
-assert_match '未签名 DMG' \
+  "README.zh-Hans.md" \
+  "Chinese README should list Claude as a currently supported provider"
+assert_match 'unsigned DMG' \
   "README.md" \
   "README should clearly label the no-fee GitHub Release path as an unsigned DMG"
 assert_match "xattr -dr com\\.apple\\.quarantine '/Applications/Quota Radar\\.app'" \
   "README.md" \
   "README should document how trusted users can remove Gatekeeper quarantine from an unsigned app"
-assert_match 'unsigned DMG' \
-  "README.en.md" \
-  "English README should clearly label the no-fee GitHub Release path as an unsigned DMG"
+assert_match '未签名 DMG' \
+  "README.zh-Hans.md" \
+  "Chinese README should clearly label the no-fee GitHub Release path as an unsigned DMG"
 assert_match "xattr -dr com\\.apple\\.quarantine '/Applications/Quota Radar\\.app'" \
-  "README.en.md" \
-  "English README should document how trusted users can remove Gatekeeper quarantine from an unsigned app"
+  "README.zh-Hans.md" \
+  "Chinese README should document how trusted users can remove Gatekeeper quarantine from an unsigned app"
 assert_match 'gh release create' \
   "README.md" \
   "README should document manual GitHub Release upload for unsigned DMGs"
 assert_match 'gh release create' \
-  "README.en.md" \
-  "English README should document manual GitHub Release upload for unsigned DMGs"
+  "README.zh-Hans.md" \
+  "Chinese README should document manual GitHub Release upload for unsigned DMGs"
 assert_match 'on:' \
   ".github/workflows/release.yml" \
   "Repository should include a GitHub Release workflow"
@@ -343,6 +566,15 @@ assert_match 'softprops/action-gh-release' \
 assert_match 'final class GitHubReleaseUpdater' \
   "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
   "QuotaRadar should include a GitHub Release updater service"
+assert_match '#if QUOTARADAR_DISABLE_GITHUB_UPDATER' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater should compile to a no-op implementation for white-label builds"
+assert_match 'static let isUpdateCheckingAvailable = false' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "White-label updater should tell the UI update checks are unavailable"
+assert_match '#else' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater should keep the normal GitHub Release implementation outside the white-label branch"
 assert_match 'https://api\.github\.com/repos/Asklear/QuotaRadar/releases/latest' \
   "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
   "Updater should check the Asklear/QuotaRadar latest GitHub Release endpoint"
@@ -355,6 +587,68 @@ assert_match 'releases/download' \
 assert_match 'QuotaRadar\.dmg' \
   "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
   "Updater should select the published QuotaRadar.dmg release asset"
+test -s "docs/release-qa.md" || fail "English release QA checklist should exist"
+test -s "docs/release-qa.zh-Hans.md" || fail "Chinese release QA checklist should exist"
+assert_match 'Standard Updater Build' \
+  "docs/release-qa.md" \
+  "Release QA should split the standard updater build into its own checklist"
+assert_match 'White-Label No-Updater Build' \
+  "docs/release-qa.md" \
+  "Release QA should split the white-label no-updater build into its own checklist"
+assert_match 'build/QuotaRadar\.dmg' \
+  "docs/release-qa.md" \
+  "Standard release QA should verify the standard DMG artifact"
+assert_match 'build/QuotaRadar-WhiteLabel\.dmg' \
+  "docs/release-qa.md" \
+  "White-label release QA should verify the white-label DMG artifact"
+assert_match 'https://api\.github\.com/repos/Asklear/QuotaRadar/releases/latest' \
+  "docs/release-qa.md" \
+  "Standard release QA should explicitly scan for the expected GitHub Release API URL"
+assert_match 'https://github\.com/Asklear/QuotaRadar/releases/latest' \
+  "docs/release-qa.md" \
+  "Standard release QA should explicitly scan for the expected GitHub latest-release fallback URL"
+assert_match 'QUOTARADAR_DISABLE_GITHUB_UPDATER' \
+  "docs/release-qa.md" \
+  "White-label release QA should verify the updater compile flag boundary"
+assert_match 'strings .*QuotaRadar-WhiteLabel\.dmg' \
+  "docs/release-qa.md" \
+  "White-label release QA should include a DMG string scan for leaked updater URLs"
+assert_match 'secret|cookie|token|authorization' \
+  "docs/release-qa.md" \
+  "Release QA should include explicit secret scanning terms"
+assert_match 'Tests/run_visual_qa\.sh' \
+  "docs/release-qa.md" \
+  "Release QA should include visual screenshot QA"
+assert_match 'codesign --verify' \
+  "docs/release-qa.md" \
+  "Release QA should verify app code signatures"
+assert_match 'hdiutil verify' \
+  "docs/release-qa.md" \
+  "Release QA should verify DMG integrity"
+assert_match '标准 Updater 构建' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese release QA should split the standard updater build into its own checklist"
+assert_match '白牌 No-Updater 构建' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese release QA should split the white-label no-updater build into its own checklist"
+assert_match 'build/QuotaRadar\.dmg' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese standard release QA should verify the standard DMG artifact"
+assert_match 'build/QuotaRadar-WhiteLabel\.dmg' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese white-label release QA should verify the white-label DMG artifact"
+assert_match 'GitHub Release URL 扫描' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese release QA should explicitly name the GitHub Release URL scan"
+assert_match 'secret|cookie|token|authorization' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese release QA should include explicit secret scanning terms"
+assert_match 'Tests/run_visual_qa\.sh' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese release QA should include visual screenshot QA"
+assert_match 'hdiutil verify' \
+  "docs/release-qa.zh-Hans.md" \
+  "Chinese release QA should verify DMG integrity"
 assert_match 'releaseNotes' \
   "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
   "Updater should preserve GitHub release notes for the update prompt"
@@ -376,6 +670,9 @@ assert_match 'open -a' \
 assert_match 'checkForUpdatesIfNeededOnLaunch' \
   "QuotaRadar/AppDelegate.swift" \
   "QuotaRadar should automatically check GitHub Releases after launch"
+assert_match 'GitHubReleaseUpdater\.isUpdateCheckingAvailable' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Launch update checks should be gated by updater availability for white-label builds"
 assert_match 'Check for Updates' \
   "QuotaRadar/Models/AppLanguage.swift" \
   "Updater controls should have English localization"
@@ -388,6 +685,51 @@ assert_match 'L10n\.t\(\.checkForUpdates\)' \
 assert_match 'SidebarUpdateFooter' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings sidebar should keep version and update status in the lower-left footer"
+assert_match 'if GitHubReleaseUpdater\.isUpdateCheckingAvailable' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should hide update-check controls for white-label builds"
+assert_match '-DQUOTARADAR_DISABLE_GITHUB_UPDATER' \
+  "install.sh" \
+  "White-label install builds should pass the Swift flag that removes GitHub updater URLs"
+assert_match '--white-label' \
+  "install.sh" \
+  "install.sh should expose a white-label build option"
+assert_match '--white-label' \
+  "scripts/package_dmg.sh" \
+  "DMG packaging should expose a white-label build option"
+assert_match 'QuotaRadar-WhiteLabel\.dmg' \
+  "scripts/package_dmg.sh" \
+  "White-label packaging should write a separate DMG name"
+assert_match 'case sidebarStatistics' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Settings sidebar metrics should have a dedicated Statistics label instead of reusing the product name"
+assert_match 'Text\(L10n\.t\(\.sidebarStatistics\)\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings sidebar metrics should be headed by Statistics, not Quota Radar"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
+try:
+    sidebar = source.split("struct SettingsSidebarView: View", 1)[1].split("struct SidebarUpdateFooter: View", 1)[0]
+except IndexError:
+    print("FAIL: SettingsSidebarView should exist before sidebar footer", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    metrics = sidebar.split("VStack(alignment: .leading, spacing: 10)", 1)[1].split("Spacer()", 1)[0]
+except IndexError:
+    print("FAIL: Settings sidebar metrics block should exist above the sidebar footer", file=sys.stderr)
+    sys.exit(1)
+
+if "L10n.t(.apiQuotaTitle)" in metrics:
+    print("FAIL: Settings sidebar metrics should not repeat the Quota Radar product title", file=sys.stderr)
+    sys.exit(1)
+if "L10n.t(.sidebarStatistics)" not in metrics:
+    print("FAIL: Settings sidebar metrics should use the localized Statistics heading", file=sys.stderr)
+    sys.exit(1)
+PY
 assert_match 'Text\(L10n\.t\(\.version\)\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings sidebar footer should show the installed app version"
@@ -507,6 +849,7 @@ assert_match 'CredentialDiagnosticRow' \
   "Diagnostics should render credential-level rows"
 python3 - <<'PY'
 from pathlib import Path
+import re
 import sys
 
 source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
@@ -523,6 +866,19 @@ if "monitor.orderedVisibleProviders.compactMap" not in diagnostics:
 if "credentialDiagnosticItems.isEmpty" not in diagnostics:
     print("FAIL: Diagnostics should hide providers that do not have any diagnostic credential group configured", file=sys.stderr)
     sys.exit(1)
+if "diagnosticCategories" not in diagnostics or "Provider.categoryDisplayOrder.compactMap" not in diagnostics:
+    print("FAIL: Diagnostics should group providers by shared AI Search / LLM category order", file=sys.stderr)
+    sys.exit(1)
+if "CredentialDiagnosticCategorySection" not in diagnostics:
+    print("FAIL: Diagnostics should render collapsible AI Search / LLM category sections", file=sys.stderr)
+    sys.exit(1)
+if "struct CredentialDiagnosticCategorySection: View" not in source:
+    print("FAIL: Diagnostics category section should exist", file=sys.stderr)
+    sys.exit(1)
+diagnostic_category_section = source.split("struct CredentialDiagnosticCategorySection: View", 1)[1].split("struct CredentialDiagnosticProviderSection", 1)[0]
+if "CollapsibleBanner" not in diagnostic_category_section or "@State private var isExpanded = true" not in diagnostic_category_section:
+    print("FAIL: Diagnostics category sections should use the shared collapsible banner behavior", file=sys.stderr)
+    sys.exit(1)
 if "ProviderQuotaEmptyKeyRow()" in diagnostic_section:
     print("FAIL: Diagnostics should not render empty credential placeholder rows for providers without configured credentials", file=sys.stderr)
     sys.exit(1)
@@ -530,6 +886,138 @@ PY
 assert_match 'diagnosticCredentialGroupCountText' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Diagnostics provider headers should count logical credential groups instead of raw saved API key records"
+assert_match 'enum CredentialConfigurationState' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Credential configuration state should be modeled explicitly"
+assert_match 'var credentialConfigurationState: CredentialConfigurationState' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "APIKey should expose a computed credential configuration state"
+assert_match 'case configuredUntested' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Credential states should distinguish configured but untested credentials"
+assert_no_match 'DiagnosticMetadataGrid' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Diagnostics should stay focused and not render low-level metadata grids by default"
+assert_match 'struct DiagnosticDebugDisclosure' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Diagnostics should keep low-level HTTP and network details behind an explicit disclosure"
+assert_no_match 'recommendedActionText' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Credential diagnostics should not expose credential-management action entry points"
+assert_no_match 'diagnosticAction' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Diagnostics should stay diagnostic-only instead of rendering action entry points"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
+try:
+    diagnostic_row = source.split("struct CredentialDiagnosticRow: View", 1)[1].split("struct DiagnosticDebugDisclosure", 1)[0]
+    debug_disclosure = source.split("struct DiagnosticDebugDisclosure: View", 1)[1].split("struct DiagnosticDebugRow", 1)[0]
+except IndexError:
+    print("FAIL: Diagnostics should separate default rows from debug disclosures", file=sys.stderr)
+    sys.exit(1)
+
+for marker, message in [
+    ("L10n.t(.lastHTTPStatus)", "raw HTTP status"),
+    ("requestProxyModeText", "configured proxy mode"),
+    ("autoRefreshSkipText", "auto-refresh skip metadata"),
+]:
+    if marker in diagnostic_row:
+        print(f"FAIL: Diagnostics should not expose {message} in the default credential row", file=sys.stderr)
+        sys.exit(1)
+
+for marker, message in [
+    ("DisclosureGroup", "an explicit disclosure control"),
+    ("L10n.t(.lastHTTPStatus)", "HTTP status"),
+    ("item.requestProxyModeText", "proxy mode"),
+    ("item.autoRefreshSkipText", "auto-refresh skip metadata"),
+    ("item.resetDiagnosticText", "reset diagnostics"),
+    ("item.lastCheckedText", "last checked diagnostics"),
+]:
+    if marker not in debug_disclosure:
+        print(f"FAIL: Diagnostic debug disclosure should render {message}", file=sys.stderr)
+        sys.exit(1)
+PY
+assert_match 'key\.credentialConfigurationState\.displayText' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Credential rows should render explicit configuration state labels"
+assert_match 'key\.credentialConfigurationState\.color' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Credential state labels should use the state color"
+assert_no_match 'testConnectionForProvider' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should not expose duplicate provider-level connection testing when refresh already performs the quota check"
+assert_no_match 'onTestConnection' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota monitor rows should not expose a duplicate Test Connection action"
+assert_no_match 'TestConnectionButton\(size: size, action: onTestConnection\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "The quota page provider action group should use refresh as the single quota-check action"
+assert_no_match 'showingCostlyTestConfirmation' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota monitor rows should not keep stale costly-test confirmation state after removing duplicate Test Connection"
+assert_match 'refreshingQuotaAction' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Refresh controls should expose a distinct in-progress quota refresh state instead of reusing Test Connection wording"
+assert_match 'refreshQuotaConsumesQuotaAction' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Refresh controls should clearly mark providers whose manual refresh spends one real request"
+assert_match 'private var refreshActionLabel: String' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider refresh buttons should derive one clear label from refresh state and quota-consumption behavior"
+assert_match 'isRefreshing \? L10n\.t\(\.refreshingQuotaAction\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider refresh buttons should announce when quota refresh is already running"
+assert_match 'provider\.capability\.requiresCostlyConfirmation \? L10n\.t\(\.refreshQuotaConsumesQuotaAction\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider refresh buttons should warn when refreshing quota consumes a real request"
+assert_match 'struct ProviderRefreshButton' \
+  "QuotaRadar/Views/Components.swift" \
+  "Provider refresh controls should centralize costly-check confirmation"
+assert_match '@State private var showingCostlyRefreshConfirmation = false' \
+  "QuotaRadar/Views/Components.swift" \
+  "Costly provider refreshes should show an explicit confirmation before spending real quota"
+assert_match 'provider\.capability\.requiresCostlyConfirmation' \
+  "QuotaRadar/Views/Components.swift" \
+  "The provider refresh gate should use ProviderCapability for costly-check semantics"
+assert_match 'private var defaultActionLabel: String' \
+  "QuotaRadar/Views/Components.swift" \
+  "Provider refresh controls should derive a provider-aware default tooltip for every surface"
+assert_match 'provider\.capability\.requiresCostlyConfirmation \? L10n\.t\(\.refreshQuotaConsumesQuotaAction\)' \
+  "QuotaRadar/Views/Components.swift" \
+  "Provider refresh controls should warn about costly refresh even when callers omit a custom label"
+assert_match 'helpText \?\? defaultActionLabel' \
+  "QuotaRadar/Views/Components.swift" \
+  "Provider refresh controls should use the provider-aware default tooltip"
+assert_match 'accessibilityLabelText \?\? defaultActionLabel' \
+  "QuotaRadar/Views/Components.swift" \
+  "Provider refresh controls should expose the provider-aware default accessibility label"
+assert_match 'confirmationDialog\(L10n\.t\(\.costlyQuotaRefreshTitle\)' \
+  "QuotaRadar/Views/Components.swift" \
+  "Costly refresh confirmation should use refresh-specific wording instead of connection-test wording"
+assert_match 'Button\(L10n\.t\(\.refreshQuotaConsumesQuotaAction\), role: \.destructive' \
+  "QuotaRadar/Views/Components.swift" \
+  "Costly refresh confirmation should require an explicit destructive confirmation action"
+assert_match 'ProviderRefreshButton\(' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider quota rows should use the centralized provider refresh gate"
+assert_match 'savedKey\.provider\.capability\.quotaRefreshKind == \.refreshQuota' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Saving a credential should only auto-refresh no-cost quota refresh providers"
+assert_match 'struct QuotaSnapshot' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota history should persist refresh snapshots"
+assert_match 'enum QuotaSnapshotOutcome' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota history should record refresh outcome without raw secrets"
+assert_match 'struct QuotaHistoryStore' \
+  "QuotaRadar/Services/QuotaHistoryStore.swift" \
+  "Quota history should use a dedicated store"
+assert_match 'quota-history\.json' \
+  "QuotaRadar/Services/QuotaHistoryStore.swift" \
+  "Quota history should persist outside API key metadata"
 assert_match 'companionAPIKey' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Diagnostics rows should explain saved invocation API keys inside the paired quota-monitoring authorization row"
@@ -551,6 +1039,28 @@ assert_match 'NSEvent\.mouseLocation' \
 assert_match 'NSStatusBar\.system\.statusItem' \
   "QuotaRadar/AppDelegate.swift" \
   "AppDelegate must install a macOS status bar item"
+test -x "Tests/run_visual_qa.sh" || fail "Visual QA should be scriptable through Tests/run_visual_qa.sh"
+assert_match 'QUOTARADAR_SHOW_STATUS_PANEL_FOR_AUTOMATION=1' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should use the existing automation hook to open the menu bar panel"
+assert_match 'scheduleStatusPanelForAutomationAttempt\(remainingAttempts: 12\)' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Visual QA status-panel automation should retry instead of relying on a single early status-item attempt"
+assert_match 'capture_status_panel_bounds_with_retry' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should retry status-panel window capture so transient AppKit timing does not fail a valid UI"
+assert_match 'showStatusPanelAtAutomationFallbackPosition' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Visual QA status-panel automation should have a fallback when the status item button is not ready"
+assert_match 'if isVisualQAAutomation \{' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Visual QA status-panel automation should keep the menu popover on the main screen for reliable screenshots"
+assert_match 'CGWindowListCopyWindowInfo' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should record real window coordinates so menu bar clipping can be diagnosed"
+assert_match 'screencapture' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should capture visible app surfaces for manual review"
 assert_match 'enum RefreshMode' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "Quota refreshes should distinguish manual refreshes from automatic background polling"
@@ -614,6 +1124,42 @@ assert_match 'https://chatgpt\.com/api/auth/session' \
 assert_match 'Bearer .*accessToken.*forHTTPHeaderField: "Authorization"' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Codex subscription usage requests should authenticate with the ChatGPT session Bearer token"
+assert_match 'rate_limit_reset_credits' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Codex subscription usage should parse available reset-credit metadata from the wham usage response"
+assert_match 'available_count' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Codex reset-credit parsing should read the available_count field"
+assert_match 'https://chatgpt\.com/backend-api/wham/rate-limit-reset-credits/consume' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Codex quota reset should call the wham reset-credit consume endpoint"
+assert_match 'https://chatgpt\.com/backend-api/accounts/check/v4-2023-04-27' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Codex subscription refresh should query accounts/check for concrete Pro 20x/5x plan tiers"
+assert_match 'redeem_request_id' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Codex quota reset should send a unique redeem_request_id"
+assert_match 'chatgpt-account-id' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Codex quota reset should scope the consume request to the selected ChatGPT account"
+assert_match 'func resetCodexQuota' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose an account-scoped Codex quota reset action"
+assert_match 'resettingCodexQuotaKeyIDs' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should track in-flight Codex reset actions by credential id"
+assert_match 'codexResetCreditsRemaining' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "QuotaResult should carry Codex reset-credit availability"
+assert_match 'codexResetCreditsRemaining' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "APIKey should persist Codex reset-credit availability for the account row"
+assert_match 'codexResetCreditsRemaining' \
+  "QuotaRadar/Services/APIKeyStore.swift" \
+  "APIKeyStore metadata should persist Codex reset-credit availability"
+assert_no_match 'codexResetCredit.*Expir' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Codex reset-credit UI should not invent an expiry field unless the provider returns one"
 assert_no_match 'diagnosticMessage: "Querit account endpoint returned monthly request quota\."' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Querit refresh should not overwrite the parser's usage-only unknown-limit diagnostic"
@@ -632,9 +1178,12 @@ assert_match 'isUsableWithUnknownQuota' \
 assert_match 'isUsageLimitExceeded' \
   "QuotaRadar/Models/APIKey.swift" \
   "API keys should distinguish provider usage-limit exhaustion from unknown quota"
-assert_match 'mode == \.automatic && key\.provider\.quotaCheckConsumesSearchQuota' \
+assert_match 'mode == \.automatic && !key\.provider\.capability\.allowsAutomaticRefresh' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
-  "Automatic refreshes must skip quota checks that consume provider search quota"
+  "Automatic refreshes must use provider capability instead of raw provider flags"
+assert_match 'key\.provider\.capability\.matchesAutomaticRefreshLane\(consumesSearchQuota: consumesSearchQuota\)' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Automatic refresh due checks should use provider capability as the single source of truth"
 assert_match 'case quotaConsumingAutomatic' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "Quota-consuming providers should have a separate automatic refresh mode from normal free checks"
@@ -737,15 +1286,196 @@ assert_match 'buttonFrame\.midX - MenuContentView\.menuSize\.width / 2' \
 assert_match 'showStatusPanel\(relativeTo: button\)' \
   "QuotaRadar/AppDelegate.swift" \
   "Status bar clicks should show the arrowless status panel"
-assert_match 'buttonFrame\.minY - statusPanelGap - MenuContentView\.menuSize\.height - statusPanelOuterPadding' \
+assert_match '@objc func showStatusPanelForAutomation\(\)' \
   "QuotaRadar/AppDelegate.swift" \
-  "Status bar visible glass surface should sit close below the real menu-bar button instead of adding the transparent padding to the visual gap"
-assert_match 'visibleFrame\.maxY - statusPanelScreenInset - MenuContentView\.menuSize\.height - statusPanelOuterPadding' \
+  "Status bar popover should expose a stable automation hook for screenshot verification"
+assert_match 'QUOTARADAR_SHOW_STATUS_PANEL_FOR_AUTOMATION' \
   "QuotaRadar/AppDelegate.swift" \
-  "Status bar visible glass surface should clamp below the menu bar while allowing transparent outer padding above it"
-assert_match 'visibleFrame\.minY \+ statusPanelScreenInset - statusPanelOuterPadding' \
+  "Status bar popover screenshot automation should be triggerable when launching the built app"
+assert_match 'QUOTARADAR_OPEN_MENU_SIGNAL_FOR_AUTOMATION' \
   "QuotaRadar/AppDelegate.swift" \
-  "Status bar panel should clamp the visible glass surface to the screen bottom, not the transparent AppKit padding"
+  "Menu-to-main focus should have a reliable automation hook that bypasses flaky transient-panel AX clicks"
+assert_match 'openMenuSignalForAutomationIfRequested' \
+  "QuotaRadar/AppDelegate.swift" \
+  "AppDelegate should evaluate the menu signal focus automation hook on launch"
+assert_match 'openProviderFromStatusPopover\(item\.provider, credentialID: item\.key\.id, reason: item\.signalReason\)' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Menu signal focus automation should exercise the same provider/account/reason handoff as status bar row clicks"
+assert_match 'layout\.attentionItems\.first \?\? layout\.visibleItems\.first' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Menu attention focus automation should fall back to the first globally visible feed item after signal sections are compressed"
+assert_match 'layout\.attentionItems\.first \{ \$0\.signalReason == \.failed \} \?\? layout\.attentionItems\.first \?\? layout\.visibleItems\.first' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Menu failed focus automation should still open a useful feed item when no explicit failure row exists"
+assert_match 'QUOTARADAR_OPEN_MENU_SIGNAL_FOR_AUTOMATION="\$\{signal\}"' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should capture a focused main-window state through the menu signal automation hook"
+assert_match 'FOCUS_SIGNALS=\(low expiring attention recent\)' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should cover low quota, expiring, attention, and recent-usage menu signal handoffs"
+assert_match 'SUMMARY_TEXT_FILE="\$\{OUTPUT_DIR\}/summary\.txt"' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should write a human-readable release summary"
+assert_match 'SUMMARY_JSON_FILE="\$\{OUTPUT_DIR\}/summary\.json"' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should write a machine-readable release summary"
+assert_match 'write_visual_qa_summary' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should centralize screenshot dimensions and highlight counts into one release summary"
+assert_match 'focused_signals' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA summary should enumerate every focused menu signal checked for release QA"
+assert_match 'capture_focused_signal "\$\{signal\}"' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should capture every configured menu signal through the same focused-window path"
+assert_match 'focused-\$\{signal\}-window\.png' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should save one focused screenshot per menu signal for targeted review"
+assert_match 'focused-main-window\.png' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should save a focused-main screenshot for menu-to-main handoff review"
+assert_match 'assert_file_nonempty "\$\{PANEL_BOUNDS_FILE\}"' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should fail when it cannot find the status-panel window bounds"
+assert_match 'assert_file_nonempty "\$\{MAIN_WINDOW_ID_FILE\}"' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should fail when it cannot identify the main settings window"
+assert_match 'assert_png_minimum_size "\$\{OUTPUT_DIR\}/menu-bar-popover\.png" 500 500' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should assert the compressed menu-bar popover screenshot is complete enough to catch clipped panels"
+assert_match 'assert_png_minimum_size "\$\{focused_screenshot\}" 900 600' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should assert the focused main-window screenshot is large enough for account-highlight review"
+assert_match 'assert_focused_highlight_present "\$\{focused_screenshot\}"' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should fail when menu-to-main focus opens the window without a visible account highlight"
+assert_match 'minimum_highlight_pixels = 20000' \
+  "Tests/run_visual_qa.sh" \
+  "Focused visual QA should use a threshold high enough to distinguish the selected account highlight from incidental blue UI"
+assert_match 'VISUAL_QA_SCENARIOS=\(' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should define an explicit scenario matrix instead of relying on one manual screenshot state"
+assert_match 'zh-Hans\|en' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should cover both Simplified Chinese and English language states"
+assert_match 'light\|dark' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should cover both light and dark appearances"
+assert_match '13-inch\|wide' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should cover compact 13-inch and wide-window main app layouts"
+assert_match 'dense-accounts' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA scenario matrix should include a dense-account pass, not only generic wide and compact windows"
+assert_match 'QUOTARADAR_VISUAL_QA_FIXTURES=1' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should run against deterministic fixture data for multi-key, long-name, and long-error coverage"
+assert_match 'QUOTARADAR_VISUAL_QA_LANGUAGE' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should set the app language per scenario without relying on the user's saved preference"
+assert_match 'QUOTARADAR_VISUAL_QA_APPEARANCE' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should set light/dark appearance per scenario"
+assert_match 'QUOTARADAR_VISUAL_QA_WINDOW_SIZE' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should force compact and wide main-window sizes per scenario"
+assert_match 'assert_main_table_alignment' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should report provider table header/content alignment failures explicitly"
+assert_match 'assert_no_text_occlusion' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should report likely text overlap or occlusion failures explicitly"
+assert_match 'assert_menu_panel_not_clipped' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should report menu-bar top/bottom clipping failures explicitly"
+assert_match 'assert_transparency_readability' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should report menu-bar transparency/readability failures explicitly"
+assert_match 'checklist' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA summary should include a checklist of covered languages, appearances, surfaces, and stress cases"
+assert_match 'dense_single_provider_accounts' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA summary should explicitly record dense single-provider account coverage"
+assert_match 'long_localized_plan_name' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA summary should record long localized plan/account copy coverage"
+assert_match 'failure_reasons' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA summary should expose structured failure-reason fields for faster release review"
+assert_match 'scenario_screenshots' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA summary should list stable screenshot names for every scenario"
+assert_match 'capture_window_png "\$\{menu_window_id\}" "\$\{menu_screenshot\}"' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should capture the menu popover through CoreGraphics window id before falling back to fragile multi-display rectangles"
+assert_match 'visualQAFixtureKeys' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose deterministic visual QA fixture data behind an automation environment flag"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+source = Path("QuotaRadar/Models/QuotaMonitor.swift").read_text()
+checks = {
+    "saveKeys": ("private func saveKeys()", "store.save(apiKeys)", "Visual QA fixture mode must not save test credentials into the production APIKeyStore"),
+    "recordQuotaSnapshot": ("private func recordQuotaSnapshot", "quotaSnapshots = historyStore.append", "Visual QA fixture mode must not write fixture quota snapshots into production history"),
+    "ensureSecretsLoaded": ("private func ensureSecretsLoaded()", "apiKeys = store.loadSecrets", "Visual QA fixture mode must not hydrate test keys from the production secret store"),
+}
+for name, (start, end, message) in checks.items():
+    try:
+        block = source.split(start, 1)[1].split(end, 1)[0]
+    except IndexError:
+        print(f"FAIL: could not inspect QuotaMonitor.{name}", file=sys.stderr)
+        sys.exit(1)
+    if "if Self.usesVisualQAFixtures" not in block or "return" not in block:
+        print(f"FAIL: {message}", file=sys.stderr)
+        sys.exit(1)
+PY
+assert_match 'visualQADenseAccountFixtureKeys' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "Visual QA fixtures should include a dense single-provider account pack to catch expanded-row layout regressions"
+assert_match 'QUOTARADAR_VISUAL_QA_FIXTURES' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "Visual QA fixtures should be gated by an explicit automation environment flag"
+assert_match 'QUOTARADAR_VISUAL_QA_LANGUAGE' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "App language should support visual QA overrides without relying on saved user preferences"
+assert_match 'QUOTARADAR_VISUAL_QA_TRANSPARENCY' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "Menu transparency should support visual QA overrides without relying on saved user preferences"
+assert_match 'QUOTARADAR_VISUAL_QA_APPEARANCE' \
+  "QuotaRadar/AppDelegate.swift" \
+  "AppDelegate should support visual QA light/dark appearance overrides"
+assert_match 'QUOTARADAR_VISUAL_QA_WINDOW_SIZE' \
+  "QuotaRadar/AppDelegate.swift" \
+  "AppDelegate should support visual QA compact and wide main-window size overrides"
+assert_match '!isVisualQAAutomation' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Visual QA forced window sizes should not be persisted into the user's saved settings-window frame"
+assert_match 'case "failed", "failure", "check-failed", "checkfailed":' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Menu signal automation should expose failed credentials as an addressable action-feed reason"
+assert_match 'layout\.attentionItems\.first \{ \$0\.signalReason == \.failed \}' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Failed signal automation should prefer a failed attention item instead of an arbitrary attention row"
+assert_match 'stopPopoverMouseExitMonitor\(\)' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Automation status-panel opening should keep the popover visible long enough for screenshots"
+assert_no_match 'showStatusPanelForAutomation' \
+  "QuotaRadar/QuotaRadarApp.swift" \
+  "The status-panel automation hook must not appear as a user-facing menu command"
+assert_match 'buttonFrame\.minY - statusPanelGap - statusPanelSize\.height' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Status bar padded panel should sit below the real menu-bar button so the top edge is not hidden by the menu bar"
+assert_match 'visibleFrame\.maxY - statusPanelScreenInset - statusPanelSize\.height' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Status bar padded panel should clamp below the menu bar instead of letting transparent padding enter the menu-bar region"
+assert_match 'visibleFrame\.minY \+ statusPanelScreenInset' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Status bar padded panel should clamp the full AppKit window to the screen bottom"
+assert_no_match 'visibleFrame\.maxY - statusPanelScreenInset - MenuContentView\.menuSize\.height - statusPanelOuterPadding' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Status bar panel should not clamp only the visible glass content because the padded window can be obscured at the top"
 assert_match 'panel\.setFrame\(frame, display: true' \
   "QuotaRadar/AppDelegate.swift" \
   "Status bar panel should be placed by explicit frame calculation"
@@ -791,6 +1521,18 @@ assert_match 'menuQuotaSummary' \
 assert_match 'menuAttentionQuotaItems' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "QuotaMonitor should expose only credentials that need attention for the menu bar"
+assert_match 'menuSignalLayout' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose one globally capped signal layout for the menu bar"
+assert_match 'menuWatchedProviders' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should persist user-selected providers that deserve fixed menu-bar attention"
+assert_match 'setMenuWatchedProviders' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should provide a single sanitized setter for menu-bar watched providers"
+assert_match 'menuWatchedProviderItems' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose watched provider rows separately from long-lived automatic attention"
 assert_match 'struct MenuQuotaSummary' \
   "QuotaRadar/Models/APIKey.swift" \
   "Menu bar summary counts should live in a shared model instead of view-only logic"
@@ -800,6 +1542,30 @@ assert_match 'var statusBarCredentialLabel' \
 assert_match 'struct MenuQuotaItem' \
   "QuotaRadar/Models/APIKey.swift" \
   "Menu bar should use ranked quota items instead of rendering the full provider dashboard"
+assert_match 'struct MenuQuotaSignalLayout' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Menu bar should use a single globally capped signal queue where quota history can rank recent usage"
+assert_match 'enum MenuSignalReason' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Menu bar items should carry an explicit reason for why they are being surfaced"
+assert_match 'var signalReason: MenuSignalReason' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Menu bar item reasons should be derived from provider/account state in the shared model"
+assert_match 'func focusProvider\(_ provider: Provider, credentialID: UUID\?, reason: MenuSignalReason\?\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings navigation should accept a provider and credential focus target from the menu bar"
+assert_match 'focusedCredentialID' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings navigation should remember the exact account opened from the menu bar"
+assert_match 'focusedProviderScrollID' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider settings should expose a stable scroll target for menu-to-main navigation"
+assert_match 'openProviderFromStatusPopover' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Status bar menu rows should open the main settings window at the selected provider"
+assert_match 'openProviderFromStatusPopover\(_ provider: Provider, credentialID: UUID\?, reason: MenuSignalReason\?\)' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Status bar menu rows should pass the selected account to the main provider view"
 assert_match 'var id: String \{ provider\.id \}' \
   "QuotaRadar/Models/APIKey.swift" \
   "ProviderStats identity should be stable across quota refreshes so expanded sections and scroll position are preserved"
@@ -836,33 +1602,320 @@ assert_no_match 'MenuProviderOverviewCard\(monitor: monitor\)' \
 assert_match 'MenuRiskSummaryCard\(summary: monitor\.menuQuotaSummary\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar risk summary should be driven by QuotaMonitor.menuQuotaSummary"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/MenuContentView.swift").read_text()
+try:
+    summary_card = source.split("struct MenuRiskSummaryCard: View", 1)[1].split("struct CompactMetricItem: View", 1)[0]
+except IndexError:
+    print("FAIL: MenuRiskSummaryCard should exist before CompactMetricItem", file=sys.stderr)
+    sys.exit(1)
+
+if "MenuSectionHeader(title: L10n.t(.sidebarStatistics)" not in summary_card:
+    print("FAIL: Status bar summary metrics should be headed by Statistics", file=sys.stderr)
+    sys.exit(1)
+if "HStack(alignment: .center, spacing: 10)" not in summary_card:
+    print("FAIL: Status bar summary should be a compact one-line monitoring strip, not a tall card", file=sys.stderr)
+    sys.exit(1)
+if "VStack(alignment: .leading, spacing: 10)" in summary_card:
+    print("FAIL: Status bar summary should not spend vertical space on a large card layout", file=sys.stderr)
+    sys.exit(1)
+if "L10n.t(.apiQuotaTitle)" in summary_card or "L10n.t(.quotaRiskToday)" in summary_card:
+    print("FAIL: Status bar summary metrics should not repeat the product name or risk title above metrics", file=sys.stderr)
+    sys.exit(1)
+PY
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/MenuContentView.swift").read_text()
+try:
+    body = source.split("var body: some View", 1)[1].split("private func openSettings", 1)[0]
+except IndexError:
+    print("FAIL: MenuContentView body should exist before settings helpers", file=sys.stderr)
+    sys.exit(1)
+
+if "HeaderView(" not in body:
+    print("FAIL: Status bar popover should keep the header in the fixed menu panel", file=sys.stderr)
+    sys.exit(1)
+if "MenuSignalSectionsScrollView" in body:
+    print("FAIL: Status bar popover should be tall enough to show signal sections without a nested scroll view", file=sys.stderr)
+    sys.exit(1)
+
+required_order = [
+    "HeaderView(",
+    "MenuRiskSummaryCard(summary: monitor.menuQuotaSummary)",
+    "MenuWatchedProviderItemsView(monitor: monitor, items: signalLayout.watchedProviderItems)",
+    "MenuSignalFeedView(monitor: monitor, layout: signalLayout)",
+    "MenuHiddenQuotaItemsView("
+]
+positions = [body.find(fragment) for fragment in required_order]
+if any(position < 0 for position in positions):
+    print("FAIL: Status bar popover should render a compact summary, watchlist, unified signal feed, and overflow entry", file=sys.stderr)
+    sys.exit(1)
+if positions != sorted(positions):
+    print("FAIL: Status bar popover should preserve risk-first ordering before recent changes", file=sys.stderr)
+    sys.exit(1)
+PY
 assert_no_match 'ForEach\(monitor\.homeProviderStats\) \{ stat in' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar home view should not render a flat provider list"
 assert_match 'struct MonitorModule<Content: View>' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar popover should use lightweight monitoring modules instead of large dashboard cards"
+assert_no_match 'struct MenuSignalSectionsScrollView<Content: View>' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should use a taller fixed monitoring panel instead of requiring signal-section scrolling"
 assert_match 'struct MenuSectionHeader' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar sections should use a consistent compact monitoring header"
-assert_match 'MenuAttentionItemsView' \
+assert_match 'let signalLayout = monitor\.menuSignalLayout' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar popover should keep credentials needing attention as secondary detail below provider statistics"
-assert_match 'ForEach\(monitor\.menuAttentionQuotaItems' \
+  "Status bar popover should render from a single globally capped signal layout"
+assert_match 'MenuWatchedProviderItemsView' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar attention rows should come from QuotaMonitor.menuAttentionQuotaItems"
-assert_match 'MenuLowQuotaItemsView' \
+  "Status bar popover should show a short user-selected watchlist before automatic long-lived signals"
+assert_no_match 'ForEach\(monitor\.menuAttentionQuotaItems' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar popover should reserve space for low-quota providers, not only expired or exhausted credentials"
-assert_match 'ForEach\(monitor\.menuLowQuotaItems' \
+  "Status bar attention rows should not bypass the global signal cap"
+assert_no_match 'ForEach\(monitor\.menuLowQuotaItems' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar low-quota rows should come from QuotaMonitor.menuLowQuotaItems"
-assert_match 'MenuExpiringQuotaItemsView' \
+  "Status bar low-quota rows should not bypass the global signal cap"
+assert_no_match 'ForEach\(monitor\.menuExpiringQuotaItems' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar popover should reserve space for credentials whose plan or balance expires soon"
-assert_match 'ForEach\(monitor\.menuExpiringQuotaItems' \
+  "Status bar expiring-soon rows should not bypass the global signal cap"
+assert_no_match 'ForEach\(monitor\.menuRecentUsageQuotaItems' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar expiring-soon rows should come from QuotaMonitor.menuExpiringQuotaItems"
+  "Status bar recent usage rows should not bypass the global signal cap"
+assert_match 'struct MenuSignalFeedView' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should merge risk, expiry, and recent changes into one compact attention feed"
+assert_match 'MenuSignalFeedView\(monitor: monitor, layout: signalLayout\)' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should render one globally ranked signal feed instead of one card per signal type"
+assert_no_match 'MenuLowQuotaItemsView\(items: signalLayout\.lowQuotaItems\)' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should not spend separate cards on low-quota rows"
+assert_no_match 'MenuExpiringQuotaItemsView\(items: signalLayout\.expiringSoonItems\)' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should not spend separate cards on expiring rows"
+assert_no_match 'MenuAttentionItemsView\(monitor: monitor, items: signalLayout\.attentionItems\)' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should not spend a separate card on failed/exhausted rows"
+assert_no_match 'MenuRecentUsageItemsView\(monitor: monitor, items: signalLayout\.recentUsageItems\)' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should not spend a separate card on recent usage rows"
+assert_match 'MenuHiddenQuotaItemsView' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar popover should show an entry point when more signal rows are hidden by the fixed-height panel"
+assert_match 'hiddenQuotaSignalCount' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Hidden menu-bar signal count should be localized"
+assert_match 'recentUsageDetail' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Recent provider usage section should use a secondary recent-activity detail instead of another quota-status header"
+assert_match 'recentProviderUsage' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Recent provider usage menu label should be localized"
+assert_match 'watchedProviders' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Watched provider menu labels should be localized"
+assert_match 'configureWatchedProviders' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Settings should expose a localized way to configure menu-bar watched providers"
+assert_match 'menuWatchedProviderLimit = 2' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "Menu bar watched provider list should stay short enough to leave room for automatic signals"
+assert_match 'limit: 2' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Menu signal layout should render at most two watched providers in the status bar popover"
+assert_match 'watchedCount\)/2' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Watched provider settings should communicate the compact menu-bar limit"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/MenuContentView.swift").read_text()
+try:
+    feed_view = source.split("struct MenuSignalFeedView: View", 1)[1].split("struct MenuHiddenQuotaItemsView: View", 1)[0]
+except IndexError:
+    print("FAIL: MenuSignalFeedView should exist before hidden signal entry", file=sys.stderr)
+    sys.exit(1)
+for fragment in [
+    "layout.attentionItems",
+    "layout.lowQuotaItems",
+    "layout.expiringSoonItems",
+    "layout.recentUsageItems"
+]:
+    if fragment not in feed_view:
+        print(f"FAIL: MenuSignalFeedView should merge {fragment} into the same compact feed", file=sys.stderr)
+        sys.exit(1)
+if "MonitorModule(spacing: 6)" not in feed_view:
+    print("FAIL: MenuSignalFeedView should use one compact module instead of one card per signal type", file=sys.stderr)
+    sys.exit(1)
+if "MenuSignalFeedItemRow(" not in feed_view:
+    print("FAIL: MenuSignalFeedView should render unified compact feed rows", file=sys.stderr)
+    sys.exit(1)
+if "section.id != sections.first?.id" not in feed_view:
+    print("FAIL: MenuSignalFeedView should avoid repeating the feed title as the first subgroup label", file=sys.stderr)
+    sys.exit(1)
+if "onRefresh: { monitor.refreshProvider(item.provider) }" not in feed_view:
+    print("FAIL: Menu signal feed rows should allow refreshing the provider from the same compact row", file=sys.stderr)
+    sys.exit(1)
+if "onOpenProvider: { openProvider(item) }" not in feed_view:
+    print("FAIL: Menu signal feed rows should open and focus the provider in the main app", file=sys.stderr)
+    sys.exit(1)
+if "activitySummary: monitor.activitySummary(for: item.key)" not in feed_view:
+    print("FAIL: Menu signal feed rows should render recent activity from QuotaActivitySummary", file=sys.stderr)
+    sys.exit(1)
+try:
+    watched_view = source.split("struct MenuWatchedProviderItemsView: View", 1)[1].split("struct MenuSignalFeedView: View", 1)[0]
+except IndexError:
+    print("FAIL: MenuWatchedProviderItemsView should exist before the unified signal feed", file=sys.stderr)
+    sys.exit(1)
+if "MenuWatchedProviderItemRow(" not in watched_view:
+    print("FAIL: Menu watched providers should use a dedicated compact watchlist row instead of recent-change rows", file=sys.stderr)
+    sys.exit(1)
+if "MenuSignalFeedItemRow(" in watched_view or "activitySummary:" in watched_view:
+    print("FAIL: Menu watched providers should not repeat recent-change activity explanations in the watchlist section", file=sys.stderr)
+    sys.exit(1)
+try:
+    watched_row = source.split("struct MenuWatchedProviderItemRow: View", 1)[1].split("struct MenuRecentUsageItemRow: View", 1)[0]
+except IndexError:
+    print("FAIL: MenuWatchedProviderItemRow should exist before recent usage compatibility row", file=sys.stderr)
+    sys.exit(1)
+if "let isRefreshing: Bool" not in watched_row or "let onRefresh: () -> Void" not in watched_row:
+    print("FAIL: Menu watched provider rows should keep the compact refresh affordance", file=sys.stderr)
+    sys.exit(1)
+if "activitySummary" in watched_row or "activityText" in watched_row or "compactDeltaIndicator" in watched_row:
+    print("FAIL: Menu watched provider rows should show current provider state, not trend/delta copy", file=sys.stderr)
+    sys.exit(1)
+if "noAttentionItems" in feed_view or "checkmark.seal.fill" in feed_view:
+    print("FAIL: Menu signal feed should not spend space on a calm empty-state row", file=sys.stderr)
+    sys.exit(1)
+try:
+    monitor_module = source.split("struct MonitorModule<Content: View>: View", 1)[1].split("struct MenuSectionHeader: View", 1)[0]
+except IndexError:
+    print("FAIL: MonitorModule should exist before section headers", file=sys.stderr)
+    sys.exit(1)
+if ".padding(.horizontal, 11)" not in monitor_module or ".padding(.vertical, 8)" not in monitor_module:
+    print("FAIL: Menu modules should use compact list-style padding instead of large card padding", file=sys.stderr)
+    sys.exit(1)
+if "cornerRadius: 10" not in monitor_module:
+    print("FAIL: Menu modules should use smaller radii so the popover reads as monitoring rows, not large cards", file=sys.stderr)
+    sys.exit(1)
+for noisy_header in [
+    "MenuSectionHeader(title: L10n.t(.sidebarStatistics), detail:",
+    "MenuSectionHeader(title: L10n.t(.watchedProviders), detail:",
+    "MenuSectionHeader(title: L10n.t(.lowQuotaProviders), detail:",
+    "MenuSectionHeader(title: L10n.t(.expiringSoon), detail:",
+    "MenuSectionHeader(title: L10n.t(.needsAttention), detail:",
+    "MenuSectionHeader(title: L10n.t(.recentProviderUsage), detail:"
+]:
+    if noisy_header in source:
+        print("FAIL: Menu bar attention feed sections should not show weak right-side table headers", file=sys.stderr)
+        sys.exit(1)
+if "struct MenuSignalReasonBadge: View" not in source:
+    print("FAIL: Menu bar rows should use compact reason badges so users know why each provider is shown", file=sys.stderr)
+    sys.exit(1)
+for row_name in [
+    "MenuWatchedProviderItemRow",
+    "MenuSignalFeedItemRow"
+]:
+    try:
+        row_scope = source.split(f"struct {row_name}: View", 1)[1].split("\nstruct ", 1)[0]
+    except IndexError:
+        print(f"FAIL: {row_name} should exist for menu bar signal rows", file=sys.stderr)
+        sys.exit(1)
+    if "MenuSignalReasonBadge(" not in row_scope:
+        print(f"FAIL: {row_name} should show a compact reason badge instead of relying on section headers", file=sys.stderr)
+        sys.exit(1)
+components_source = Path("QuotaRadar/Views/Components.swift").read_text()
+if "static func menuSurfaceOpacity(for transparency: Double) -> Double" not in components_source:
+    print("FAIL: Status bar glass metrics should centralize menu surface opacity", file=sys.stderr)
+    sys.exit(1)
+if "transparency <= 0 ? 1.0 : 0.78" not in components_source:
+    print("FAIL: Status bar menu surface should keep enough opacity for readable attention-feed rows", file=sys.stderr)
+    sys.exit(1)
+if "static func moduleFillOpacity(for transparency: Double)" not in components_source or "0.16 + (1 - clamped(transparency)) * 0.28" not in components_source:
+    print("FAIL: Status bar modules should have a stronger base fill so background content does not bleed through", file=sys.stderr)
+    sys.exit(1)
+try:
+    recent_row = source.split("struct MenuSignalFeedItemRow: View", 1)[1].split("\nstruct ", 1)[0]
+except IndexError:
+    print("FAIL: MenuSignalFeedItemRow should exist before shared refresh controls", file=sys.stderr)
+    sys.exit(1)
+if "let activitySummary: QuotaActivitySummary" not in recent_row:
+    print("FAIL: Menu signal feed rows should accept activity summaries instead of percentage-only trend summaries", file=sys.stderr)
+    sys.exit(1)
+if "let trendSummary: QuotaTrendSummary" in recent_row:
+    print("FAIL: Menu recent usage rows should not depend on percentage-only trend summaries", file=sys.stderr)
+    sys.exit(1)
+if "let isRefreshing: Bool" not in recent_row or "let onRefresh: () -> Void" not in recent_row:
+    print("FAIL: Menu recent usage rows should accept refresh state and action", file=sys.stderr)
+    sys.exit(1)
+if "let onOpenProvider: () -> Void" not in recent_row:
+    print("FAIL: Menu recent usage rows should accept a main-app focus action", file=sys.stderr)
+    sys.exit(1)
+if "ProviderRefreshButton(provider: item.provider" not in recent_row:
+    print("FAIL: Menu recent usage rows should render the centralized provider refresh gate", file=sys.stderr)
+    sys.exit(1)
+if "MenuSignalReasonBadge(text: reasonText" not in recent_row:
+    print("FAIL: Menu signal feed rows should label each row with its concrete reason", file=sys.stderr)
+    sys.exit(1)
+if "quotaTrendDecreasing" in recent_row:
+    print("FAIL: Menu recent usage rows should not show old textual trend labels such as 7d -2pt", file=sys.stderr)
+    sys.exit(1)
+if "L10n.compactDeltaIndicator" not in recent_row:
+    print("FAIL: Menu recent usage rows should use the shared compact direction indicator for remaining-quota drops", file=sys.stderr)
+    sys.exit(1)
+if "activitySummary.activityText" not in recent_row:
+    print("FAIL: Menu recent usage rows should include a short explanation of the recent change behind the compact delta", file=sys.stderr)
+    sys.exit(1)
+if "key.usageCount" in recent_row or "key.lastUsed" in recent_row:
+    print("FAIL: Menu recent usage rows should not fall back to legacy usage counts or last-used timestamps", file=sys.stderr)
+    sys.exit(1)
+attention_row = recent_row
+if "QuotaWindowDetails(" in attention_row:
+    print("FAIL: Menu bar attention rows should not expand every quota window; one compact quota line is enough", file=sys.stderr)
+    sys.exit(1)
+if "presentation.resetText" in attention_row or "presentation.planEndText" in attention_row or "presentation.sourceText" in attention_row:
+    print("FAIL: Menu bar attention rows should not spend vertical space on reset/source/plan metadata; the feed should stay action-first", file=sys.stderr)
+    sys.exit(1)
+if "Button(action: onOpenProvider)" not in attention_row or ".buttonStyle(.plain)" not in attention_row:
+    print("FAIL: Menu bar attention rows should use Button semantics while preserving compact row visuals", file=sys.stderr)
+    sys.exit(1)
+if ".onTapGesture(perform: onOpenProvider)" in attention_row:
+    print("FAIL: Menu bar attention rows should not rely on tap gestures for provider focus actions", file=sys.stderr)
+    sys.exit(1)
+if "compactDiagnosticText" not in attention_row:
+    print("FAIL: Menu bar attention rows should filter duplicate diagnostic text before rendering", file=sys.stderr)
+    sys.exit(1)
+if "presentation.diagnosticText != presentation.primaryText" not in attention_row:
+    print("FAIL: Menu bar attention rows should not repeat quota-window balances as both primary quota and diagnostic text", file=sys.stderr)
+    sys.exit(1)
+PY
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/MenuContentView.swift").read_text()
+for struct_name in ["MenuCompactQuotaItemRow", "MenuExpiringQuotaItemRow"]:
+    try:
+        row = source.split(f"struct {struct_name}: View", 1)[1].split("struct ", 1)[0]
+    except IndexError:
+        print(f"FAIL: {struct_name} should exist", file=sys.stderr)
+        sys.exit(1)
+    if "Button(action: onOpenProvider)" not in row:
+        print(f"FAIL: {struct_name} should be a real Button so menu-to-main focus is accessibility-testable", file=sys.stderr)
+        sys.exit(1)
+    if ".buttonStyle(.plain)" not in row:
+        print(f"FAIL: {struct_name} should keep the compact row visual while using Button semantics", file=sys.stderr)
+        sys.exit(1)
+PY
 assert_no_match 'StatItem\(value: "\\\\\(totalProviders\\\\\)", label: L10n\.t\(\.providers\)\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar summary should not spend prime space on provider totals"
@@ -887,6 +1940,24 @@ assert_no_match 'Text\(L10n\.t\(\.total\)\).*?ProviderQuotaMonitorTableHeader' \
 assert_match 'quotaOverviewRiskColor' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Quota overview provider rows should use a dedicated green/red risk color instead of provider or status-spectrum colors"
+assert_match 'navigationStore\.focusedProvider == provider' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview provider rows should know when they are focused from the menu bar"
+assert_match 'focusedCredentialIDForDisplay == key\.id' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Expanded provider account rows should use the exact or fallback menu-bar focus target"
+assert_match 'focusedCredentialFirstDisplayKeys' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Expanded provider account rows should promote the menu-bar focused credential into the visible account area"
+assert_match 'ForEach\(focusedCredentialFirstDisplayKeys, id: \\.id\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Expanded provider account rows should render from the focus-promoted account order"
+assert_match 'fallbackFocusedCredential' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider-collapsed menu bar signals should fall back to the most relevant account in the main window"
+assert_match 'MenuSignalReason' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview provider rows should be able to explain why the menu bar opened them"
 python3 - <<'PY'
 from pathlib import Path
 import sys
@@ -901,12 +1972,13 @@ except IndexError:
 if "monitor.orderedVisibleProviders.compactMap" not in providers_view:
     print("FAIL: Quota overview should preserve custom provider order while hiding providers without configured monitoring credentials", file=sys.stderr)
     sys.exit(1)
-if "sortedMonitoringKeysByCurrentQuota.isEmpty" not in providers_view:
-    print("FAIL: Quota overview should hide providers that do not have any quota-monitoring credential configured", file=sys.stderr)
+if "hasActiveMonitoringCredentials" not in providers_view:
+    print("FAIL: Quota overview should hide providers without active quota-monitoring credentials", file=sys.stderr)
     sys.exit(1)
 
 try:
     provider_summary = source.split("private var providerSummaryRow: some View", 1)[1].split("ProviderQuotaColumnValue", 1)[0]
+    provider_row_scope = source.split("struct ProviderQuotaMonitorRow: View", 1)[1].split("struct ProviderQuotaColumnValue", 1)[0]
 except IndexError:
     print("FAIL: Provider quota summary row should be present", file=sys.stderr)
     sys.exit(1)
@@ -914,8 +1986,14 @@ except IndexError:
 if "providerKeyCount" in provider_summary or "activeCount" in provider_summary:
     print("FAIL: Provider quota left column should not duplicate credential-pool key and usable counts", file=sys.stderr)
     sys.exit(1)
-if "provider.planTypeDisplayName()" not in provider_summary:
-    print("FAIL: Provider quota left column should still keep the optional provider plan label", file=sys.stderr)
+if "stat.effectivePlanDisplayName" in provider_summary:
+    print("FAIL: Provider quota left column must not show plan/package names because one provider can contain accounts on different plans", file=sys.stderr)
+    sys.exit(1)
+if "provider.planTypeDisplayName()" not in provider_row_scope:
+    print("FAIL: Provider quota left column should show the provider product type such as coding plan instead of only the broad LLM category", file=sys.stderr)
+    sys.exit(1)
+if "L10n.categoryTitle(provider.statusBarCategoryTitle)" not in provider_row_scope:
+    print("FAIL: Provider quota left column should keep category fallback for providers without a product type", file=sys.stderr)
     sys.exit(1)
 try:
     provider_row = source.split("struct ProviderQuotaMonitorRow: View", 1)[1].split("struct ProviderQuotaColumnValue", 1)[0]
@@ -929,9 +2007,66 @@ if "quotaOverviewRiskColor" not in provider_row:
     print("FAIL: Quota overview provider rows should use the dedicated green/red risk color", file=sys.stderr)
     sys.exit(1)
 PY
-assert_match 'statusBarCredentialLabel' \
+assert_match 'statusBarAccountContextLabel' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar rows should use a safe credential label instead of rendering raw cookie JSON"
+  "Status bar rows should use compact account context instead of repeating low-information web-login authorization text"
+assert_no_match 'Text\(key\.statusBarCredentialLabel\)' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar rows should not repeat generic web-login authorization labels in every menu row"
+assert_match 'struct QuotaThresholdNotificationEvent' \
+  "QuotaRadar/Services/QuotaNotificationService.swift" \
+  "Threshold notifications should use a lightweight event model"
+assert_match 'QuotaThresholdNotificationService' \
+  "QuotaRadar/Services/QuotaNotificationService.swift" \
+  "Threshold notification decisions and delivery should be centralized in a service"
+assert_match 'case quotaRecovered' \
+  "QuotaRadar/Services/QuotaNotificationService.swift" \
+  "P6 recovery notifications should be part of the local quota notification event model"
+assert_match 'snapshots: \[QuotaSnapshot\]' \
+  "QuotaRadar/Services/QuotaNotificationService.swift" \
+  "P6 recovery notifications should evaluate recent quota history snapshots"
+assert_match 'UNUserNotificationCenter' \
+  "QuotaRadar/Services/QuotaNotificationService.swift" \
+  "Threshold notifications should use macOS local notifications"
+assert_match 'requestAuthorization' \
+  "QuotaRadar/Services/QuotaNotificationService.swift" \
+  "Threshold notifications should request notification permission before delivery"
+assert_match 'consecutiveFailureCount' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "API keys should persist consecutive quota-check failures for repeated-failure notifications"
+assert_match 'key\.consecutiveFailureCount \+=' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should increment consecutive failure counts when quota checks fail"
+assert_match 'key\.consecutiveFailureCount = 0' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should reset consecutive failure counts when checks recover or reach a non-connection terminal state"
+assert_match 'QuotaThresholdNotificationService\.shared\.notifyIfNeeded' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should evaluate threshold notifications after refreshes update key state"
+assert_match 'var planDisplayName: String\?' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "QuotaResult should carry a concrete plan/package display name when the provider exposes it"
+assert_match 'var planDisplayName: String\?' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "APIKey should retain a concrete plan/package display name from the latest quota refresh"
+assert_match 'var planDisplayName: String\?' \
+  "QuotaRadar/Services/APIKeyStore.swift" \
+  "APIKeyStore metadata should persist concrete plan/package display names"
+assert_match 'key\.planDisplayName = result\.planDisplayName' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should copy refreshed plan/package names onto API keys"
+assert_match 'verifiedKey\.planDisplayName = result\.planDisplayName' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthorization should keep the concrete plan/package name from verification"
+assert_match 'accountDisplayTitle' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings account rows should show refreshed concrete plan/package names when available"
+assert_no_match 'stat\.effectivePlanDisplayName' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Menu provider rows must not show account-level plan/package names under the provider"
+assert_no_match 'stat\.effectivePlanDisplayName' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider-level Settings sections must not show account-level plan/package names under the provider"
 assert_no_match 'Text\(key\.maskedKey\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar rows must not show masked raw cookie JSON for dashboard-session providers"
@@ -950,6 +2085,27 @@ assert_no_match 'openDashboard\(\)' \
 assert_no_match 'MenuFooterBar' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar popover must not reserve a bottom footer because it gets clipped in the fixed-height popover"
+python3 - <<'PY'
+from pathlib import Path
+import re
+import sys
+
+menu_source = Path("QuotaRadar/Views/MenuContentView.swift").read_text()
+limit_source = Path("QuotaRadar/Models/QuotaMonitor.swift").read_text()
+menu_match = re.search(r"menuSize = CGSize\(width: ([0-9]+), height: ([0-9]+)\)", menu_source)
+limit_match = re.search(r"menuSignalItemLimit = ([0-9]+)", limit_source)
+if not menu_match or not limit_match:
+    print("FAIL: Status bar menu should keep explicit fixed size and signal cap", file=sys.stderr)
+    sys.exit(1)
+height = int(menu_match.group(2))
+visible_limit = int(limit_match.group(1))
+if visible_limit > 4:
+    print("FAIL: Status bar attention feed should cap automatic signals at four visible rows", file=sys.stderr)
+    sys.exit(1)
+if height < 480 or height > 520:
+    print("FAIL: Status bar panel should stay compressed instead of becoming a tall dashboard", file=sys.stderr)
+    sys.exit(1)
+PY
 assert_no_match 'Label\(L10n\.t\(\.providersHeader\), systemImage: "rectangle\.grid\.1x2"\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar footer must not render the Quota Overview title as a clipped visible button"
@@ -1004,7 +2160,7 @@ assert_match 'GlassBackground\(transparency: menuGlassTransparency\)' \
 assert_match 'materialOpacity' \
   "QuotaRadar/Views/Components.swift" \
   "Status bar card material should change opacity with the transparency slider"
-assert_match '0\.28 \+ \(1 - transparency\) \* 0\.62' \
+assert_match 'StatusBarGlassMetrics\.materialOpacity\(for: transparency\)' \
   "QuotaRadar/Views/Components.swift" \
   "Status bar cards should visibly change material opacity with the transparency slider"
 assert_match '\.fill\(\.regularMaterial\)' \
@@ -1013,15 +2169,27 @@ assert_match '\.fill\(\.regularMaterial\)' \
 assert_match 'baseFillOpacity' \
   "QuotaRadar/Views/Components.swift" \
   "Status bar cards should include an adaptive fill layer so text remains readable over busy backgrounds"
-assert_match 'backdropTintOpacity' \
+assert_match 'menuSurfaceOpacity' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar menu should use a light adaptive tint over the real blur instead of an opaque grey panel"
-assert_match 'private var blurOpacity: Double \{' \
+  "Status bar menu should use a SwiftUI-owned adaptive translucent surface instead of an opaque grey panel"
+assert_match 'private var menuSurfaceOpacity: Double \{' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar transparency should affect the outer blur layer, not only inner cards"
-assert_match '0\.32 \+ \(1 - statusBarTransparency\) \* 0\.58' \
+  "Status bar transparency should affect the outer menu surface, not only inner cards"
+assert_match 'StatusBarGlassMetrics\.menuSurfaceOpacity\(for: statusBarTransparency\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar outer blur opacity should visibly change across the full transparency range"
+  "Status bar outer surface opacity should come from the shared glass metrics"
+assert_match 'StatusBarGlassMetrics\.materialOpacity\(for: transparency\)' \
+  "QuotaRadar/Views/Components.swift" \
+  "Status bar card material opacity should come from the shared glass metrics"
+assert_match 'transparency <= 0 \? 1\.0 : 0\.78 \+ \(1 - clamped\(transparency\)\) \* 0\.18' \
+  "QuotaRadar/Views/Components.swift" \
+  "Status bar transparency 0% should be a fully opaque outer surface"
+assert_match 'transparency <= 0 \? 0\.0 : 0\.28 \+ \(1 - clamped\(transparency\)\) \* 0\.62' \
+  "QuotaRadar/Views/Components.swift" \
+  "Status bar transparency 0% should disable frosted material bleed-through"
+assert_match 'transparency <= 0 \? 1\.0 : 0\.08 \+ \(1 - clamped\(transparency\)\) \* 0\.42' \
+  "QuotaRadar/Views/Components.swift" \
+  "Status bar transparency 0% should use a fully opaque card fill"
 assert_match 'Slider\(value: \$appearanceStore\.statusBarTransparency, in: 0\.0\.\.\.1\.0\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Status bar transparency slider should support the full 0% to 100% range"
@@ -1082,15 +2250,24 @@ assert_match 'monitor\.refreshProvider\(item\.provider\)' \
 assert_no_match 'onRefresh: \{ monitor\.refreshAll\(\) \}' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar home view must not expose only a single global refresh action"
-assert_match 'RefreshButton\(isRefreshing: \.constant\(isRefreshing\), isEnabled: item\.canRefresh' \
+assert_match 'ProviderRefreshButton\(provider: item\.provider, isRefreshing: \.constant\(isRefreshing\), isEnabled: item\.canRefresh' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Each status bar top item row should own its refresh button"
+  "Each status bar top item row should use the centralized provider refresh gate"
 assert_match 'statusPanelSize' \
   "QuotaRadar/AppDelegate.swift" \
   "Status bar hosting window must be larger than MenuContentView.menuSize to avoid clipping"
 assert_match 'statusItem = NSStatusBar\.system\.statusItem\(withLength: NSStatusItem\.squareLength\)' \
   "QuotaRadar/AppDelegate.swift" \
   "Status bar item should use a compact square hit target so it is less likely to be hidden by long app menus"
+assert_match 'updateStatusItemPresentation\(\)' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Status bar item should update its icon/text presentation from current quota signals"
+assert_match 'NSStatusBar\.system\.thickness' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Status bar item should grow only when a short quota signal needs text"
+assert_no_match 'button\.imagePosition = \.imageOnly' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Status bar item should not stay image-only when critical quota signals exist"
 assert_no_match 'button\.sendAction\(on: \[\.leftMouseDown\]\)' \
   "QuotaRadar/AppDelegate.swift" \
   "Status bar item should use the default mouse-up action so the transient popover is not immediately closed by the same click"
@@ -1106,9 +2283,9 @@ assert_match 'updateLocalizedStatusBarStrings' \
 assert_match 'statusPanelSettingsOverlayButton' \
   "QuotaRadar/AppDelegate.swift" \
   "The transparent status-panel Settings button should be retained so its localized tooltip can update"
-assert_match 'button\.imagePosition = \.imageOnly' \
+assert_match 'button\.imagePosition = \.imageLeading' \
   "QuotaRadar/AppDelegate.swift" \
-  "Status bar item should center the icon inside the square menu-bar hit target"
+  "Status bar item should support an icon plus compact text when quota signals need attention"
 assert_match 'button\.imageScaling = \.scaleProportionallyDown' \
   "QuotaRadar/AppDelegate.swift" \
   "Status bar item should scale the icon visibly inside the menu-bar button"
@@ -1124,9 +2301,18 @@ assert_match 'hostingController\.view\.wantsLayer = true' \
 assert_match 'backgroundColor = NSColor\.clear\.cgColor' \
   "QuotaRadar/AppDelegate.swift" \
   "Status bar hosting view should not paint an opaque background over the frosted glass"
-assert_match 'menuSize = CGSize\(width: 560, height: 500\)' \
+assert_match 'menuSize = CGSize\(width: 520, height: 500\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar risk popover should stay wide enough for concise rows while avoiding unused dashboard height"
+  "Status bar risk popover should stay compressed like a monitoring popover instead of a tall dashboard"
+menu_height="$(awk -F'height: ' '/menuSize = CGSize/ { gsub(/[^0-9.].*/, "", $2); print $2; exit }' QuotaRadar/Views/MenuContentView.swift)"
+if [[ -z "$menu_height" ]]; then
+  fail "Status bar popover should keep menuSize height as a numeric constant"
+fi
+if awk "BEGIN { exit !($menu_height >= 480 && $menu_height <= 520) }"; then
+  :
+else
+  fail "Status bar popover height should fit a compressed attention feed without becoming a full dashboard"
+fi
 provider_overview_column_count="$(awk '
   /private let columns = \[/ { inside = 1; count = 0; next }
   inside && /\]/ { print count; exit }
@@ -1137,7 +2323,7 @@ if [[ "$provider_overview_column_count" != "4" ]]; then
 fi
 assert_match 'struct MenuBoundedScrollRegion<Content: View>' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar body should keep the popover fixed while only overflowing provider grids scroll inside a bounded region"
+  "Status bar body should keep the popover fixed while overflow areas scroll inside bounded regions"
 assert_match 'contentHorizontalInset' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar home view should reserve an explicit horizontal inset to avoid left-edge clipping"
@@ -1189,6 +2375,24 @@ assert_match 'HeaderQuotePill' \
 assert_match 'headerStatusMessage' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar header should keep non-error refresh messages in one compact status value"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/MenuContentView.swift").read_text()
+try:
+    header_view = source.split("struct HeaderView: View", 1)[1].split("struct HeaderStatusPill", 1)[0]
+except IndexError:
+    print("FAIL: Status bar header view should exist before header status pill", file=sys.stderr)
+    sys.exit(1)
+
+if "refreshMessage == L10n.t(.updatedJustNow)" not in header_view:
+    print("FAIL: Status bar header should suppress the low-signal just-updated message beside the quote", file=sys.stderr)
+    sys.exit(1)
+if "return nil" not in header_view:
+    print("FAIL: Status bar header should omit the status pill when the only status is just-updated", file=sys.stderr)
+    sys.exit(1)
+PY
 assert_no_match 'lastError \?\? refreshMessage' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar header should not prefer verbose failed-refresh text over the quote"
@@ -1237,9 +2441,12 @@ assert_match 'statusBarProviderBadgeText' \
 assert_match 'menuGlassCornerRadius' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar menu should have a defined frosted-glass rounded container"
-assert_match 'VisualEffectBlur\(material: \.popover' \
+assert_no_match 'VisualEffectBlur\(material: \.popover' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar menu should use the native popover material for a readable macOS glass effect"
+  "Status bar menu must not place an AppKit NSVisualEffectView inside the SwiftUI ZStack because it can cover the menu content"
+assert_match 'menuSurfaceOpacity' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar menu should use a SwiftUI-owned translucent surface behind the content"
 assert_match '\.clipShape\(RoundedRectangle\(cornerRadius: Self\.menuGlassCornerRadius' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar menu should clip the frosted background to a modern rounded container"
@@ -1288,9 +2495,12 @@ assert_match 'EmptyQuotaStateView' \
 assert_match 'quotaPresentation' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Key rows must use the shared quota presentation model"
-assert_match 'Text\(key\.statusBarCredentialLabel\)' \
+assert_match 'item\.statusBarAccountContextLabel' \
   "QuotaRadar/Views/MenuContentView.swift" \
-  "Status bar key rows should show masked API keys or safe cookie credential labels"
+  "Status bar key rows should use compact account context and hide low-information web-login authorization labels"
+assert_match 'credentialID: item\.key\.id' \
+  "QuotaRadar/Views/MenuContentView.swift" \
+  "Status bar key rows should pass the exact account id when opening the main provider view"
 assert_no_match 'Text\(key\.name\)' \
   "QuotaRadar/Views/MenuContentView.swift" \
   "Status bar key rows must not show TAVILY_API_KEY-style environment variable names"
@@ -1300,24 +2510,692 @@ assert_no_match 'key\.key\.count' \
 assert_no_match 'chars' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings API key rows must not show API key character counts"
-assert_match 'timingText\(key\.visibleQuotaResetSummary' \
+assert_no_match 'timingText\(key\.visibleQuotaResetSummary' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Settings API key rows should show visible quota reset timing separately from package expiry"
+  "Settings API key rows should not duplicate quota-window reset timing in the account timing column"
 assert_match 'key\.planEndSummary' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings API key rows should show package expiry as a separate weak detail"
-assert_match 'ProviderQuotaTimingColumn\.width' \
+assert_match 'ProviderQuotaAccountLayout\.columnWidths\(for:' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Settings API key timing column should use one shared width for header and rows"
+  "Settings API key timing column should align through the shared account grid width calculation"
 assert_no_match 'frame\(width: 124, alignment: \.trailing\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings API key timing column must not keep the old narrow last-updated width"
-assert_match 'ProviderQuotaTimingColumn\(key: key, updatedText: updatedText\)' \
+assert_match 'criticalTimeText' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Settings API key rows should render update, reset, and plan-expiry timing through a dedicated column"
-assert_match 'key\.quotaRowSubtitle' \
+  "Settings API key rows should separate reset or package expiry into a compact critical-time column"
+assert_match 'value: L10n\.format\(\.updated, updatedText\)' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Settings quota key rows should use a row subtitle that can suppress duplicated multi-window quotas"
+  "Settings API key rows should keep last-updated text in its own compact column"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
+try:
+    timing_column = source.split("struct ProviderQuotaTimingColumn: View", 1)[1].split("// MARK: - Diagnostics View", 1)[0]
+except IndexError:
+    print("FAIL: ProviderQuotaTimingColumn should exist before diagnostics", file=sys.stderr)
+    sys.exit(1)
+
+if "VStack(alignment: .trailing" not in timing_column:
+    print("FAIL: Expanded settings account timing should stack update and package expiry vertically", file=sys.stderr)
+    sys.exit(1)
+if "timingText(key.visibleQuotaResetSummary" in timing_column:
+    print("FAIL: Settings account timing should not render quota reset summaries beside update/expiry timing", file=sys.stderr)
+    sys.exit(1)
+if "HStack(alignment: .firstTextBaseline" in timing_column or 'Text("·")' in timing_column:
+    print("FAIL: Expanded settings account timing should not join update and package expiry on one line", file=sys.stderr)
+    sys.exit(1)
+PY
+assert_no_match 'trendSummary\(for: key\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings quota activity columns should not draw from textual trend summaries"
+assert_no_match 'quotaTrendOverlayText' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings quota activity columns should not generate textual trend overlay labels"
+assert_match 'case quotaActivity' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Activity column labels should be localized"
+assert_match 'case quotaActivityRemaining' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Activity rows should label current values as remaining quota instead of used quota"
+assert_match 'refreshDeltaText' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota history should explain what changed on the latest refresh"
+assert_match 'case skipped' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota history should persist automatic refresh skips so users can tell why nothing changed"
+assert_match 'enum QuotaRefreshHistoryKind' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota history should classify refresh attempts into compact user-facing event kinds"
+assert_match 'struct QuotaRefreshHistoryItem' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota history should expose compact refresh-outcome markers for expanded provider accounts"
+assert_match 'static func items' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota refresh history should be derived through one shared summary function"
+assert_match 'func refreshHistoryItems\(for key: APIKey\)' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose refresh-history rows to SwiftUI surfaces"
+assert_match 'recordQuotaSnapshot\(for: key, outcome: \.skipped\)' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "Automatic refresh skips should be recorded as quota snapshots instead of only updating diagnostics"
+assert_no_match 'struct ProviderQuotaRefreshHistoryView' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Expanded provider accounts should not add a bulky refresh-history list to the monitor"
+assert_no_match 'ProviderQuotaRefreshHistoryView\(' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Refresh outcomes should be summarized near Last Updated instead of rendered as a separate list"
+assert_no_match 'refreshHistoryItems:' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Expanded account groups should receive only the latest refresh marker, not a history list"
+assert_match 'latestRefreshHistoryItem:' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Expanded account groups should attach the latest refresh outcome to the Last Updated metadata"
+assert_match 'ProviderQuotaRefreshMarker' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Last Updated metadata should show a compact marker for refresh changes"
+assert_match 'quotaRefreshMarkerUpdated' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Last Updated refresh markers should use a generic updated state instead of repeating quota deltas"
+assert_no_match 'case refreshHistory' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Refresh-history list labels should be removed when the list is no longer rendered"
+assert_match 'quotaRefreshDeltaConsumed' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Refresh delta labels should be localized"
+assert_match 'struct QuotaSparklineSample' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota history should expose normalized samples for compact trend sparklines"
+assert_match 'enum QuotaActivityKind' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota history should classify activity by provider quota semantics instead of only drawing remaining-quota trends"
+assert_match 'struct QuotaActivitySummary' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota history should expose activity summaries for the main app and menu bar"
+assert_match 'static func activitySummary' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota activity should be derived through one shared summary function"
+assert_match 'struct QuotaConsumptionSpeedSummary' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "P6 consumption-speed hints should be derived from quota history, not view-specific heuristics"
+assert_match 'static func speedSummary' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "P6 consumption-speed hints should use one shared reset-aware summary function"
+assert_match 'func consumptionSpeedSummary\(for key: APIKey\)' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose P6 consumption-speed hints to SwiftUI surfaces"
+assert_match 'var consumedPercentPoints: Double\?' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota activity summaries should expose consumed percentage points so menu recency ranking uses the same reset-aware model"
+assert_match 'var consumedUnits: Int\?' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota activity summaries should expose consumed units so money-balance and fixed-quota providers can share menu recency ranking"
+assert_match 'var usedFraction: Double\?' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota activity summaries should expose an optional usage fraction for compact meters"
+assert_match 'var shouldRender: Bool' \
+  "QuotaRadar/Models/QuotaHistory.swift" \
+  "Quota activity summaries should explicitly hide low-signal activity lanes"
+assert_match 'func activitySummary\(for key: APIKey\)' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "QuotaMonitor should expose activity summaries to SwiftUI surfaces"
+assert_match 'struct QuotaActivityMeter' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings quota rows should render compact activity indicators instead of trend sparklines"
+assert_no_match 'ProviderQuotaActivityHeaderCell' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview should not reserve a sparse Activity header column"
+assert_no_match 'ProviderQuotaActivityColumn' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview should not reserve a sparse Activity scan column"
+assert_no_match 'activityWidth' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview layout should not reserve fixed width for mostly-empty activity signals"
+assert_match 'provider: providerColumnWidth,' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview should keep provider labels compact instead of stretching the removed Activity space"
+assert_match 'keyQuota: keyQuotaWidth,' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview should keep key quota close to provider labels instead of right-aligning across a wide blank lane"
+assert_match 'static let providerLabelWidth: CGFloat = 104' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota overview provider label width should stay compact after removing the Activity column"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
+try:
+    grid_row = source.split("struct ProviderQuotaOverviewGridRow", 1)[1].split("struct ProviderQuotaMonitorTableHeader", 1)[0]
+    overview_header = source.split("struct ProviderQuotaMonitorTableHeader: View", 1)[1].split("struct ProviderQuotaMonitorRow: View", 1)[0]
+except IndexError:
+    print("FAIL: Provider quota overview grid and header should be present", file=sys.stderr)
+    sys.exit(1)
+if "keyQuota\n                    .frame(width: widths.keyQuota, height: height, alignment: .leading)" not in grid_row:
+    print("FAIL: Key quota cells should align near provider labels instead of floating at the far edge of a wide numeric lane", file=sys.stderr)
+    sys.exit(1)
+if "Text(L10n.t(.keyQuota))\n                .frame(maxWidth: .infinity, alignment: .leading)" not in overview_header:
+    print("FAIL: Key quota header should align with key quota values after the Activity column is removed", file=sys.stderr)
+    sys.exit(1)
+PY
+assert_no_match 'provider: providerColumnWidth \+ extraWidth' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider column must not absorb spare table width after Activity is hidden"
+assert_no_match 'keyQuota: keyQuotaWidth \+ extraWidth' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Key quota column must not absorb spare table width after Activity is hidden"
+assert_match 'activitySummary: monitor\.activitySummary\(for: key\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Expanded account rows should attach account-specific recent changes to the quota area"
+assert_no_match 'speedSummary: monitor\.consumptionSpeedSummary\(for: key\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Expanded account rows should keep speed-risk hints out of the quota-window table"
+assert_no_match 'refreshItem\.deltaText' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Last Updated refresh markers should stay status-only instead of showing quota deltas"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
+try:
+    quota_windows = source.split("struct ProviderQuotaAccountQuotaWindows: View", 1)[1].split("struct CodexResetCreditRow: View", 1)[0]
+except IndexError:
+    print("FAIL: Expanded account quota window block should exist", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaInlineActivity(" not in quota_windows:
+    print("FAIL: Expanded account quota blocks should render recent changes below the quota windows", file=sys.stderr)
+    sys.exit(1)
+if "summary: activitySummary" not in quota_windows:
+    print("FAIL: Expanded account quota blocks should use the account-specific activity summary", file=sys.stderr)
+    sys.exit(1)
+if "speedSummary: .empty" not in quota_windows:
+    print("FAIL: Expanded account quota blocks should render only recent changes, not speed-risk hints", file=sys.stderr)
+    sys.exit(1)
+try:
+    meta_panel = source.split("struct ProviderQuotaAccountMetaPanel: View", 1)[1].split("struct ProviderQuotaTimingColumn: View", 1)[0]
+except IndexError:
+    print("FAIL: Expanded account metadata panel should exist", file=sys.stderr)
+    sys.exit(1)
+if "activitySummary" in meta_panel or "speedSummary" in meta_panel or "deltaText" in meta_panel:
+    print("FAIL: Last Updated metadata should stay refresh-status-only and not render quota activity", file=sys.stderr)
+    sys.exit(1)
+try:
+    inline_activity = source.split("struct ProviderQuotaInlineActivity: View", 1)[1].split("struct QuotaSpeedHint: View", 1)[0]
+except IndexError:
+    print("FAIL: Inline quota activity component should exist", file=sys.stderr)
+    sys.exit(1)
+if "else if speedSummary.shouldRender" not in inline_activity:
+    print("FAIL: Inline quota activity should prefer real recent changes over speed-risk hints instead of rendering both side by side", file=sys.stderr)
+    sys.exit(1)
+PY
+assert_match 'summary: providerActivitySummary' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider summary rows should keep meaningful activity attached to the quota reading"
+assert_match 'ProviderQuotaInlineActivity' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider summary rows should render activity as an inline quota-side signal"
+assert_match 'summary\.deltaText\?\.trimmingCharacters' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Inline quota activity should hide bare period markers when there is no actual change"
+assert_match 'summary\.kind == \.recovered' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Inline quota activity should surface balance replenishment instead of hiding recovered events behind a missing delta"
+assert_match 'L10n\.t\(\.quotaTrendReplenished\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Inline quota activity should label recovered balance changes instead of showing a bare period marker"
+assert_match 'var mostConstrainedActiveMonitoringKey' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Provider summary rows should be anchored to the most constrained active account instead of implying aggregated usage"
+assert_no_match 'if let detailKey = keys\.first\(where: \{ !\$0\.quotaWindowDetails\.isEmpty \}\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Expanded provider details should not show the first account's quota windows as if they describe the whole provider"
+assert_no_match 'QuotaTrendSparkline\(' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings quota rows should not render trend sparklines after the Activity model replaces trends"
+assert_no_match 'struct QuotaTrendSparkline' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings quota rows should remove the old trend sparkline component"
+assert_no_match 'ProviderQuotaTrendColumn' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings quota rows should remove the old trend column component"
+assert_no_match 'sparklineSamples: monitor\.sparklineSamples\(for: key\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Expanded account rows should not request sparkline samples from QuotaMonitor"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Models/QuotaHistory.swift").read_text()
+try:
+    recent_provider_usage = source.split("static func recentProviderUsageItems", 1)[1].split("private static func shouldRankRecentUsage", 1)[0]
+except IndexError:
+    print("FAIL: recentProviderUsageItems should exist before ranking helpers", file=sys.stderr)
+    sys.exit(1)
+if "QuotaActivitySummary.activitySummary" not in recent_provider_usage:
+    print("FAIL: Menu bar recent changes should use the same reset-aware QuotaActivitySummary as the main activity column", file=sys.stderr)
+    sys.exit(1)
+if "QuotaTrendSummary.trendSummary" in recent_provider_usage:
+    print("FAIL: Menu bar recent changes should not use generic quota trends that can cross reset windows", file=sys.stderr)
+    sys.exit(1)
+if "recentActivityMetrics" not in recent_provider_usage:
+    print("FAIL: Menu bar recent changes should rank from a shared activity metric derived from QuotaActivitySummary", file=sys.stderr)
+    sys.exit(1)
+PY
+python3 - <<'PY'
+from pathlib import Path
+import re
+import sys
+
+source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
+try:
+    activity_meter_start = source.split("struct QuotaActivityMeter: View", 1)[1]
+    activity_meter = activity_meter_start.split("struct ProviderQuotaStatusPill: View", 1)[0]
+    overview_header = source.split("struct ProviderQuotaMonitorTableHeader: View", 1)[1].split("struct ProviderQuotaMonitorRow: View", 1)[0]
+    provider_row = source.split("struct ProviderQuotaMonitorRow: View", 1)[1].split("struct ProviderQuotaColumnValue: View", 1)[0]
+    grid_row = source.split("struct ProviderQuotaOverviewGridRow", 1)[1].split("struct ProviderQuotaMonitorTableHeader", 1)[0]
+except IndexError:
+    print("FAIL: Quota overview structure should expose activity meter, header, and provider row scopes", file=sys.stderr)
+    sys.exit(1)
+
+if "summary.shouldRender" not in activity_meter:
+    print("FAIL: QuotaActivityMeter should delegate low-signal hiding to QuotaActivitySummary.shouldRender", file=sys.stderr)
+    sys.exit(1)
+if "summary.periodName.map" not in activity_meter or "quotaPeriodCompactTitle" not in activity_meter:
+    print("FAIL: QuotaActivityMeter should render compact activity period labels such as month/week/5h", file=sys.stderr)
+    sys.exit(1)
+if "Text(periodLabel ?? \"\")" in activity_meter or ".opacity(periodLabel == nil ? 0 : 1)" in activity_meter:
+    print("FAIL: QuotaActivityMeter should not place a reserved period-label slot before the primary activity value", file=sys.stderr)
+    sys.exit(1)
+if "Text(currentValueText)" in activity_meter:
+    print("FAIL: QuotaActivityMeter should not duplicate the current quota value now that activity is attached to Key Quota", file=sys.stderr)
+    sys.exit(1)
+if "summary.currentText" not in activity_meter:
+    print("FAIL: QuotaActivityMeter should still derive from the same summary model even when it suppresses duplicate current quota text", file=sys.stderr)
+    sys.exit(1)
+if "fixedSize(horizontal: true, vertical: false)" not in activity_meter:
+    print("FAIL: QuotaActivityMeter values should keep compact money amounts readable instead of truncating them", file=sys.stderr)
+    sys.exit(1)
+if ".truncationMode(.tail)" in activity_meter:
+    print("FAIL: QuotaActivityMeter should not hide money-balance activity behind tail truncation", file=sys.stderr)
+    sys.exit(1)
+if "quotaActivityRemaining" in activity_meter:
+    print("FAIL: QuotaActivityMeter should not prefix compact readings with remaining-quota wording", file=sys.stderr)
+    sys.exit(1)
+if "summary.deltaText" not in activity_meter or "changeIndicatorText" not in activity_meter:
+    print("FAIL: QuotaActivityMeter should convert remaining deltas into compact direction indicators such as ↓2pt", file=sys.stderr)
+    sys.exit(1)
+if "return deltaText" in activity_meter:
+    print("FAIL: QuotaActivityMeter should not render raw remaining-delta text such as -2pt", file=sys.stderr)
+    sys.exit(1)
+if "summary.usedFraction" in activity_meter or "currentUsageText" in activity_meter or "quotaActivityUsed" in activity_meter:
+    print("FAIL: QuotaActivityMeter should not expose used-quota wording in the remaining-first activity lane", file=sys.stderr)
+    sys.exit(1)
+if "summary.activityText" in activity_meter:
+    print("FAIL: QuotaActivityMeter should not show consumption wording alongside remaining quota", file=sys.stderr)
+    sys.exit(1)
+if "activityFill" in activity_meter:
+    print("FAIL: QuotaActivityMeter should avoid unlabeled progress bars that make activity deltas hard to interpret", file=sys.stderr)
+    sys.exit(1)
+if "Capsule()" in activity_meter:
+    print("FAIL: QuotaActivityMeter should stay inline and avoid pill/card-like placeholder styling", file=sys.stderr)
+    sys.exit(1)
+if "Text(L10n.t(.quotaActivity))" in overview_header:
+    print("FAIL: Provider quota overview header should not reserve a mostly-empty Activity column", file=sys.stderr)
+    sys.exit(1)
+if "activity:" in overview_header or "activity:" in provider_row or "let activity:" in grid_row:
+    print("FAIL: Provider quota overview grid should remove the dedicated Activity column", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaOverviewGridRow(" not in overview_header:
+    print("FAIL: Provider quota overview header should use the shared grid row so headers and values share positions", file=sys.stderr)
+    sys.exit(1)
+if "Text(L10n.t(.credentialState))" not in overview_header:
+    print("FAIL: Provider quota status column header should say Status/State now that quota risk lives in Key Quota", file=sys.stderr)
+    sys.exit(1)
+if "Text(L10n.t(.quotaStatus))" in overview_header:
+    print("FAIL: Provider quota status column header should not still be labelled Quota Status", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaInlineActivity" not in provider_row or "summary: providerActivitySummary" not in provider_row:
+    print("FAIL: Provider quota summary rows should attach meaningful activity under Key Quota instead of a sparse second column", file=sys.stderr)
+    sys.exit(1)
+if provider_row.find("ProviderQuotaColumnValue(value: keyQuotaText") > provider_row.find("ProviderQuotaInlineActivity"):
+    print("FAIL: Provider quota summary rows should keep the quota value primary and show activity as supporting text below it", file=sys.stderr)
+    sys.exit(1)
+if "private var providerAvailabilityStatusColor: Color" not in provider_row:
+    print("FAIL: Provider quota summary rows should separate availability status color from quota-risk color", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaStatusPill(text: statusText, tint: providerAvailabilityStatusColor)" not in provider_row:
+    print("FAIL: Provider quota status pill should use availability color instead of quota-risk color", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaStatusPill(text: statusText, tint: quotaOverviewRiskColor)" in provider_row:
+    print("FAIL: Provider quota status pill should not turn red only because quota is low", file=sys.stderr)
+    sys.exit(1)
+if "if keys.contains(where: { $0.isExhausted || $0.isLow }) { return L10n.t(.low) }" in provider_row:
+    print("FAIL: Provider quota status text should not collapse low remaining quota into connection status", file=sys.stderr)
+    sys.exit(1)
+if "providerSummaryRowBackground" not in source or "providerSummaryRiskAccent" not in source:
+    print("FAIL: Provider quota rows should lightly emphasize risk rows without turning the table into cards", file=sys.stderr)
+    sys.exit(1)
+layout_match = re.search(r"private enum ProviderQuotaOverviewLayout[\s\S]*?static let totalWidthBudget: CGFloat = ([0-9.]+)", source)
+if not layout_match:
+    print("FAIL: Provider quota overview rows should define an explicit width budget for the default settings window", file=sys.stderr)
+    sys.exit(1)
+if float(layout_match.group(1)) > 850:
+    print("FAIL: Provider quota overview row width budget should fit the default settings window", file=sys.stderr)
+    sys.exit(1)
+if "compactDataWidth" not in source or "compactScale" not in source:
+    print("FAIL: Provider quota overview rows should shrink data columns in compact 13-inch windows so action buttons stay visible", file=sys.stderr)
+    sys.exit(1)
+if "contentWidth < minimumTotalWidth" not in source:
+    print("FAIL: Provider quota overview layout should detect compact windows before applying the default width budget", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaAccountLayout" not in source:
+    print("FAIL: Expanded account quota rows should use a shared compact account layout", file=sys.stderr)
+    sys.exit(1)
+if "static let rowHorizontalPadding: CGFloat" not in source:
+    print("FAIL: Provider quota table rows should share one horizontal padding constant so headers, provider rows, and account rows start on the same grid", file=sys.stderr)
+    sys.exit(1)
+if "struct ProviderQuotaOverviewGridRow" not in source:
+    print("FAIL: Provider quota overview header and rows should render through one shared grid row component", file=sys.stderr)
+    sys.exit(1)
+if "columnWidths(for:" not in source:
+    print("FAIL: Provider quota overview columns should be calculated from one shared width model", file=sys.stderr)
+    sys.exit(1)
+try:
+    provider_row = source.split("struct ProviderQuotaMonitorRow: View", 1)[1].split("struct ProviderQuotaColumnValue: View", 1)[0]
+except IndexError:
+    print("FAIL: ProviderQuotaMonitorRow should exist before quota column helpers", file=sys.stderr)
+    sys.exit(1)
+if "ZStack(alignment: .trailing)" in provider_row:
+    print("FAIL: Provider quota action buttons must be part of the row grid instead of floating in a trailing overlay", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaActionGroup(" not in provider_row.split("private var providerSummaryRow: some View", 1)[1]:
+    print("FAIL: Provider quota action buttons should live inside the provider summary row grid", file=sys.stderr)
+    sys.exit(1)
+if "isWatched: monitor.isMenuWatchedProvider(provider)" not in provider_row:
+    print("FAIL: Provider quota rows should expose whether the provider is pinned in the menu watchlist", file=sys.stderr)
+    sys.exit(1)
+if "onToggleWatched: { monitor.toggleMenuWatchedProvider(provider) }" not in provider_row:
+    print("FAIL: Provider quota rows should let users pin or unpin a provider without opening the watchlist settings sheet", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaOverviewGridRow(" not in overview_header or "ProviderQuotaOverviewGridRow(" not in provider_row:
+    print("FAIL: Provider quota overview header and provider rows should both use the shared grid row component", file=sys.stderr)
+    sys.exit(1)
+if "private var providerSummaryCells" in provider_row:
+    print("FAIL: Provider quota summary cells should not be a separate HStack with independent column positions", file=sys.stderr)
+    sys.exit(1)
+if "Spacer(minLength: ProviderQuotaOverviewLayout.flexibleGapMinWidth)" in provider_row or "Spacer(minLength: ProviderQuotaOverviewLayout.flexibleGapMinWidth)" in overview_header:
+    print("FAIL: Provider quota overview rows should not rely on a loose spacer for column alignment", file=sys.stderr)
+    sys.exit(1)
+if ".padding(.leading, 56)" in provider_row:
+    print("FAIL: Expanded quota account rows should align their borders with provider summary rows instead of adding a hard left indent", file=sys.stderr)
+    sys.exit(1)
+try:
+    account_grid = source.split("struct ProviderQuotaAccountGridRow", 1)[1].split("struct ProviderQuotaOverviewGridRow", 1)[0]
+    account_table = source.split("struct ProviderQuotaAccountGroup: View", 1)[1].split("struct ProviderQuotaTimingColumn: View", 1)[0]
+except IndexError:
+    print("FAIL: Expanded quota account group layout should exist before timing column helpers", file=sys.stderr)
+    sys.exit(1)
+if ".frame(width: 230" in account_table or ".frame(width: 86" in account_table or ".frame(width: 112" in account_table:
+    print("FAIL: Expanded quota account table should not keep old hard-coded column widths", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaAccountGroup(" not in source:
+    print("FAIL: Expanded quota rows should render account-group cards instead of continuing the provider table", file=sys.stderr)
+    sys.exit(1)
+if "HStack(alignment: .center, spacing: 14)" not in account_table:
+    print("FAIL: Expanded account group identity and meta panel should be vertically centered against quota-window rows", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaKeyTableHeader()" in source or "ProviderQuotaKeyTableRow(" in source:
+    print("FAIL: Expanded quota rows should not render the old header/key table layout", file=sys.stderr)
+    sys.exit(1)
+if "L10n.t(.quotaMonitoringAuthorization)" in account_table:
+    print("FAIL: Expanded account groups should not show low-value web-login authorization copy under the account name", file=sys.stderr)
+    sys.exit(1)
+if "providerWindowDetailKey" in source:
+    print("FAIL: Expanded quota window details should belong to each account instead of one provider-level selected key", file=sys.stderr)
+    sys.exit(1)
+if "QuotaWindowDetails(windows: detailKey.quotaWindowDetails)" in source:
+    print("FAIL: Expanded quota window detail rows should not use the loose spacer-based QuotaWindowDetails layout", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaAccountQuotaWindows(" not in account_table:
+    print("FAIL: Expanded account groups should render quota windows inside the account group body", file=sys.stderr)
+    sys.exit(1)
+if "CodexResetCreditRow(" not in account_table:
+    print("FAIL: Codex reset-credit controls should live in the expanded account row near quota windows", file=sys.stderr)
+    sys.exit(1)
+if "isResettingCodexQuota" not in account_table or "onResetCodexQuota" not in account_table:
+    print("FAIL: Expanded account rows should receive account-scoped Codex reset state and action callbacks", file=sys.stderr)
+    sys.exit(1)
+if "provider == .codexSubscription" not in account_table:
+    print("FAIL: Codex reset-credit controls should be gated to Codex subscription credentials", file=sys.stderr)
+    sys.exit(1)
+if "Provider.codexSubscription" in account_table:
+    print("FAIL: Codex reset-credit account rows should gate on the selected key provider instead of a provider-level constant", file=sys.stderr)
+    sys.exit(1)
+if "periodText: L10n.t(.remaining)" in account_table:
+    print("FAIL: Expanded account groups should not repeat Remaining as both section label and fallback row label", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaAccountMetaPanel(" not in account_table:
+    print("FAIL: Expanded account groups should show plan expiry and last update once in a compact meta panel", file=sys.stderr)
+    sys.exit(1)
+account_group_body = account_table.split("var body: some View", 1)[1].split("struct ProviderQuotaRefreshMarker", 1)[0]
+identity_position = account_group_body.find("ProviderQuotaAccountIdentity(")
+windows_position = account_group_body.find("ProviderQuotaAccountQuotaWindows(")
+meta_position = account_group_body.find("ProviderQuotaAccountMetaPanel(")
+if not (0 <= identity_position < windows_position < meta_position):
+    print("FAIL: Expanded account groups should keep quota windows between identity and the original right-side critical-time/last-updated panel", file=sys.stderr)
+    sys.exit(1)
+if "Spacer(minLength: 12)" in account_group_body and account_group_body.find("Spacer(minLength: 12)") < meta_position:
+    print("FAIL: Expanded account groups should not replace the quota-window column with a spacer before the right-side time panel", file=sys.stderr)
+    sys.exit(1)
+if "planEndText: key.planEndSummary.isEmpty ? nil : key.planEndSummary" not in account_table:
+    print("FAIL: Expanded account meta panel should show package expiry only when the account exposes one", file=sys.stderr)
+    sys.exit(1)
+if "criticalTimeText: criticalTimeText" in account_table:
+    print("FAIL: Expanded account quota rows should not duplicate package expiry from the account meta panel", file=sys.stderr)
+    sys.exit(1)
+try:
+    window_details = account_table.split("struct ProviderQuotaAccountQuotaWindows: View", 1)[1]
+except IndexError:
+    print("FAIL: Expanded quota window details should be present in the account group section", file=sys.stderr)
+    sys.exit(1)
+if "window.detailValueText" not in window_details:
+    print("FAIL: Expanded quota window rows should include reset or remaining detail next to the period value", file=sys.stderr)
+    sys.exit(1)
+quota_windows_container = window_details.split("struct CodexResetCreditRow: View", 1)[0]
+if ".frame(maxWidth: .infinity, alignment: .leading)" not in quota_windows_container:
+    print("FAIL: Expanded quota window containers should fill the available account width so reset details are readable", file=sys.stderr)
+    sys.exit(1)
+try:
+    quota_window_row = source.split("struct ProviderQuotaAccountQuotaWindowRow: View", 1)[1].split("struct ProviderQuotaAccountMetaPanel", 1)[0]
+except IndexError:
+    print("FAIL: Expanded account quota window row should exist", file=sys.stderr)
+    sys.exit(1)
+if "HStack(alignment: .firstTextBaseline, spacing: 12)" not in quota_window_row or "value: detailText ?? \"\"" not in quota_window_row:
+    print("FAIL: Expanded quota window rows should keep remaining percentage and reset detail on the same horizontal line", file=sys.stderr)
+    sys.exit(1)
+if "let resetText: String?" in quota_window_row or "if let resetText" in quota_window_row:
+    print("FAIL: Expanded quota window rows should not split reset timing into a separate vertical line", file=sys.stderr)
+    sys.exit(1)
+if ".frame(width: 72, alignment: .leading)" not in quota_window_row or ".frame(maxWidth: .infinity, minHeight: 24, alignment: .leading)" not in quota_window_row:
+    print("FAIL: Expanded quota window rows should claim the available width for reset details instead of shrinking to a narrow intrinsic row", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaAccountGridRow(" in account_table or "ProviderQuotaWindowDetailGridRow(" in account_table:
+    print("FAIL: Expanded account groups should not reuse table grid rows that recreate empty columns", file=sys.stderr)
+    sys.exit(1)
+if "L10n.t(.lastUpdated)" not in account_table:
+    print("FAIL: Expanded account meta panel should keep last-updated visible once per account", file=sys.stderr)
+    sys.exit(1)
+if "struct CodexResetCreditRow: View" not in source:
+    print("FAIL: Settings should define a compact CodexResetCreditRow for account-level reset credits", file=sys.stderr)
+    sys.exit(1)
+codex_reset_row = source.split("struct CodexResetCreditRow: View", 1)[1].split("struct ProviderQuotaAccountSingleQuotaRow", 1)[0]
+if "codexResetCreditsRemaining" not in codex_reset_row or "codexResetQuotaAction" not in codex_reset_row:
+    print("FAIL: Codex reset-credit row should show available credits and a localized reset action", file=sys.stderr)
+    sys.exit(1)
+if "let resetText: String?" in codex_reset_row or "if let resetText" in codex_reset_row:
+    print("FAIL: Codex reset-credit row should not group reset dates with the manual reset action; keep both aligned by column rules", file=sys.stderr)
+    sys.exit(1)
+if "HStack(alignment: .firstTextBaseline, spacing: 12)" not in codex_reset_row:
+    print("FAIL: Codex reset-credit row should align with quota-window period/value/detail columns", file=sys.stderr)
+    sys.exit(1)
+if ".frame(width: 62, alignment: .leading)" not in codex_reset_row or ".frame(width: 72, alignment: .leading)" not in codex_reset_row:
+    print("FAIL: Codex reset-credit count should use the same period and value column widths as reset-date rows", file=sys.stderr)
+    sys.exit(1)
+if "Button(" not in codex_reset_row or ".disabled(" not in codex_reset_row:
+    print("FAIL: Codex reset-credit row should render a disabled-safe button", file=sys.stderr)
+    sys.exit(1)
+if ".buttonStyle(.bordered)" in codex_reset_row:
+    print("FAIL: Codex reset-credit action should not use a bordered button in the compact monitor row", file=sys.stderr)
+    sys.exit(1)
+if "Text(L10n.t(.codexResetQuotaAction))" not in codex_reset_row:
+    print("FAIL: Codex reset-credit action should keep visible localized text so users understand the reset function", file=sys.stderr)
+    sys.exit(1)
+if "Image(systemName: \"arrow.counterclockwise\")" not in codex_reset_row:
+    print("FAIL: Codex reset-credit action should keep a compact reset icon next to the explanatory text", file=sys.stderr)
+    sys.exit(1)
+if ".buttonStyle(.plain)" not in codex_reset_row or ".frame(height: 22)" not in codex_reset_row:
+    print("FAIL: Codex reset-credit action should match compact monitoring controls with a fixed-height inline action", file=sys.stderr)
+    sys.exit(1)
+if ".frame(maxWidth: .infinity, alignment: .leading)" not in codex_reset_row:
+    print("FAIL: Codex reset-credit action should align to the same detail-column start as reset-date text", file=sys.stderr)
+    sys.exit(1)
+if "resetText: nextResetText" in account_table or "private var nextResetText: String?" in account_table:
+    print("FAIL: Expanded Codex reset-credit rows should not duplicate reset timing inside the manual action row", file=sys.stderr)
+    sys.exit(1)
+if "Capsule(style: .continuous)" not in codex_reset_row:
+    print("FAIL: Codex reset-credit action should use a low-noise capsule treatment instead of a standard button bezel", file=sys.stderr)
+    sys.exit(1)
+if ".accessibilityLabel(L10n.t(.codexResetQuotaAction))" not in codex_reset_row:
+    print("FAIL: Codex reset-credit action should keep an accessible localized action label", file=sys.stderr)
+    sys.exit(1)
+if "codexResetQuotaConfirmTitle" not in source or "confirmationDialog" not in source:
+    print("FAIL: Codex quota reset should ask for confirmation before consuming a reset credit", file=sys.stderr)
+    sys.exit(1)
+try:
+    action_group = source.split("struct ProviderQuotaActionGroup: View", 1)[1].split("struct AddCredentialProviderList", 1)[0]
+except IndexError:
+    print("FAIL: ProviderQuotaActionGroup should exist before add-credential provider list", file=sys.stderr)
+    sys.exit(1)
+if "let isWatched: Bool" not in action_group or "let onToggleWatched: () -> Void" not in action_group:
+    print("FAIL: Provider quota action group should accept watchlist state and a watchlist toggle action", file=sys.stderr)
+    sys.exit(1)
+if "ProviderWatchedToggleButton(" not in action_group:
+    print("FAIL: Provider quota action group should render a compact star button for menu watchlist linkage", file=sys.stderr)
+    sys.exit(1)
+try:
+    watched_button = source.split("struct ProviderWatchedToggleButton: View", 1)[1].split("struct ProviderQuotaActionGroup", 1)[0]
+except IndexError:
+    print("FAIL: ProviderWatchedToggleButton should exist before ProviderQuotaActionGroup", file=sys.stderr)
+    sys.exit(1)
+if '"star.fill"' not in watched_button or '"star"' not in watched_button:
+    print("FAIL: Provider watchlist toggle should use familiar star and filled-star symbols", file=sys.stderr)
+    sys.exit(1)
+if "addWatchedProviderAction" not in watched_button or "removeWatchedProviderAction" not in watched_button:
+    print("FAIL: Provider watchlist toggle should expose localized add/remove help text", file=sys.stderr)
+    sys.exit(1)
+for expected in ["L10n.t(.lastUpdated)"]:
+    if expected not in account_table:
+        print(f"FAIL: Expanded quota account table should use compact core columns and include {expected}", file=sys.stderr)
+        sys.exit(1)
+for noisy in ["ProviderQuotaActivityHeaderCell()", "QuotaActivityMeter(", "ProviderQuotaStatusPill(text: key.healthDisplayText", "key.quotaRowSubtitle"]:
+    if noisy in account_table:
+        print("FAIL: Expanded quota account rows should hide low-value activity/status/subtitle details and keep plan, quota, timing, update columns", file=sys.stderr)
+        sys.exit(1)
+try:
+    quota_key_row = source.split("struct ProviderQuotaAccountGroup: View", 1)[1].split("struct ProviderQuotaTimingColumn: View", 1)[0]
+except IndexError:
+    print("FAIL: ProviderQuotaAccountGroup should exist before timing helpers", file=sys.stderr)
+    sys.exit(1)
+if "struct ProviderQuotaAccountValueText" not in source:
+    print("FAIL: Expanded quota account values should use one shared account-row text style", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaColumnValue(value: criticalTimeText" in quota_key_row:
+    print("FAIL: Expanded quota account critical time should not reuse the larger provider-summary value style", file=sys.stderr)
+    sys.exit(1)
+if quota_key_row.count("ProviderQuotaAccountValueText(") < 3:
+    print("FAIL: Expanded quota account remaining, critical time, and updated columns should share one font size", file=sys.stderr)
+    sys.exit(1)
+if ".font(.system(size: 11" in quota_key_row or ".font(.caption2.weight(.medium))" in quota_key_row:
+    print("FAIL: Expanded quota account value columns should not mix 11pt and caption2 fonts", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaAccountLayout.columnWidths(for:" not in source:
+    print("FAIL: Expanded quota account table should calculate column widths from available content width", file=sys.stderr)
+    sys.exit(1)
+if "static let planWidth: CGFloat = 156" not in source:
+    print("FAIL: Expanded quota account plan column should stay compact instead of reserving a wide empty package lane", file=sys.stderr)
+    sys.exit(1)
+if "plan: planWidth + extraWidth" in source or "remaining: remainingWidth + extraWidth" in source:
+    print("FAIL: Expanded quota account plan/remaining columns should not absorb spare width after Activity is removed", file=sys.stderr)
+    sys.exit(1)
+if "plan: planWidth," not in source or "remaining: remainingWidth," not in source:
+    print("FAIL: Expanded quota account plan/remaining columns should use fixed compact widths", file=sys.stderr)
+    sys.exit(1)
+if "remaining\n                    .frame(width: widths.remaining, height: height, alignment: .leading)" not in account_grid:
+    print("FAIL: Expanded quota account remaining cells should align near package labels instead of floating across a wide blank lane", file=sys.stderr)
+    sys.exit(1)
+if "Text(L10n.t(.remaining))" in account_table:
+    print("FAIL: Expanded account groups should omit the low-value Remaining section label above quota-window rows", file=sys.stderr)
+    sys.exit(1)
+for column in ["criticalTime", "updated"]:
+    marker = f"{column}\n                    .frame(width: widths.{column}, height: height, alignment: .leading)"
+    if marker not in account_grid:
+        print(f"FAIL: Expanded quota account {column} cells should share the same left boundary as their headers", file=sys.stderr)
+        sys.exit(1)
+if "metaRow(label: L10n.t(.criticalTime), value: planEndText)" not in account_table:
+    print("FAIL: Expanded account groups should show critical time once in the account meta panel", file=sys.stderr)
+    sys.exit(1)
+if "metaRow(label: L10n.t(.lastUpdated), value: updatedText, refreshItem: refreshItem)" not in account_table:
+    print("FAIL: Expanded account groups should show last updated with a compact refresh marker in the account meta panel", file=sys.stderr)
+    sys.exit(1)
+try:
+    refresh_marker = source.split("struct ProviderQuotaRefreshMarker: View", 1)[1].split("struct ProviderQuotaAccountIdentity: View", 1)[0]
+except IndexError:
+    print("FAIL: ProviderQuotaRefreshMarker should exist before account identity", file=sys.stderr)
+    sys.exit(1)
+if "item.deltaText" in refresh_marker:
+    print("FAIL: Last Updated refresh marker should not repeat quota change amounts such as -7pt", file=sys.stderr)
+    sys.exit(1)
+if "case .consumed, .recovered:" not in refresh_marker:
+    print("FAIL: Last Updated refresh marker should collapse consumed/recovered success into one generic updated state", file=sys.stderr)
+    sys.exit(1)
+if "L10n.t(.quotaRefreshMarkerUpdated)" not in refresh_marker:
+    print("FAIL: Last Updated refresh marker should show Updated for successful changed refreshes", file=sys.stderr)
+    sys.exit(1)
+if "Circle()\n                .fill(isFocused ? Color.accentColor : key.status.color)" not in account_table:
+    print("FAIL: Expanded account groups should keep a status dot next to each account identity", file=sys.stderr)
+    sys.exit(1)
+if "totalWidthBudget" in account_table:
+    print("FAIL: Expanded quota account table should not keep a fixed left-anchored total width budget", file=sys.stderr)
+    sys.exit(1)
+if ".frame(width: ProviderQuotaAccountLayout.totalWidthBudget" in account_table:
+    print("FAIL: Expanded quota account header and rows should consume available width instead of using a fixed table frame", file=sys.stderr)
+    sys.exit(1)
+if ".padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)" not in overview_header:
+    print("FAIL: Provider quota overview header should use the shared table padding", file=sys.stderr)
+    sys.exit(1)
+if ".padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)" not in provider_row:
+    print("FAIL: Provider quota summary rows should use the shared table padding", file=sys.stderr)
+    sys.exit(1)
+if ".padding(.horizontal, ProviderQuotaOverviewLayout.rowHorizontalPadding)" not in account_table:
+    print("FAIL: Expanded quota account rows should use the shared table padding so nested row borders align with provider rows", file=sys.stderr)
+    sys.exit(1)
+if "Spacer(minLength: ProviderQuotaAccountLayout.flexibleGapMinWidth)" in account_table:
+    print("FAIL: Expanded quota account rows should not rely on a loose spacer for column alignment", file=sys.stderr)
+    sys.exit(1)
+if ".frame(width: 232, alignment: .leading)" in overview_header:
+    print("FAIL: Provider quota overview provider column should not use the old overflow-prone width", file=sys.stderr)
+    sys.exit(1)
+if "trailingControlReserve: CGFloat = 120" in source:
+    print("FAIL: Provider quota overview action reserve should not keep the old overflow-prone width", file=sys.stderr)
+    sys.exit(1)
+PY
+assert_no_match 'key\.quotaRowSubtitle' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings quota key rows should hide quota subtitles in the compact four-column account layout"
 assert_no_match 'Text\(key\.quotaPresentation\.primaryText\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings quota key rows should not repeat multi-window quota text when structured cycle details are rendered below"
@@ -1413,6 +3291,35 @@ if "guard !providerKeys.isEmpty" not in keys_view:
     sys.exit(1)
 if "ProviderQuotaEmptyKeyRow()" in provider_rows:
     print("FAIL: Credential configuration should not render empty placeholder rows for providers without saved credentials", file=sys.stderr)
+    sys.exit(1)
+if "provider.planTypeDisplayName()" not in source.split("struct APIKeyProviderBanner: View", 1)[1].split("struct APIKeyManagementRow", 1)[0]:
+    print("FAIL: API Keys provider banners should show product type such as coding plan instead of the broad LLM category", file=sys.stderr)
+    sys.exit(1)
+try:
+    management_row = source.split("struct APIKeyManagementRow: View", 1)[1].split("struct CredentialRowActionGroup", 1)[0]
+    quota_key_row = source.split("struct ProviderQuotaKeyTableRow: View", 1)[1].split("struct ProviderQuotaTimingColumn", 1)[0]
+    diagnostic_provider = source.split("struct CredentialDiagnosticProviderSection: View", 1)[1].split("struct CredentialDiagnosticRow", 1)[0]
+    diagnostic_row = source.split("struct CredentialDiagnosticRow: View", 1)[1].split("struct DiagnosticMessageRow", 1)[0]
+except IndexError:
+    print("FAIL: Account-level row views should be present", file=sys.stderr)
+    sys.exit(1)
+if "stat.provider.planTypeDisplayName()" not in diagnostic_provider:
+    print("FAIL: Diagnostic provider sections should show product type such as coding plan instead of the broad LLM category", file=sys.stderr)
+    sys.exit(1)
+if "Text(key.accountDisplayTitle)" not in management_row:
+    print("FAIL: API key management rows should promote the account-level plan/name as the row title", file=sys.stderr)
+    sys.exit(1)
+if "key.accountDisplaySubtitle" not in management_row:
+    print("FAIL: API key management rows should use account identity as the row subtitle instead of low-information saved-login text", file=sys.stderr)
+    sys.exit(1)
+if "Text(key.accountDisplayTitle)" not in quota_key_row:
+    print("FAIL: Quota overview expanded account rows should promote each account's own plan/package name", file=sys.stderr)
+    sys.exit(1)
+if "key.accountDisplaySubtitle" in quota_key_row:
+    print("FAIL: Quota overview expanded account rows should hide account identity subtitles in the compact account layout", file=sys.stderr)
+    sys.exit(1)
+if "item.credentialTitle" not in diagnostic_row or "item.credentialSubtitle" not in diagnostic_row:
+    print("FAIL: Diagnostic credential rows should share the account-level title/subtitle display model", file=sys.stderr)
     sys.exit(1)
 PY
 assert_match 'Provider\.categoryDisplayOrder\.compactMap' \
@@ -1556,26 +3463,28 @@ assert_match 'ProviderQuotaMonitorRow' \
 assert_match '@State private var isExpanded = false' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Provider quota rows should default to a compact collapsed overview so the page starts as a monitor, not a long key dashboard"
-assert_match 'ProviderQuotaKeyTableHeader' \
+assert_match 'ProviderQuotaAccountGroup' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Expanded provider quota rows should show a stable table header for key details"
+  "Expanded provider quota rows should group each account's quota windows and metadata"
 python3 - <<'PY'
 from pathlib import Path
-import re
 import sys
 
 source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
-match = re.search(r"struct ProviderQuotaKeyTableHeader: View \{.*?\n\}", source, re.S)
-if not match:
-    print("FAIL: Provider quota key table header should exist", file=sys.stderr)
+if "struct ProviderQuotaAccountGroup: View" not in source:
+    print("FAIL: Provider quota account group should exist", file=sys.stderr)
     sys.exit(1)
-if "L10n.t(.apiKey)" in match.group(0):
-    print("FAIL: Quota monitor expanded tables should say Credential instead of API Key for cookie-backed providers", file=sys.stderr)
+group = source.split("struct ProviderQuotaAccountGroup: View", 1)[1].split("struct ProviderQuotaTimingColumn: View", 1)[0]
+if "L10n.t(.apiKey)" in group:
+    print("FAIL: Quota monitor expanded account groups should say Credential instead of API Key for cookie-backed providers", file=sys.stderr)
+    sys.exit(1)
+if "ProviderQuotaKeyTableHeader" in group or "ProviderQuotaKeyTableRow" in group:
+    print("FAIL: Quota monitor expanded account groups should not embed the old key table", file=sys.stderr)
     sys.exit(1)
 PY
-assert_match 'ProviderQuotaKeyTableRow' \
+assert_match 'ProviderQuotaAccountQuotaWindows' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Expanded provider quota rows should render key details in table-like rows"
+  "Expanded provider quota rows should render quota windows inside account groups"
 assert_no_match 'ProviderCard\(provider: stat\.provider' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Quota monitoring should not continue to render one large card per provider"
@@ -1606,12 +3515,15 @@ assert_match '\.contentShape\(RoundedRectangle\(cornerRadius: 12, style: \.conti
 assert_match 'providerSummaryRow' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Provider quota rows should keep the provider summary as the dedicated collapse hit target"
-assert_match 'ZStack\(alignment: \.trailing\)' \
+assert_no_match 'ZStack\(alignment: \.trailing\)' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Provider quota rows should make the full row surface a collapse target while overlaying the refresh control"
-assert_match 'trailingControlReserve' \
+  "Provider quota rows should keep row actions inside the table grid instead of overlaying the refresh control"
+assert_no_match 'trailingControlReserve' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Provider quota rows should reserve trailing space so row actions do not steal the collapse hit target"
+  "Provider quota rows should use the shared action column instead of a separate overlay reserve"
+assert_match 'ProviderQuotaActionGroup\(' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider quota rows should keep provider actions in the same HStack grid as summary cells"
 assert_match 'Button\(action: onToggle\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Provider card banners should use a real button for reliable clicks on the non-control banner area"
@@ -1639,6 +3551,27 @@ assert_no_match 'Text\(L10n\.t\(\.appLanguage\)\)' \
 assert_match 'AppAppearanceStore' \
   "QuotaRadar/Models/AppAppearance.swift" \
   "QuotaRadar should persist appearance settings such as status bar transparency"
+assert_match 'enum AppThemeModeOption: String, CaseIterable, Identifiable' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "QuotaRadar should expose a finite app theme mode model"
+assert_match 'case system' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "App theme mode should support following the macOS system appearance"
+assert_match 'case light' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "App theme mode should support a forced light appearance"
+assert_match 'case dark' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "App theme mode should support a forced dark appearance"
+assert_match 'static let appearanceModeKey = "appearanceMode"' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "Theme mode should persist under a stable UserDefaults key"
+assert_match '@Published var appearanceMode: AppThemeModeOption' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "Theme mode changes should publish to the running app"
+assert_match 'appearanceMode = \.system' \
+  "QuotaRadar/Models/AppAppearance.swift" \
+  "QuotaRadar should default to following the system appearance"
 assert_match 'autoRefreshInterval' \
   "QuotaRadar/Models/AppAppearance.swift" \
   "QuotaRadar should persist the automatic refresh interval"
@@ -1675,6 +3608,36 @@ assert_match 'statusBarTransparency' \
 assert_match 'Slider\(value: \$appearanceStore\.statusBarTransparency, in: 0\.0\.\.\.1\.0\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Language/appearance settings should expose a full 0%-100% status bar transparency slider"
+assert_match 'SettingsCenteredMenuPicker\(selection: \$appearanceStore\.appearanceMode' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should let users choose system, light, or dark appearance with the compact menu control"
+assert_match 'L10n\.t\(\.appearanceMode' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Theme mode settings row should use localized labels"
+assert_match 'AppAppearanceStore\.shared\.\$appearanceMode' \
+  "QuotaRadar/AppDelegate.swift" \
+  "The running app should observe saved theme-mode changes"
+assert_match 'sink \{ \[weak self\] appearanceMode in' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Theme-mode changes should apply the freshly published value instead of re-reading the old @Published stored value"
+assert_no_match 'sink \{ \[weak self\] _ in[[:space:]]*self\?\.applyConfiguredAppearanceMode\(\)' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Theme-mode changes must not be applied from the stale @Published stored value"
+assert_match 'applyConfiguredAppearanceMode' \
+  "QuotaRadar/AppDelegate.swift" \
+  "AppDelegate should apply the user-configured theme mode"
+assert_match 'NSApp\.appearance = nil' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Following system appearance should clear the app-level appearance override"
+assert_match 'NSAppearance\(named: \.aqua\)' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Forced light mode should use the macOS Aqua appearance"
+assert_match 'NSAppearance\(named: \.darkAqua\)' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Forced dark mode should use the macOS dark Aqua appearance"
+assert_match 'guard !applyVisualQAAppearanceOverrideIfRequested\(\) else \{ return \}' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Visual QA light/dark overrides should take priority over saved user theme mode without persisting it"
 assert_match 'SettingsFormSection' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings should use compact grouped preference sections instead of stacked full-width cards"
@@ -1684,9 +3647,21 @@ assert_match 'SettingsPreferenceRow' \
 assert_match 'SettingsCenteredMenuPicker\(selection: \$appearanceStore\.autoRefreshInterval' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Automatic refresh selection should use the centered settings menu control"
-assert_match 'SettingsCenteredMenuPicker\(selection: \$appearanceStore\.quotaConsumingAutoRefreshInterval' \
+assert_match 'private var supportsQuotaConsumingAutomaticRefresh: Bool' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Quota-consuming refresh selection should use the centered settings menu control"
+  "Settings should derive costly automatic refresh visibility from provider capability"
+assert_match 'Provider\.visibleCases\.contains' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should inspect provider capabilities before showing costly automatic refresh controls"
+assert_match 'capability\.matchesAutomaticRefreshLane\(consumesSearchQuota: true\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should reuse the same costly automatic refresh capability lane as the scheduler"
+assert_match 'if supportsQuotaConsumingAutomaticRefresh' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Quota-consuming refresh selection should only render when a provider explicitly allows automatic costly checks"
+assert_match 'L10n\.t\(\.quotaConsumingManualOnlyWarning' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should explain that current costly checks require manual confirmation"
 assert_match 'SettingsCenteredMenuPicker\(selection: \$appearanceStore\.networkProxyMode' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Network proxy selection should use the centered settings menu control"
@@ -1705,6 +3680,12 @@ assert_match 'L10n\.t\(\.autoRefreshBraveWarning' \
 assert_match 'L10n\.t\(\.quotaConsumingAutoRefreshWarning' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Quota-consuming auto refresh settings should warn that real search quota will be spent"
+assert_match 'icon: "hand\.raised\.fill"' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should replace inactive costly auto-refresh controls with a manual-confirmation footnote"
+assert_match 'text: L10n\.t\(\.quotaConsumingManualOnlyWarning\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings should describe current costly checks as manual-confirmation only"
 assert_match 'SettingsFormSection\(title: L10n\.t\(\.settingsNetworkSection\)\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings should group network proxy controls separately from refresh and appearance"
@@ -1741,6 +3722,18 @@ assert_match 'Button\(action: onAddKey\)' \
 assert_match 'Button\(action: onImportEnv\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "API key configuration panel should expose a direct .env import action in the main content area"
+assert_match 'Button\(action: onExportMetadata\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Credential configuration panel should expose a direct metadata export action"
+assert_match 'exportCredentialMetadata' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Credential metadata export button should be localized"
+assert_match 'struct CredentialMetadataExporter' \
+  "QuotaRadar/Services/CredentialMetadataExporter.swift" \
+  "Credential metadata export should live in a dedicated service"
+assert_no_match 'var key:|let key:|cookie|authorization|token|secret' \
+  "QuotaRadar/Services/CredentialMetadataExporter.swift" \
+  "Credential metadata export service must not include secret-bearing fields or names"
 assert_match 'APIKeyProviderBanner' \
   "QuotaRadar/Views/SettingsView.swift" \
   "API Keys provider sections should use a clickable provider banner"
@@ -1786,18 +3779,18 @@ assert_no_match '\.frame\(width: 500\)' \
 assert_match '\.frame\(width: 760, height: 540\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Add Credential sheet should use a stable compact monitoring-panel size"
-assert_match 'Text\(key\.managementDisplayName\)' \
+assert_match 'Text\(key\.accountDisplayTitle\)' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Credential rows should use compact display names for legacy business invocation keys"
-assert_match 'key\.displayNote' \
-  "QuotaRadar/Views/SettingsView.swift" \
-  "Credential rows should localize persisted import-source notes instead of showing stale English"
+  "Credential rows should use account-level plan or compact credential names as the primary title"
+assert_match 'displayNote' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "Credential account subtitles should localize persisted import-source notes instead of showing stale English"
 assert_match 'key\.managementCredentialTypeBadgeText' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Credential rows should hide duplicate credential-type badges when the display name already names the type"
-assert_match 'key\.managementCredentialValueText' \
+assert_match 'key\.accountDisplaySubtitle' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Credential rows should not show generated PROVIDER_API_KEY-style names under each provider"
+  "Credential rows should show account identity instead of low-information saved-login state"
 assert_match 'copyCredentialToPasteboard' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Credential rows should expose a one-click copy action for the full saved credential"
@@ -2023,10 +4016,43 @@ assert_match 'didAutoSave = false' \
 assert_no_match 'monitor\.refreshProvider\(provider\)' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should not close first and refresh later because invalid cookies look like no-op"
+assert_match 'captureCredentialForManualSave' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Manual dashboard credential save should re-read cookies instead of reusing a stale first failed capture"
+assert_no_match 'WKWebsiteDataStore\.default\(\)\.httpCookieStore\.getAllCookies' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Manual dashboard credential save should read from the current authentication WebView instead of a global cookie store"
+assert_match 'manualCaptureRequestID' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Manual dashboard credential save should signal the embedded WebView to capture the current login state"
+assert_match 'captureCredential\(from: webView\)' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Manual dashboard credential save should share the automatic cookie and WebStorage capture path"
+assert_match 'DashboardCredentialCapturePolicy\.isCredentialReady\(latestCapturedCredential' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Manual dashboard credential save should reuse only a completed captured credential"
+assert_match 'DashboardCredentialCapturePolicy\.manualRetryDelays' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Manual dashboard credential save should briefly retry after early partial cookie reads"
+assert_match 'scheduleCookieCaptureRetry' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Automatic dashboard credential capture should schedule delayed retries after cookie and navigation events"
+assert_match 'DashboardCredentialCapturePolicy\.automaticRetryDelays' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Automatic dashboard credential capture should wait for provider cookies to settle before giving up"
+assert_match 'automaticRetryDelays\(for provider: Provider\)' \
+  "QuotaRadar/Services/DashboardReauth.swift" \
+  "Dashboard reauthentication should allow provider-specific delayed cookie capture"
+assert_match 'captureWebStorageFieldsIfAllowed' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard credential capture should read WebStorage only when the visible page is on an allowed provider domain"
+assert_match 'guard !didEmitCookies, let webView else' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard cookie capture should rely on provider-domain cookie filtering instead of requiring the visible WebView URL to have returned to the provider domain"
 assert_match 'reauthStillUnauthorized' \
   "QuotaRadar/Models/AppLanguage.swift" \
   "Dashboard reauthentication should explain when captured cookies still fail provider login validation"
-assert_match 'WKWebsiteDataStore\.default\(\)\.httpCookieStore' \
+assert_match 'configuration\.websiteDataStore = \.default\(\)' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should read only cookies from the in-app WebKit data store"
 assert_match 'monitor\.updateKey' \
@@ -2050,12 +4076,36 @@ assert_match 'ProviderDashboardJumpButton\(provider: provider, size: size\)' \
 assert_match 'ProviderReauthenticationButton\(provider: provider, size: size' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Quota monitor rows should use the shared reauthentication action with a clear professional tooltip"
-assert_match 'accessibilityLabelText: L10n\.t\(\.refreshQuotaAction\)' \
+assert_match 'accessibilityLabelText: refreshActionLabel' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Quota monitor refresh action should expose a localized clear accessibility label"
-assert_match 'DashboardReauthSheet\(monitor: monitor, provider: provider, key: nil\)' \
+  "Quota monitor refresh action should expose a localized clear accessibility label that reflects refresh state"
+assert_match 'DashboardReauthSheet\(' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Add Credential reauthentication should create or update provider cookie credentials through the same flow as Volcengine"
+assert_match 'key: nil,' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Add Credential reauthentication should create provider cookie credentials instead of editing an unrelated key"
+assert_match 'onSaved: handleDashboardCredentialSaved' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Add Credential reauthentication should notify the add sheet when a web-login credential has already been saved"
+assert_match 'private func handleDashboardCredentialSaved\(_ savedKey: APIKey\)' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Add Credential should treat successful web-login authorization as a completed add instead of leaving an empty disabled form"
+assert_match 'showingReauth = false' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Add Credential should close the web-login sheet after the captured credential is saved"
+assert_match 'linkedAuthorizationID: savedKey\.id' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Companion API keys entered during Add Credential should be linked to the saved web-login authorization"
+assert_match 'let onSaved: \(\(APIKey\) -> Void\)\?' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should expose a saved-credential callback for create flows"
+assert_match 'onSaved\?\(verifiedKey\)' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should report validated saved credentials back to the Add Credential flow"
+assert_match 'onSaved\?\(candidateKey\)' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should report directly saved dashboard credentials back to the Add Credential flow"
 python3 - <<'PY'
 from pathlib import Path
 import sys
@@ -2261,6 +4311,9 @@ assert_match 'https://maas.xfyun.cn/api/v1/gpt-finetune/coding-plan/list' \
 assert_match 'https://console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/GetCodingPlanUsage' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Volcengine Coding Plan should use the console GetCodingPlanUsage endpoint"
+assert_match 'https://console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/ListSubscribeTrade' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Volcengine Coding Plan should query the subscription-trade endpoint for the concrete package name"
 assert_match 'https://opencode.ai/_server' \
   "QuotaRadar/Services/QuotaService.swift" \
   "OpenCode Go should use the dashboard server function endpoint"
@@ -2276,12 +4329,30 @@ assert_match 'parseXFYunCodingPlanList' \
 assert_match 'parseVolcengineCodingPlanUsage' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Volcengine Coding Plan responses should be parsed as coding quota windows"
+assert_match 'parseVolcengineCodingPlanSubscription' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Volcengine Coding Plan subscription responses should be parsed for concrete Lite/Pro package names"
 assert_match 'parseOpenCodeGoUsage' \
   "QuotaRadar/Services/QuotaService.swift" \
   "OpenCode Go dashboard responses should be parsed as coding quota windows"
 assert_match 'https://claude\.ai/api/organizations' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Claude subscription should discover the active organization through claude.ai organizations"
+assert_match 'https://claude\.ai/api/organizations/.*/prepaid/credits' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Anthropic Credits should replay the observed claude.ai prepaid credits endpoint with saved web-login authorization"
+assert_match 'fetchClaudeOrganizationContext' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Claude subscription should preserve plan evidence from the organizations endpoint"
+assert_match 'parseAnthropicPrepaidCredits' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Anthropic Credits responses should be parsed separately from Claude subscription quota windows"
+assert_match 'shouldRefreshLowChurnAccountMetadata\(for: key, bypassCooldown: bypassCooldown\)' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Low-churn account/package metadata should be refreshed on manual checks or at most once per day automatically"
+assert_match 'Calendar\.current\.isDate\(lastUpdated, inSameDayAs: Date\(\)\)' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Automatic low-churn package lookups should be skipped after a successful refresh on the same day"
 assert_match 'https://claude\.ai/api/organizations/.*/usage' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Claude subscription should query organization usage windows"
@@ -2632,6 +4703,7 @@ require(!keys.contains { $0.name == "CODEX_SESSION_COOKIE" }, "Codex subscriptio
 require(!Provider.visibleCases.contains(.anthropic), "Legacy Anthropic provider should stay hidden in favor of Claude API/OAuth provider entries")
 require(!Provider.visibleCases.contains(.claudeAPIUsage), "Claude API usage should stay hidden until the user has admin usage monitoring configured")
 require(Provider.visibleCases.contains(.claudeSubscription), "Claude subscription should appear in provider pickers and visible app sections")
+require(Provider.visibleCases.contains(.anthropicCredits), "Anthropic Credits should appear as a separate provider after the prepaid credits endpoint is observed")
 require(!Provider.visibleCases.contains(.codexAPIUsage), "Codex API usage should stay hidden until the user has admin usage monitoring configured")
 require(Provider.visibleCases.contains(.codexSubscription), "Codex subscription should appear in provider pickers and visible app sections")
 require(Provider.visibleCases.contains(.kimiSubscription), "Kimi subscription should appear in provider pickers and visible app sections")
@@ -2676,7 +4748,7 @@ let dueQuotaConsumingProviders = Provider.providersDueForAutomaticRefresh(
     consumesSearchQuota: true,
     now: automaticRefreshNow
 )
-require(dueQuotaConsumingProviders == [.brave], "Quota-consuming automatic refresh should catch up stale Brave keys after restart without including normal providers")
+require(dueQuotaConsumingProviders.isEmpty, "Costly checks such as Brave should not run from automatic refresh queues without explicit user confirmation")
 require(Provider.xfyunCodingPlan.category == "LLM", "XFYun Coding Plan should be grouped as an LLM quota provider")
 require(Provider.xfyunTokenPlan.category == "LLM", "XFYun Token Plan should be grouped as an LLM quota provider")
 require(Provider.volcengineCodingPlan.category == "LLM", "Volcengine Coding Plan should be grouped as an LLM quota provider")
@@ -2687,24 +4759,28 @@ require(Provider.aliyunTokenPlan.category == "LLM", "Aliyun Token Plan should be
 require(Provider.tencentCloudCodingPlan.category == "LLM", "Tencent Cloud Coding Plan should be grouped as an LLM quota provider")
 require(Provider.tencentCloudTokenPlan.category == "LLM", "Tencent Cloud Token Plan should be grouped as an LLM quota provider")
 require(Provider.claudeAPIUsage.category == "LLM", "Claude API usage should be grouped as an LLM quota provider")
+require(Provider.anthropicCredits.category == "LLM", "Anthropic Credits should be grouped as an LLM balance provider")
 require(Provider.codexSubscription.category == "LLM", "Codex subscription should be grouped as an LLM quota provider")
 require(Provider.kimiSubscription.category == "LLM", "Kimi subscription should be grouped as an LLM quota provider")
 require(Provider.xfyunCodingPlan.providerFamilyDisplayName(language: .simplifiedChinese) == "讯飞星火", "XFYun Coding Plan should expose XFYun Spark as the first-level provider family")
-require(Provider.xfyunCodingPlan.planTypeDisplayName(language: .simplifiedChinese) == "coding plan", "XFYun Coding Plan should expose coding plan as the second-level plan name")
-require(Provider.xfyunTokenPlan.planTypeDisplayName(language: .simplifiedChinese) == "Token plan", "XFYun Token Plan should expose Token plan as the second-level plan name")
+require(Provider.xfyunCodingPlan.planTypeDisplayName(language: .simplifiedChinese) == "coding plan", "XFYun Coding Plan should expose coding plan as the provider-level product type")
+require(Provider.xfyunTokenPlan.planTypeDisplayName(language: .simplifiedChinese) == "Token plan", "XFYun Token Plan should expose Token plan as the provider-level product type")
 require(Provider.volcengineCodingPlan.providerFamilyDisplayName(language: .simplifiedChinese) == "火山引擎", "Volcengine Coding Plan should expose Volcengine as the first-level provider family")
 require(Provider.aliyunCodingPlan.providerFamilyDisplayName(language: .simplifiedChinese) == "阿里云", "Aliyun Coding Plan should expose Aliyun as the first-level provider family")
 require(Provider.tencentCloudCodingPlan.providerFamilyDisplayName(language: .simplifiedChinese) == "腾讯云", "Tencent Cloud Coding Plan should expose Tencent Cloud as the first-level provider family")
-require(Provider.tencentCloudTokenPlan.planTypeDisplayName(language: .english) == "Token Plan", "Tencent Cloud Token Plan should expose Token Plan as the second-level plan name in English")
+require(Provider.tencentCloudTokenPlan.planTypeDisplayName(language: .english) == "Token Plan", "Tencent Cloud Token Plan should expose Token Plan as the provider-level product type in English")
 require(Provider.claudeAPIUsage.providerFamilyDisplayName(language: .english) == "Claude", "Claude API usage should expose Claude as provider family")
 require(Provider.claudeAPIUsage.planTypeDisplayName(language: .english) == "API Usage", "Claude API usage should expose API Usage as second-level plan name")
-require(Provider.claudeSubscription.planTypeDisplayName(language: .english) == "Subscription", "Claude subscription should expose Subscription as second-level plan name")
+require(Provider.claudeSubscription.planTypeDisplayName(language: .english) == "Subscription", "Claude subscription should expose Subscription as the provider-level product type")
+require(Provider.anthropicCredits.providerFamilyDisplayName(language: .english) == "Anthropic", "Anthropic Credits should expose Anthropic as the provider family")
+require(Provider.anthropicCredits.planTypeDisplayName(language: .english) == "Credits", "Anthropic Credits should expose credits as the provider-level product type")
+require(Provider.anthropicCredits.planTypeDisplayName(language: .simplifiedChinese) == "余额", "Anthropic Credits should expose a localized credits product type")
 require(Provider.codexAPIUsage.providerFamilyDisplayName(language: .english) == "Codex", "Codex API usage should expose Codex as provider family")
-require(Provider.codexSubscription.planTypeDisplayName(language: .english) == "Subscription", "Codex subscription should expose Subscription as second-level plan name")
+require(Provider.codexSubscription.planTypeDisplayName(language: .english) == "Subscription", "Codex subscription should expose Subscription as the provider-level product type")
 require(Provider.kimiSubscription.providerFamilyDisplayName(language: .english) == "Kimi", "Kimi subscription should expose Kimi as provider family")
-require(Provider.kimiSubscription.planTypeDisplayName(language: .simplifiedChinese) == "订阅", "Kimi subscription should expose a localized subscription plan name")
-require(Provider.opencodeGo.planTypeDisplayName(language: .english) == "Subscription", "OpenCode Go should expose Subscription as second-level plan name")
-require(Provider.opencodeGo.planTypeDisplayName(language: .simplifiedChinese) == "订阅", "OpenCode Go should expose a localized subscription plan name")
+require(Provider.kimiSubscription.planTypeDisplayName(language: .simplifiedChinese) == "订阅", "Kimi subscription should expose a localized provider-level subscription product type")
+require(Provider.opencodeGo.planTypeDisplayName(language: .english) == "Subscription", "OpenCode Go should expose Subscription as the provider-level product type")
+require(Provider.opencodeGo.planTypeDisplayName(language: .simplifiedChinese) == "订阅", "OpenCode Go should expose a localized provider-level subscription product type")
 require(Provider.tavily.planTypeDisplayName(language: .simplifiedChinese) == nil, "Plain AI Search providers should not expose a second-level plan name")
 require(Provider.kimiSubscription.dashboardURL == "https://www.kimi.com/membership/subscription?tab=quota", "Kimi subscription should open the membership quota page")
 require(Provider.tencentCloudCodingPlan.dashboardURL == "https://console.cloud.tencent.com/tokenhub/codingplan", "Tencent Cloud Coding Plan should open the TokenHub Coding Plan page")
@@ -2722,6 +4798,7 @@ require(Provider.tencentCloudCodingPlan.supportsQuotaQuery, "Tencent Cloud Codin
 require(Provider.tencentCloudTokenPlan.supportsQuotaQuery, "Tencent Cloud Token Plan should expose quota checks through the official TokenHub API")
 require(!Provider.claudeAPIUsage.supportsQuotaQuery, "Claude API usage should not claim quota checks until Admin API credentials are modeled and verified")
 require(Provider.claudeSubscription.supportsQuotaQuery, "Claude subscription should support quota checks through verified claude.ai organization usage endpoints")
+require(Provider.anthropicCredits.supportsQuotaQuery, "Anthropic Credits should support balance checks through the observed claude.ai prepaid credits endpoint")
 require(!Provider.codexAPIUsage.supportsQuotaQuery, "Codex API usage should not claim quota checks until OpenAI Admin usage credentials are modeled and verified")
 require(Provider.codexSubscription.supportsQuotaQuery, "Codex subscription should support quota checks through the verified ChatGPT wham endpoint")
 require(Provider.kimiSubscription.supportsQuotaQuery, "Kimi subscription should support quota checks through the Kimi membership endpoints")
@@ -2746,6 +4823,49 @@ require(Provider.codexSubscription.capability.usageSource == .dashboardAPI, "Cod
 require(Provider.codexSubscription.capability.canTestConnection, "Codex subscription should expose refresh after the wham endpoint is wired in QuotaService")
 require(Provider.claudeSubscription.capability.usageSource == .dashboardAPI, "Claude subscription should expose quota status through claude.ai organization dashboard APIs")
 require(Provider.claudeSubscription.capability.canTestConnection, "Claude subscription should expose refresh after organization usage endpoints are wired in QuotaService")
+require(Provider.anthropicCredits.capability.credentialKind == .dashboardCookie, "Anthropic Credits should use Claude web login authorization instead of Anthropic API keys")
+require(Provider.anthropicCredits.capability.usageSource == .dashboardAPI, "Anthropic Credits should use the observed claude.ai dashboard prepaid credits endpoint")
+require(Provider.anthropicCredits.capability.supportsBalance, "Anthropic Credits should present prepaid credits as a balance, not subscription quota")
+require(!Provider.anthropicCredits.capability.supportsReset, "Anthropic Credits should not invent a reset cycle")
+require(Provider.anthropicCredits.capability.canTestConnection, "Anthropic Credits should offer a non-consuming dashboard balance check")
+require(Provider.anthropicCredits.capability.allowsAutomaticRefresh, "Anthropic Credits should be eligible for normal no-cost automatic refresh once saved")
+require(Provider.brave.capability.supportsQuota, "Brave capability should expose quota when rate-limit headers are returned")
+require(Provider.brave.capability.supportsReset, "Brave capability should expose reset timing when rate-limit headers are returned")
+require(Provider.brave.capability.quotaRefreshKind == .costlyCheck, "Brave quota refresh should be modeled as a costly check because it spends a real search")
+require(!Provider.brave.capability.allowsAutomaticRefresh, "Brave should not be eligible for normal automatic refresh by default")
+require(Provider.brave.capability.requiresCostlyConfirmation, "Brave manual quota checks should require a costly-check confirmation")
+require(Provider.tavily.capability.supportsQuota, "Tavily capability should expose monthly quota")
+require(Provider.tavily.capability.supportsReset, "Tavily capability should expose the known monthly reset")
+require(Provider.tavily.capability.supportsActivity, "Tavily capability should allow activity inference from snapshots")
+require(Provider.tavily.capability.quotaRefreshKind == .refreshQuota, "Tavily quota refresh should read quota without spending real search quota")
+require(Provider.tavily.capability.allowsAutomaticRefresh, "Tavily should be eligible for normal automatic refresh")
+require(!Provider.tavily.capability.requiresCostlyConfirmation, "Tavily refresh should not require costly-check confirmation")
+require(Provider.deepseek.capability.supportsBalance, "DeepSeek capability should expose account balance")
+require(!Provider.deepseek.capability.supportsReset, "DeepSeek balance should not invent a reset cycle")
+require(Provider.deepseek.capability.supportsActivity, "DeepSeek balance snapshots should support recent activity")
+require(Provider.deepseek.capability.quotaRefreshKind == .refreshQuota, "DeepSeek balance refresh should be a normal quota refresh action")
+require(Provider.deepseek.capability.allowsAutomaticRefresh, "DeepSeek balance checks should be eligible for automatic refresh")
+require(Provider.claudeSubscription.capability.supportsQuota, "Claude subscription should expose quota windows")
+require(Provider.claudeSubscription.capability.supportsPlan, "Claude subscription should expose plan metadata when available")
+require(Provider.claudeSubscription.capability.supportsActivity, "Claude subscription should support reset-aware activity")
+require(Provider.claudeSubscription.capability.supportsReset, "Claude subscription should expose reset timing from quota windows")
+require(Provider.claudeSubscription.capability.connectionTestKind == .testConnection, "Claude connection tests should be modeled as no-cost credential checks")
+require(Provider.claudeSubscription.capability.quotaRefreshKind == .refreshQuota, "Claude quota refresh should be distinct from connection testing")
+require(Provider.claudeSubscription.capability.allowsAutomaticRefresh, "Claude subscription checks should be eligible for no-cost automatic refresh")
+require(Provider.codexSubscription.capability.supportsQuota, "Codex subscription should expose quota windows")
+require(Provider.codexSubscription.capability.supportsPlan, "Codex subscription should expose plan metadata when available")
+require(Provider.codexSubscription.capability.supportsActivity, "Codex subscription should support reset-aware activity")
+require(Provider.codexSubscription.capability.supportsReset, "Codex subscription should expose reset timing from quota windows")
+require(Provider.codexSubscription.capability.connectionTestKind == .testConnection, "Codex connection tests should be modeled as no-cost credential checks")
+require(Provider.codexSubscription.capability.quotaRefreshKind == .refreshQuota, "Codex quota refresh should be distinct from connection testing")
+require(Provider.codexSubscription.capability.allowsAutomaticRefresh, "Codex subscription checks should be eligible for no-cost automatic refresh")
+require(Provider.xfyunCodingPlan.capability.supportsQuota, "XFYun Coding Plan should expose quota windows")
+require(Provider.xfyunCodingPlan.capability.supportsPlan, "XFYun Coding Plan should expose package names and expiry when returned")
+require(Provider.xfyunCodingPlan.capability.supportsActivity, "XFYun Coding Plan should support reset-aware quota activity")
+require(Provider.xfyunCodingPlan.capability.supportsReset, "XFYun Coding Plan should expose inferred reset timing")
+require(Provider.xfyunCodingPlan.capability.connectionTestKind == .testConnection, "XFYun connection tests should be modeled as no-cost credential checks")
+require(Provider.xfyunCodingPlan.capability.quotaRefreshKind == .refreshQuota, "XFYun quota refresh should read package quota without spending generation quota")
+require(Provider.xfyunCodingPlan.capability.allowsAutomaticRefresh, "XFYun Coding Plan checks should be eligible for no-cost automatic refresh")
 require(Provider.kimiSubscription.capability.credentialKind == .dashboardCookie, "Kimi subscription should store web login authorization separately from API keys")
 require(Provider.kimiSubscription.capability.usageSource == .dashboardAPI, "Kimi subscription should expose quota status through Kimi membership dashboard APIs")
 require(Provider.kimiSubscription.capability.canTestConnection, "Kimi subscription should offer a non-consuming membership quota check")
@@ -2833,6 +4953,7 @@ let xfyunStat = ProviderStats(
             provider: .xfyunCodingPlan,
             remaining: 7934,
             limit: 10000,
+            planDisplayName: "高效版",
             quotaLabel: "5h 99% · week 79.3% · month 89.7%"
         )
     ]
@@ -2841,6 +4962,28 @@ require(xfyunStat.totalLimitDisplayText == "month 89.7%", "Coding Plan provider 
 require(xfyunStat.totalRemainingDisplayText == "week 79.3%", "Coding Plan provider remaining should display the lowest remaining percentage window with its period")
 require(xfyunStat.statusBarProviderQuotaText == "5h 99% · week 79.3% · month 89.7%", "Status bar coding-plan quota text should show all quota cycles")
 require(xfyunStat.statusBarProviderBadgeText == "week 79.3%", "Status bar coding-plan badge should display the tightest quota cycle")
+let xfyunConcretePlanKey = APIKey(name: "XFYUN_CODING_PLAN_COOKIE", key: "cookie", provider: .xfyunCodingPlan, planDisplayName: "高效版")
+require(xfyunConcretePlanKey.effectivePlanDisplayName == "高效版", "APIKey should prefer a refreshed concrete package name over the generic provider plan type")
+require(xfyunConcretePlanKey.accountDisplayTitle == "高效版", "Dashboard-cookie account rows should replace low-information saved-login text with the concrete package name")
+require(xfyunConcretePlanKey.accountDisplaySubtitle == "Web login authorization", "Dashboard-cookie account rows should keep the credential identity as secondary context")
+require(xfyunConcretePlanKey.accountDisplaySubtitle != "Login authorization saved", "Dashboard-cookie account rows should not use saved-login state as account identity")
+let xfyunNamedConcretePlanKey = APIKey(name: "Work account", key: "cookie", provider: .xfyunCodingPlan, note: "Team quota", planDisplayName: "高效版")
+require(xfyunNamedConcretePlanKey.accountDisplayTitle == "高效版", "Multiple accounts on the same package should keep the real package name unchanged")
+require(xfyunNamedConcretePlanKey.accountDisplaySubtitle == "Work account · Team quota", "Multiple same-package accounts should be distinguished by account name and note")
+let subscriptionPlanNameFallbacks: [(Provider, String)] = [
+    (.claudeSubscription, "Claude Subscription"),
+    (.codexSubscription, "Codex Subscription"),
+    (.kimiSubscription, "Kimi Subscription"),
+    (.opencodeGo, "OpenCode Go Subscription"),
+    (.xfyunCodingPlan, "XFYun Spark Coding Plan"),
+    (.volcengineCodingPlan, "Volcengine Coding Plan"),
+    (.aliyunCodingPlan, "Aliyun Coding Plan"),
+    (.tencentCloudCodingPlan, "Tencent Cloud Coding Plan"),
+]
+for (provider, expectedPlanName) in subscriptionPlanNameFallbacks {
+    let key = APIKey(name: "\(provider.rawValue)_SESSION", key: "cookie", provider: provider)
+    require(key.effectivePlanDisplayName == expectedPlanName, "\(provider.rawValue) should fall back to a provider-specific subscription/package plan name")
+}
 let codexSubscriptionStat = ProviderStats(
     provider: .codexSubscription,
     keys: [
@@ -2915,8 +5058,29 @@ let multiBraveStat = ProviderStats(
         APIKey(name: "BRAVE_API_KEY_2", key: "brave-b", provider: .brave, remaining: 0, limit: 1000)
     ]
 )
-require(multiBraveStat.keyQuotaDisplayText == "0 left", "Quota overview key quota should show the tightest key for API-key pools")
+require(multiBraveStat.keyQuotaDisplayText == "92%", "Quota overview key quota should prefer the tightest usable key when an API-key pool also contains an exhausted key")
 require(multiBraveStat.credentialPoolDisplayText == "2 keys · 1 usable · 1 attention", "Quota overview credential pool should show attention count for exhausted keys")
+let mixedTavilyStat = ProviderStats(
+    provider: .tavily,
+    keys: [
+        APIKey(name: "TAVILY_EMPTY", key: "tvly-empty", provider: .tavily, remaining: 0, limit: 1000, resetAt: localizedResetDate),
+        APIKey(name: "TAVILY_USABLE", key: "tvly-usable", provider: .tavily, remaining: 361, limit: 1000, resetAt: localizedResetDate)
+    ]
+)
+require(mixedTavilyStat.keyQuotaDisplayText == "36%", "Tavily overview should not let a long-exhausted key hide the remaining quota on a usable key")
+let exhaustedTavilyWithReset = APIKey(
+    name: "TAVILY_EMPTY",
+    key: "tvly-empty",
+    provider: .tavily,
+    remaining: 0,
+    limit: 1000,
+    resetAt: localizedResetDate,
+    quotaLabel: "0 / 1000 monthly credits"
+)
+require(
+    exhaustedTavilyWithReset.quotaPresentation.primaryText == "\(L10n.t(.healthExhausted)) · \(exhaustedTavilyWithReset.visibleQuotaResetSummary)",
+    "Exhausted Tavily keys should surface reset timing instead of repeating a stale 0 / limit quota as the primary monitoring signal"
+)
 let menuSplitStats = [
     ProviderStats(provider: .tavily, keys: [
         APIKey(name: "TAVILY_EMPTY", key: "tvly-empty", provider: .tavily, remaining: 0, limit: 1000),
@@ -2926,6 +5090,36 @@ let menuSplitStats = [
 ]
 require(MenuQuotaItem.attentionItems(from: menuSplitStats, limit: 5).map { $0.key.name } == ["TAVILY_EMPTY"], "Status bar attention items should focus on exhausted, failed, or expired credentials")
 require(MenuQuotaItem.lowQuotaItems(from: menuSplitStats, limit: 5).map { $0.key.name } == ["TAVILY_LOW"], "Status bar low-quota items should separately surface providers that are still usable but tight")
+require(MenuQuotaItem(provider: .tavily, key: menuSplitStats[0].keys[0]).signalReason == .exhausted, "Menu quota items should explain exhausted quota as the reason they are surfaced")
+require(MenuQuotaItem(provider: .tavily, key: menuSplitStats[0].keys[1]).signalReason == .lowQuota, "Menu quota items should explain low quota as the reason they are surfaced")
+require(MenuSignalReason.unknown.displayText == L10n.t(.needsAttention), "Unknown menu reasons should use a soft attention label instead of generic quota status")
+let schemaDriftMenuKey = APIKey(
+    name: "CODEX_SCHEMA_DRIFT",
+    key: "cookie",
+    provider: .codexSubscription,
+    lastDiagnosticMessage: "Provider quota fields may have changed. Recalibrate this provider.",
+    lastDiagnosticText: .localized(.quotaErrorSchemaDrift)
+)
+let schemaDriftMenuStats = [
+    ProviderStats(provider: .codexSubscription, keys: [schemaDriftMenuKey])
+]
+let schemaDriftMenuItems = MenuQuotaItem.attentionItems(from: schemaDriftMenuStats, limit: 5)
+require(schemaDriftMenuItems.map { $0.key.name } == ["CODEX_SCHEMA_DRIFT"], "Status bar attention items should surface provider schema drift as an actionable calibration issue")
+require(MenuQuotaItem(provider: .codexSubscription, key: schemaDriftMenuKey).signalReason == .schemaDrift, "Menu quota items should distinguish schema drift from generic failed checks")
+require(MenuSignalReason.schemaDrift.displayText == "Recalibrate", "English menu schema-drift reason should use a short action label")
+require(schemaDriftMenuKey.healthDisplayText == "Needs Recalibration", "Schema-drift credential health should be actionable instead of generic check failed")
+require(schemaDriftMenuKey.credentialConfigurationState.displayText == "Needs Recalibration", "Schema-drift credential state should be actionable instead of generic check failed")
+let schemaDriftCredentialDiagnostic = CredentialDiagnosticItem(
+    key: schemaDriftMenuKey,
+    statusKey: schemaDriftMenuKey,
+    companionAPIKey: nil
+)
+require(schemaDriftCredentialDiagnostic.diagnosticStatusText == "Needs Recalibration", "Diagnostics should show schema drift as a recalibration issue instead of a generic failed check")
+AppLanguageStore.shared.language = .simplifiedChinese
+require(MenuSignalReason.schemaDrift.displayText == "重新校准", "Chinese menu schema-drift reason should use a short action label")
+require(schemaDriftMenuKey.healthDisplayText == "需要重新校准", "Chinese schema-drift health should be actionable")
+require(schemaDriftCredentialDiagnostic.diagnosticStatusText == "需要重新校准", "Chinese diagnostics should show schema drift as a recalibration issue")
+AppLanguageStore.shared.language = .english
 let soonPlanEnd = Date().addingTimeInterval(5 * 24 * 60 * 60)
 let laterPlanEnd = Date().addingTimeInterval(20 * 24 * 60 * 60)
 let expiredPlanEnd = Date().addingTimeInterval(-1 * 24 * 60 * 60)
@@ -2937,6 +5131,7 @@ let expiringStats = [
     ])
 ]
 require(MenuQuotaItem.expiringSoonItems(from: expiringStats, limit: 5).map { $0.key.name } == ["XFYUN_SOON"], "Status bar expiring-soon items should show only future plan or balance expiries within 14 days")
+require(MenuQuotaItem(provider: .xfyunCodingPlan, key: expiringStats[0].keys[0]).signalReason == .expiringSoon, "Menu quota items should explain expiring packages as the reason they are surfaced")
 let companionDiagnostic = xfyunWithCompanionStat.credentialDiagnosticItems.first {
     $0.key.name == "XFYUN_CODING_PLAN_API_KEY"
 }
@@ -2946,16 +5141,16 @@ let mergedCompanionDiagnostic = xfyunWithCompanionStat.credentialDiagnosticItems
 }
 require(mergedCompanionDiagnostic != nil, "Diagnostics should keep the quota-monitoring authorization as the primary diagnostic row")
 require(mergedCompanionDiagnostic!.companionAPIKey?.name == "XFYUN_CODING_PLAN_API_KEY", "Diagnostics should attach the copyable invocation API key to the authorization diagnostic row")
-require(mergedCompanionDiagnostic!.credentialTitle == "Web login", "Diagnostics should use a concise web-login label instead of repeating quota-monitoring authorization")
-require(mergedCompanionDiagnostic!.credentialSubtitle == "Saved · includes invocation key", "Diagnostics should summarize saved login plus API key without repeating saved authorization wording")
+require(mergedCompanionDiagnostic!.credentialTitle == "XFYun Spark Coding Plan", "Diagnostics should use the account plan/name as the primary credential title when no concrete package name has been refreshed yet")
+require(mergedCompanionDiagnostic!.credentialSubtitle == "Web login authorization · includes invocation key", "Diagnostics should describe credential identity plus companion API key without low-information saved-login text")
 require(mergedCompanionDiagnostic!.diagnosticStatusText == "Healthy", "Merged companion API-key diagnostics should use connection health, not quota status")
 require(mergedCompanionDiagnostic!.httpStatusText == "200", "Merged companion API-key diagnostics should use the quota-monitoring authorization HTTP status")
 require(mergedCompanionDiagnostic!.connectionDiagnosticSummary == nil, "Healthy diagnostics should not repeat quota display content in the diagnostics page")
 require(xfyunWithCompanionStat.diagnosticCredentialGroupCountText == "1 credential group", "Diagnostics provider header should count linked authorization plus API key as one credential group")
 AppLanguageStore.shared.language = .simplifiedChinese
 require(xfyunWithCompanionStat.diagnosticCredentialGroupCountText == "1 组凭据", "Diagnostics provider header should localize credential group counts")
-require(mergedCompanionDiagnostic!.credentialTitle == "网页登录", "Diagnostics web-login label should localize")
-require(mergedCompanionDiagnostic!.credentialSubtitle == "已保存 · 含调用密钥", "Diagnostics compact companion summary should localize")
+require(mergedCompanionDiagnostic!.credentialTitle == "讯飞星火 coding plan", "Diagnostics account plan fallback should localize")
+require(mergedCompanionDiagnostic!.credentialSubtitle == "网页登录授权 · 含调用密钥", "Diagnostics credential identity plus companion summary should localize")
 let kimiUnknownQuotaDiagnostic = CredentialDiagnosticItem(
     key: APIKey(name: "KIMI_SESSION", key: "cookie", provider: .kimiSubscription, lastHTTPStatus: 200, quotaLabel: "Quota unavailable"),
     statusKey: APIKey(name: "KIMI_SESSION", key: "cookie", provider: .kimiSubscription, lastHTTPStatus: 200, quotaLabel: "Quota unavailable"),
@@ -2981,9 +5176,19 @@ let localizedSerperCredits = APIKey(name: "SERPER_API_KEY", key: "serper", provi
 require(localizedSerperCredits.quotaDisplayText == "剩余 24 积分", "Serper credits-left labels should be localized in Simplified Chinese")
 let localizedSerperExhausted = APIKey(name: "SERPER_API_KEY", key: "serper", provider: .serper, remaining: 0, limit: 0, quotaLabel: "No Serper credits available")
 require(localizedSerperExhausted.quotaDisplayText == "没有可用的 Serper 积分", "Serper exhausted credit labels should be localized in Simplified Chinese")
+let localizedAnthropicCredits = APIKey(name: "ANTHROPIC_CREDITS_SESSION", key: "claude-session", provider: .anthropicCredits, remaining: 42, limit: 42, quotaLabel: "42 credits left")
+require(localizedAnthropicCredits.quotaDisplayText == "剩余 42 积分", "Anthropic Credits should localize prepaid credits as credits, not as Claude subscription quota")
+require(localizedAnthropicCredits.remainingBadgeText == "42", "Anthropic Credits badges should show the credit balance instead of a fake percentage")
+let anthropicCreditsStats = ProviderStats(provider: .anthropicCredits, keys: [localizedAnthropicCredits])
+require(anthropicCreditsStats.totalRemainingDisplayText == "42", "Anthropic Credits provider overview should show the credit balance")
+require(anthropicCreditsStats.totalLimitDisplayText == "", "Anthropic Credits provider overview should leave reset-cycle columns blank")
 let localizedDeepSeekMoney = APIKey(name: "DEEPSEEK_API_KEY", key: "deepseek", provider: .deepseek, remaining: 1250, limit: 1250, quotaLabel: "CNY 12.50 available")
 require(localizedDeepSeekMoney.quotaDisplayText == "可用人民币 12.50 元", "DeepSeek money balance labels should be localized as RMB, not credits")
 require(localizedDeepSeekMoney.remainingBadgeText == "¥12.50", "DeepSeek money balance badge should show currency amount, not 100%")
+require(localizedDeepSeekMoney.visibleQuotaResetSummary == "", "DeepSeek compact quota rows should not show no-reset-cycle placeholder copy")
+let deepSeekMoneyStats = ProviderStats(provider: .deepseek, keys: [localizedDeepSeekMoney])
+require(deepSeekMoneyStats.totalLimitDisplayText == "", "DeepSeek balance provider overview should not show a no-reset-cycle placeholder")
+require(deepSeekMoneyStats.criticalTimeDisplayText == "", "DeepSeek balance provider critical time should stay blank when there is no reset or expiry")
 let localizedBochaBalance = APIKey(name: "BOCHA_API_KEY", key: "bocha", provider: .bocha, remaining: 1400, limit: 1400, quotaLabel: "CNY 14.00 balance")
 require(localizedBochaBalance.quotaDisplayText == "余额人民币 14.00 元", "Bocha money balance labels should be localized as RMB, not credits")
 require(localizedBochaBalance.remainingBadgeText == "¥14.00", "Bocha money balance badge should show currency amount, not 100%")
@@ -2994,10 +5199,16 @@ require(L10n.localizedQuotaLabel("Querit account endpoint returned monthly reque
 require(L10n.localizedQuotaLabel("Querit account endpoint returned monthly usage, but no plan quota limit.", language: .simplifiedChinese) == "Querit 账户接口返回了月度已用请求，但没有返回套餐上限。", "Querit usage-only diagnostics should localize centrally")
 let moneyStats = ProviderStats(provider: .bocha, keys: [localizedBochaBalance])
 require(moneyStats.totalRemainingDisplayText == "¥14.00", "Money-balance provider overview should show RMB amount instead of cents")
+require(moneyStats.totalLimitDisplayText == "", "Money-balance provider overview should leave reset-cycle columns blank instead of showing no-reset-cycle copy")
+require(moneyStats.criticalTimeDisplayText == "", "Money-balance provider critical time should stay blank when there is no reset or expiry")
 require(moneyStats.statusBarProviderBadgeText == "¥14.00", "Money-balance status bar badge should show RMB amount instead of percentage")
 let localizedExaUsage = APIKey(name: "EXA_ADMIN", key: "exa", provider: .exa, remaining: Int.max, limit: Int.max, quotaLabel: "USD 45.67 used")
-require(localizedExaUsage.quotaDisplayText == "已用 USD 45.67", "Exa usage cost labels should be localized in Simplified Chinese")
+require(localizedExaUsage.quotaDisplayText == "可用 · 额度未知", "Exa usage-only checks should not expose used-cost wording in the main quota UI")
+require(localizedExaUsage.quotaPresentation.primaryText == "可用 · 额度未知", "Exa usage-only quota presentation should stay remaining-first and hide raw used-cost labels")
 require(localizedExaUsage.remainingBadgeText == "正常", "Exa usage-only checks should show a localized OK badge instead of a fake percentage")
+let localizedQueritUsage = APIKey(name: "QUERIT_COOKIE", key: "querit", provider: .querit, remaining: Int.max, limit: Int.max, quotaText: .localized(.monthlyRequestsUsedFormat, "3601"), quotaLabel: "3601 monthly requests used")
+require(localizedQueritUsage.quotaDisplayText == "可用 · 额度未知", "Querit usage-only checks should not expose used-request wording in the main quota UI")
+require(localizedQueritUsage.quotaPresentation.primaryText == "可用 · 额度未知", "Querit usage-only quota presentation should stay remaining-first and hide raw used-request labels")
 let localizedQuotaKey = APIKey(
     name: "XFYUN_CODING_PLAN_COOKIE",
     key: "cookie",
@@ -3067,6 +5278,8 @@ require(generatedAliyunKey.copyableCredentialValue == "sk-sp-redacted", "Busines
 let generatedXfyunCookie = APIKey(name: "XFYUN_CODING_PLAN_COOKIE", key: "ssoSessionId=redacted-session; account_id=123456", provider: .xfyunCodingPlan)
 require(generatedXfyunCookie.managementDisplayName == "额度监控授权", "XFYun dashboard-cookie rows should identify quota monitoring authorization instead of an API key")
 require(generatedXfyunCookie.managementCredentialValueText == "登录授权已保存", "XFYun dashboard-cookie rows should show a saved authorization state instead of a raw cookie or credential-type label")
+require(generatedXfyunCookie.accountDisplayTitle == "讯飞星火 coding plan", "XFYun dashboard-cookie account rows should use package fallback as the visible title when no concrete package has been refreshed")
+require(generatedXfyunCookie.accountDisplaySubtitle == "网页登录授权", "XFYun dashboard-cookie account rows should show credential identity instead of saved-login state")
 require(generatedXfyunCookie.copyableCredentialValue == nil, "Dashboard-cookie quota authorizations must not be copyable")
 let generatedXfyunAPIKey = APIKey(name: "XFYUN_CODING_PLAN_API_KEY", key: "xfyun-api-redacted", provider: .xfyunCodingPlan)
 require(generatedXfyunAPIKey.isStoredAPIKeyOnlyCredential, "XFYun Coding Plan API keys should be stored separately from quota-monitoring authorization")
@@ -3079,6 +5292,8 @@ require(generatedXfyunAPIKey.copyableCredentialValue == "xfyun-api-redacted", "A
 let generatedQueritCookie = APIKey(name: "QUERIT_COOKIE", key: "osduss=redacted; passOsRefreshTk=redacted", provider: .querit)
 require(generatedQueritCookie.managementDisplayName == "额度监控授权", "Querit dashboard-cookie rows should identify quota monitoring authorization")
 require(generatedQueritCookie.managementCredentialValueText == "登录授权已保存", "Querit dashboard-cookie rows should show a saved authorization state")
+require(generatedQueritCookie.accountDisplayTitle == "额度监控授权", "Querit dashboard-cookie account rows should fall back to the compact monitoring authorization title when no provider plan exists")
+require(generatedQueritCookie.accountDisplaySubtitle == "网页登录授权", "Querit dashboard-cookie account rows should show credential identity instead of saved-login state")
 require(generatedQueritCookie.copyableCredentialValue == nil, "Querit dashboard authorization must not be copyable")
 let generatedQueritAPIKey = APIKey(name: "QUERIT_API_KEY", key: "querit-api-redacted", provider: .querit)
 require(generatedQueritAPIKey.isStoredAPIKeyOnlyCredential, "Querit API keys should be stored separately from quota-monitoring authorization")
@@ -3098,6 +5313,8 @@ require(generatedKimiSubscriptionAPIKey.managementDisplayName == "API 密钥", "
 require(generatedKimiSubscriptionAPIKey.copyableCredentialValue == "sk-kimi-redacted", "Kimi subscription API-key-only records should be copyable")
 let generatedOpenCodeCookie = APIKey(name: "OPENCODE_GO_COOKIE", key: #"{"cookie":"auth=redacted-cookie","workspaceID":"wrk_123"}"#, provider: .opencodeGo)
 require(generatedOpenCodeCookie.managementCredentialValueText == "登录授权已保存", "OpenCode Go dashboard-cookie rows should not show serialized credential values")
+require(generatedOpenCodeCookie.accountDisplayTitle == "OpenCode Go 订阅", "OpenCode Go account rows should use subscription fallback as the visible title")
+require(generatedOpenCodeCookie.accountDisplaySubtitle == "网页登录授权", "OpenCode Go account rows should show credential identity instead of saved-login state")
 require(generatedOpenCodeCookie.copyableCredentialValue == nil, "OpenCode Go web login authorization should not be copyable")
 let legacyDashboardNote = APIKey(name: "ALIYUN_CODING_PLAN_COOKIE", key: "login=redacted", provider: .aliyunCodingPlan, note: "网页登录授权")
 require(legacyDashboardNote.displayNote == nil, "Legacy dashboard authorization notes should not leak a stale localized credential-type label")
@@ -3167,6 +5384,22 @@ let claudeWindowResetKey = APIKey(
 require(claudeWindowResetKey.visibleQuotaResetSummary == "", "Claude subscription should not duplicate 5h/week reset timing in the last-updated timing column")
 require(claudeWindowResetKey.quotaRowSubtitle == "", "Claude subscription should not repeat multi-window quota text in the compact credential row")
 require(claudeWindowResetKey.quotaWindowDetails.count == 2, "Claude subscription should keep reset timing attached to the five-hour and weekly quota rows")
+let expiredClaudeFiveHourReset = Date().addingTimeInterval(-60 * 60)
+let futureClaudeWeeklyReset = Date().addingTimeInterval(60 * 60)
+let staleClaudeWindowResetKey = APIKey(
+    name: "CLAUDE_SUBSCRIPTION_SESSION",
+    key: "cookie",
+    provider: .claudeSubscription,
+    resetAt: expiredClaudeFiveHourReset,
+    quotaText: LocalizedTextDescriptor.quotaWindows([
+        QuotaWindowText(name: "5h", percentText: "0%", resetAt: expiredClaudeFiveHourReset),
+        QuotaWindowText(name: "week", percentText: "90%", resetAt: futureClaudeWeeklyReset)
+    ])
+)
+let staleClaudeWindowDetails = staleClaudeWindowResetKey.quotaWindowDetails
+require(staleClaudeWindowDetails.first(where: { $0.name == "5h" })?.resetAt == nil, "Claude expired five-hour reset should not keep showing a past reset time")
+require(staleClaudeWindowDetails.first(where: { $0.name == "week" })?.resetAt != nil, "Claude future weekly reset should remain visible")
+require(staleClaudeWindowResetKey.visibleQuotaResetSummary == "", "Claude expired top-level reset should not reappear above multi-window quota rows")
 let planOnlyKey = APIKey(
     name: "XFYUN_CODING_PLAN_COOKIE",
     key: "cookie",
@@ -3296,6 +5529,9 @@ AppLanguageStore.shared.language = .english
 var disabledKey = APIKey(name: "BRAVE_DISABLED", key: "brave", provider: .brave, remaining: 1000, limit: 1000)
 disabledKey.isActive = false
 require(disabledKey.remainingBadgeText == "Off", "Remaining badge should show inactive keys as Off")
+let disabledProviderStat = ProviderStats(provider: .brave, keys: [disabledKey])
+require(disabledProviderStat.sortedMonitoringKeysByCurrentQuota.isEmpty, "Quota monitoring should hide providers when all monitoring credentials are disabled")
+require(!disabledProviderStat.hasActiveMonitoringCredentials, "Quota overview should treat all-disabled provider credentials as hidden from monitoring")
 let sortedStat = ProviderStats(
     provider: .brave,
     keys: [
@@ -3345,6 +5581,668 @@ let samePriorityMenuItems = MenuQuotaItem.topItems(from: [
     ProviderStats(provider: .brave, keys: [APIKey(name: "BRAVE_LOW", key: "brave-low", provider: .brave, remaining: 100, limit: 1000)]),
 ], limit: 2, providerOrder: [.brave, .tavily])
 require(samePriorityMenuItems.map { $0.provider } == [.brave, .tavily], "Status bar menu items should use the user's provider order as the stable ranking tie-breaker")
+let trendNow = Date(timeIntervalSince1970: 1_800_000_000)
+let trendKeyID = UUID(uuidString: "11111111-1111-1111-1111-111111111111")!
+let trendKey = APIKey(id: trendKeyID, name: "TAVILY_TREND", key: "tvly-trend", provider: .tavily, remaining: 700, limit: 1000)
+let decreasingTrend = QuotaTrendSummary.trendSummary(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-2 * 24 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 700, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    ],
+    now: trendNow
+)
+require(decreasingTrend.direction == .decreasing, "Quota trend should mark meaningful remaining-quota drops as decreasing")
+require(abs(decreasingTrend.consumedPercentPoints - 20) < 0.001, "Quota trend should report consumed percentage points")
+require(decreasingTrend.consumedUnits == 200, "Quota trend should report consumed units when limits are comparable")
+let resetDateA = trendNow.addingTimeInterval(24 * 60 * 60)
+let resetDateB = trendNow.addingTimeInterval(8 * 24 * 60 * 60)
+let replenishedTrend = QuotaTrendSummary.trendSummary(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-4 * 60 * 60), outcome: .success, remaining: 100, limit: 1000, resetAt: resetDateA, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 1000, limit: 1000, resetAt: resetDateB, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    ],
+    now: trendNow
+)
+require(replenishedTrend.direction == .replenished, "Quota trend should treat reset-window increases as replenishment instead of consumption")
+let stableTrend = QuotaTrendSummary.trendSummary(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 895, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    ],
+    now: trendNow
+)
+require(stableTrend.direction == .stable, "Quota trend should ignore tiny changes below one percentage point")
+let fastConsumption = QuotaConsumptionSpeedSummary.speedSummary(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-2 * 24 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: resetDateB, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 500, limit: 1000, resetAt: resetDateB, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(fastConsumption.shouldRender, "P6 consumption-speed hints should render when current usage pace will soon cross low-quota threshold")
+require(fastConsumption.periodName == nil, "Fixed-quota speed hints should not invent a quota-window period")
+require(fastConsumption.projectedDaysToLowQuota != nil && fastConsumption.projectedDaysToLowQuota! < 2, "P6 speed hints should estimate days until low quota")
+require(fastConsumption.hintText == "Fast use", "P6 speed hints should use a compact localized label")
+let stableConsumptionSpeed = QuotaConsumptionSpeedSummary.speedSummary(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-2 * 24 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: resetDateB, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 870, limit: 1000, resetAt: resetDateB, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(!stableConsumptionSpeed.shouldRender, "P6 consumption-speed hints should stay hidden for slow ordinary usage")
+let tavilyActivity = QuotaActivitySummary.activitySummary(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-2 * 24 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 700, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(tavilyActivity.kind == .fixedQuota, "Quota activity should classify fixed-credit quota consumption")
+require(tavilyActivity.shouldRender, "Quota activity should render meaningful fixed-credit consumption")
+require(tavilyActivity.deltaText == "-200", "Quota activity should expose consumed fixed-credit units")
+require(tavilyActivity.currentText == "70%", "Quota activity should expose the current remaining quota for the activity lane")
+require(abs((tavilyActivity.usedFraction ?? 0) - 0.30) < 0.0001, "Quota activity should expose current used fraction for fixed-credit meters")
+let refreshDeltaConsumedText = QuotaRefreshDeltaSummary.refreshDeltaText(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-5 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-30), outcome: .success, remaining: 700, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(refreshDeltaConsumedText == "Remaining -200", "Latest refresh delta should explain quota change from the remaining-quota perspective")
+let refreshDeltaNoChangeText = QuotaRefreshDeltaSummary.refreshDeltaText(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-5 * 60), outcome: .success, remaining: 700, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-30), outcome: .success, remaining: 700, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(refreshDeltaNoChangeText == "Updated · no change", "Latest refresh delta should call out unchanged quota")
+let refreshDeltaRecoveredText = QuotaRefreshDeltaSummary.refreshDeltaText(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-5 * 60), outcome: .success, remaining: 100, limit: 1000, resetAt: resetDateA, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-30), outcome: .success, remaining: 1000, limit: 1000, resetAt: resetDateB, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(refreshDeltaRecoveredText == "Reset", "Latest refresh delta should show replenishment compactly")
+let refreshDeltaFailedText = QuotaRefreshDeltaSummary.refreshDeltaText(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-5 * 60), outcome: .success, remaining: 700, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-30), outcome: .failed, remaining: 700, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 500)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(refreshDeltaFailedText == "Refresh failed", "Latest refresh delta should summarize failed refresh attempts")
+let staleRefreshDeltaText = QuotaRefreshDeltaSummary.refreshDeltaText(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-90 * 60), outcome: .success, remaining: 700, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(staleRefreshDeltaText == nil, "Latest refresh delta should not linger after the recent refresh window")
+let deepseekRefreshHistoryKeyID = UUID(uuidString: "16161616-1616-1616-1616-161616161616")!
+let deepseekRefreshHistoryKey = APIKey(
+    id: deepseekRefreshHistoryKeyID,
+    name: "DEEPSEEK_REFRESH_HISTORY",
+    key: "deepseek-refresh-history",
+    provider: .deepseek,
+    remaining: 10261,
+    limit: nil
+)
+let deepseekRefreshHistoryItems = QuotaRefreshHistoryItem.items(
+    for: deepseekRefreshHistoryKey,
+    snapshots: [
+        QuotaSnapshot(keyID: deepseekRefreshHistoryKeyID, provider: .deepseek, credentialName: "DEEPSEEK_REFRESH_HISTORY", recordedAt: trendNow.addingTimeInterval(-5 * 60 * 60), outcome: .success, remaining: 263, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 2.63 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekRefreshHistoryKeyID, provider: .deepseek, credentialName: "DEEPSEEK_REFRESH_HISTORY", recordedAt: trendNow.addingTimeInterval(-4 * 60 * 60), outcome: .success, remaining: 10262, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 102.62 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekRefreshHistoryKeyID, provider: .deepseek, credentialName: "DEEPSEEK_REFRESH_HISTORY", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 10261, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 102.61 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekRefreshHistoryKeyID, provider: .deepseek, credentialName: "DEEPSEEK_REFRESH_HISTORY", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 10261, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 102.61 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekRefreshHistoryKeyID, provider: .deepseek, credentialName: "DEEPSEEK_REFRESH_HISTORY", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 10261, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 102.61 available", httpStatus: 200)
+    ],
+    limit: 4,
+    now: trendNow,
+    language: .english
+)
+require(deepseekRefreshHistoryItems.map { $0.kind } == [.noChange, .consumed, .recovered], "Refresh history should collapse repeated no-change refreshes while keeping top-up and tiny-spend events")
+require(deepseekRefreshHistoryItems[0].repeatCount == 2, "Refresh history should record how many consecutive unchanged refreshes were collapsed")
+require(deepseekRefreshHistoryItems[0].primaryText == "Updated · no change", "Refresh history should label collapsed unchanged refreshes clearly")
+require(deepseekRefreshHistoryItems[1].deltaText == "-CNY 0.01", "Refresh history should show DeepSeek money-balance consumption in currency")
+require(deepseekRefreshHistoryItems[1].valueText == "CNY 102.61", "Refresh history should keep the refreshed balance value beside the event")
+require(deepseekRefreshHistoryItems[2].primaryText == "Reset", "Refresh history should treat large balance increases as recovery instead of consumption")
+
+let failedRefreshHistoryItems = QuotaRefreshHistoryItem.items(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-10 * 60), outcome: .success, remaining: 700, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-5 * 60), outcome: .failed, remaining: 700, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 500)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(failedRefreshHistoryItems.first?.kind == .failed, "Refresh history should retain failed refresh attempts")
+require(failedRefreshHistoryItems.first?.primaryText == "Refresh failed", "Refresh history should label failed refresh attempts")
+require(failedRefreshHistoryItems.first?.httpStatusText == "HTTP 500", "Refresh history should expose the failed refresh HTTP status")
+
+let skippedRefreshHistoryItems = QuotaRefreshHistoryItem.items(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-5 * 60), outcome: .skipped, remaining: 700, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "Manual refresh only", httpStatus: nil)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(skippedRefreshHistoryItems.first?.kind == .skipped, "Refresh history should include automatic refresh skips")
+require(skippedRefreshHistoryItems.first?.primaryText == "Skipped", "Refresh history should label skipped refresh attempts")
+require(skippedRefreshHistoryItems.first?.httpStatusText == "Not requested", "Refresh history should explain that skipped refreshes did not make an HTTP request")
+let sparklineSamples = QuotaSparklineSample.samples(
+    for: trendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-4 * 60 * 60), outcome: .success, remaining: 1000, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .failed, remaining: 1000, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 500),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 750, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: trendKeyID, provider: .tavily, credentialName: "TAVILY_TREND", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 500, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    ],
+    now: trendNow
+)
+require(sparklineSamples.map { $0.value } == [1.0, 0.75, 0.5], "Quota sparkline should use successful comparable quota percentages in time order")
+require(sparklineSamples.map { $0.recordedAt } == sparklineSamples.map { $0.recordedAt }.sorted(), "Quota sparkline samples should be sorted by time")
+require(!QuotaSparklineSample.shouldRenderSparkline([
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), value: 0.9),
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), value: 0.7)
+]), "Quota sparkline should stay hidden until at least three valid samples exist")
+require(!QuotaSparklineSample.shouldRenderSparkline([
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-20 * 60), value: 0.9),
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-10 * 60), value: 0.8),
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-1 * 60), value: 0.7)
+]), "Quota sparkline should stay hidden when the observation span is too short")
+require(!QuotaSparklineSample.shouldRenderSparkline([
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), value: 0.904),
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), value: 0.9035),
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-30 * 60), value: 0.903)
+]), "Quota sparkline should stay hidden when quota barely changes")
+require(QuotaSparklineSample.shouldRenderSparkline([
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), value: 0.95),
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), value: 0.80),
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-30 * 60), value: 0.70)
+]), "Quota sparkline should render when enough samples show a meaningful quota change")
+require(QuotaSparklineSample.shouldRenderSparkline([
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), value: 0.457),
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), value: 0.459),
+    QuotaSparklineSample(recordedAt: trendNow.addingTimeInterval(-30 * 60), value: 0.461)
+]), "Quota sparkline should render large-period quota changes once they move by a few tenths of a percentage point")
+let deepseekTrendKeyID = UUID(uuidString: "14141414-1414-1414-1414-141414141414")!
+let deepseekTrendKey = APIKey(
+    id: deepseekTrendKeyID,
+    name: "DEEPSEEK_API_KEY",
+    key: "deepseek-trend",
+    provider: .deepseek,
+    remaining: 850,
+    limit: nil
+)
+let deepseekBalanceSparklineSamples = QuotaSparklineSample.samples(
+    for: deepseekTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 1250, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 12.50 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 1000, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 10.00 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 850, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 8.50 available", httpStatus: 200)
+    ],
+    now: trendNow
+)
+let expectedDeepseekBalanceValues = [1.0, 0.8, 0.68]
+require(zip(deepseekBalanceSparklineSamples.map { $0.value }, expectedDeepseekBalanceValues).allSatisfy { abs($0 - $1) < 0.0001 }, "DeepSeek quota sparklines should draw balance changes even when the endpoint does not expose a quota limit")
+require(QuotaSparklineSample.shouldRenderSparkline(deepseekBalanceSparklineSamples), "DeepSeek balance sparklines should render once enough balance samples show a meaningful change")
+let deepseekActivity = QuotaActivitySummary.activitySummary(
+    for: deepseekTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 1250, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 12.50 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 850, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 8.50 available", httpStatus: 200)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(deepseekActivity.kind == .moneyBalance, "Quota activity should classify money-balance spend separately from quota-window consumption")
+require(deepseekActivity.deltaText == "-CNY 4.00", "Quota activity should expose money-balance spend as currency")
+require(deepseekActivity.shouldRender, "Quota activity should render meaningful money-balance spend")
+let deepseekRecoveredActivity = QuotaActivitySummary.activitySummary(
+    for: deepseekTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 850, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 8.50 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 1250, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 12.50 available", httpStatus: 200)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(deepseekRecoveredActivity.kind == .recovered, "DeepSeek balance increases should be classified as recovery instead of consumption")
+require(deepseekRecoveredActivity.deltaText == nil, "DeepSeek balance recovery should not expose a spent delta")
+let deepseekRecoveredAfterStableRefresh = QuotaActivitySummary.activitySummary(
+    for: deepseekTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 850, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 8.50 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 1250, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 12.50 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 1250, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 12.50 available", httpStatus: 200)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(deepseekRecoveredAfterStableRefresh.kind == .recovered, "DeepSeek balance recovery should remain visible after later unchanged refreshes")
+require(deepseekRecoveredAfterStableRefresh.shouldRender, "Recovered DeepSeek balances should still render as recent activity after stable refreshes")
+let deepseekLargeTopUpAfterTinySpend = QuotaActivitySummary.activitySummary(
+    for: deepseekTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-4 * 60 * 60), outcome: .success, remaining: 263, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 2.63 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 10262, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 102.62 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 10261, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 102.61 available", httpStatus: 200),
+        QuotaSnapshot(keyID: deepseekTrendKeyID, provider: .deepseek, credentialName: "DEEPSEEK_API_KEY", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 10261, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 102.61 available", httpStatus: 200)
+    ],
+    now: trendNow,
+    language: .english
+)
+require(deepseekLargeTopUpAfterTinySpend.kind == .recovered, "DeepSeek top-ups should stay visible as recovery when only a tiny post-top-up spend happened")
+require(deepseekLargeTopUpAfterTinySpend.deltaText == nil, "DeepSeek top-ups should not be overwritten by a tiny post-top-up money delta")
+let wechatTrendKeyID = UUID(uuidString: "15151515-1515-1515-1515-151515151515")!
+let wechatTrendKey = APIKey(
+    id: wechatTrendKeyID,
+    name: "WECHAT_API_KEY",
+    key: "wechat-trend",
+    provider: .wxmp,
+    remaining: 15780,
+    limit: nil
+)
+let wechatActivity = QuotaActivitySummary.activitySummary(
+    for: wechatTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: wechatTrendKeyID, provider: .wxmp, credentialName: "WECHAT_API_KEY", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 16180, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 161.80 available", httpStatus: 200),
+        QuotaSnapshot(keyID: wechatTrendKeyID, provider: .wxmp, credentialName: "WECHAT_API_KEY", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 15780, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "CNY 157.80 available", httpStatus: 200)
+    ],
+    now: trendNow,
+    language: .simplifiedChinese
+)
+require(wechatActivity.kind == .moneyBalance, "WeChat Search activity should use the money-balance activity path")
+require(wechatActivity.currentText == "¥157.80", "WeChat Search activity should use compact localized money for the current balance")
+require(wechatActivity.deltaText == "-¥4.00", "WeChat Search activity should avoid English CNY text in Chinese dynamic changes")
+require(!wechatActivity.deltaText!.contains("CNY"), "WeChat Search activity should not leak English currency text in Chinese UI")
+let codexTrendKeyID = UUID(uuidString: "12121212-1212-1212-1212-121212121212")!
+let codexTrendKey = APIKey(
+    id: codexTrendKeyID,
+    name: "CODEX_SUBSCRIPTION_SESSION",
+    key: "codex-session",
+    provider: .codexSubscription,
+    remaining: 3900,
+    limit: 10000,
+    quotaText: .quotaWindows([
+        QuotaWindowText(name: "5h", percentText: "39%"),
+        QuotaWindowText(name: "week", percentText: "73%")
+    ])
+)
+let codexWindowSparklineSamples = QuotaSparklineSample.samples(
+    for: codexTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 9000, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 60% · week 91%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "5h", remainingPercent: 60),
+            QuotaWindowSnapshot(name: "week", remainingPercent: 91)
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 8500, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 50% · week 85%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "5h", remainingPercent: 50),
+            QuotaWindowSnapshot(name: "week", remainingPercent: 85)
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 7300, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 39% · week 73%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "5h", remainingPercent: 39),
+            QuotaWindowSnapshot(name: "week", remainingPercent: 73)
+        ])
+    ],
+    now: trendNow
+)
+require(codexWindowSparklineSamples.map { $0.value } == [0.91, 0.85, 0.73], "Codex quota sparklines should draw the largest available quota window, which is the weekly subscription window")
+require(codexWindowSparklineSamples.allSatisfy { $0.windowName == "week" }, "Codex quota sparkline samples should preserve the represented weekly window for UI labeling")
+let codexWindowActivity = QuotaActivitySummary.activitySummary(
+    for: codexTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 9100, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 60% · week 91%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "5h", remainingPercent: 60),
+            QuotaWindowSnapshot(name: "week", remainingPercent: 91)
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 8500, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 50% · week 85%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "5h", remainingPercent: 50),
+            QuotaWindowSnapshot(name: "week", remainingPercent: 85)
+        ])
+    ],
+    now: trendNow,
+    language: .english
+)
+require(codexWindowActivity.kind == .windowedQuota, "Quota activity should classify subscription quota-window changes separately")
+require(codexWindowActivity.currentText == "85%", "Quota activity should show the selected quota window's current remaining percentage")
+require(codexWindowActivity.deltaText == "-6pt", "Quota activity should show remaining percentage-point deltas as compact pt changes")
+let codexResetAwareSparklineSamples = QuotaSparklineSample.samples(
+    for: codexTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 9000, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 60% · week 91%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "5h", remainingPercent: 60, resetAt: trendNow.addingTimeInterval(5 * 60 * 60)),
+            QuotaWindowSnapshot(name: "week", remainingPercent: 91, resetAt: trendNow.addingTimeInterval(24 * 60 * 60))
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 8500, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 50% · week 85%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "5h", remainingPercent: 50, resetAt: trendNow.addingTimeInterval(5 * 60 * 60)),
+            QuotaWindowSnapshot(name: "week", remainingPercent: 85, resetAt: trendNow.addingTimeInterval(24 * 60 * 60))
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 9900, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 99% · week 99%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "5h", remainingPercent: 99, resetAt: trendNow.addingTimeInterval(10 * 60 * 60)),
+            QuotaWindowSnapshot(name: "week", remainingPercent: 99, resetAt: trendNow.addingTimeInterval(8 * 24 * 60 * 60))
+        ])
+    ],
+    now: trendNow
+)
+require(codexResetAwareSparklineSamples.map { $0.value } == [0.99], "Quota sparkline samples should cut reset-crossing quota history and keep only the current reset segment")
+require(codexResetAwareSparklineSamples.map { $0.resetAt } == [
+    trendNow.addingTimeInterval(8 * 24 * 60 * 60)
+], "Quota sparkline samples should not connect pre-reset and post-reset quota windows")
+let codexRecoveryActivity = QuotaActivitySummary.activitySummary(
+    for: codexTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 8500, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 50% · week 85%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 85, resetAt: trendNow.addingTimeInterval(24 * 60 * 60))
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 9900, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 99% · week 99%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 99, resetAt: trendNow.addingTimeInterval(8 * 24 * 60 * 60))
+        ])
+    ],
+    now: trendNow,
+    language: .english
+)
+require(codexRecoveryActivity.kind == .recovered, "Quota activity should classify reset-window increases as recovery instead of consumption")
+require(codexRecoveryActivity.deltaText == nil, "Quota activity should not expose a consumed delta for recovered quota")
+let codexResetLowerActivity = QuotaActivitySummary.activitySummary(
+    for: codexTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 9100, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 91%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 91, resetAt: trendNow.addingTimeInterval(24 * 60 * 60))
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 8000, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 80%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 80, resetAt: trendNow.addingTimeInterval(8 * 24 * 60 * 60))
+        ])
+    ],
+    now: trendNow,
+    language: .english
+)
+require(codexResetLowerActivity.kind == .recovered, "Codex reset should cut the old weekly segment even when the first post-reset sample is already below the old-period remaining percentage")
+require(codexResetLowerActivity.deltaText == nil, "Codex reset should not report consumption across different weekly reset windows")
+let codexFastWeeklySpeed = QuotaConsumptionSpeedSummary.speedSummary(
+    for: codexTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-2 * 24 * 60 * 60), outcome: .success, remaining: 9000, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 85%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 85, resetAt: resetDateB)
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 5000, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 50%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 50, resetAt: resetDateB)
+        ])
+    ],
+    now: trendNow,
+    language: .english
+)
+require(codexFastWeeklySpeed.shouldRender, "P6 speed hints should work for subscription quota windows")
+require(codexFastWeeklySpeed.periodName == "week", "P6 speed hints should preserve the quota-window period they describe")
+let codexResetSpeed = QuotaConsumptionSpeedSummary.speedSummary(
+    for: codexTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 9100, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 91%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 91, resetAt: trendNow.addingTimeInterval(24 * 60 * 60))
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 5000, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 50%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 50, resetAt: trendNow.addingTimeInterval(8 * 24 * 60 * 60))
+        ])
+    ],
+    now: trendNow,
+    language: .english
+)
+require(!codexResetSpeed.shouldRender, "P6 speed hints should not report fast consumption across quota reset boundaries")
+let codexProviderScopedActivity = QuotaActivitySummary.activitySummary(
+    for: codexTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 9100, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 91%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 91)
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .codexSubscription, credentialName: "CODEX_SUBSCRIPTION_SESSION", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 8500, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 85%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 85)
+        ]),
+        QuotaSnapshot(keyID: codexTrendKeyID, provider: .xfyunCodingPlan, credentialName: "XFYUN_CODING_PLAN_COOKIE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 2000, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 20%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "week", remainingPercent: 20)
+        ])
+    ],
+    now: trendNow,
+    language: .english
+)
+require(codexProviderScopedActivity.deltaText == "-6pt", "Quota activity should group snapshots by account and provider before comparing a quota window")
+let xfyunTrendKeyID = UUID(uuidString: "13131313-1313-1313-1313-131313131313")!
+let xfyunTrendKey = APIKey(
+    id: xfyunTrendKeyID,
+    name: "XFYUN_CODING_PLAN_COOKIE",
+    key: "xfyun-session",
+    provider: .xfyunCodingPlan,
+    remaining: 2960,
+    limit: 10000,
+    quotaText: .quotaWindows([
+        QuotaWindowText(name: "5h", percentText: "31%"),
+        QuotaWindowText(name: "week", percentText: "30%"),
+        QuotaWindowText(name: "month", percentText: "46%")
+    ])
+)
+let xfyunWindowSparklineSamples = QuotaSparklineSample.samples(
+    for: xfyunTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: xfyunTrendKeyID, provider: .xfyunCodingPlan, credentialName: "XFYUN_CODING_PLAN_COOKIE", recordedAt: trendNow.addingTimeInterval(-3 * 60 * 60), outcome: .success, remaining: 2960, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 38% · week 29.6% · month 45.7%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "5h", remainingPercent: 38),
+            QuotaWindowSnapshot(name: "week", remainingPercent: 29.6),
+            QuotaWindowSnapshot(name: "month", remainingPercent: 45.7)
+        ]),
+        QuotaSnapshot(keyID: xfyunTrendKeyID, provider: .xfyunCodingPlan, credentialName: "XFYUN_CODING_PLAN_COOKIE", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 2920, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 29.2% · week 29.9% · month 45.9%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "5h", remainingPercent: 29.2),
+            QuotaWindowSnapshot(name: "week", remainingPercent: 29.9),
+            QuotaWindowSnapshot(name: "month", remainingPercent: 45.9)
+        ]),
+        QuotaSnapshot(keyID: xfyunTrendKeyID, provider: .xfyunCodingPlan, credentialName: "XFYUN_CODING_PLAN_COOKIE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 3020, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 31.3% · week 30.2% · month 46.1%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "5h", remainingPercent: 31.3),
+            QuotaWindowSnapshot(name: "week", remainingPercent: 30.2),
+            QuotaWindowSnapshot(name: "month", remainingPercent: 46.1)
+        ])
+    ],
+    now: trendNow
+)
+let expectedXfyunWindowSparklineValues = [0.457, 0.459, 0.461]
+require(zip(xfyunWindowSparklineSamples.map { $0.value }, expectedXfyunWindowSparklineValues).allSatisfy { abs($0 - $1) < 0.0001 }, "XFYun quota sparklines should draw the largest available quota window, which is the monthly/package-period window")
+require(xfyunWindowSparklineSamples.allSatisfy { $0.windowName == "month" }, "XFYun quota sparkline samples should preserve the represented monthly/package-period window for UI labeling")
+let xfyunFallbackActivity = QuotaActivitySummary.activitySummary(
+    for: xfyunTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: xfyunTrendKeyID, provider: .xfyunCodingPlan, credentialName: "XFYUN_CODING_PLAN_COOKIE", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 6200, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 58% · week 62% · month 47.6%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "5h", remainingPercent: 58),
+            QuotaWindowSnapshot(name: "week", remainingPercent: 62),
+            QuotaWindowSnapshot(name: "month", remainingPercent: 47.6)
+        ]),
+        QuotaSnapshot(keyID: xfyunTrendKeyID, provider: .xfyunCodingPlan, credentialName: "XFYUN_CODING_PLAN_COOKIE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 5800, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 50% · week 58% · month 47.6%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "5h", remainingPercent: 50),
+            QuotaWindowSnapshot(name: "week", remainingPercent: 58),
+            QuotaWindowSnapshot(name: "month", remainingPercent: 47.6)
+        ])
+    ],
+    now: trendNow,
+    language: .english
+)
+require(xfyunFallbackActivity.shouldRender, "Windowed quota activity should fall back when the largest stable window hides meaningful remaining-quota change")
+require(xfyunFallbackActivity.periodName == "week", "Windowed quota activity should choose the largest changed window after the largest period is stable")
+require(xfyunFallbackActivity.currentText == "58%", "Windowed quota activity fallback should still show current remaining percentage")
+require(xfyunFallbackActivity.deltaText == "-4pt", "Windowed quota activity fallback should show remaining percentage-point loss")
+let xfyunResetLowerActivity = QuotaActivitySummary.activitySummary(
+    for: xfyunTrendKey,
+    snapshots: [
+        QuotaSnapshot(keyID: xfyunTrendKeyID, provider: .xfyunCodingPlan, credentialName: "XFYUN_CODING_PLAN_COOKIE", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 9800, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "month 98%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "month", remainingPercent: 98, resetAt: trendNow.addingTimeInterval(24 * 60 * 60))
+        ]),
+        QuotaSnapshot(keyID: xfyunTrendKeyID, provider: .xfyunCodingPlan, credentialName: "XFYUN_CODING_PLAN_COOKIE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 9000, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "month 90%", httpStatus: 200, quotaWindows: [
+            QuotaWindowSnapshot(name: "month", remainingPercent: 90, resetAt: trendNow.addingTimeInterval(31 * 24 * 60 * 60))
+        ])
+    ],
+    now: trendNow,
+    language: .english
+)
+require(xfyunResetLowerActivity.kind == .recovered, "XFYun monthly reset should cut the old package-period segment even when the first new-period sample is lower than the old period")
+require(xfyunResetLowerActivity.deltaText == nil, "XFYun monthly reset should not report package-period consumption across reset windows")
+let recentTavilyID = UUID(uuidString: "22222222-2222-2222-2222-222222222222")!
+let recentBraveID = UUID(uuidString: "33333333-3333-3333-3333-333333333333")!
+let recentSerperID = UUID(uuidString: "44444444-4444-4444-4444-444444444444")!
+let recentDeepSeekBalanceID = UUID(uuidString: "99999999-9999-9999-9999-999999999999")!
+let recentXFYunWindowID = UUID(uuidString: "99999999-1111-2222-3333-999999999999")!
+let recentCodexResetID = UUID(uuidString: "99999999-2222-3333-4444-999999999999")!
+let recentStats = [
+    ProviderStats(provider: .tavily, keys: [APIKey(id: recentTavilyID, name: "TAVILY_ACTIVE", key: "tvly-active", provider: .tavily, remaining: 600, limit: 1000)]),
+    ProviderStats(provider: .brave, keys: [APIKey(id: recentBraveID, name: "BRAVE_ACTIVE", key: "brave-active", provider: .brave, remaining: 850, limit: 1000)]),
+    ProviderStats(provider: .serper, keys: [APIKey(id: recentSerperID, name: "SERPER_FALLBACK", key: "serper-active", provider: .serper, remaining: 1000, limit: 1000, usageCount: 100, lastUsed: trendNow)]),
+    ProviderStats(provider: .deepseek, keys: [APIKey(id: recentDeepSeekBalanceID, name: "DEEPSEEK_BALANCE", key: "sk-deepseek", provider: .deepseek, remaining: 1750)]),
+    ProviderStats(provider: .xfyunCodingPlan, keys: [APIKey(id: recentXFYunWindowID, name: "XFYUN_RECENT_WINDOW", key: "xfyun-cookie", provider: .xfyunCodingPlan, remaining: 4760, limit: 10000, quotaText: .quotaWindows([
+        QuotaWindowText(name: "5h", percentText: "50%"),
+        QuotaWindowText(name: "week", percentText: "50%"),
+        QuotaWindowText(name: "month", percentText: "47.6%")
+    ]))]),
+    ProviderStats(provider: .codexSubscription, keys: [APIKey(id: recentCodexResetID, name: "CODEX_RESET_WINDOW", key: "codex-session", provider: .codexSubscription, remaining: 8000, limit: 10000, quotaText: .quotaWindows([
+        QuotaWindowText(name: "week", percentText: "80%")
+    ]))])
+]
+let recentUsageSnapshots = [
+    QuotaSnapshot(keyID: recentTavilyID, provider: .tavily, credentialName: "TAVILY_ACTIVE", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+    QuotaSnapshot(keyID: recentTavilyID, provider: .tavily, credentialName: "TAVILY_ACTIVE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 600, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+    QuotaSnapshot(keyID: recentBraveID, provider: .brave, credentialName: "BRAVE_ACTIVE", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+    QuotaSnapshot(keyID: recentBraveID, provider: .brave, credentialName: "BRAVE_ACTIVE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 850, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+    QuotaSnapshot(keyID: recentDeepSeekBalanceID, provider: .deepseek, credentialName: "DEEPSEEK_BALANCE", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 2000, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "¥20.00", httpStatus: 200),
+    QuotaSnapshot(keyID: recentDeepSeekBalanceID, provider: .deepseek, credentialName: "DEEPSEEK_BALANCE", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 1750, limit: nil, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "¥17.50", httpStatus: 200),
+    QuotaSnapshot(keyID: recentXFYunWindowID, provider: .xfyunCodingPlan, credentialName: "XFYUN_RECENT_WINDOW", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 4760, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 62% · week 62% · month 47.6%", httpStatus: 200, quotaWindows: [
+        QuotaWindowSnapshot(name: "5h", remainingPercent: 62),
+        QuotaWindowSnapshot(name: "week", remainingPercent: 62),
+        QuotaWindowSnapshot(name: "month", remainingPercent: 47.6)
+    ]),
+    QuotaSnapshot(keyID: recentXFYunWindowID, provider: .xfyunCodingPlan, credentialName: "XFYUN_RECENT_WINDOW", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 4760, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "5h 50% · week 50% · month 47.6%", httpStatus: 200, quotaWindows: [
+        QuotaWindowSnapshot(name: "5h", remainingPercent: 50),
+        QuotaWindowSnapshot(name: "week", remainingPercent: 50),
+        QuotaWindowSnapshot(name: "month", remainingPercent: 47.6)
+    ]),
+    QuotaSnapshot(keyID: recentCodexResetID, provider: .codexSubscription, credentialName: "CODEX_RESET_WINDOW", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 9100, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 91%", httpStatus: 200, quotaWindows: [
+        QuotaWindowSnapshot(name: "week", remainingPercent: 91, resetAt: trendNow.addingTimeInterval(24 * 60 * 60))
+    ]),
+    QuotaSnapshot(keyID: recentCodexResetID, provider: .codexSubscription, credentialName: "CODEX_RESET_WINDOW", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 8000, limit: 10000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: "week 80%", httpStatus: 200, quotaWindows: [
+        QuotaWindowSnapshot(name: "week", remainingPercent: 80, resetAt: trendNow.addingTimeInterval(8 * 24 * 60 * 60))
+    ])
+]
+let recentUsageItems = MenuQuotaItem.recentProviderUsageItems(from: recentStats, snapshots: recentUsageSnapshots, limit: 4, providerOrder: [.serper, .brave, .tavily, .xfyunCodingPlan, .codexSubscription, .deepseek], now: trendNow)
+require(recentUsageItems.map { $0.key.name } == ["TAVILY_ACTIVE", "XFYUN_RECENT_WINDOW", "BRAVE_ACTIVE", "DEEPSEEK_BALANCE"], "Recent provider usage should use reset-aware activity summaries, include windowed providers, and exclude reset-crossing Codex windows")
+let excludedRecentUsageItems = MenuQuotaItem.recentProviderUsageItems(from: recentStats, snapshots: recentUsageSnapshots, limit: 4, providerOrder: [.serper, .brave, .tavily, .xfyunCodingPlan, .codexSubscription, .deepseek], excluding: [recentTavilyID], now: trendNow)
+require(excludedRecentUsageItems.map { $0.key.name } == ["XFYUN_RECENT_WINDOW", "BRAVE_ACTIVE", "DEEPSEEK_BALANCE"], "Recent provider usage should allow menu risk sections to exclude already surfaced credentials without falling back to legacy usage counts")
+let lowSignalRecentID = UUID(uuidString: "77777777-7777-7777-7777-777777777777")!
+let meaningfulRecentID = UUID(uuidString: "88888888-8888-8888-8888-888888888888")!
+let attentionFeedRecentStats = [
+    ProviderStats(provider: .serpapi, keys: [APIKey(id: lowSignalRecentID, name: "SERPAPI_TINY_DROP", key: "serpapi-tiny", provider: .serpapi, remaining: 990, limit: 1000)]),
+    ProviderStats(provider: .bocha, keys: [APIKey(id: meaningfulRecentID, name: "BOCHA_MEANINGFUL_DROP", key: "bocha-meaningful", provider: .bocha, remaining: 820, limit: 1000)])
+]
+let attentionFeedRecentSnapshots = [
+    QuotaSnapshot(keyID: lowSignalRecentID, provider: .serpapi, credentialName: "SERPAPI_TINY_DROP", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 1000, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+    QuotaSnapshot(keyID: lowSignalRecentID, provider: .serpapi, credentialName: "SERPAPI_TINY_DROP", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 990, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+    QuotaSnapshot(keyID: meaningfulRecentID, provider: .bocha, credentialName: "BOCHA_MEANINGFUL_DROP", recordedAt: trendNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 1000, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+    QuotaSnapshot(keyID: meaningfulRecentID, provider: .bocha, credentialName: "BOCHA_MEANINGFUL_DROP", recordedAt: trendNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 820, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+]
+let attentionFeedRecentItems = MenuQuotaItem.recentProviderUsageItems(from: attentionFeedRecentStats, snapshots: attentionFeedRecentSnapshots, limit: 3, providerOrder: [.serpapi, .bocha], now: trendNow)
+require(attentionFeedRecentItems.map { $0.key.name } == ["BOCHA_MEANINGFUL_DROP"], "Menu bar recent changes should behave like an attention feed and suppress tiny low-signal quota drops")
+let overflowNow = Date()
+let overflowRecentAID = UUID(uuidString: "55555555-5555-5555-5555-555555555555")!
+let overflowRecentBID = UUID(uuidString: "66666666-6666-6666-6666-666666666666")!
+let overflowStats = [
+    ProviderStats(provider: .tavily, keys: [APIKey(name: "TAVILY_FAILED", key: "tvly-failed", provider: .tavily, lastDiagnosticMessage: "network failed")]),
+    ProviderStats(provider: .brave, keys: [APIKey(name: "BRAVE_EMPTY", key: "brave-empty", provider: .brave, remaining: 0, limit: 1000)]),
+    ProviderStats(provider: .serper, keys: [APIKey(name: "SERPER_LOW", key: "serper-low", provider: .serper, remaining: 42, limit: 1000)]),
+    ProviderStats(provider: .xfyunCodingPlan, keys: [APIKey(name: "XFYUN_SOON", key: "cookie-soon", provider: .xfyunCodingPlan, remaining: 6000, limit: 10000, planEndsAt: overflowNow.addingTimeInterval(5 * 24 * 60 * 60))]),
+    ProviderStats(provider: .exa, keys: [APIKey(id: overflowRecentAID, name: "EXA_RECENT", key: "exa-recent", provider: .exa, remaining: 700, limit: 1000)]),
+    ProviderStats(provider: .querit, keys: [APIKey(id: overflowRecentBID, name: "QUERIT_RECENT", key: "querit-recent", provider: .querit, remaining: 760, limit: 1000)])
+]
+let overflowSnapshots = [
+    QuotaSnapshot(keyID: overflowRecentAID, provider: .exa, credentialName: "EXA_RECENT", recordedAt: overflowNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+    QuotaSnapshot(keyID: overflowRecentAID, provider: .exa, credentialName: "EXA_RECENT", recordedAt: overflowNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 700, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+    QuotaSnapshot(keyID: overflowRecentBID, provider: .querit, credentialName: "QUERIT_RECENT", recordedAt: overflowNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 900, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+    QuotaSnapshot(keyID: overflowRecentBID, provider: .querit, credentialName: "QUERIT_RECENT", recordedAt: overflowNow.addingTimeInterval(-1 * 60 * 60), outcome: .success, remaining: 760, limit: 1000, resetAt: nil, planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+]
+let overflowLayout = MenuQuotaSignalLayout.make(
+    from: overflowStats,
+    snapshots: overflowSnapshots,
+    visibleLimit: 4,
+    providerOrder: [.tavily, .brave, .serper, .xfyunCodingPlan, .exa, .querit],
+    now: overflowNow
+)
+require(overflowLayout.visibleItems.map { $0.key.name } == ["TAVILY_FAILED", "BRAVE_EMPTY", "SERPER_LOW", "XFYUN_SOON"], "Menu signal layout should spend fixed panel slots on risk first before recent activity")
+require(overflowLayout.hiddenItemCount == 2, "Menu signal layout should count recent activity rows hidden by the global fixed-panel cap")
+require(overflowLayout.recentUsageItems.isEmpty, "Menu signal layout should hide recent activity when higher-priority signals consume the global cap")
+let groupedProviderLayout = MenuQuotaSignalLayout.make(
+    from: [
+        ProviderStats(provider: .xfyunCodingPlan, keys: [
+            APIKey(name: "XFYUN_CODING_PLAN_COOKIE", key: "cookie-low-a", provider: .xfyunCodingPlan, remaining: 8, limit: 1000, planDisplayName: "Pro"),
+            APIKey(name: "XFYUN_CODING_PLAN_COOKIE", key: "cookie-low-b", provider: .xfyunCodingPlan, remaining: 45, limit: 1000, planDisplayName: "Lite")
+        ]),
+        ProviderStats(provider: .tavily, keys: [
+            APIKey(name: "TAVILY_LOW", key: "tvly-low", provider: .tavily, remaining: 20, limit: 1000)
+        ])
+    ],
+    snapshots: [],
+    visibleLimit: 5,
+    providerOrder: [.xfyunCodingPlan, .tavily],
+    now: overflowNow
+)
+require(groupedProviderLayout.lowQuotaItems.map { $0.key.name } == ["XFYUN_CODING_PLAN_COOKIE", "TAVILY_LOW"], "Menu signal layout should collapse multiple same-provider low-quota accounts into one provider row")
+require(groupedProviderLayout.lowQuotaItems.first?.providerSignalCount == 2, "Collapsed provider rows should retain the same-provider account count for the menu label")
+require(groupedProviderLayout.hiddenItemCount == 0, "Collapsed same-provider accounts should not inflate the fixed-panel hidden-item count")
+require(groupedProviderLayout.lowQuotaItems.first?.statusBarAccountContextLabel == "Pro · 2 accounts", "Collapsed provider rows should append a compact account-count hint to the representative account context")
+let crossSignalLayout = MenuQuotaSignalLayout.make(
+    from: [
+        ProviderStats(provider: .volcengineCodingPlan, keys: [
+            APIKey(name: "VOLCENGINE_LOW", key: "cookie-low", provider: .volcengineCodingPlan, remaining: 50, limit: 1000),
+            APIKey(name: "VOLCENGINE_EXPIRES", key: "cookie-expiring", provider: .volcengineCodingPlan, remaining: 900, limit: 1000, planEndsAt: overflowNow.addingTimeInterval(3 * 24 * 60 * 60))
+        ]),
+        ProviderStats(provider: .tavily, keys: [
+            APIKey(name: "TAVILY_LOW", key: "tvly-cross-low", provider: .tavily, remaining: 20, limit: 1000)
+        ])
+    ],
+    snapshots: [],
+    visibleLimit: 5,
+    providerOrder: [.volcengineCodingPlan, .tavily],
+    now: overflowNow
+)
+require(crossSignalLayout.visibleItems.map { $0.provider }.filter { $0 == .volcengineCodingPlan }.count == 1, "Menu signal layout should surface each provider only once across low/expiring/attention sections")
+require(crossSignalLayout.visibleItems.map { $0.key.name } == ["TAVILY_LOW", "VOLCENGINE_LOW"], "When one provider has several automatic signals, the menu should keep only its strongest provider-level row")
+let watchedLayout = MenuQuotaSignalLayout.make(
+    from: [
+        ProviderStats(provider: .brave, keys: [APIKey(name: "BRAVE_WATCHED", key: "brave-watched", provider: .brave, remaining: 880, limit: 1000)]),
+        ProviderStats(provider: .tavily, keys: [APIKey(name: "TAVILY_LOW", key: "tvly-watched-low", provider: .tavily, remaining: 20, limit: 1000)])
+    ],
+    snapshots: [],
+    visibleLimit: 5,
+    providerOrder: [.tavily, .brave],
+    watchedProviders: [.brave],
+    now: overflowNow
+)
+require(watchedLayout.watchedProviderItems.map { $0.key.name } == ["BRAVE_WATCHED"], "Menu signal layout should reserve a separate short section for user-watched providers")
+require(!watchedLayout.visibleItems.map { $0.key.name }.contains("BRAVE_WATCHED"), "Watched providers should not also consume automatic signal slots")
 let menuSummary = MenuQuotaSummary(keys: [
     APIKey(name: "healthy", key: "tvly-healthy", provider: .tavily, remaining: 900, limit: 1000),
     APIKey(name: "low", key: "tvly-low", provider: .tavily, remaining: 20, limit: 1000),
@@ -3354,18 +6252,55 @@ let menuSummary = MenuQuotaSummary(keys: [
 require(menuSummary.availableCount == 2, "MenuQuotaSummary should count usable credentials, including low but still usable ones")
 require(menuSummary.lowCount == 1, "MenuQuotaSummary should count low-quota credentials separately")
 require(menuSummary.failedCount == 2, "MenuQuotaSummary should count failed and expired credentials")
+require(menuSummary.statusItemShortText == "2 Failed", "Status bar short text should surface failed credentials before lower-priority low-quota counts")
+let lowOnlyMenuSummary = MenuQuotaSummary(keys: [
+    APIKey(name: "healthy", key: "tvly-healthy", provider: .tavily, remaining: 900, limit: 1000),
+    APIKey(name: "low-a", key: "tvly-low-a", provider: .tavily, remaining: 20, limit: 1000),
+    APIKey(name: "low-b", key: "brave-low-b", provider: .brave, remaining: 10, limit: 1000)
+])
+require(lowOnlyMenuSummary.statusItemShortText == "2 Low", "Status bar short text should show low-quota counts when no failed credentials exist")
+let calmMenuSummary = MenuQuotaSummary(keys: [
+    APIKey(name: "healthy", key: "tvly-healthy", provider: .tavily, remaining: 900, limit: 1000)
+])
+require(calmMenuSummary.statusItemShortText == nil, "Status bar short text should stay hidden when there is no meaningful quota signal")
 let cookieStatusLabel = APIKey(
     name: "VOLCENGINE_CODING_PLAN_COOKIE",
     key: #"{"cookie":"c=a"}"#,
     provider: .volcengineCodingPlan
 ).statusBarCredentialLabel
 require(cookieStatusLabel == "Web login authorization", "Status bar should show the credential type for web-login providers, not masked raw JSON")
+let genericWebLoginMenuLabel = APIKey(
+    name: "VOLCENGINE_CODING_PLAN_COOKIE",
+    key: #"{"cookie":"c=a"}"#,
+    provider: .volcengineCodingPlan
+).statusBarAccountContextLabel
+require(genericWebLoginMenuLabel == nil, "Menu bar rows should hide generic web-login authorization when it is the only account context")
+let concretePlanMenuLabel = APIKey(
+    name: "VOLCENGINE_CODING_PLAN_COOKIE",
+    key: #"{"cookie":"c=a"}"#,
+    provider: .volcengineCodingPlan,
+    planDisplayName: "Lite"
+).statusBarAccountContextLabel
+require(concretePlanMenuLabel == "Lite", "Menu bar rows should show concrete dashboard package names instead of generic web-login authorization")
+let namedConcretePlanMenuLabel = APIKey(
+    name: "Work account",
+    key: #"{"cookie":"c=a"}"#,
+    provider: .volcengineCodingPlan,
+    note: "Team",
+    planDisplayName: "Lite"
+).statusBarAccountContextLabel
+require(namedConcretePlanMenuLabel == "Lite · Work account · Team", "Menu bar rows should distinguish multiple accounts that share the same package")
 let apiStatusLabel = APIKey(
     name: "BRAVE_API_KEY",
     key: "abcd1234wxyz",
     provider: .brave
 ).statusBarCredentialLabel
 require(apiStatusLabel == "abcd••••wxyz", "Status bar should still show masked concrete API keys for normal providers")
+require(APIKey(
+    name: "BRAVE_API_KEY",
+    key: "abcd1234wxyz",
+    provider: .brave
+).statusBarAccountContextLabel == "abcd••••wxyz", "Menu bar rows should keep masked API keys when they identify normal API-key credentials")
 let aliyunTokenPlanStatusLabel = APIKey(
     name: "ALIYUN_TOKEN_PLAN_API_KEY",
     key: "sk-sp-redacted",
@@ -3394,7 +6329,7 @@ require(settingsKeys.contains { $0.name == "TAVILY_API_KEY" && $0.provider == .t
 require(settingsKeys.contains { $0.name == "BRAVE_API_KEY" && $0.provider == .brave }, "Claude settings importer missing Brave")
 SWIFT
 
-swiftc QuotaRadar/Models/AppLanguage.swift QuotaRadar/Models/APIKey.swift QuotaRadar/Services/EnvImporter.swift QuotaRadar/Services/ClaudeSettingsImporter.swift "$TMP_DIR/main.swift" -o "$TMP_DIR/env-importer-test"
+swiftc QuotaRadar/Models/AppLanguage.swift QuotaRadar/Models/APIKey.swift QuotaRadar/Models/QuotaHistory.swift QuotaRadar/Services/EnvImporter.swift QuotaRadar/Services/ClaudeSettingsImporter.swift "$TMP_DIR/main.swift" -o "$TMP_DIR/env-importer-test"
 "$TMP_DIR/env-importer-test"
 
 echo "== cURL credential parser behavior =="
@@ -3501,6 +6436,12 @@ require(AppLanguage.korean.displayName == "한국어", "Korean language option s
 require(L10n.t(.providersTab, language: .english) == "Quota Overview", "English quota overview tab title should be available")
 require(L10n.t(.providersHeader, language: .english) == "Quota Overview", "English quota overview page title should match the navigation")
 require(L10n.t(.apiQuotaTitle, language: .english) == "Quota Radar", "English menu bar title should express active quota monitoring instead of a bland API quota label")
+require(L10n.t(.sidebarStatistics, language: .english) == "Statistics", "English sidebar metrics heading should describe statistics instead of repeating the app name")
+require(L10n.t(.sidebarStatistics, language: .simplifiedChinese) == "统计", "Chinese sidebar metrics heading should describe statistics instead of repeating the app name")
+require(L10n.t(.quotaActivity, language: .simplifiedChinese) == "动态", "Chinese Activity column should describe recent remaining-quota activity instead of used quota")
+require(L10n.compactDeltaIndicator("-2pt") == "↓2pt", "Compact delta indicators should show remaining-quota drops with a down arrow instead of a minus sign")
+require(L10n.compactDeltaIndicator("-CNY 4.00") == "↓CNY 4.00", "Compact delta indicators should preserve currency text when showing balance drops")
+require(L10n.compactDeltaIndicator("+2pt") == "↑2pt", "Compact delta indicators should support quota increases with an up arrow")
 require(L10n.t(.criticalTime, language: .english) == "Critical Time", "English quota overview timing column should use Critical Time")
 require(L10n.t(.criticalTime, language: .simplifiedChinese) == "关键时间", "Chinese quota overview timing column should use 关键时间")
 require(L10n.t(.lowQuotaProviders, language: .simplifiedChinese) == "额度紧张", "Chinese status bar low-quota section should have a clear localized label")
@@ -3537,6 +6478,14 @@ require(L10n.t(.settingsTab, language: .simplifiedChinese) == "设置", "Chinese
 require(L10n.t(.settingsWindowTitle, language: .simplifiedChinese) == "Quota Radar 设置", "Chinese settings window title should be localized")
 require(L10n.t(.provider, language: .simplifiedChinese) == "服务商", "Chinese provider form label should be fully translated")
 require(L10n.t(.language, language: .simplifiedChinese) == "语言", "Chinese language label should be available")
+require(L10n.t(.appearanceMode, language: .english) == "Color Scheme", "English theme-mode label should be explicit")
+require(L10n.t(.appearanceModeSystem, language: .english) == "Follow System", "English theme mode should avoid the bare System label")
+require(L10n.t(.appearanceModeLight, language: .english) == "Light Mode", "English theme mode should avoid the bare Light label")
+require(L10n.t(.appearanceModeDark, language: .english) == "Dark Mode", "English theme mode should avoid the bare Dark label")
+require(L10n.t(.appearanceMode, language: .simplifiedChinese) == "配色模式", "Chinese theme-mode label should be explicit")
+require(L10n.t(.appearanceModeSystem, language: .simplifiedChinese) == "跟随系统", "Chinese theme mode should include system")
+require(L10n.t(.appearanceModeLight, language: .simplifiedChinese) == "浅色模式", "Chinese theme mode should avoid the bare light label")
+require(L10n.t(.appearanceModeDark, language: .simplifiedChinese) == "深色模式", "Chinese theme mode should avoid the bare dark label")
 require(L10n.t(.statusBarTransparency, language: .simplifiedChinese) == "状态栏透明度", "Chinese status bar transparency label should be available")
 require(L10n.t(.adminCredentialRequired, language: .simplifiedChinese) == "需要 API 密钥", "Chinese service API key status should be fully translated without admin credential wording")
 require(L10n.localizedQuotaLabel("需要管理员凭据", language: .english) == "API Key required", "Persisted legacy Chinese Admin credential labels should render with the current API key wording")
@@ -3554,15 +6503,26 @@ require(L10n.t(.available, language: .english) == "Available", "English menu sum
 require(L10n.t(.available, language: .simplifiedChinese) == "可用", "Chinese menu summary should label available credentials")
 require(L10n.t(.failed, language: .english) == "Failed", "English menu summary should label failed credentials")
 require(L10n.t(.failed, language: .simplifiedChinese) == "失败", "Chinese menu summary should label failed credentials")
-require(L10n.t(.needsAttention, language: .english) == "Needs Attention", "English menu attention title should be available")
-require(L10n.t(.needsAttention, language: .simplifiedChinese) == "需要关注", "Chinese menu attention title should be available")
-require(L10n.t(.noAttentionItems, language: .simplifiedChinese) == "暂无需要关注的凭据", "Chinese no-attention empty state should be available")
+require(L10n.t(.needsAttention, language: .english) == "Heads Up", "English menu attention title should be softened without losing alert meaning")
+require(L10n.t(.watchedProviders, language: .simplifiedChinese) == "常看", "Chinese watched-provider title should be softer than attention wording")
+require(L10n.t(.needsAttention, language: .simplifiedChinese) == "提醒", "Chinese menu attention title should be softer than 需要关注")
+require(L10n.t(.noAttentionItems, language: .simplifiedChinese) == "暂无提醒", "Chinese no-attention empty state should be soft and compact")
 require(AutoRefreshIntervalOption.off.timeInterval == nil, "Automatic refresh settings should support disabling background refresh")
 require(AutoRefreshIntervalOption.fifteenMinutes.timeInterval == 900, "Automatic refresh settings should expose a 15 minute interval")
 require(QuotaConsumingAutoRefreshIntervalOption.off.timeInterval == nil, "Quota-consuming automatic refresh should be disabled by default")
 require(QuotaConsumingAutoRefreshIntervalOption.sixHours.timeInterval == 21_600, "Quota-consuming automatic refresh should expose a long 6 hour interval")
 require(QuotaConsumingAutoRefreshIntervalOption.twelveHours.timeInterval == 43_200, "Quota-consuming automatic refresh should expose a long 12 hour interval")
 require(QuotaConsumingAutoRefreshIntervalOption.oneDay.timeInterval == 86_400, "Quota-consuming automatic refresh should expose a daily interval")
+require(AppThemeModeOption.allCases.map(\.rawValue) == ["system", "light", "dark"], "Theme mode should expose system, light, and dark in that order")
+let appearanceDefaults = UserDefaults(suiteName: "QuotaRadarAppearanceTests.\(UUID().uuidString)")!
+appearanceDefaults.removePersistentDomain(forName: appearanceDefaults.dictionaryRepresentation().description)
+let defaultAppearanceStore = AppAppearanceStore(defaults: appearanceDefaults)
+require(defaultAppearanceStore.appearanceMode == .system, "Theme mode should default to following system appearance")
+defaultAppearanceStore.appearanceMode = .dark
+require(appearanceDefaults.string(forKey: "appearanceMode") == "dark", "Theme mode changes should persist to UserDefaults")
+appearanceDefaults.set("light", forKey: "appearanceMode")
+let savedAppearanceStore = AppAppearanceStore(defaults: appearanceDefaults)
+require(savedAppearanceStore.appearanceMode == .light, "Theme mode should restore the saved UserDefaults value")
 for language in AppLanguage.allCases {
     require(L10n.missingTranslationKeys(language: language).isEmpty, "\(language.rawValue) should have translations for every L10n key")
     let fallbackKeys = L10n.fallbackTranslationKeys(language: language)
@@ -3586,6 +6546,12 @@ require(L10n.t(.healthFailed, language: .korean) == "확인 실패", "Korean fai
 require(L10n.quotaPeriodTitle("5h", language: .traditionalChinese) == "5 小時", "Traditional Chinese five-hour quota period should be localized")
 require(L10n.quotaPeriodTitle("week", language: .japanese) == "週", "Japanese week quota period should be localized")
 require(L10n.quotaPeriodTitle("month", language: .korean) == "월", "Korean month quota period should be localized")
+require(L10n.quotaPeriodCompactTitle("5h", language: .simplifiedChinese) == "5h", "Sparkline five-hour period marker should stay compact in Chinese")
+require(L10n.quotaPeriodCompactTitle("week", language: .simplifiedChinese) == "周", "Sparkline weekly period marker should stay compact in Chinese")
+require(L10n.quotaPeriodCompactTitle("month", language: .simplifiedChinese) == "月", "Sparkline monthly period marker should stay compact in Chinese")
+require(L10n.quotaPeriodCompactTitle("week", language: .english) == "wk", "Sparkline weekly period marker should stay compact in English")
+require(L10n.quotaPeriodCompactTitle("balance", language: .english) == "bal", "Money-balance activity period marker should stay compact in English")
+require(L10n.quotaPeriodCompactTitle("balance", language: .simplifiedChinese) == "余额", "Money-balance activity period marker should be localized in Chinese")
 require(L10n.t(.httpNotRequested, language: .english) == "Not requested", "English diagnostics should distinguish skipped HTTP checks")
 require(L10n.t(.httpNotRequested, language: .simplifiedChinese) == "未请求", "Chinese diagnostics should distinguish skipped HTTP checks")
 require(QuotaDataSource.responseHeader.displayName(language: .simplifiedChinese) == "响应头", "Chinese quota data source labels should not leak English Header wording")
@@ -3621,6 +6587,135 @@ SWIFT
 
 swiftc QuotaRadar/Models/AppLanguage.swift QuotaRadar/Models/AppAppearance.swift QuotaRadar/Models/APIKey.swift QuotaRadar/Models/AIQuoteLibrary.swift "$TMP_DIR/main.swift" -o "$TMP_DIR/language-test"
 "$TMP_DIR/language-test"
+
+echo "== Threshold notification behavior =="
+cat >"$TMP_DIR/main.swift" <<'SWIFT'
+import Foundation
+
+func require(_ condition: @autoclosure () -> Bool, _ message: String) {
+    if !condition() {
+        FileHandle.standardError.write(Data("FAIL: \(message)\n".utf8))
+        exit(1)
+    }
+}
+
+AppLanguageStore.shared.language = .english
+
+let lowKey = APIKey(
+    name: "TAVILY_API_KEY",
+    key: "tvly-low",
+    provider: .tavily,
+    remaining: 19,
+    limit: 100
+)
+let exhaustedKey = APIKey(
+    name: "SERPER_API_KEY",
+    key: "serper-zero",
+    provider: .serper,
+    remaining: 0,
+    limit: 100
+)
+let expiredDashboardKey = APIKey(
+    name: "KIMI_AUTH",
+    key: "kimi-auth=expired",
+    provider: .kimiSubscription,
+    quotaText: .localized(.credentialExpired),
+    quotaLabel: "Credential expired"
+)
+let firstFailureKey = APIKey(
+    name: "DEEPSEEK_API_KEY",
+    key: "deepseek-fail",
+    provider: .deepseek,
+    lastHTTPStatus: 502,
+    lastDiagnosticMessage: "Bad gateway",
+    consecutiveFailureCount: 1
+)
+let repeatedFailureKey = APIKey(
+    name: "BRAVE_API_KEY",
+    key: "brave-fail",
+    provider: .brave,
+    lastHTTPStatus: 503,
+    lastDiagnosticMessage: "Service unavailable",
+    consecutiveFailureCount: 3
+)
+let copyOnlyKey = APIKey(
+    name: "KIMI_API_KEY",
+    key: "sk-kimi",
+    provider: .kimiSubscription,
+    remaining: 0,
+    limit: 100
+)
+let disabledLowKey = APIKey(
+    name: "DISABLED",
+    key: "disabled",
+    provider: .tavily,
+    isActive: false,
+    remaining: 1,
+    limit: 100
+)
+
+let events = QuotaThresholdNotificationService.events(for: [
+    lowKey,
+    exhaustedKey,
+    expiredDashboardKey,
+    firstFailureKey,
+    repeatedFailureKey,
+    copyOnlyKey,
+    disabledLowKey,
+])
+require(events.map(\.kind) == [.credentialExpired, .quotaExhausted, .repeatedFailures, .lowQuota], "Threshold notification events should use severity order and skip inactive, copy-only, and first-failure credentials")
+require(events.contains { $0.kind == .lowQuota && $0.keyID == lowKey.id }, "Quota below 20% should trigger a low-quota notification")
+require(events.contains { $0.kind == .quotaExhausted && $0.keyID == exhaustedKey.id }, "Zero remaining quota should trigger an exhausted notification instead of a low-quota duplicate")
+require(events.contains { $0.kind == .credentialExpired && $0.keyID == expiredDashboardKey.id }, "Expired web-login authorizations should trigger credential-expired notifications")
+require(events.contains { $0.kind == .repeatedFailures && $0.keyID == repeatedFailureKey.id }, "Three consecutive provider failures should trigger repeated-failure notifications")
+require(!events.contains { $0.keyID == firstFailureKey.id }, "One-off failures should not trigger repeated-failure notifications")
+require(events.allSatisfy { !$0.title.isEmpty && !$0.body.isEmpty }, "Threshold notification events should carry localizable title and body text")
+
+let notificationNow = Date(timeIntervalSince1970: 1_800_000_000)
+let recoveredKeyID = UUID(uuidString: "71717171-7171-7171-7171-717171717171")!
+let recoveredKey = APIKey(
+    id: recoveredKeyID,
+    name: "TAVILY_RECOVERED",
+    key: "tvly-recovered",
+    provider: .tavily,
+    remaining: 1000,
+    limit: 1000
+)
+let recoveryEvents = QuotaThresholdNotificationService.events(
+    for: [recoveredKey],
+    snapshots: [
+        QuotaSnapshot(keyID: recoveredKeyID, provider: .tavily, credentialName: "TAVILY_RECOVERED", recordedAt: notificationNow.addingTimeInterval(-5 * 60), outcome: .success, remaining: 100, limit: 1000, resetAt: notificationNow.addingTimeInterval(24 * 60 * 60), planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: recoveredKeyID, provider: .tavily, credentialName: "TAVILY_RECOVERED", recordedAt: notificationNow.addingTimeInterval(-30), outcome: .success, remaining: 1000, limit: 1000, resetAt: notificationNow.addingTimeInterval(8 * 24 * 60 * 60), planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    ],
+    now: notificationNow
+)
+require(recoveryEvents.map(\.kind) == [.quotaRecovered], "P6 recovery notifications should fire after a recent reset or top-up recovery")
+require(recoveryEvents.first?.title == "Quota recovered", "P6 recovery notification title should be localized")
+let staleRecoveryEvents = QuotaThresholdNotificationService.events(
+    for: [recoveredKey],
+    snapshots: [
+        QuotaSnapshot(keyID: recoveredKeyID, provider: .tavily, credentialName: "TAVILY_RECOVERED", recordedAt: notificationNow.addingTimeInterval(-2 * 60 * 60), outcome: .success, remaining: 100, limit: 1000, resetAt: notificationNow.addingTimeInterval(24 * 60 * 60), planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200),
+        QuotaSnapshot(keyID: recoveredKeyID, provider: .tavily, credentialName: "TAVILY_RECOVERED", recordedAt: notificationNow.addingTimeInterval(-90 * 60), outcome: .success, remaining: 1000, limit: 1000, resetAt: notificationNow.addingTimeInterval(8 * 24 * 60 * 60), planEndsAt: nil, planDisplayName: nil, quotaLabel: nil, httpStatus: 200)
+    ],
+    now: notificationNow
+)
+require(staleRecoveryEvents.isEmpty, "P6 recovery notifications should not fire for stale historical recoveries")
+
+let defaults = UserDefaults(suiteName: "QuotaRadarThresholdNotificationTests.\(UUID().uuidString)")!
+let store = QuotaThresholdNotificationStore(defaults: defaults)
+let freshEvents = store.freshEvents(from: events)
+require(freshEvents.count == events.count, "Threshold notification store should allow first-time active events")
+require(store.freshEvents(from: events).count == events.count, "Threshold notification store should not suppress events before the notification is actually delivered")
+store.markDelivered(freshEvents, retainingActive: events)
+require(store.freshEvents(from: events).isEmpty, "Threshold notification store should suppress duplicate active threshold notifications")
+store.clearResolvedEvents(retainingActive: [])
+require(store.freshEvents(from: []).isEmpty, "Threshold notification store should clear resolved events when no thresholds are active")
+require(store.freshEvents(from: [events[0]]) == [events[0]], "Threshold notification store should allow a threshold notification again after the condition recovered")
+
+SWIFT
+
+swiftc QuotaRadar/Models/AppLanguage.swift QuotaRadar/Models/APIKey.swift QuotaRadar/Models/QuotaHistory.swift QuotaRadar/Services/QuotaNotificationService.swift "$TMP_DIR/main.swift" -o "$TMP_DIR/threshold-notification-test"
+"$TMP_DIR/threshold-notification-test"
 
 echo "== Dashboard reauthentication behavior =="
 cat >"$TMP_DIR/main.swift" <<'SWIFT'
@@ -3707,6 +6802,45 @@ require(DashboardCookieBuilder.missingRequiredCookieNames(
     inCookieHeader: "AccountID=account-redacted; csrfToken=c",
     requiredNames: volcengineRequiredCookies
 ) == ["digest"], "Manual Volcengine cookie save should report missing core auth cookies only")
+let partialVolcengineCredential = DashboardCapturedCredential(
+    provider: .volcengineCodingPlan,
+    cookieHeader: "AccountID=account-redacted; csrfToken=c"
+)
+let completeVolcengineCredential = DashboardCapturedCredential(
+    provider: .volcengineCodingPlan,
+    cookieHeader: "AccountID=account-redacted; csrfToken=c; digest=digest-token"
+)
+require(!DashboardCredentialCapturePolicy.isCredentialReady(
+    partialVolcengineCredential,
+    requiredNames: volcengineRequiredCookies
+), "Partial Volcengine login cookies should not be treated as a completed dashboard credential")
+require(DashboardCredentialCapturePolicy.shouldRetryCapture(
+    partialVolcengineCredential,
+    requiredNames: volcengineRequiredCookies,
+    completedRetryCount: 0,
+    retryDelays: DashboardCredentialCapturePolicy.manualRetryDelays
+), "Manual Volcengine save should retry after an early partial cookie read instead of caching the first failed result")
+require(!DashboardCredentialCapturePolicy.shouldRetryCapture(
+    partialVolcengineCredential,
+    requiredNames: volcengineRequiredCookies,
+    completedRetryCount: DashboardCredentialCapturePolicy.manualRetryDelays.count,
+    retryDelays: DashboardCredentialCapturePolicy.manualRetryDelays
+), "Manual Volcengine save should surface the missing-cookie message only after the retry window is exhausted")
+require(DashboardCredentialCapturePolicy.isCredentialReady(
+    completeVolcengineCredential,
+    requiredNames: volcengineRequiredCookies
+), "Complete Volcengine login cookies should be ready for dashboard credential validation")
+require(!DashboardCredentialCapturePolicy.shouldRetryCapture(
+    completeVolcengineCredential,
+    requiredNames: volcengineRequiredCookies,
+    completedRetryCount: 0,
+    retryDelays: DashboardCredentialCapturePolicy.manualRetryDelays
+), "Complete Volcengine login cookies should save immediately without waiting for more retries")
+let defaultAutomaticCredentialDelays = DashboardCredentialCapturePolicy.automaticRetryDelays(for: .claudeSubscription)
+let volcengineAutomaticCredentialDelays = DashboardCredentialCapturePolicy.automaticRetryDelays(for: .volcengineCodingPlan)
+require(defaultAutomaticCredentialDelays == [0.35, 1.0, 2.0], "Default dashboard credential auto-capture retry timing should stay compact")
+require(volcengineAutomaticCredentialDelays.count > defaultAutomaticCredentialDelays.count, "Volcengine dashboard credential auto-capture should keep watching longer during first-login SSO cookie settling")
+require(volcengineAutomaticCredentialDelays.last ?? 0 >= 7.0, "Volcengine dashboard credential auto-capture should wait long enough for first-login cookies to settle")
 let reauthedVolcengineSecret = DashboardCookieBuilder.reauthenticatedSecret(
     cookieHeader: "AccountID=account-redacted; csrfToken=n; digest=d; userInfo=u",
     existingSecret: #"{"cookie":"old","csrfToken":"old","projectName":"default","xWebId":"web-id"}"#
@@ -3741,10 +6875,25 @@ require(Provider.tencentCloudCodingPlan.supportsDashboardReauthentication, "Tenc
 require(!Provider.tencentCloudTokenPlan.supportsDashboardReauthentication, "Tencent Cloud Token Plan should keep using API keys instead of web-login reauthentication")
 require(!Provider.claudeAPIUsage.supportsDashboardReauthentication, "Claude API usage should use API keys instead of web-login reauthentication")
 require(Provider.claudeSubscription.supportsDashboardReauthentication, "Claude subscription should support web-login authorization capture")
+require(Provider.anthropicCredits.supportsDashboardReauthentication, "Anthropic Credits should support Claude web-login authorization capture")
 require(!Provider.codexAPIUsage.supportsDashboardReauthentication, "Codex API usage should use API keys instead of web-login reauthentication")
 require(Provider.codexSubscription.supportsDashboardReauthentication, "Codex subscription should support web-login authorization capture")
 require(Provider.kimiSubscription.supportsDashboardReauthentication, "Kimi subscription should support web-login authorization capture")
 require(!Provider.brave.supportsDashboardReauthentication, "Brave should not use dashboard-cookie reauthentication")
+let expectedDashboardReauthProviders: Set<Provider> = [
+    .querit,
+    .xfyunCodingPlan,
+    .volcengineCodingPlan,
+    .opencodeGo,
+    .aliyunCodingPlan,
+    .tencentCloudCodingPlan,
+    .claudeSubscription,
+    .anthropicCredits,
+    .codexSubscription,
+    .kimiSubscription
+]
+let actualDashboardReauthProviders = Set(Provider.allCases.filter(\.supportsDashboardReauthentication))
+require(actualDashboardReauthProviders == expectedDashboardReauthProviders, "Dashboard reauthentication provider coverage should stay explicit and complete")
 require(DashboardReauthConfig(provider: .opencodeGo)?.cookieDomains == ["opencode.ai"], "OpenCode Go should capture only opencode.ai cookies")
 require(DashboardReauthConfig(provider: .xfyunCodingPlan)?.cookieDomains == ["xfyun.cn", "maas.xfyun.cn"], "XFYun should capture maas.xfyun.cn and domain-wide xfyun.cn cookies")
 require(DashboardReauthConfig(provider: .xfyunTokenPlan) == nil, "XFYun Token Plan should not expose dashboard-cookie reauthentication")
@@ -3755,10 +6904,22 @@ require(DashboardReauthConfig(provider: .aliyunCodingPlan)?.cookieDomains == ["a
 require(DashboardReauthConfig(provider: .aliyunTokenPlan) == nil, "Aliyun Token Plan should not capture cookies without a verified dashboard quota endpoint")
 require(DashboardReauthConfig(provider: .tencentCloudCodingPlan)?.cookieDomains == ["cloud.tencent.com", "console.cloud.tencent.com"], "Tencent Cloud Coding Plan should capture Tencent Cloud web login authorization for quota endpoint verification")
 require(DashboardReauthConfig(provider: .claudeSubscription)?.cookieDomains == ["claude.ai"], "Claude subscription should capture claude.ai web-login authorization")
+require(DashboardReauthConfig(provider: .anthropicCredits)?.cookieDomains == ["claude.ai"], "Anthropic Credits should capture the same claude.ai login authorization")
 require(DashboardReauthConfig(provider: .codexSubscription)?.cookieDomains == ["chatgpt.com"], "Codex subscription should capture ChatGPT web-login authorization")
 require(DashboardReauthConfig(provider: .kimiSubscription)?.cookieDomains == ["kimi.com", "www.kimi.com"], "Kimi subscription should capture kimi.com web-login authorization")
 require(DashboardReauthConfig(provider: .claudeAPIUsage) == nil, "Claude API usage should not expose dashboard reauthentication")
 require(DashboardReauthConfig(provider: .codexAPIUsage) == nil, "Codex API usage should not expose dashboard reauthentication")
+require(DashboardReauthConfig(provider: .claudeSubscription)?.requiredCookieNames == ["sessionKey|sessionKeyLC"], "Claude subscription should accept either current sessionKey or sessionKeyLC login cookies")
+require(DashboardReauthConfig(provider: .anthropicCredits)?.requiredCookieNames == ["sessionKey|sessionKeyLC"], "Anthropic Credits should accept either current Claude session cookie")
+let claudeRequiredCookies = Provider.claudeSubscription.dashboardAuthenticationCookieNames
+require(DashboardCookieBuilder.containsRequiredCookie(
+    inCookieHeader: "sessionKeyLC=claude-session",
+    requiredNames: claudeRequiredCookies
+), "Claude subscription should save login authorization when WebKit only exposes sessionKeyLC")
+require(DashboardCookieBuilder.containsRequiredCookie(
+    inCookieHeader: "sessionKey=claude-session",
+    requiredNames: claudeRequiredCookies
+), "Claude subscription should keep accepting the original sessionKey cookie")
 require(DashboardReauthConfig(provider: .opencodeGo)?.requiredCookieNames == ["auth"], "OpenCode Go should auto-save only after auth cookies exist")
 require(DashboardReauthConfig(provider: .querit)?.requiredCookieNames.contains("osduss") == true, "Querit should auto-save only after account cookies exist")
 require(DashboardReauthConfig(provider: .codexSubscription)?.requiredCookieNames.joined(separator: "|").contains("__search-next-auth") == true, "Codex subscription should auto-save after any recognized ChatGPT auth cookie exists")
@@ -3789,7 +6950,163 @@ require(DashboardCookieBuilder.missingRequiredCredentialNames(
 ).isEmpty, "Kimi reauthentication should accept accessToken captured from web storage when the auth cookie is not exposed")
 require(kimiCapturedFromStorage.reauthenticatedSecret(existingSecret: nil).contains("\"accessToken\""), "Kimi reauthentication should save storage-derived token metadata as JSON instead of a raw preference cookie")
 
-for provider in [Provider.querit, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo, .claudeSubscription, .codexSubscription, .kimiSubscription] {
+struct FirstSaveDashboardProviderScenario {
+    let provider: Provider
+    let cookies: [HTTPCookie]
+    let webStorageFields: [String: String]
+    let expectedSecretFragments: [String]
+}
+
+func firstSaveCookie(_ name: String, value: String = "v", domain: String) -> HTTPCookie {
+    HTTPCookie(properties: [
+        .domain: domain,
+        .path: "/",
+        .name: name,
+        .value: value,
+        .secure: "TRUE"
+    ])!
+}
+
+let firstSaveDashboardProviderScenarios: [FirstSaveDashboardProviderScenario] = [
+    FirstSaveDashboardProviderScenario(
+        provider: .claudeSubscription,
+        cookies: [
+            firstSaveCookie("sessionKeyLC", value: "claude-session", domain: ".claude.ai")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["sessionKeyLC=claude-session"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .codexSubscription,
+        cookies: [
+            firstSaveCookie("__search-next-auth", value: "chatgpt-session", domain: ".chatgpt.com")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["__search-next-auth=chatgpt-session"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .volcengineCodingPlan,
+        cookies: [
+            firstSaveCookie("AccountID", value: "account-redacted", domain: ".volcengine.com"),
+            firstSaveCookie("csrfToken", value: "csrf-redacted", domain: "console.volcengine.com"),
+            firstSaveCookie("digest", value: "digest-redacted", domain: ".volcengine.com")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["AccountID=account-redacted", "csrfToken=csrf-redacted", "digest=digest-redacted"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .xfyunCodingPlan,
+        cookies: [
+            firstSaveCookie("account_id", value: "account-redacted", domain: ".xfyun.cn"),
+            firstSaveCookie("atp-auth-token", value: "atp-redacted", domain: "maas.xfyun.cn"),
+            firstSaveCookie("ssoSessionId", value: "sso-redacted", domain: ".xfyun.cn"),
+            firstSaveCookie("tenantToken", value: "tenant-redacted", domain: "maas.xfyun.cn")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["account_id=account-redacted", "atp-auth-token=atp-redacted", "ssoSessionId=sso-redacted", "tenantToken=tenant-redacted"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .kimiSubscription,
+        cookies: [
+            firstSaveCookie("locale_mode", value: "implicit", domain: ".kimi.com")
+        ],
+        webStorageFields: [
+            "access_token": "kimi-storage-token",
+            "x-msh-device-id": "device-redacted",
+            "x-msh-session-id": "session-redacted",
+            "x-traffic-id": "traffic-redacted"
+        ],
+        expectedSecretFragments: ["\"accessToken\"", "\"deviceID\"", "\"sessionID\"", "\"trafficID\""]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .opencodeGo,
+        cookies: [
+            firstSaveCookie("auth", value: "opencode-auth", domain: ".opencode.ai")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["auth=opencode-auth"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .querit,
+        cookies: [
+            firstSaveCookie("osduss", value: "querit-session", domain: ".querit.ai"),
+            firstSaveCookie("osfuid", value: "querit-user", domain: ".querit.ai"),
+            firstSaveCookie("passOsRefreshTk", value: "querit-refresh", domain: ".querit.ai")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["osduss=querit-session", "osfuid=querit-user", "passOsRefreshTk=querit-refresh"]
+    )
+]
+
+let expectedFirstSaveProviders: [Provider] = [
+    .claudeSubscription,
+    .codexSubscription,
+    .volcengineCodingPlan,
+    .xfyunCodingPlan,
+    .kimiSubscription,
+    .opencodeGo,
+    .querit
+]
+require(firstSaveDashboardProviderScenarios.map(\.provider) == expectedFirstSaveProviders, "First-save regression matrix should explicitly cover Claude, Codex, Volcengine, XFYun, Kimi, OpenCode Go, and Querit")
+
+for scenario in firstSaveDashboardProviderScenarios {
+    guard let config = DashboardReauthConfig(provider: scenario.provider) else {
+        require(false, "\(scenario.provider.rawValue) should have a first-save dashboard reauthentication config")
+        continue
+    }
+
+    let cookieHeader = DashboardCookieBuilder.cookieHeader(
+        from: scenario.cookies,
+        domains: config.cookieDomains
+    )
+    let capturedCredential = DashboardCapturedCredential(
+        provider: scenario.provider,
+        cookieHeader: cookieHeader,
+        webStorageFields: scenario.webStorageFields
+    )
+
+    require(capturedCredential.hasCredentialMaterial, "\(scenario.provider.rawValue) first-save capture should contain credential material")
+    require(DashboardCredentialCapturePolicy.isCredentialReady(
+        capturedCredential,
+        requiredNames: config.requiredCookieNames
+    ), "\(scenario.provider.rawValue) first-save capture should be ready once required cookies or WebStorage fields are present")
+    require(!DashboardCredentialCapturePolicy.shouldRetryCapture(
+        capturedCredential,
+        requiredNames: config.requiredCookieNames,
+        completedRetryCount: 0,
+        retryDelays: DashboardCredentialCapturePolicy.manualRetryDelays
+    ), "\(scenario.provider.rawValue) first-save capture should not retry after all required fields are present")
+
+    let savedSecret = capturedCredential.reauthenticatedSecret(existingSecret: nil)
+    for fragment in scenario.expectedSecretFragments {
+        require(savedSecret.contains(fragment), "\(scenario.provider.rawValue) first-save saved secret should preserve \(fragment)")
+    }
+
+    if !scenario.cookies.isEmpty {
+        let partialCookies = Array(scenario.cookies.dropLast())
+        let partialHeader = DashboardCookieBuilder.cookieHeader(
+            from: partialCookies,
+            domains: config.cookieDomains
+        )
+        let partialCredential = DashboardCapturedCredential(
+            provider: scenario.provider,
+            cookieHeader: partialHeader,
+            webStorageFields: scenario.provider == .kimiSubscription ? [:] : scenario.webStorageFields
+        )
+        require(!DashboardCredentialCapturePolicy.isCredentialReady(
+            partialCredential,
+            requiredNames: config.requiredCookieNames
+        ), "\(scenario.provider.rawValue) first-save capture should reject partial login material")
+        require(DashboardCredentialCapturePolicy.shouldRetryCapture(
+            partialCredential,
+            requiredNames: config.requiredCookieNames,
+            completedRetryCount: 0,
+            retryDelays: DashboardCredentialCapturePolicy.manualRetryDelays
+        ), "\(scenario.provider.rawValue) first-save capture should retry after early partial login material")
+    }
+}
+
+for provider in Provider.allCases where provider.supportsDashboardReauthentication {
     guard let config = DashboardReauthConfig(provider: provider) else {
         require(false, "\(provider.rawValue) should expose dashboard reauthentication config")
         continue
@@ -3961,15 +7278,53 @@ let structuredKey = APIKey(
     provider: .tavily,
     remaining: 850,
     limit: 1000,
+    planDisplayName: "Team Pro",
+    consecutiveFailureCount: 2,
     quotaText: LocalizedTextDescriptor.localized(.monthlyCreditsFormat, "850", "1000"),
     quotaLabel: "850 / 1000 monthly credits"
 )
 store.save([structuredKey])
 let structuredMetadata = store.load()
 require(structuredMetadata[0].quotaText?.key == .monthlyCreditsFormat, "APIKeyStore should persist structured quota descriptors")
+require(structuredMetadata[0].planDisplayName == "Team Pro", "APIKeyStore should persist refreshed concrete plan/package display names")
+require(structuredMetadata[0].consecutiveFailureCount == 2, "APIKeyStore should persist consecutive quota-check failure counts for threshold notifications")
+let exportedMetadata = try! store.exportMetadata([structuredKey])
+let exportedText = String(data: exportedMetadata, encoding: .utf8)!
+require(exportedText.contains("\"app\":\"Quota Radar\""), "Credential metadata export should identify the app without exposing runtime secrets")
+require(exportedText.contains("\"provider\":\"Tavily\""), "Credential metadata export should include provider identity")
+require(exportedText.contains("\"planDisplayName\":\"Team Pro\""), "Credential metadata export should include non-secret plan metadata")
+require(!exportedText.contains("tvly-structured"), "Credential metadata export should not include raw API keys")
+for forbiddenExportField in ["\"key\"", "cookie", "authorization", "token", "secret"] {
+    require(!exportedText.localizedCaseInsensitiveContains(forbiddenExportField), "Credential metadata export should omit sensitive field names: \(forbiddenExportField)")
+}
 AppLanguageStore.shared.language = .simplifiedChinese
 require(structuredMetadata[0].quotaDisplayText == "850 / 1000 月度积分", "APIKey quota display should prefer structured descriptors over persisted English labels")
 AppLanguageStore.shared.language = .english
+
+let codexResetCreditKey = APIKey(
+    id: UUID(),
+    name: "CODEX_SUBSCRIPTION_SESSION",
+    key: "__Secure-next-auth.session-token=redacted",
+    provider: .codexSubscription,
+    remaining: 3000,
+    limit: 10000,
+    planDisplayName: "Pro",
+    codexResetCreditsRemaining: 2,
+    quotaText: .quotaWindows([
+        QuotaWindowText(name: "5h", percentText: "100%", resetAt: Date(timeIntervalSince1970: 1780924878)),
+        QuotaWindowText(name: "week", percentText: "30%", resetAt: Date(timeIntervalSince1970: 1781140147))
+    ]),
+    quotaLabel: "5h 100% · week 30%"
+)
+store.save([codexResetCreditKey])
+let codexResetCreditMetadata = store.load()
+require(codexResetCreditMetadata[0].codexResetCreditsRemaining == 2, "APIKeyStore should persist Codex reset-credit availability")
+require(codexResetCreditMetadata[0].canResetCodexQuota == false, "Metadata-only Codex keys should not expose reset while the secret is not hydrated")
+let codexHydratedResetCreditMetadata = store.loadSecrets(for: codexResetCreditMetadata)
+require(codexHydratedResetCreditMetadata[0].canResetCodexQuota, "Hydrated Codex keys with available credits should expose the reset action")
+let exportedCodexMetadata = String(data: try! store.exportMetadata([codexResetCreditKey]), encoding: .utf8)!
+require(exportedCodexMetadata.contains("\"codexResetCreditsRemaining\":2"), "Credential metadata export should include non-secret Codex reset-credit availability")
+require(!exportedCodexMetadata.contains("__Secure-next-auth.session-token"), "Credential metadata export should not include dashboard cookies")
 
 let legacyDashboardNoteID = UUID()
 let legacyDashboardNoteJSON = """
@@ -3991,6 +7346,8 @@ require(loadedLegacyDashboardNotes[0].note == nil, "APIKeyStore should strip gen
 require(loadedLegacyDashboardNotes[0].displayNote == nil, "English credential rows should not show stale Chinese web-login notes")
 require(loadedLegacyDashboardNotes[0].managementDisplayName == "Quota monitoring authorization", "Legacy dashboard authorization names should render in the current English language")
 require(loadedLegacyDashboardNotes[0].managementCredentialValueText == "Login authorization saved", "Legacy dashboard authorization values should render in the current English language")
+require(loadedLegacyDashboardNotes[0].accountDisplayTitle == "Aliyun Coding Plan", "Legacy dashboard authorization account rows should show provider plan fallback as the primary title")
+require(loadedLegacyDashboardNotes[0].accountDisplaySubtitle == "Web login authorization", "Legacy dashboard authorization account rows should use credential identity instead of saved-login state")
 
 let queritAPIKeyID = UUID()
 let validQueritID = UUID()
@@ -4012,8 +7369,106 @@ require(migratedBrave.count == 1, "APIKeyStore should load Brave metadata")
 require(migratedBrave[0].quotaLabel == "Search OK · monthly quota not exposed", "APIKeyStore should migrate ambiguous Brave zero-window labels")
 SWIFT
 
-swiftc QuotaRadar/Models/AppLanguage.swift QuotaRadar/Models/APIKey.swift QuotaRadar/Services/FileSecretStore.swift QuotaRadar/Services/APIKeyStore.swift "$TMP_DIR/main.swift" -o "$TMP_DIR/secret-store-test"
+swiftc QuotaRadar/Models/AppLanguage.swift QuotaRadar/Models/APIKey.swift QuotaRadar/Services/FileSecretStore.swift QuotaRadar/Services/APIKeyStore.swift QuotaRadar/Services/CredentialMetadataExporter.swift "$TMP_DIR/main.swift" -o "$TMP_DIR/secret-store-test"
 "$TMP_DIR/secret-store-test"
+
+echo "== Quota monitor behavior =="
+cat >"$TMP_DIR/main.swift" <<'SWIFT'
+import Foundation
+
+func require(_ condition: @autoclosure () -> Bool, _ message: String) {
+    if !condition() {
+        FileHandle.standardError.write(Data("FAIL: \(message)\n".utf8))
+        exit(1)
+    }
+}
+
+let claudeAuthorizationID = UUID(uuidString: "20000000-0000-0000-0000-000000000001")!
+let claudeAuthorization = APIKey(
+    id: claudeAuthorizationID,
+    name: "CLAUDE_SUBSCRIPTION_SESSION",
+    key: "sessionKey=redacted",
+    provider: .claudeSubscription,
+    remaining: 6400,
+    limit: 10000,
+    planDisplayName: "Pro",
+    lastUpdated: Date(timeIntervalSince1970: 1_800_000_000),
+    quotaLabel: "5h 80% · week 64%"
+)
+
+let anthopicRefreshKeys = QuotaMonitor.refreshCandidateKeys(
+    from: [claudeAuthorization],
+    targetProviders: [.anthropicCredits]
+)
+let derivedAnthropicCredentials = anthopicRefreshKeys.filter { $0.provider == .anthropicCredits }
+require(derivedAnthropicCredentials.count == 1, "Refreshing Anthropic Credits should derive one monitoring credential from an existing Claude web-login authorization")
+let derivedAnthropicCredential = derivedAnthropicCredentials[0]
+require(derivedAnthropicCredential.id != claudeAuthorizationID, "Derived Anthropic Credits credentials should persist as an independent account row")
+require(derivedAnthropicCredential.name == Provider.anthropicCredits.defaultCredentialName, "Derived Anthropic Credits credentials should use the Anthropic Credits default credential name")
+require(derivedAnthropicCredential.key == "sessionKey=redacted", "Derived Anthropic Credits credentials should reuse only the saved Claude web-login secret")
+require(derivedAnthropicCredential.linkedAuthorizationID == claudeAuthorizationID, "Derived Anthropic Credits credentials should remember the source Claude authorization")
+require(derivedAnthropicCredential.remaining == nil, "Derived Anthropic Credits credentials should not copy Claude subscription quota values")
+require(derivedAnthropicCredential.limit == nil, "Derived Anthropic Credits credentials should not copy Claude subscription limits")
+require(derivedAnthropicCredential.quotaLabel == nil, "Derived Anthropic Credits credentials should not copy Claude subscription quota labels")
+require(derivedAnthropicCredential.lastUpdated == nil, "Derived Anthropic Credits credentials should require its own refresh timestamp")
+require(anthopicRefreshKeys.contains { $0.id == claudeAuthorizationID }, "Refresh candidates should keep the source Claude credential in the list for preservation")
+
+let directAnthropicCredential = APIKey(
+    id: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!,
+    name: "ANTHROPIC_CREDITS_SESSION",
+    key: "sessionKey=anthropic-redacted",
+    provider: .anthropicCredits
+)
+let directAnthropicRefreshKeys = QuotaMonitor.refreshCandidateKeys(
+    from: [claudeAuthorization, directAnthropicCredential],
+    targetProviders: [.anthropicCredits]
+)
+require(
+    directAnthropicRefreshKeys.filter { $0.provider == .anthropicCredits }.map(\.id) == [directAnthropicCredential.id],
+    "Refreshing Anthropic Credits should not derive duplicate credentials once a direct Anthropic Credits row exists"
+)
+
+let inactiveDirectAnthropicCredential = APIKey(
+    id: UUID(uuidString: "20000000-0000-0000-0000-000000000003")!,
+    name: "ANTHROPIC_CREDITS_SESSION",
+    key: "sessionKey=anthropic-disabled",
+    provider: .anthropicCredits,
+    isActive: false
+)
+let inactiveDirectAnthropicRefreshKeys = QuotaMonitor.refreshCandidateKeys(
+    from: [claudeAuthorization, inactiveDirectAnthropicCredential],
+    targetProviders: [.anthropicCredits]
+)
+require(
+    inactiveDirectAnthropicRefreshKeys.filter { $0.provider == .anthropicCredits }.map(\.id) == [inactiveDirectAnthropicCredential.id],
+    "Disabled direct Anthropic Credits credentials should suppress derived credentials so user intent is respected"
+)
+
+let unrelatedRefreshKeys = QuotaMonitor.refreshCandidateKeys(
+    from: [claudeAuthorization],
+    targetProviders: [.codexSubscription]
+)
+require(!unrelatedRefreshKeys.contains { $0.provider == .anthropicCredits }, "Refreshing unrelated providers should not create derived Anthropic Credits credentials")
+SWIFT
+
+swiftc \
+  QuotaRadar/Models/AppLanguage.swift \
+  QuotaRadar/Models/AppAppearance.swift \
+  QuotaRadar/Models/APIKey.swift \
+  QuotaRadar/Models/AIQuoteLibrary.swift \
+  QuotaRadar/Models/QuotaHistory.swift \
+  QuotaRadar/Services/FileSecretStore.swift \
+  QuotaRadar/Services/APIKeyStore.swift \
+  QuotaRadar/Services/CredentialMetadataExporter.swift \
+  QuotaRadar/Services/QuotaHistoryStore.swift \
+  QuotaRadar/Services/QuotaNotificationService.swift \
+  QuotaRadar/Services/EnvImporter.swift \
+  QuotaRadar/Services/ClaudeSettingsImporter.swift \
+  QuotaRadar/Services/QuotaService.swift \
+  QuotaRadar/Models/QuotaMonitor.swift \
+  "$TMP_DIR/main.swift" \
+  -o "$TMP_DIR/quota-monitor-test"
+"$TMP_DIR/quota-monitor-test"
 
 echo "== Quota parser behavior =="
 cat >"$TMP_DIR/main.swift" <<'SWIFT'
@@ -4031,9 +7486,22 @@ func fail(_ message: String) {
     exit(1)
 }
 
+func localTestDate(_ value: String) -> Date {
+    let formatter = DateFormatter()
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+    if let date = formatter.date(from: value) {
+        return date
+    } else {
+        fail("Could not parse local test date: \(value)")
+        return Date(timeIntervalSince1970: 0)
+    }
+}
+
 AppLanguageStore.shared.language = .simplifiedChinese
 require(QuotaError.unauthorized.errorDescription == "API Key 无效", "QuotaError should emit localized invalid-key diagnostics in Simplified Chinese")
 require(QuotaError.invalidResponse.errorDescription == "服务器响应无效", "QuotaError should emit localized invalid-response diagnostics in Simplified Chinese")
+require(QuotaError.schemaDrift.errorDescription == "接口字段可能变化，请重新校准该服务商。", "QuotaError should emit actionable schema-drift diagnostics in Simplified Chinese")
 require(QuotaError.networkError(URLError(.timedOut)).errorDescription == "网络错误：请求超时", "QuotaError should emit localized timeout network diagnostics in Simplified Chinese")
 require(QuotaError.networkError(URLError(.notConnectedToInternet)).errorDescription == "网络错误：网络离线", "QuotaError should emit localized offline network diagnostics in Simplified Chinese")
 require(QuotaError.networkError(URLError(.networkConnectionLost)).errorDescription == "网络错误：连接中断", "QuotaError should emit localized connection-lost diagnostics in Simplified Chinese")
@@ -4052,6 +7520,14 @@ let legacyChineseNoSubscription = APIKey(name: "TENCENT_CLOUD_CODING_PLAN_COOKIE
 require(legacyChineseNoSubscription.isNoSubscribedPlan, "No-subscription status checks should recognize legacy Chinese labels")
 require(L10n.localizedQuotaLabel("API Key 无效", language: .english) == "Invalid API key", "Persisted Chinese invalid-key diagnostics should relocalize when switching to English")
 require(L10n.localizedQuotaLabel("服务器响应无效", language: .english) == "Invalid response from server", "Persisted Chinese invalid-response diagnostics should relocalize when switching to English")
+require(L10n.localizedQuotaLabel("接口字段可能变化，请重新校准该服务商。", language: .english) == "Provider quota fields may have changed. Recalibrate this provider.", "Persisted Chinese schema-drift diagnostics should relocalize when switching to English")
+let schemaDriftDiagnostic = APIKey(
+    name: "CODEX_SUBSCRIPTION_SESSION",
+    key: "cookie",
+    provider: .codexSubscription,
+    lastDiagnosticMessage: "Provider quota fields may have changed. Recalibrate this provider."
+)
+require(schemaDriftDiagnostic.diagnosticSummary == "接口字段可能变化，请重新校准该服务商。", "Credential diagnostics should localize schema-drift failures instead of showing a generic invalid-response prompt")
 require(L10n.localizedQuotaLabel("网络错误：网络离线", language: .english) == "Network error: offline", "Persisted Chinese network diagnostics should relocalize when switching to English")
 let timedOutDiagnostic = APIKey(
     name: "WECHAT_API_KEY_TIMEOUT",
@@ -4191,7 +7667,23 @@ require(exaUsage.limit == Int.max, "Exa usage is billing cost only and should no
 require(exaUsage.quotaLabel == "USD 45.67 used", "Exa usage should display total billed cost for the period")
 AppLanguageStore.shared.language = .simplifiedChinese
 require(exaUsage.quotaText?.render() == "已用 USD 45.67", "Structured money descriptors should render usage in the current UI language")
+let exaUsageDisplayKey = APIKey(name: "EXA_ADMIN", key: "exa", provider: .exa, remaining: exaUsage.remaining, limit: exaUsage.limit, quotaText: exaUsage.quotaText, quotaLabel: exaUsage.quotaLabel)
+require(exaUsageDisplayKey.quotaDisplayText == "可用 · 额度未知", "Exa parser usage evidence should not leak used-cost wording into the main quota UI")
 AppLanguageStore.shared.language = .english
+
+let anthropicPrepaidCredits = try! QuotaParsers.parseAnthropicPrepaidCredits(Data("""
+{"amount":42,"auto_reload_settings":null,"currency":null,"last_paid_purchase_cents":null,"pending_invoice_amount_cents":null}
+""".utf8))
+require(anthropicPrepaidCredits.remaining == 42, "Anthropic prepaid credits should expose amount as remaining credits")
+require(anthropicPrepaidCredits.limit == 42, "Anthropic prepaid credits should not invent a larger limit")
+require(anthropicPrepaidCredits.quotaLabel == "42 credits left", "Anthropic prepaid credits should display a credits balance")
+require(anthropicPrepaidCredits.quotaText?.key == .creditsLeftFormat, "Anthropic prepaid credits should carry a structured credits-left descriptor")
+require(anthropicPrepaidCredits.resetAt == nil, "Anthropic prepaid credits should not invent a reset cycle")
+let emptyAnthropicPrepaidCredits = try! QuotaParsers.parseAnthropicPrepaidCredits(Data("""
+{"amount":0,"auto_reload_settings":null,"currency":null}
+""".utf8))
+require(emptyAnthropicPrepaidCredits.remaining == 0, "Empty Anthropic prepaid credits should be exhausted")
+require(emptyAnthropicPrepaidCredits.quotaLabel == "No Anthropic credits available", "Empty Anthropic prepaid credits should explain the exhausted balance")
 
 let deepSeek = try! QuotaParsers.parseDeepSeekBalance(Data("""
 {"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"12.50","granted_balance":"0","topped_up_balance":"12.50"}]}
@@ -4227,21 +7719,42 @@ require(querit.resetAt == nil, "Querit account endpoint does not expose a reset 
 require(querit.planEndsAt == nil, "Querit account endpoint does not expose a plan end date")
 
 let xfyun = try! QuotaParsers.parseXFYunCodingPlanList(Data("""
-{"code":0,"data":{"rows":[{"name":"高效版","expiresAt":"2026-06-28 17:48:58","codingPlanUsageDTO":{"packageLeft":80704,"packageLimit":90000,"packageUsage":9296,"rp5hLimit":6000,"rp5hUsage":60,"rpwLimit":45000,"rpwUsage":9296}}]},"succeed":true}
+{"code":0,"data":{"rows":[{"name":"高效版","validFrom":"2026-05-28 17:48:58","expiresAt":"2026-06-28 17:48:58","codingPlanUsageDTO":{"packageLeft":853441,"packageLimit":900000,"packageUsage":46559,"rp5hLimit":6000,"rp5hUsage":3622,"rpwLimit":450000,"rpwUsage":17454}}]},"succeed":true}
 """.utf8))
-require(xfyun.remaining == 7934, "XFYun should represent the tightest coding-plan window as basis-point percentage remaining")
 require(xfyun.limit == 10000, "XFYun coding-plan percentage limit should be 10000 basis points")
-require(xfyun.quotaLabel == "5h 99% · week 79.3% · month 89.7%", "XFYun should display only remaining percentages")
+require(xfyun.remaining == 3963, "XFYun should use the tightest remaining coding-plan window after converting official used counts")
+require(xfyun.quotaLabel == "5h 39.6% · week 96.1% · month 94.8%", "XFYun should display remaining percentages computed from official used counts")
 AppLanguageStore.shared.language = .simplifiedChinese
-require(xfyun.quotaText?.render() == "5 小时 99% · 周 79.3% · 月 89.7%", "Structured quota-window descriptors should render period labels in the current UI language")
+require(xfyun.quotaText?.render() == "5 小时 39.6% · 周 96.1% · 月 94.8%", "Structured quota-window descriptors should render period labels in the current UI language")
+require(xfyun.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.remainingText == "2378 / 6000", "XFYun quota-window details should use the same remaining/total semantics as other providers")
 AppLanguageStore.shared.language = .english
-require(xfyun.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.remainingText == "5940 / 6000", "XFYun should preserve five-hour remaining and maximum request counts")
-require(xfyun.quotaText?.quotaWindows.first(where: { $0.name == "week" })?.remainingText == "35704 / 45000", "XFYun should preserve weekly remaining and maximum request counts")
-require(xfyun.quotaText?.quotaWindows.first(where: { $0.name == "month" })?.remainingText == "80704 / 90000", "XFYun should preserve monthly remaining and maximum request counts")
+require(xfyun.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.remainingText == "2378 / 6000", "XFYun should display five-hour remaining and maximum request counts")
+require(xfyun.quotaText?.quotaWindows.first(where: { $0.name == "week" })?.remainingText == "432546 / 450000", "XFYun should display weekly remaining and maximum request counts")
+require(xfyun.quotaText?.quotaWindows.first(where: { $0.name == "month" })?.remainingText == "853441 / 900000", "XFYun should display monthly remaining and maximum request counts")
+let xfyunEnglishFiveHourDetail = xfyun.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.detailValueText ?? ""
+require(xfyunEnglishFiveHourDetail.hasPrefix("Resets ") && xfyunEnglishFiveHourDetail.hasSuffix(" (2378 / 6000)"), "XFYun quota-window details should show reset timing first and count details in parentheses")
 let xfyunDisplayKey = APIKey(name: "XFYUN_CODING_PLAN_COOKIE", key: "cookie", provider: .xfyunCodingPlan, quotaText: xfyun.quotaText, quotaLabel: xfyun.quotaLabel)
 require(xfyunDisplayKey.quotaWindowDetails.count == 3, "XFYun should render cycle detail rows with remaining/maximum counts even when reset times are not exposed")
-require(xfyun.resetAt == nil, "XFYun coding-plan list does not expose individual quota window reset dates")
+let xfyunDecimalUsage = try! QuotaParsers.parseXFYunCodingPlanList(Data("""
+{"code":0,"data":{"rows":[{"name":"高效版-包月","validFrom":"2026-05-28 17:48:58","expiresAt":"2026-06-28 17:48:58","status":1,"codingPlanUsageDTO":{"packageLeft":16052.4,"packageLimit":90000,"packageUsage":73947.6,"rp5hLimit":6000,"rp5hUsage":1118.4,"rpwLimit":45000,"rpwUsage":38953.6}}],"page":1,"size":6,"total":1},"succeed":true,"failed":false}
+""".utf8), now: localTestDate("2026-06-20 23:55:00"))
+require(xfyunDecimalUsage.remaining == 1343, "XFYun should parse decimal official usage values and still use the tightest remaining window")
+require(xfyunDecimalUsage.quotaLabel == "5h 81.4% · week 13.4% · month 17.8%", "XFYun decimal usage should render remaining percentages")
+require(xfyunDecimalUsage.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.remainingText == "4881 / 6000", "XFYun decimal five-hour usage should render request counts as whole numbers")
+require(xfyunDecimalUsage.quotaText?.quotaWindows.first(where: { $0.name == "week" })?.remainingText == "6046 / 45000", "XFYun decimal weekly usage should render request counts as whole numbers")
+require(xfyunDecimalUsage.quotaText?.quotaWindows.first(where: { $0.name == "month" })?.remainingText == "16052 / 90000", "XFYun decimal monthly usage should render request counts as whole numbers")
+let xfyunWindowed = try! QuotaParsers.parseXFYunCodingPlanList(Data("""
+{"code":0,"data":{"rows":[{"name":"高效版-包月","validFrom":"2026-05-28 17:48:58","expiresAt":"2026-06-28 17:48:58","codingPlanUsageDTO":{"packageLeft":853441,"packageLimit":900000,"packageUsage":46559,"rp5hLimit":6000,"rp5hUsage":3622,"rpwLimit":450000,"rpwUsage":17454}}]},"succeed":true}
+""".utf8), now: localTestDate("2026-06-16 18:15:00"))
+require(xfyunWindowed.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.resetAt == localTestDate("2026-06-16 21:48:58"), "XFYun should infer the next five-hour reset boundary from validFrom")
+require(xfyunWindowed.quotaText?.quotaWindows.first(where: { $0.name == "week" })?.resetAt == localTestDate("2026-06-18 17:48:58"), "XFYun should infer the next weekly reset boundary from validFrom")
+require(xfyunWindowed.quotaText?.quotaWindows.first(where: { $0.name == "month" })?.resetAt == localTestDate("2026-06-28 17:48:58"), "XFYun should use package expiry as the total-package reset boundary")
+AppLanguageStore.shared.language = .simplifiedChinese
+require(xfyunWindowed.quotaText?.quotaWindows.first(where: { $0.name == "week" })?.detailValueText == "6月18日 17:48 重置（432546 / 450000）", "Quota-window details should show reset timing first and append count details in parentheses")
+AppLanguageStore.shared.language = .english
+require(xfyunWindowed.resetAt == localTestDate("2026-06-16 21:48:58"), "XFYun should expose the tightest inferred quota window reset")
 require(xfyun.planEndsAt != nil, "XFYun should expose the package expiry as the plan end date")
+require(xfyun.planDisplayName == "高效版", "XFYun should expose the concrete coding-plan package name when present")
 
 let volc = try! QuotaParsers.parseVolcengineCodingPlanUsage(Data("""
 {"ResponseMetadata":{"Action":"GetCodingPlanUsage"},"Result":{"Status":"Running","QuotaUsage":[{"Level":"session","Percent":0,"ResetTimestamp":-1},{"Level":"weekly","Percent":10.814960999999998,"ResetTimestamp":1780848000},{"Level":"monthly","Percent":5.407480499999999,"ResetTimestamp":1782921599}]}}
@@ -4255,6 +7768,22 @@ require(volc.quotaText?.quotaWindows.first(where: { $0.name == "week" })?.resetA
 require(volc.quotaText?.quotaWindows.first(where: { $0.name == "month" })?.resetAt != nil, "Volcengine monthly quota window should preserve its reset timestamp")
 require(volc.resetAt != nil, "Volcengine should expose the tightest finite reset timestamp")
 require(volc.planEndsAt == nil, "Volcengine GetCodingPlanUsage does not expose the subscription end date")
+
+do {
+    _ = try QuotaParsers.parseVolcengineCodingPlanUsage(Data("""
+{"ResponseMetadata":{"Action":"GetCodingPlanUsage"},"Result":{"Status":"Running","QuotaUsage":[{"Level":"session","Percent":0,"ResetTimestamp":-1},{"Level":"weekly","Percent":10.814960999999998},{"Level":"monthly","Percent":5.407480499999999,"ResetTimestamp":1782921599}]}}
+""".utf8))
+    fail("Volcengine coding-plan usage should reject calibrated weekly/monthly quota windows when reset timestamps disappear")
+} catch QuotaError.schemaDrift {
+} catch {
+    fail("Volcengine coding-plan missing reset timestamp should throw schemaDrift, got \(error)")
+}
+
+let volcSubscription = try! QuotaParsers.parseVolcengineCodingPlanSubscription(Data("""
+{"ResponseMetadata":{"Action":"ListSubscribeTrade"},"Result":{"InfoList":[{"ResourceType":"CodingPlan","ResourceName":"","BizInfo":"lite","PayType":"pre","Status":"Running","InstanceID":"tsi-redacted","StartTime":"2026-06-01T05:18:09Z","EndTime":"2026-07-01T15:59:59Z","EnableAutoRenew":false,"Quantity":1,"Period":"monthly"}]}}
+""".utf8))
+require(volcSubscription.planDisplayName == "Lite", "Volcengine Coding Plan should expose BizInfo lite as the concrete package name")
+require(volcSubscription.planEndsAt != nil, "Volcengine Coding Plan should parse ListSubscribeTrade EndTime as the plan end date")
 
 let opencode = try! QuotaParsers.parseOpenCodeGoUsage(Data("""
 ;0x00000129;((self.$R=self.$R||{})["server-fn:11"]=[],($R=>$R[0]={mine:!0,useBalance:!1,rollingUsage:$R[1]={status:"ok",resetInSec:16946,usagePercent:2},weeklyUsage:$R[2]={status:"ok",resetInSec:547976,usagePercent:50},monthlyUsage:$R[3]={status:"ok",resetInSec:2204389,usagePercent:75}})($R["server-fn:11"]))
@@ -4301,6 +7830,7 @@ require(aliyunCodingPlan.quotaText?.quotaWindows.first(where: { $0.name == "week
 require(aliyunCodingPlan.quotaText?.quotaWindows.first(where: { $0.name == "month" })?.resetAt != nil, "Aliyun Coding Plan should preserve the monthly quota reset timestamp")
 require(aliyunCodingPlan.resetAt != nil, "Aliyun Coding Plan should expose the tightest quota window reset timestamp")
 require(aliyunCodingPlan.planEndsAt != nil, "Aliyun Coding Plan should expose the subscription end time when present")
+require(aliyunCodingPlan.planDisplayName == "Coding Plan Pro", "Aliyun Coding Plan should expose the concrete instance name when present")
 let aliyunProviderStat = ProviderStats(provider: .aliyunCodingPlan, keys: [aliyunDisplayKey])
 require(aliyunProviderStat.totalLimitDisplayText == "month 96.8%", "Aliyun Coding Plan provider total should display the monthly percentage window")
 require(aliyunProviderStat.totalRemainingDisplayText == "month 96.8%", "Aliyun Coding Plan provider remaining should display the tightest quota cycle")
@@ -4317,6 +7847,7 @@ require(aliyunCodingPlanWithUsage.quotaText?.quotaWindows.first(where: { $0.name
 require(aliyunCodingPlanWithUsage.quotaText?.quotaWindows.first(where: { $0.name == "month" })?.remainingText == "8000 / 10000", "Aliyun Coding Plan should preserve monthly remaining and maximum request counts")
 require(aliyunCodingPlanWithUsage.resetAt == nil, "Aliyun Coding Plan usage count sample does not expose reset timestamps")
 require(aliyunCodingPlanWithUsage.planEndsAt != nil, "Aliyun Coding Plan usage details should preserve the package end time")
+require(aliyunCodingPlanWithUsage.planDisplayName == "Lite", "Aliyun Coding Plan should expose the plan instance type when a friendlier name is not present")
 
 let tencentCodingPlan = try! QuotaParsers.parseTencentCloudCodingPlanDescribePkg(Data("""
 {"code":0,"data":{"code":0,"cgwerrorCode":0,"data":{"Response":{"RequestId":"request-redacted","PkgList":[{"PkgName":"Lite","PkgType":"lite","Status":"Normal","StartTime":"2026-06-01 00:00:00","EndTime":"2026-07-01 00:00:00","RemainingDays":22,"UsageDetail":{"PerFiveHour":{"Used":12,"Total":1200,"UsagePercent":1,"EndTime":"2026-06-08 06:00:00"},"PerWeek":{"Used":900,"Total":9000,"UsagePercent":10,"EndTime":"2026-06-15 00:00:00"},"PerMonth":{"Used":3600,"Total":18000,"UsagePercent":20,"EndTime":"2026-07-01 00:00:00"}}}]}}},"mccode":0}
@@ -4330,6 +7861,7 @@ require(tencentCodingPlan.quotaText?.quotaWindows.first(where: { $0.name == "wee
 require(tencentCodingPlan.quotaText?.quotaWindows.first(where: { $0.name == "month" })?.remainingText == "14400 / 18000", "Tencent Cloud Coding Plan should preserve monthly remaining and maximum request counts")
 require(tencentCodingPlan.resetAt != nil, "Tencent Cloud Coding Plan should expose the tightest quota window reset timestamp")
 require(tencentCodingPlan.planEndsAt != nil, "Tencent Cloud Coding Plan should expose the package EndTime as the plan end date")
+require(tencentCodingPlan.planDisplayName == "Lite", "Tencent Cloud Coding Plan should expose the concrete package name when present")
 
 do {
     _ = try QuotaParsers.parseTencentCloudCodingPlanDescribePkg(Data("""
@@ -4355,6 +7887,23 @@ let claudeOrganizationID = try! QuotaParsers.parseClaudeOrganizationID(Data("""
 [{"uuid":"org-redacted","name":"Personal","active":true}]
 """.utf8))
 require(claudeOrganizationID == "org-redacted", "Claude subscription should discover an organization uuid from claude.ai organizations")
+let claudeOrganizationContext = try! QuotaParsers.parseClaudeOrganizationContext(Data("""
+[{"uuid":"org-redacted","name":"Personal","active":true,"billing_type":"stripe_subscription","rate_limit_tier":"default_claude_ai","capabilities":["chat","claude_pro"]}]
+""".utf8))
+require(claudeOrganizationContext.id == "org-redacted", "Claude subscription organization context should preserve the active organization uuid")
+require(claudeOrganizationContext.planDisplayName == "Pro", "Claude subscription organization context should expose claude_pro as the concrete plan name")
+let claudeMax20xOrganizationContext = try! QuotaParsers.parseClaudeOrganizationContext(Data("""
+[{"uuid":"org-redacted","name":"Personal","active":true,"billing_type":"stripe_subscription","rate_limit_tier":"max_20x","capabilities":["chat","claude_max"]}]
+""".utf8))
+require(claudeMax20xOrganizationContext.planDisplayName == "Max 20x", "Claude subscription organization context should expose max_20x as Max 20x")
+let claudeMax5xOrganizationContext = try! QuotaParsers.parseClaudeOrganizationContext(Data("""
+[{"uuid":"org-redacted","name":"Personal","active":true,"billing_type":"stripe_subscription","rate_limit_tier":"max_5x","capabilities":["chat","claude_max"]}]
+""".utf8))
+require(claudeMax5xOrganizationContext.planDisplayName == "Max 5x", "Claude subscription organization context should expose max_5x as Max 5x")
+let claudeMax20xCapabilityOrganizationContext = try! QuotaParsers.parseClaudeOrganizationContext(Data("""
+[{"uuid":"org-redacted","name":"Personal","active":true,"billing_type":"stripe_subscription","rateLimitTier":"rate_limit_20x","capabilities":["chat","claude_max"]}]
+""".utf8))
+require(claudeMax20xCapabilityOrganizationContext.planDisplayName == "Max 20x", "Claude subscription organization context should combine claude_max capability with a 20x rate tier")
 
 let claudeUsage = try! QuotaParsers.parseClaudeSubscriptionUsage(Data("""
 {"five_hour":{"utilization":24.5,"resets_at":"2026-06-09T10:00:00Z"},"seven_day":{"utilization":"70","resets_at":"2026-06-15T00:00:00Z"},"seven_day_opus":{"utilization":95,"resets_at":"2026-06-15T00:00:00Z"}}
@@ -4372,20 +7921,36 @@ let claudeSubscriptionDisplayKey = APIKey(name: "CLAUDE_SUBSCRIPTION_COOKIE", ke
 let claudeSubscriptionStat = ProviderStats(provider: .claudeSubscription, keys: [claudeSubscriptionDisplayKey])
 require(claudeSubscriptionStat.totalRemainingDisplayText == "week 30%", "Claude subscription provider remaining should display the tightest percentage window")
 
-let claudePlanEndsAt = try! QuotaParsers.parseClaudeSubscriptionDetails(Data("""
+let claudeUsageWithMissingFiveHourReset = try! QuotaParsers.parseClaudeSubscriptionUsage(Data("""
+{"five_hour":{"limit_dollars":null,"remaining_dollars":null,"resets_at":null,"used_dollars":null,"utilization":100},"seven_day":{"limit_dollars":null,"remaining_dollars":null,"resets_at":"2026-06-15T00:00:00.000000Z","used_dollars":null,"utilization":37.5},"limits":[{"group":"default","is_active":true,"kind":"rolling","percent":100,"resets_at":null,"severity":"normal"}],"spend":{"enabled":false,"percent":0}}
+""".utf8))
+require(claudeUsageWithMissingFiveHourReset.quotaLabel == "5h 0% · week 62.5%", "Claude subscription should verify successfully when the current usage endpoint omits five-hour reset timing")
+require(claudeUsageWithMissingFiveHourReset.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.resetAt == nil, "Claude five-hour quota row should omit reset timing when the provider no longer returns it")
+require(claudeUsageWithMissingFiveHourReset.quotaText?.quotaWindows.first(where: { $0.name == "week" })?.resetAt != nil, "Claude weekly quota row should keep reset timing when present")
+
+let claudeSubscriptionDetails = try! QuotaParsers.parseClaudeSubscriptionDetails(Data("""
 {"subscription_type":"pro","next_charge_date":"2026-07-08T16:42:25Z"}
 """.utf8))
-require(claudePlanEndsAt != nil, "Claude subscription details should parse next_charge_date as the plan-cycle end date")
-let claudePlanEndsAtFromChargeAt = try! QuotaParsers.parseClaudeSubscriptionDetails(Data("""
+require(claudeSubscriptionDetails.planEndsAt != nil, "Claude subscription details should parse next_charge_date as the plan-cycle end date")
+require(claudeSubscriptionDetails.planDisplayName == "Pro", "Claude subscription details should expose subscription_type as a concrete plan name")
+let claudeDetailsFromChargeAt = try! QuotaParsers.parseClaudeSubscriptionDetails(Data("""
 {"status":"active","billing_interval":"monthly","next_charge_date":"2026-07-09","next_charge_at":"2026-07-09T09:57:27Z"}
 """.utf8))
-require(claudePlanEndsAtFromChargeAt != nil, "Claude subscription details should parse next_charge_at when next_charge_date is date-only")
+require(claudeDetailsFromChargeAt.planEndsAt != nil, "Claude subscription details should parse next_charge_at when next_charge_date is date-only")
 let claudePlanFormatter = ISO8601DateFormatter()
 let expectedClaudePlanEnd = claudePlanFormatter.date(from: "2026-07-09T09:57:27Z")!
-require(abs(claudePlanEndsAtFromChargeAt!.timeIntervalSince1970 - expectedClaudePlanEnd.timeIntervalSince1970) < 1, "Claude subscription details should prefer next_charge_at over date-only next_charge_date")
+require(abs(claudeDetailsFromChargeAt.planEndsAt!.timeIntervalSince1970 - expectedClaudePlanEnd.timeIntervalSince1970) < 1, "Claude subscription details should prefer next_charge_at over date-only next_charge_date")
+let claudeMax20xSubscriptionDetails = try! QuotaParsers.parseClaudeSubscriptionDetails(Data("""
+{"subscription":{"tierName":"Claude Max 20x"},"next_charge_at":"2026-07-09T09:57:27Z"}
+""".utf8))
+require(claudeMax20xSubscriptionDetails.planDisplayName == "Max 20x", "Claude subscription details should normalize nested Claude Max 20x tier names")
+let claudeMax5xSubscriptionDetails = try! QuotaParsers.parseClaudeSubscriptionDetails(Data("""
+{"subscription":{"plan_type":"max-5x"},"next_charge_at":"2026-07-09T09:57:27Z"}
+""".utf8))
+require(claudeMax5xSubscriptionDetails.planDisplayName == "Max 5x", "Claude subscription details should normalize nested max-5x tier names")
 
 let codexUsage = try! QuotaParsers.parseCodexWhamUsage(Data("""
-{"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_after_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":70,"limit_window_seconds":604800,"reset_after_seconds":233270,"reset_at":1781140147}},"additional_rate_limits":[{"limit_name":"GPT-5.3-Codex-Spark","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_after_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":0,"limit_window_seconds":604800,"reset_after_seconds":604800,"reset_at":1781511678}}}],"credits":{"has_credits":false,"unlimited":false,"balance":"0"}}
+{"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_after_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":70,"limit_window_seconds":604800,"reset_after_seconds":233270,"reset_at":1781140147}},"additional_rate_limits":[{"limit_name":"GPT-5.3-Codex-Spark","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_after_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":0,"limit_window_seconds":604800,"reset_after_seconds":604800,"reset_at":1781511678}}}],"credits":{"has_credits":false,"unlimited":false,"balance":"0"},"rate_limit_reset_credits":{"available_count":3}}
 """.utf8))
 require(codexUsage.remaining == 3000, "Codex subscription usage should use the tightest remaining quota window")
 require(codexUsage.limit == 10000, "Codex subscription usage should use percentage basis points")
@@ -4393,10 +7958,55 @@ require(codexUsage.quotaLabel == "5h 100% · week 30%", "Codex subscription usag
 require(codexUsage.quotaText?.kind == .quotaWindows, "Codex subscription usage should carry structured quota-window descriptors")
 require(codexUsage.resetAt != nil, "Codex subscription usage should expose the tightest quota window reset date")
 require(codexUsage.planEndsAt == nil, "Codex wham usage does not expose subscription end date")
-let codexPlanEndsAt = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
+require(codexUsage.planDisplayName == "Pro", "Codex wham usage should expose plan_type as a concrete plan name")
+require(codexUsage.codexResetCreditsRemaining == 3, "Codex wham usage should expose available reset credits")
+let codexNegativeResetCredits = try! QuotaParsers.parseCodexWhamUsage(Data("""
+{"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":70,"limit_window_seconds":604800,"reset_at":1781140147}},"rate_limit_reset_credits":{"available_count":-1}}
+""".utf8))
+require(codexNegativeResetCredits.codexResetCreditsRemaining == nil, "Codex reset-credit parser should ignore negative available_count values")
+let codexStringResetCredits = try! QuotaParsers.parseCodexWhamUsage(Data("""
+{"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":70,"limit_window_seconds":604800,"reset_at":1781140147}},"rate_limit_reset_credits":{"available_count":"3"}}
+""".utf8))
+require(codexStringResetCredits.codexResetCreditsRemaining == nil, "Codex reset-credit parser should ignore non-numeric available_count values")
+do {
+    _ = try QuotaParsers.parseCodexWhamUsage(Data("""
+{"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000},"secondary_window":{"used_percent":70,"limit_window_seconds":604800,"reset_at":1781140147}}}
+""".utf8))
+    fail("Codex subscription usage should reject calibrated quota windows when reset timestamps disappear")
+} catch QuotaError.schemaDrift {
+} catch {
+    fail("Codex subscription missing reset timestamp should throw schemaDrift, got \(error)")
+}
+let codexLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
 {"active_start":"2026-06-08T16:42:25Z","active_until":"2026-07-08T16:42:25Z","billing_period":"monthly","plan_type":"pro","will_renew":true}
 """.utf8))
-require(codexPlanEndsAt != nil, "Codex subscription lifecycle should parse active_until as the plan end date")
+require(codexLifecycle.planEndsAt != nil, "Codex subscription lifecycle should parse active_until as the plan end date")
+require(codexLifecycle.planDisplayName == "Pro", "Codex subscription lifecycle should expose plan_type as a concrete plan name")
+let codexPro20xLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
+{"active_start":"2026-06-08T16:42:25Z","active_until":"2026-07-08T16:42:25Z","billing_period":"monthly","plan_type":"pro","subscription_plan":"chatgptpro","will_renew":true}
+""".utf8))
+require(codexPro20xLifecycle.planDisplayName == "Pro 20x", "Codex subscription lifecycle should expose chatgptpro as Pro 20x")
+let codexPro5xLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
+{"active_start":"2026-06-08T16:42:25Z","active_until":"2026-07-08T16:42:25Z","billing_period":"monthly","plan_type":"pro","subscription_plan":"chatgptprolite","will_renew":true}
+""".utf8))
+require(codexPro5xLifecycle.planDisplayName == "Pro 5x", "Codex subscription lifecycle should expose chatgptprolite as Pro 5x")
+let codexAccountsCheckLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
+{"accounts":{"account-redacted":{"account":{"plan_type":"pro"},"entitlement":{"has_active_subscription":true,"subscription_plan":"chatgptpro","renews_at":"2026-07-08T16:42:25+00:00","billing_period":"monthly","billing_currency":"JPY"}}}}
+""".utf8))
+require(codexAccountsCheckLifecycle.planEndsAt != nil, "Codex accounts/check lifecycle should parse entitlement renews_at as the plan end date")
+require(codexAccountsCheckLifecycle.planDisplayName == "Pro 20x", "Codex accounts/check lifecycle should expose entitlement subscription_plan as the concrete Pro tier")
+let codexAccountsCheckPro5xLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
+{"accounts":{"account-redacted":{"account":{"plan_type":"pro"},"entitlement":{"has_active_subscription":true,"subscription_plan":"chatgptprolite","renews_at":"2026-07-08T16:42:25+00:00","billing_period":"monthly","billing_currency":"USD"}}}}
+""".utf8))
+require(codexAccountsCheckPro5xLifecycle.planDisplayName == "Pro 5x", "Codex accounts/check lifecycle should expose entitlement chatgptprolite as Pro 5x")
+let codexRevenueCatOfferingLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
+{"active_until":"2026-07-08T16:42:25Z","revenuecat_offering_ids":["chatgpt_pro_lite"]}
+""".utf8))
+require(codexRevenueCatOfferingLifecycle.planDisplayName == "Pro 5x", "Codex subscription lifecycle should inspect RevenueCat offering IDs for Pro 5x")
+let codexHumanReadableProLiteLifecycle = try! QuotaParsers.parseCodexSubscriptionLifecycle(Data("""
+{"active_until":"2026-07-08T16:42:25Z","subscription_plan":"ChatGPT Pro Lite"}
+""".utf8))
+require(codexHumanReadableProLiteLifecycle.planDisplayName == "Pro 5x", "Codex subscription lifecycle should normalize human-readable ChatGPT Pro Lite values")
 
 let kimiUsage = try! QuotaParsers.parseKimiSubscriptionUsage(
     subscriptionData: Data("""
@@ -4413,6 +8023,7 @@ require(kimiUsage.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.res
 require(kimiUsage.quotaText?.quotaWindows.first(where: { $0.name == "week" })?.resetAt != nil, "Kimi weekly quota window should preserve reset timestamp")
 require(kimiUsage.quotaText?.quotaWindows.first(where: { $0.name == "month" })?.remainingText == "3000 / 10000", "Kimi subscription balance should preserve remaining and total credits")
 require(kimiUsage.planEndsAt != nil, "Kimi subscription should expose next billing or balance expiry as plan end")
+require(kimiUsage.planDisplayName == "Kimi Plus", "Kimi subscription should expose the concrete membership goods title when present")
 
 let kimiOAuthUsageShape = try! QuotaParsers.parseKimiSubscriptionUsage(
     subscriptionData: Data("""
@@ -4434,6 +8045,7 @@ let kimiUnknownQuota = try! QuotaParsers.parseKimiSubscriptionUsage(
 )
 require(kimiUnknownQuota.quotaText?.render(language: .english) == "Usable · quota unknown", "Kimi subscription should not invent quota when membership data lacks usage windows")
 require(kimiUnknownQuota.planEndsAt == nil, "Kimi unknown-quota fallback should not invent a plan end date")
+require(kimiUnknownQuota.planDisplayName == "Kimi Free", "Kimi subscription should preserve the membership name even when quota details are not exposed")
 
 do {
     _ = try QuotaParsers.parseTencentCloudCodingPlanDescribePkg(Data("""
@@ -4470,5 +8082,13 @@ plutil -extract CFBundleExecutable raw "build/Quota Radar.app/Contents/Info.plis
 plutil -extract CFBundleIconFile raw "build/Quota Radar.app/Contents/Info.plist" | rg '^QuotaRadar$' >/dev/null || fail "bundle icon name is wrong"
 plutil -extract CFBundleDisplayName raw "build/Quota Radar.app/Contents/Info.plist" | rg '^Quota Radar$' >/dev/null || fail "bundle display name is wrong"
 codesign --verify --deep --strict --verbose=2 "build/Quota Radar.app" >/dev/null
+
+mkdir -p "build/visual-qa"
+{
+  echo "status=passed"
+  echo "command=bash Tests/run_behavior_tests.sh"
+  echo "bundle=build/Quota Radar.app"
+  date -u +"completed_at=%Y-%m-%dT%H:%M:%SZ"
+} > "build/visual-qa/behavior-tests-status.txt"
 
 echo "All behavior tests passed"

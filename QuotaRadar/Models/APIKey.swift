@@ -15,6 +15,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
 
     // LLM Providers
     case anthropic = "Anthropic"
+    case anthropicCredits = "Anthropic Credits"
     case claudeAPIUsage = "Claude API Usage"
     case claudeSubscription = "Claude Subscription"
     case codexAPIUsage = "Codex API Usage"
@@ -79,7 +80,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                   key.isActive,
                   !key.key.isEmpty,
                   !key.isStoredAPIKeyOnlyCredential,
-                  key.provider.quotaCheckConsumesSearchQuota == consumesSearchQuota else {
+                  key.provider.capability.matchesAutomaticRefreshLane(consumesSearchQuota: consumesSearchQuota) else {
                 return nil
             }
 
@@ -118,6 +119,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 return "Tencent Cloud Token Plan"
             case .claudeAPIUsage:
                 return "Claude API Usage"
+            case .anthropicCredits:
+                return "Anthropic Credits"
             case .claudeSubscription:
                 return "Claude Subscription"
             case .codexAPIUsage:
@@ -147,6 +150,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 return "Querit"
             case .deepseek:
                 return "Deepseek"
+            case .anthropicCredits:
+                return "Anthropic 余额"
             case .claudeAPIUsage:
                 return "Claude API 用量"
             case .claudeSubscription:
@@ -192,6 +197,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 return "博查"
             case .deepseek:
                 return "Deepseek"
+            case .anthropicCredits:
+                return "Anthropic 餘額"
             case .claudeAPIUsage:
                 return "Claude API 用量"
             case .claudeSubscription:
@@ -235,6 +242,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 return "Tencent Cloud Token Plan"
             case .claudeAPIUsage:
                 return "Claude API Usage"
+            case .anthropicCredits:
+                return "Anthropic Credits"
             case .claudeSubscription:
                 return "Claude Subscription"
             case .codexAPIUsage:
@@ -268,6 +277,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 return "Tencent Cloud Token Plan"
             case .claudeAPIUsage:
                 return "Claude API Usage"
+            case .anthropicCredits:
+                return "Anthropic Credits"
             case .claudeSubscription:
                 return "Claude Subscription"
             case .codexAPIUsage:
@@ -296,6 +307,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 return "Tencent Cloud"
             case .claudeAPIUsage, .claudeSubscription:
                 return "Claude"
+            case .anthropicCredits:
+                return "Anthropic"
             case .codexAPIUsage, .codexSubscription:
                 return "Codex"
             case .kimiSubscription:
@@ -315,6 +328,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 return "腾讯云"
             case .claudeAPIUsage, .claudeSubscription:
                 return "Claude"
+            case .anthropicCredits:
+                return "Anthropic"
             case .codexAPIUsage, .codexSubscription:
                 return "Codex"
             case .kimiSubscription:
@@ -334,6 +349,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 return "騰訊雲"
             case .claudeAPIUsage, .claudeSubscription:
                 return "Claude"
+            case .anthropicCredits:
+                return "Anthropic"
             case .codexAPIUsage, .codexSubscription:
                 return "Codex"
             case .kimiSubscription:
@@ -353,6 +370,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 return "Tencent Cloud"
             case .claudeAPIUsage, .claudeSubscription:
                 return "Claude"
+            case .anthropicCredits:
+                return "Anthropic"
             case .codexAPIUsage, .codexSubscription:
                 return "Codex"
             case .kimiSubscription:
@@ -392,6 +411,19 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             case .korean:
                 return "API 사용량"
             }
+        case .anthropicCredits:
+            switch language {
+            case .english:
+                return "Credits"
+            case .simplifiedChinese:
+                return "余额"
+            case .traditionalChinese:
+                return "餘額"
+            case .japanese:
+                return "クレジット"
+            case .korean:
+                return "크레딧"
+            }
         case .claudeSubscription, .codexSubscription, .kimiSubscription, .opencodeGo:
             switch language {
             case .english:
@@ -410,6 +442,30 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    func accountPlanFallbackDisplayName(language: AppLanguage = AppLanguageStore.shared.language) -> String? {
+        switch self {
+        case .claudeSubscription, .codexSubscription, .kimiSubscription:
+            return displayName(language: language)
+        case .opencodeGo:
+            switch language {
+            case .english:
+                return "OpenCode Go Subscription"
+            case .simplifiedChinese:
+                return "OpenCode Go 订阅"
+            case .traditionalChinese:
+                return "OpenCode Go 訂閱"
+            case .japanese:
+                return "OpenCode Go サブスクリプション"
+            case .korean:
+                return "OpenCode Go 구독"
+            }
+        case .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
+            return displayName(language: language)
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .anthropicCredits, .claudeAPIUsage, .codexAPIUsage, .deepseek:
+            return planTypeDisplayName(language: language)
+        }
+    }
+
     /// Asset catalog name for custom icon
     var iconAssetName: String {
         switch self {
@@ -423,6 +479,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             return "ProviderIcons/xfyun"
         case .claudeAPIUsage, .claudeSubscription:
             return "ProviderIcons/claude"
+        case .anthropicCredits:
+            return "ProviderIcons/anthropic"
         case .codexAPIUsage, .codexSubscription:
             return "ProviderIcons/codex"
         case .kimiSubscription:
@@ -436,7 +494,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .brave:
             return true
-        case .tavily, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .deepseek, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
+        case .tavily, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .anthropicCredits, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .deepseek, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
             return false
         }
     }
@@ -445,7 +503,16 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .deepseek, .bocha, .wxmp:
             return true
-        case .tavily, .brave, .serpapi, .serper, .exa, .anysearch, .querit, .anthropic, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
+        case .tavily, .brave, .serpapi, .serper, .exa, .anysearch, .querit, .anthropic, .anthropicCredits, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
+            return false
+        }
+    }
+
+    var usesCreditBalance: Bool {
+        switch self {
+        case .anthropicCredits:
+            return true
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .deepseek, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
             return false
         }
     }
@@ -462,7 +529,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         case .anysearch: return "globe"
         case .wxmp: return "message.circle.fill"
         case .querit: return "magnifyingglass"
-        case .anthropic: return "brain.head.profile"
+        case .anthropic, .anthropicCredits: return "brain.head.profile"
         case .claudeAPIUsage: return "chart.line.uptrend.xyaxis"
         case .claudeSubscription: return "clock.badge.checkmark"
         case .codexAPIUsage: return "chevron.left.forwardslash.chevron.right"
@@ -492,7 +559,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         case .anysearch: return Color(hex: "111111")
         case .wxmp: return .green
         case .querit: return .indigo
-        case .anthropic: return Color(hex: "191919")
+        case .anthropic, .anthropicCredits: return Color(hex: "191919")
         case .claudeAPIUsage, .claudeSubscription: return Color(hex: "D97757")
         case .codexAPIUsage, .codexSubscription: return Color(hex: "111827")
         case .kimiSubscription: return Color(hex: "111111")
@@ -513,7 +580,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit:
             return "Search"
-        case .anthropic, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .deepseek, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
+        case .anthropic, .anthropicCredits, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .deepseek, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
             return "LLM"
         }
     }
@@ -529,7 +596,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
 
     var homeVisibleWithoutKeys: Bool {
         switch self {
-        case .tavily, .brave, .serpapi, .bocha, .anysearch, .claudeSubscription, .codexSubscription, .deepseek, .aliyunCodingPlan:
+        case .tavily, .brave, .serpapi, .bocha, .anysearch, .claudeSubscription, .anthropicCredits, .codexSubscription, .deepseek, .aliyunCodingPlan:
             return true
         case .serper, .exa, .wxmp, .querit, .anthropic, .claudeAPIUsage, .codexAPIUsage, .kimiSubscription, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
             return false
@@ -538,7 +605,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
 
     var supportsDashboardReauthentication: Bool {
         switch self {
-        case .querit, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo, .aliyunCodingPlan, .tencentCloudCodingPlan, .claudeSubscription, .codexSubscription, .kimiSubscription:
+        case .querit, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo, .aliyunCodingPlan, .tencentCloudCodingPlan, .claudeSubscription, .anthropicCredits, .codexSubscription, .kimiSubscription:
             return true
         case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .claudeAPIUsage, .codexAPIUsage, .deepseek, .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan, .tencentCloudTokenPlan:
             return false
@@ -555,7 +622,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             return ["opencode.ai"]
         case .querit:
             return ["querit.ai"]
-        case .claudeSubscription:
+        case .claudeSubscription, .anthropicCredits:
             return ["claude.ai"]
         case .codexSubscription:
             return ["chatgpt.com"]
@@ -580,8 +647,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             return ["digest", "AccountID", "csrfToken"]
         case .opencodeGo:
             return ["auth"]
-        case .claudeSubscription:
-            return ["sessionKey"]
+        case .claudeSubscription, .anthropicCredits:
+            return ["sessionKey|sessionKeyLC"]
         case .codexSubscription:
             return ["__Secure-next-auth.session-token|__Secure-next-auth.session-token.*|__search-next-auth"]
         case .kimiSubscription:
@@ -619,6 +686,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             return "ANTHROPIC_API_KEY"
         case .claudeSubscription:
             return "CLAUDE_SUBSCRIPTION_SESSION"
+        case .anthropicCredits:
+            return "ANTHROPIC_CREDITS_SESSION"
         case .codexAPIUsage:
             return "OPENAI_API_KEY"
         case .codexSubscription:
@@ -654,7 +723,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .querit, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo, .aliyunCodingPlan, .tencentCloudCodingPlan, .claudeSubscription, .codexSubscription, .kimiSubscription:
             return true
-        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .claudeAPIUsage, .codexAPIUsage, .deepseek, .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan, .tencentCloudTokenPlan:
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .anthropicCredits, .claudeAPIUsage, .codexAPIUsage, .deepseek, .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan, .tencentCloudTokenPlan:
             return false
         }
     }
@@ -679,7 +748,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             return "OPENAI_API_KEY"
         case .kimiSubscription:
             return "KIMI_API_KEY"
-        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .claudeAPIUsage, .codexAPIUsage, .deepseek, .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan, .tencentCloudTokenPlan:
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .anthropicCredits, .claudeAPIUsage, .codexAPIUsage, .deepseek, .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan, .tencentCloudTokenPlan:
             return defaultCredentialName
         }
     }
@@ -687,7 +756,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
     /// 是否支持主动查询 quota（通过 API endpoint）
     var supportsQuotaQuery: Bool {
         switch self {
-        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .deepseek, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo, .aliyunCodingPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan, .claudeSubscription, .codexSubscription, .kimiSubscription:
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .deepseek, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo, .aliyunCodingPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan, .claudeSubscription, .anthropicCredits, .codexSubscription, .kimiSubscription:
             return true
         case .anthropic, .claudeAPIUsage, .codexAPIUsage, .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan:
             return false // 只能通过 response header、dashboard，或未公开 quota API
@@ -702,7 +771,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             return L10n.t(.adminCredentialRequired, language: language)
         case .tavily, .brave, .serpapi, .serper, .bocha, .anysearch, .wxmp, .deepseek, .claudeAPIUsage, .codexAPIUsage, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
             return L10n.t(.quotaUnavailable, language: language)
-        case .claudeSubscription, .codexSubscription, .kimiSubscription:
+        case .claudeSubscription, .anthropicCredits, .codexSubscription, .kimiSubscription:
             return L10n.t(.openDashboard, language: language)
         }
     }
@@ -719,7 +788,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             return L10n.t(.quotaCheckNotSupportedDiagnostic, language: language)
         case .codexSubscription:
             return L10n.t(.businessInvocationKeyUnsupportedDiagnostic, language: language)
-        case .claudeSubscription, .kimiSubscription:
+        case .claudeSubscription, .anthropicCredits, .kimiSubscription:
             return L10n.t(.dashboardCookieCapabilityNote, language: language)
         case .aliyunCodingPlan:
             return L10n.t(.businessInvocationKeyUnsupportedDiagnostic, language: language)
@@ -754,6 +823,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         case .claudeAPIUsage:
             return "https://console.anthropic.com/settings/usage"
         case .claudeSubscription:
+            return "https://claude.ai/settings/usage"
+        case .anthropicCredits:
             return "https://claude.ai/settings/usage"
         case .codexAPIUsage:
             return "https://platform.openai.com/usage"
@@ -814,6 +885,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 consumesQuota: quotaCheckConsumesSearchQuota,
                 supportsCurlImport: true,
                 canTestConnection: supportsQuotaQuery,
+                supportsPlan: true,
                 notes: L10n.t(.dashboardCookieCapabilityNote)
             )
         case .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan:
@@ -846,6 +918,17 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 canTestConnection: false,
                 notes: L10n.t(.anthropicDashboardOnlyDiagnostic)
             )
+        case .anthropicCredits:
+            return ProviderCapability(
+                credentialKind: .dashboardCookie,
+                usageSource: .dashboardAPI,
+                resetCycle: .notExposed,
+                consumesQuota: false,
+                supportsCurlImport: true,
+                canTestConnection: true,
+                supportsBalance: true,
+                notes: L10n.t(.dashboardCookieCapabilityNote)
+            )
         case .claudeSubscription:
             return ProviderCapability(
                 credentialKind: .dashboardCookie,
@@ -854,6 +937,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 consumesQuota: false,
                 supportsCurlImport: true,
                 canTestConnection: true,
+                supportsPlan: true,
                 notes: L10n.t(.dashboardCookieCapabilityNote)
             )
         case .codexSubscription, .kimiSubscription:
@@ -864,6 +948,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 consumesQuota: false,
                 supportsCurlImport: true,
                 canTestConnection: true,
+                supportsPlan: true,
                 notes: L10n.t(.dashboardCookieCapabilityNote)
             )
         case .tavily, .brave, .serpapi, .serper, .bocha, .anysearch, .wxmp, .deepseek:
@@ -874,7 +959,109 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
                 consumesQuota: quotaCheckConsumesSearchQuota,
                 supportsCurlImport: false,
                 canTestConnection: supportsQuotaQuery,
+                supportsQuota: !usesMoneyBalance,
+                supportsBalance: usesMoneyBalance,
+                supportsReset: self == .brave ? true : nil,
                 notes: quotaCheckConsumesSearchQuota ? L10n.t(.quotaConsumingRefreshWarning) : nil
+            )
+        }
+    }
+
+    var trustCalibration: ProviderTrustCalibration {
+        switch self {
+        case .deepseek:
+            return .verified(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Official balance endpoint and local balance snapshots",
+                fallbackBehavior: "Treat balance increases as top-up or recovery, not consumption."
+            )
+        case .xfyunCodingPlan:
+            return .verified(
+                lastVerifiedAt: "2026-06-23 13:06 CST",
+                evidence: "Coding-plan package list with three usage windows",
+                fallbackBehavior: "Convert used counts to remaining/total; schema drift falls back to recalibration diagnostics."
+            )
+        case .volcengineCodingPlan:
+            return .verified(
+                lastVerifiedAt: "2026-06-23 13:06 CST",
+                evidence: "Coding-plan usage and subscription trade endpoints",
+                fallbackBehavior: "Keep percentage windows and low-churn plan metadata; schema drift asks for recalibration."
+            )
+        case .claudeSubscription:
+            return .verified(
+                lastVerifiedAt: "2026-06-23 13:06 CST",
+                evidence: "Organization usage plus subscription details",
+                fallbackBehavior: "Show observed five-hour and weekly windows only; schema drift asks for recalibration."
+            )
+        case .anthropicCredits:
+            return .verified(
+                lastVerifiedAt: "2026-06-23 15:56 CST",
+                evidence: "Live browser observation, saved Claude web-login replay, and direct Anthropic Credits live acceptance",
+                fallbackBehavior: "Treat as a separate credits balance; schema drift asks for recalibration instead of falling back to Claude Subscription."
+            )
+        case .codexSubscription:
+            return .verified(
+                lastVerifiedAt: "2026-06-23 13:06 CST",
+                evidence: "ChatGPT session, Codex usage, and subscription lifecycle endpoints",
+                fallbackBehavior: "Use ChatGPT account lifecycle for plan end; schema drift asks for recalibration."
+            )
+        case .tavily:
+            return .verified(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Official usage endpoint and independent key snapshots",
+                fallbackBehavior: "Stable zero balance remains a quota state, not schema drift."
+            )
+        case .brave:
+            return .watchlist(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Search response headers when exposed",
+                fallbackBehavior: "If monthly quota is hidden, show usable quota-unknown and keep checks manual/costly."
+            )
+        case .serpapi, .serper, .bocha, .wxmp:
+            return .watchlist(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Provider account or balance endpoint parser retained",
+                fallbackBehavior: "If numeric quota is not exposed, keep the credential usable with quota unknown."
+            )
+        case .exa:
+            return .watchlist(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Usage-only account evidence",
+                fallbackBehavior: "Do not invent quota limits; show usable quota-unknown until limits are exposed."
+            )
+        case .querit:
+            return .watchlist(
+                lastVerifiedAt: "2026-06-23 13:06 CST",
+                evidence: "Usage-only account evidence",
+                fallbackBehavior: "Do not invent quota limits; show usable quota-unknown until limits are exposed."
+            )
+        case .kimiSubscription, .opencodeGo:
+            return .watchlist(
+                lastVerifiedAt: "2026-06-23 13:06 CST",
+                evidence: "Dashboard subscription endpoint parser retained",
+                fallbackBehavior: "Schema drift asks for recalibration instead of treating the credential as invalid."
+            )
+        case .aliyunCodingPlan, .tencentCloudCodingPlan:
+            return .watchlist(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Dashboard subscription endpoint parser retained",
+                fallbackBehavior: "Schema drift asks for recalibration instead of treating the credential as invalid."
+            )
+        case .anysearch:
+            return .verified(
+                lastVerifiedAt: "2026-06-21 16:53 CST",
+                evidence: "Local unlimited-quota policy",
+                fallbackBehavior: "No remote quota endpoint is expected."
+            )
+        case .anthropic, .claudeAPIUsage, .codexAPIUsage:
+            return .unsupported(
+                evidence: "Hidden from quota-monitoring UI because subscription and admin API usage are separate surfaces",
+                fallbackBehavior: "Keep unavailable until an observable user quota endpoint is confirmed."
+            )
+        case .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan, .tencentCloudTokenPlan:
+            return .pending(
+                evidence: "Provider case and parser hooks retained for future non-empty plan samples",
+                fallbackBehavior: "Hidden from UI, import, and refresh until stable quota fields are confirmed."
             )
         }
     }
@@ -887,7 +1074,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             return .localPolicy
         case .tavily, .serpapi, .serper, .bocha, .wxmp, .deepseek:
             return .officialAPI
-        case .querit, .claudeSubscription, .kimiSubscription, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan:
+        case .querit, .claudeSubscription, .anthropicCredits, .kimiSubscription, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan:
             return .dashboardAPI
         case .exa, .tencentCloudTokenPlan:
             return .officialAPI
@@ -906,11 +1093,82 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             return .dashboard
         case .deepseek, .bocha, .wxmp, .anysearch:
             return .none
-        case .brave, .serper, .exa, .querit, .anthropic, .claudeAPIUsage, .codexAPIUsage:
+        case .brave, .serper, .exa, .querit, .anthropic, .anthropicCredits, .claudeAPIUsage, .codexAPIUsage:
             return .notExposed
         case .codexSubscription:
             return .dashboard
         }
+    }
+}
+
+enum QuotaActionKind: String, Equatable {
+    case unavailable
+    case testConnection
+    case refreshQuota
+    case costlyCheck
+}
+
+enum ProviderCalibrationStatus: String, Codable, Equatable {
+    case verified
+    case watchlist
+    case pending
+    case unsupported
+}
+
+struct ProviderTrustCalibration: Codable, Equatable {
+    let status: ProviderCalibrationStatus
+    let lastVerifiedAt: String?
+    let evidence: String
+    let fallbackBehavior: String
+
+    static func verified(
+        lastVerifiedAt: String,
+        evidence: String,
+        fallbackBehavior: String
+    ) -> ProviderTrustCalibration {
+        ProviderTrustCalibration(
+            status: .verified,
+            lastVerifiedAt: lastVerifiedAt,
+            evidence: evidence,
+            fallbackBehavior: fallbackBehavior
+        )
+    }
+
+    static func watchlist(
+        lastVerifiedAt: String,
+        evidence: String,
+        fallbackBehavior: String
+    ) -> ProviderTrustCalibration {
+        ProviderTrustCalibration(
+            status: .watchlist,
+            lastVerifiedAt: lastVerifiedAt,
+            evidence: evidence,
+            fallbackBehavior: fallbackBehavior
+        )
+    }
+
+    static func pending(
+        evidence: String,
+        fallbackBehavior: String
+    ) -> ProviderTrustCalibration {
+        ProviderTrustCalibration(
+            status: .pending,
+            lastVerifiedAt: nil,
+            evidence: evidence,
+            fallbackBehavior: fallbackBehavior
+        )
+    }
+
+    static func unsupported(
+        evidence: String,
+        fallbackBehavior: String
+    ) -> ProviderTrustCalibration {
+        ProviderTrustCalibration(
+            status: .unsupported,
+            lastVerifiedAt: nil,
+            evidence: evidence,
+            fallbackBehavior: fallbackBehavior
+        )
     }
 }
 
@@ -942,7 +1200,62 @@ struct ProviderCapability: Equatable {
     let consumesQuota: Bool
     let supportsCurlImport: Bool
     let canTestConnection: Bool
+    let supportsQuota: Bool
+    let supportsBalance: Bool
+    let supportsPlan: Bool
+    let supportsActivity: Bool
+    let supportsReset: Bool
+    let connectionTestKind: QuotaActionKind
+    let quotaRefreshKind: QuotaActionKind
+    let allowsAutomaticRefresh: Bool
+    let requiresCostlyConfirmation: Bool
     let notes: String?
+
+    init(
+        credentialKind: CredentialKind,
+        usageSource: UsageSource,
+        resetCycle: ResetCycle,
+        consumesQuota: Bool,
+        supportsCurlImport: Bool,
+        canTestConnection: Bool,
+        supportsQuota: Bool? = nil,
+        supportsBalance: Bool = false,
+        supportsPlan: Bool = false,
+        supportsActivity: Bool? = nil,
+        supportsReset: Bool? = nil,
+        connectionTestKind: QuotaActionKind? = nil,
+        quotaRefreshKind: QuotaActionKind? = nil,
+        allowsAutomaticRefresh: Bool? = nil,
+        requiresCostlyConfirmation: Bool? = nil,
+        notes: String? = nil
+    ) {
+        self.credentialKind = credentialKind
+        self.usageSource = usageSource
+        self.resetCycle = resetCycle
+        self.consumesQuota = consumesQuota
+        self.supportsCurlImport = supportsCurlImport
+        self.canTestConnection = canTestConnection
+        self.supportsBalance = supportsBalance
+        self.supportsPlan = supportsPlan
+        self.supportsQuota = supportsQuota ?? (usageSource != .unavailable && !supportsBalance)
+        self.supportsActivity = supportsActivity ?? (self.supportsQuota || supportsBalance)
+        self.supportsReset = supportsReset ?? (resetCycle == .monthly || resetCycle == .dashboard)
+        self.connectionTestKind = connectionTestKind ?? (canTestConnection ? .testConnection : .unavailable)
+        self.quotaRefreshKind = quotaRefreshKind ?? {
+            guard usageSource != .unavailable else { return .unavailable }
+            return consumesQuota ? .costlyCheck : .refreshQuota
+        }()
+        self.requiresCostlyConfirmation = requiresCostlyConfirmation ?? (self.quotaRefreshKind == .costlyCheck)
+        self.allowsAutomaticRefresh = allowsAutomaticRefresh ?? (self.quotaRefreshKind == .refreshQuota)
+        self.notes = notes
+    }
+
+    func matchesAutomaticRefreshLane(consumesSearchQuota: Bool) -> Bool {
+        if consumesSearchQuota {
+            return allowsAutomaticRefresh && quotaRefreshKind == .costlyCheck
+        }
+        return allowsAutomaticRefresh && quotaRefreshKind == .refreshQuota
+    }
 }
 
 typealias CredentialKind = ProviderCapability.CredentialKind
@@ -1081,6 +1394,51 @@ struct MenuQuotaSummary: Equatable {
         lowCount = activeKeys.filter { $0.isLow || $0.isExhausted }.count
         failedCount = activeKeys.filter { $0.status == .failed || $0.isCredentialExpired }.count
     }
+
+    var statusItemShortText: String? {
+        if failedCount > 0 {
+            return L10n.format(.statusItemFailedCount, failedCount)
+        }
+        if lowCount > 0 {
+            return L10n.format(.statusItemLowCount, lowCount)
+        }
+        return nil
+    }
+}
+
+enum MenuSignalReason: String, Codable, Equatable {
+    case lowQuota
+    case exhausted
+    case expiringSoon
+    case schemaDrift
+    case failed
+    case credentialExpired
+    case stale
+    case recentActivity
+    case unknown
+
+    var displayText: String {
+        switch self {
+        case .lowQuota:
+            return L10n.t(.lowQuotaProviders)
+        case .exhausted:
+            return L10n.t(.usageLimitExceeded)
+        case .expiringSoon:
+            return L10n.t(.expiringSoon)
+        case .schemaDrift:
+            return L10n.t(.recalibrateProvider)
+        case .failed:
+            return L10n.t(.failed)
+        case .credentialExpired:
+            return L10n.t(.credentialExpired)
+        case .stale:
+            return L10n.t(.notChecked)
+        case .recentActivity:
+            return L10n.t(.recentProviderUsage)
+        case .unknown:
+            return L10n.t(.needsAttention)
+        }
+    }
 }
 
 struct MenuQuotaItem: Identifiable, Equatable {
@@ -1088,6 +1446,7 @@ struct MenuQuotaItem: Identifiable, Equatable {
 
     let provider: Provider
     let key: APIKey
+    var providerSignalCount: Int = 1
 
     var id: UUID { key.id }
 
@@ -1097,6 +1456,49 @@ struct MenuQuotaItem: Identifiable, Equatable {
 
     var canRefresh: Bool {
         key.isActive && !key.key.isEmpty
+    }
+
+    var statusBarAccountContextLabel: String? {
+        var parts: [String] = []
+        if let contextLabel = key.statusBarAccountContextLabel {
+            parts.append(contextLabel)
+        }
+        if providerSignalCount > 1 {
+            parts.append(L10n.format(.statusBarAccountCount, providerSignalCount))
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    func withProviderSignalCount(_ count: Int) -> MenuQuotaItem {
+        MenuQuotaItem(provider: provider, key: key, providerSignalCount: max(1, count))
+    }
+
+    var signalReason: MenuSignalReason {
+        if key.isCredentialExpired {
+            return .credentialExpired
+        }
+        if key.isUsageLimitExceeded || key.isExhausted {
+            return .exhausted
+        }
+        if key.hasSchemaDriftDiagnostic {
+            return .schemaDrift
+        }
+        if key.status == .failed {
+            return .failed
+        }
+        if key.expiresSoonForStatusBar {
+            return .expiringSoon
+        }
+        if key.isLow {
+            return .lowQuota
+        }
+        if key.lastUpdated == nil {
+            return .stale
+        }
+        if key.usageCount > 0 || key.lastUsed != nil {
+            return .recentActivity
+        }
+        return .unknown
     }
 
     static func topItems(from stats: [ProviderStats], limit: Int = 5, providerOrder: [Provider] = Provider.visibleCases) -> [MenuQuotaItem] {
@@ -1236,10 +1638,13 @@ struct APIKey: Identifiable, Codable, Equatable {
     var limit: Int?
     var resetAt: Date?
     var planEndsAt: Date?
+    var planDisplayName: String?
+    var codexResetCreditsRemaining: Int?
     var lastUpdated: Date?
     var lastHTTPStatus: Int?
     var lastDiagnosticMessage: String?
     var lastDiagnosticText: LocalizedTextDescriptor?
+    var consecutiveFailureCount: Int = 0
     var quotaText: LocalizedTextDescriptor?
     var quotaLabel: String?
 
@@ -1285,6 +1690,24 @@ struct APIKey: Identifiable, Codable, Equatable {
         return L10n.localizedValues(for: .credentialExpired).contains(quotaLabel.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
+    var codexResetCreditCount: Int? {
+        guard provider == .codexSubscription else { return nil }
+        guard let codexResetCreditsRemaining, codexResetCreditsRemaining >= 0 else { return nil }
+        return codexResetCreditsRemaining
+    }
+
+    var canResetCodexQuota: Bool {
+        guard provider == .codexSubscription,
+              isActive,
+              !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !isStoredAPIKeyOnlyCredential,
+              let codexResetCreditCount,
+              codexResetCreditCount > 0 else {
+            return false
+        }
+        return true
+    }
+
     var isUsableWithUnknownQuota: Bool {
         if quotaText?.key == .usableUnknownQuota || quotaLabel == "Search OK · monthly quota not exposed" {
             return true
@@ -1295,8 +1718,17 @@ struct APIKey: Identifiable, Codable, Equatable {
            limit == Int.max {
             return true
         }
-        return provider == .exa
-            && quotaLabel?.range(of: #"^[A-Z]{3} [0-9]+(?:\.[0-9]+)? used$"#, options: .regularExpression) != nil
+        if provider == .exa,
+           quotaLabel?.range(of: #"^[A-Z]{3} [0-9]+(?:\.[0-9]+)? used$"#, options: .regularExpression) != nil {
+            return true
+        }
+        if provider == .querit {
+            if quotaText?.key == .monthlyRequestsUsedFormat { return true }
+            if quotaLabel?.range(of: #"^[0-9]+ monthly requests used$"#, options: .regularExpression) != nil {
+                return true
+            }
+        }
+        return false
     }
 
     var isUsageLimitExceeded: Bool {
@@ -1365,6 +1797,54 @@ struct APIKey: Identifiable, Codable, Equatable {
             return displayName
         }
         return "\(displayName) · \(maskedKey)"
+    }
+
+    var realPlanDisplayName: String? {
+        Self.normalizedPlanDisplayName(planDisplayName)
+    }
+
+    var effectivePlanDisplayName: String? {
+        realPlanDisplayName ?? provider.accountPlanFallbackDisplayName()
+    }
+
+    var accountDisplayTitle: String {
+        if isBusinessInvocationCredential || isStoredAPIKeyOnlyCredential {
+            return managementDisplayName
+        }
+
+        if let effectivePlanDisplayName {
+            return effectivePlanDisplayName
+        }
+
+        return managementDisplayName
+    }
+
+    var accountDisplaySubtitle: String? {
+        var parts: [String] = []
+        let title = accountDisplayTitle
+
+        if !usesGeneratedCredentialName, name != title {
+            parts.append(name)
+        }
+
+        if isQuotaMonitoringAuthorizationCredential {
+            if parts.isEmpty {
+                parts.append(L10n.t(.dashboardSession))
+            }
+        } else {
+            let valueText = managementCredentialValueText
+            if valueText != title {
+                parts.append(valueText)
+            }
+        }
+
+        if let note = displayNote,
+           note != title,
+           !parts.contains(note) {
+            parts.append(note)
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     var credentialKindDisplayName: String {
@@ -1466,12 +1946,30 @@ struct APIKey: Identifiable, Codable, Equatable {
         value.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
     }
 
+    static func normalizedPlanDisplayName(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let collapsed = value
+            .split(whereSeparator: \.isWhitespace)
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !collapsed.isEmpty, collapsed.count <= 80 else { return nil }
+        let lowercased = collapsed.lowercased()
+        guard !["normal", "valid", "active", "invalid", "true", "false"].contains(lowercased) else {
+            return nil
+        }
+        guard collapsed.range(of: #"^\d+$"#, options: .regularExpression) == nil else {
+            return nil
+        }
+        return collapsed
+    }
+
     var quotaDisplayText: String {
         guard isActive else { return L10n.t(.disabled) }
         if isBusinessInvocationCredential { return L10n.t(.businessInvocationKeySaved) }
         if isStoredAPIKeyOnlyCredential { return L10n.t(.apiKeyStoredForCopyOnly) }
         if isUnlimitedQuota { return L10n.t(.unlimited) }
         if isUsageLimitExceeded { return L10n.t(.usageLimitExceeded) }
+        if isUsableWithUnknownQuota { return L10n.t(.usableUnknownQuota) }
 
         if let quotaText {
             return quotaText.render()
@@ -1480,8 +1978,6 @@ struct APIKey: Identifiable, Codable, Equatable {
         if let quotaLabel, !quotaLabel.isEmpty {
             return L10n.localizedQuotaLabel(quotaLabel)
         }
-
-        if isUsableWithUnknownQuota { return L10n.t(.usableUnknownQuota) }
 
         if let remaining, let limit, limit > 0 {
             return "\(remaining) / \(limit)"
@@ -1513,6 +2009,9 @@ struct APIKey: Identifiable, Codable, Equatable {
 
     private var quotaPresentationPrimaryText: String {
         if isUsableWithUnknownQuota {
+            guard provider == .brave else {
+                return L10n.t(.usableUnknownQuota)
+            }
             switch AppLanguageStore.shared.language {
             case .english:
                 return "Search OK · monthly quota not exposed"
@@ -1526,11 +2025,16 @@ struct APIKey: Identifiable, Codable, Equatable {
                 return "검색 가능 · 월간 할당량 비공개"
             }
         }
+        if isExhausted, !isUsageLimitExceeded {
+            let reset = visibleQuotaResetSummary
+            guard !reset.isEmpty else { return L10n.t(.healthExhausted) }
+            return "\(L10n.t(.healthExhausted)) · \(reset)"
+        }
         return quotaDisplayText
     }
 
     private var percentRemaining: Double? {
-        if provider.usesMoneyBalance {
+        if provider.usesMoneyBalance || provider.usesCreditBalance {
             return nil
         }
         guard isActive,
@@ -1553,7 +2057,7 @@ struct APIKey: Identifiable, Codable, Equatable {
         switch provider {
         case .brave:
             return .responseHeader
-        case .querit, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo, .tencentCloudCodingPlan, .kimiSubscription:
+        case .querit, .anthropicCredits, .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo, .tencentCloudCodingPlan, .kimiSubscription:
             return .dashboardAPI
         case .tencentCloudTokenPlan:
             return .officialAPI
@@ -1578,6 +2082,35 @@ struct APIKey: Identifiable, Codable, Equatable {
         return provider.capability.credentialKind == .dashboardCookie ? L10n.t(.dashboardSession) : maskedKey
     }
 
+    var statusBarAccountContextLabel: String? {
+        if isBusinessInvocationCredential || isStoredAPIKeyOnlyCredential {
+            return maskedKey
+        }
+
+        guard isQuotaMonitoringAuthorizationCredential else {
+            return maskedKey
+        }
+
+        var parts: [String] = []
+        if let realPlanDisplayName {
+            parts.append(realPlanDisplayName)
+        }
+
+        if !usesGeneratedCredentialName,
+           name != realPlanDisplayName {
+            parts.append(name)
+        }
+
+        if let note = displayNote,
+           note != realPlanDisplayName,
+           note != name,
+           !parts.contains(note) {
+            parts.append(note)
+        }
+
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     var needsStatusBarAttention: Bool {
         guard isActive, !key.isEmpty else { return false }
         guard !isStoredAPIKeyOnlyCredential else { return false }
@@ -1588,6 +2121,17 @@ struct APIKey: Identifiable, Codable, Equatable {
         guard isActive, !key.isEmpty else { return false }
         guard !isStoredAPIKeyOnlyCredential else { return false }
         return isCredentialExpired || isUsageLimitExceeded || isExhausted || status == .failed
+    }
+
+    var hasSchemaDriftDiagnostic: Bool {
+        if lastDiagnosticText?.key == .quotaErrorSchemaDrift {
+            return true
+        }
+        guard let lastDiagnosticMessage = lastDiagnosticMessage?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !lastDiagnosticMessage.isEmpty else {
+            return false
+        }
+        return L10n.localizedValues(for: .quotaErrorSchemaDrift).contains(lastDiagnosticMessage)
     }
 
     var needsLowQuotaStatusBarAttention: Bool {
@@ -1612,7 +2156,7 @@ struct APIKey: Identifiable, Codable, Equatable {
     var quotaResetSummary: String {
         guard isActive else { return L10n.t(.disabled) }
 
-        if let resetAt {
+        if let resetAt, resetAt.timeIntervalSinceNow > 0 {
             return L10n.format(.resetDate, L10n.shortDateTime(resetAt))
         }
 
@@ -1621,7 +2165,7 @@ struct APIKey: Identifiable, Codable, Equatable {
             return L10n.t(.resetsMonthlyDay1)
         case .deepseek, .wxmp, .bocha, .anysearch:
             return L10n.t(.noResetCycle)
-        case .brave, .serpapi, .serper, .exa, .querit, .anthropic, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
+        case .brave, .serpapi, .serper, .exa, .querit, .anthropic, .anthropicCredits, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
             return L10n.t(.resetNotExposed)
         }
     }
@@ -1637,11 +2181,13 @@ struct APIKey: Identifiable, Codable, Equatable {
            abs(resetAt.timeIntervalSince(monthlyResetAt)) < 1 {
             return ""
         }
-        if resetAt != nil { return quotaResetSummary }
+        if let resetAt, resetAt.timeIntervalSinceNow > 0 { return quotaResetSummary }
 
         switch provider {
-        case .tavily, .deepseek, .wxmp, .bocha, .anysearch:
+        case .tavily, .anysearch:
             return quotaResetSummary
+        case .deepseek, .wxmp, .bocha, .anthropicCredits:
+            return ""
         case .brave, .serpapi, .serper, .exa, .querit, .anthropic, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .kimiSubscription, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
             return ""
         }
@@ -1649,7 +2195,15 @@ struct APIKey: Identifiable, Codable, Equatable {
 
     var quotaWindowDetails: [QuotaWindowText] {
         guard isActive, quotaText?.kind == .quotaWindows else { return [] }
-        return quotaText?.quotaWindows ?? []
+        let now = Date()
+        return (quotaText?.quotaWindows ?? []).map { window in
+            guard let resetAt = window.resetAt, resetAt <= now else {
+                return window
+            }
+            var window = window
+            window.resetAt = nil
+            return window
+        }
     }
 
     var planEndSummary: String {
@@ -1704,6 +2258,9 @@ struct APIKey: Identifiable, Codable, Equatable {
 
         if provider.usesMoneyBalance, let remaining {
             return Self.formatCNYCents(remaining)
+        }
+        if provider.usesCreditBalance, let remaining {
+            return "\(max(0, remaining))"
         }
 
         guard let remaining else { return L10n.t(.notAvailableShort) }
@@ -1769,6 +2326,26 @@ struct APIKey: Identifiable, Codable, Equatable {
         return .unknown
     }
 
+    var credentialConfigurationState: CredentialConfigurationState {
+        guard isActive else { return .configuredUntested }
+        guard !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .notConfigured }
+        if isStoredAPIKeyOnlyCredential || isBusinessInvocationCredential { return .usable }
+        if provider.quotaCheckConsumesSearchQuota, lastUpdated == nil { return .checkConsumesQuota }
+        if isCredentialExpired { return .credentialExpired }
+        if hasSchemaDriftDiagnostic { return .needsRecalibration }
+        if status == .failed { return .checkFailed }
+        if isUsableWithUnknownQuota || isUnsupportedQuotaCheckState { return .quotaUnavailable }
+        if remaining != nil || lastHTTPStatus == 200 { return .usable }
+        if lastUpdated == nil,
+           lastHTTPStatus == nil,
+           lastDiagnosticMessage == nil,
+           quotaText == nil,
+           quotaLabel == nil {
+            return .configuredUntested
+        }
+        return .checkFailed
+    }
+
     var healthDisplayText: String {
         if isBusinessInvocationCredential {
             return L10n.t(.businessInvocationKeySaved)
@@ -1792,6 +2369,9 @@ struct APIKey: Identifiable, Codable, Equatable {
         case .usableUnknown:
             return L10n.t(.usableUnknownQuota)
         case .failed:
+            if hasSchemaDriftDiagnostic {
+                return L10n.t(.needsRecalibration)
+            }
             return L10n.t(.healthFailed)
         case .disabled:
             return L10n.t(.disabled)
@@ -1868,6 +2448,51 @@ enum KeyStatus: String {
     }
 }
 
+enum CredentialConfigurationState: String {
+    case notConfigured
+    case configuredUntested
+    case usable
+    case credentialExpired
+    case quotaUnavailable
+    case checkConsumesQuota
+    case needsRecalibration
+    case checkFailed
+
+    var displayText: String {
+        switch self {
+        case .notConfigured:
+            return L10n.t(.credentialStateNotConfigured)
+        case .configuredUntested:
+            return L10n.t(.credentialStateConfiguredUntested)
+        case .usable:
+            return L10n.t(.credentialStateUsable)
+        case .credentialExpired:
+            return L10n.t(.credentialStateCredentialExpired)
+        case .quotaUnavailable:
+            return L10n.t(.credentialStateQuotaUnavailable)
+        case .checkConsumesQuota:
+            return L10n.t(.credentialStateCheckConsumesQuota)
+        case .needsRecalibration:
+            return L10n.t(.needsRecalibration)
+        case .checkFailed:
+            return L10n.t(.credentialStateCheckFailed)
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .usable:
+            return .green
+        case .configuredUntested, .quotaUnavailable, .checkConsumesQuota:
+            return .orange
+        case .credentialExpired, .needsRecalibration, .checkFailed:
+            return .red
+        case .notConfigured:
+            return .gray
+        }
+    }
+}
+
 // MARK: - Provider Stats
 
 struct ProviderStats: Identifiable {
@@ -1881,7 +2506,11 @@ struct ProviderStats: Identifiable {
     }
 
     var sortedMonitoringKeysByCurrentQuota: [APIKey] {
-        APIKey.sortedByCurrentQuota(monitoredKeys)
+        APIKey.sortedByCurrentQuota(activeMonitoringKeys)
+    }
+
+    var hasActiveMonitoringCredentials: Bool {
+        !activeMonitoringKeys.isEmpty
     }
 
     var credentialDiagnosticItems: [CredentialDiagnosticItem] {
@@ -1946,6 +2575,9 @@ struct ProviderStats: Identifiable {
         if provider.usesMoneyBalance {
             return APIKey.formatCNYCents(totalRemaining)
         }
+        if provider.usesCreditBalance {
+            return "\(totalRemaining)"
+        }
         if usesPercentageQuota {
             return tightestQuotaWindowDisplay ?? formatProviderPercent(totalRemainingPercent)
         }
@@ -1955,7 +2587,10 @@ struct ProviderStats: Identifiable {
     var totalLimitDisplayText: String {
         if hasUnlimitedQuota { return L10n.t(.unlimited) }
         if provider.usesMoneyBalance {
-            return L10n.t(.noResetCycle)
+            return ""
+        }
+        if provider.usesCreditBalance {
+            return ""
         }
         if usesPercentageQuota {
             return monthlyQuotaWindowDisplay
@@ -1969,10 +2604,11 @@ struct ProviderStats: Identifiable {
         guard !activeCredentialKeys.isEmpty else { return L10n.t(.notAvailableShort) }
         if hasUnlimitedQuota { return L10n.t(.unlimited) }
         if provider.usesMoneyBalance { return totalRemainingDisplayText }
+        if provider.usesCreditBalance { return totalRemainingDisplayText }
         if usesPercentageQuota {
             return tightestQuotaWindowDisplay ?? totalRemainingDisplayText
         }
-        return tightestActiveMonitoringKey?.remainingBadgeText
+        return tightestActiveUsableMonitoringKey?.remainingBadgeText
             ?? tightestActiveMonitoringKey?.quotaPresentation.primaryText
             ?? totalRemainingDisplayText
     }
@@ -2006,6 +2642,10 @@ struct ProviderStats: Identifiable {
             .filter({ $0.timeIntervalSinceNow > 0 })
             .min() {
             return L10n.format(.planEndsDate, L10n.shortDateTime(planEnd, includesYear: true))
+        }
+
+        if provider.usesMoneyBalance || provider.usesCreditBalance {
+            return ""
         }
 
         if let firstReset = activeCredentialKeys
@@ -2048,6 +2688,9 @@ struct ProviderStats: Identifiable {
         if provider.usesMoneyBalance {
             return totalRemainingDisplayText
         }
+        if provider.usesCreditBalance {
+            return totalRemainingDisplayText
+        }
         if activeCredentialKeys.count == 1, let key = activeCredentialKeys.first {
             return key.quotaPresentation.primaryText
         }
@@ -2074,6 +2717,9 @@ struct ProviderStats: Identifiable {
             return tightestQuotaWindowDisplay ?? totalRemainingDisplayText
         }
         if provider.usesMoneyBalance {
+            return totalRemainingDisplayText
+        }
+        if provider.usesCreditBalance {
             return totalRemainingDisplayText
         }
         if let percent = statusBarProviderPercentRemaining {
@@ -2112,7 +2758,7 @@ struct ProviderStats: Identifiable {
         switch provider {
         case .xfyunCodingPlan, .volcengineCodingPlan, .opencodeGo, .aliyunCodingPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan, .claudeSubscription, .codexSubscription, .kimiSubscription:
             return true
-        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .claudeAPIUsage, .codexAPIUsage, .deepseek, .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan:
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .anthropicCredits, .claudeAPIUsage, .codexAPIUsage, .deepseek, .xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan:
             return false
         }
     }
@@ -2215,7 +2861,7 @@ struct ProviderStats: Identifiable {
     }
 
     private var activeCredentialKeys: [APIKey] {
-        monitoredKeys.filter { $0.isActive && !$0.key.isEmpty }
+        activeMonitoringKeys
     }
 
     private var bestActiveMonitoringKey: APIKey? {
@@ -2224,6 +2870,21 @@ struct ProviderStats: Identifiable {
 
     private var tightestActiveMonitoringKey: APIKey? {
         sortedMonitoringKeysByCurrentQuota.last { $0.isActive && !$0.key.isEmpty }
+    }
+
+    var mostConstrainedActiveMonitoringKey: APIKey? {
+        tightestActiveMonitoringKey
+    }
+
+    private var tightestActiveUsableMonitoringKey: APIKey? {
+        sortedMonitoringKeysByCurrentQuota.last { key in
+            key.isActive
+                && !key.key.isEmpty
+                && !key.isCredentialExpired
+                && !key.isUsageLimitExceeded
+                && !key.isExhausted
+                && key.status != .failed
+        }
     }
 
     private var usableMonitoringCredentialCount: Int {
@@ -2257,6 +2918,10 @@ struct ProviderStats: Identifiable {
 
     private var monitoredKeys: [APIKey] {
         keys.filter { !$0.isStoredAPIKeyOnlyCredential }
+    }
+
+    private var activeMonitoringKeys: [APIKey] {
+        monitoredKeys.filter { $0.isActive && !$0.key.isEmpty }
     }
 
     private var primaryMonitoringKey: APIKey? {
@@ -2310,6 +2975,7 @@ struct CredentialDiagnosticItem: Identifiable, Equatable {
     var diagnosticStatusText: String {
         guard statusKey.isActive else { return L10n.t(.disabled) }
         if statusKey.isCredentialExpired { return L10n.t(.expired) }
+        if statusKey.hasSchemaDriftDiagnostic { return L10n.t(.needsRecalibration) }
         if statusKey.status == .failed { return L10n.t(.healthFailed) }
         if statusKey.lastHTTPStatus == nil,
            statusKey.lastDiagnosticMessage == nil,
@@ -2332,21 +2998,74 @@ struct CredentialDiagnosticItem: Identifiable, Equatable {
         statusKey.lastHTTPStatus.map(String.init) ?? L10n.t(.httpNotRequested)
     }
 
-    var credentialTitle: String {
-        if key.isQuotaMonitoringAuthorizationCredential {
-            return L10n.t(.webLoginCredential)
+    var stateText: String {
+        statusKey.credentialConfigurationState.displayText
+    }
+
+    var stateColor: Color {
+        statusKey.credentialConfigurationState.color
+    }
+
+    var lastCheckedText: String {
+        statusKey.lastUpdated.map { L10n.shortDateTime($0) } ?? L10n.t(.notChecked)
+    }
+
+    var resetDiagnosticText: String {
+        let reset = statusKey.visibleQuotaResetSummary
+        return reset.isEmpty ? L10n.t(.resetNotExposed) : reset
+    }
+
+    var autoRefreshSkipText: String? {
+        guard statusKey.provider.quotaCheckConsumesSearchQuota else { return nil }
+        guard statusKey.lastDiagnosticText?.key == .quotaConsumingRefreshWarning
+            || statusKey.lastDiagnosticMessage == L10n.t(.quotaConsumingRefreshWarning)
+            || statusKey.quotaText?.key == .manualRefreshOnly else {
+            return nil
         }
-        return key.managementDisplayName
+        return L10n.t(.automaticRefreshSkipped)
+    }
+
+    var requestProxyModeText: String {
+        switch UserDefaults.standard.string(forKey: "networkProxyMode") {
+        case "direct":
+            return L10n.t(.networkProxyDirect)
+        case "custom":
+            return L10n.t(.networkProxyCustom)
+        case "system", nil:
+            return L10n.t(.networkProxySystem)
+        default:
+            return L10n.t(.networkProxySystem)
+        }
+    }
+
+    var planDisplayName: String? {
+        guard !key.isBusinessInvocationCredential,
+              !key.isStoredAPIKeyOnlyCredential else {
+            return nil
+        }
+        return statusKey.effectivePlanDisplayName
+    }
+
+    var credentialTitle: String {
+        key.accountDisplayTitle
     }
 
     var credentialSubtitle: String {
-        if key.isQuotaMonitoringAuthorizationCredential {
-            if companionAPIKey != nil {
-                return "\(L10n.t(.saved)) · \(L10n.t(.includesInvocationAPIKey))"
-            }
-            return L10n.t(.saved)
+        var parts: [String] = []
+
+        if let accountDisplaySubtitle = key.accountDisplaySubtitle {
+            parts.append(accountDisplaySubtitle)
         }
-        return key.managementCredentialValueText
+
+        if companionAPIKey != nil {
+            parts.append(L10n.t(.includesInvocationAPIKey))
+        }
+
+        if parts.isEmpty {
+            return key.managementCredentialValueText
+        }
+
+        return parts.joined(separator: " · ")
     }
 
     var connectionDiagnosticSummary: String? {

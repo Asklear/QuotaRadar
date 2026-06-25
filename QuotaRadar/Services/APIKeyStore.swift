@@ -22,10 +22,13 @@ struct APIKeyStore {
         var limit: Int?
         var resetAt: Date?
         var planEndsAt: Date?
+        var planDisplayName: String?
+        var codexResetCreditsRemaining: Int?
         var lastUpdated: Date?
         var lastHTTPStatus: Int?
         var lastDiagnosticMessage: String?
         var lastDiagnosticText: LocalizedTextDescriptor?
+        var consecutiveFailureCount: Int?
         var quotaText: LocalizedTextDescriptor?
         var quotaLabel: String?
         var usageCount: Int
@@ -42,10 +45,13 @@ struct APIKeyStore {
             limit = key.limit
             resetAt = key.resetAt
             planEndsAt = key.planEndsAt
+            planDisplayName = key.planDisplayName
+            codexResetCreditsRemaining = key.codexResetCreditsRemaining
             lastUpdated = key.lastUpdated
             lastHTTPStatus = key.lastHTTPStatus
             lastDiagnosticMessage = key.lastDiagnosticMessage
             lastDiagnosticText = key.lastDiagnosticText
+            consecutiveFailureCount = key.consecutiveFailureCount
             quotaText = key.quotaText
             quotaLabel = key.quotaLabel
             usageCount = key.usageCount
@@ -88,10 +94,13 @@ struct APIKeyStore {
                 limit: normalizedLimit,
                 resetAt: resetAt,
                 planEndsAt: planEndsAt,
+                planDisplayName: planDisplayName,
+                codexResetCreditsRemaining: codexResetCreditsRemaining,
                 lastUpdated: lastUpdated,
                 lastHTTPStatus: lastHTTPStatus,
                 lastDiagnosticMessage: lastDiagnosticMessage,
                 lastDiagnosticText: lastDiagnosticText,
+                consecutiveFailureCount: consecutiveFailureCount ?? 0,
                 quotaText: quotaText,
                 quotaLabel: normalizedQuotaLabel,
                 usageCount: usageCount,
@@ -163,6 +172,10 @@ struct APIKeyStore {
         }
         defaults.set(keys.isEmpty, forKey: apiKeyMetadataClearedByUserKey)
         defaults.removeObject(forKey: legacyKey)
+    }
+
+    func exportMetadata(_ keys: [APIKey]) throws -> Data {
+        try CredentialMetadataExporter.export(keys)
     }
 
     func delete(id: UUID) {

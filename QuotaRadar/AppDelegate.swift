@@ -22,6 +22,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let statusPanelGap: CGFloat = 6
     private let statusPanelScreenInset: CGFloat = 10
     private let statusPanelOuterPadding: CGFloat = 18
+    private let statusItemTextHorizontalPadding: CGFloat = 18
+    private var isVisualQAAutomation: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["QUOTARADAR_VISUAL_QA_FIXTURES"] == "1"
+            || environment["QUOTARADAR_VISUAL_QA_LANGUAGE"] != nil
+            || environment["QUOTARADAR_VISUAL_QA_APPEARANCE"] != nil
+            || environment["QUOTARADAR_VISUAL_QA_WINDOW_SIZE"] != nil
+            || environment["QUOTARADAR_VISUAL_QA_TRANSPARENCY"] != nil
+    }
+    private var forcedVisualQASettingsContentSize: NSSize? {
+        Self.visualQASettingsContentSize(
+            from: ProcessInfo.processInfo.environment["QUOTARADAR_VISUAL_QA_WINDOW_SIZE"]
+        )
+    }
 
     private var statusPanelSize: CGSize {
         CGSize(
@@ -42,14 +56,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         LegacyConfigurationMigrator.migrateUserDefaultsIfNeeded()
         NSApp.setActivationPolicy(.regular)
+        applyConfiguredAppearanceMode()
         clearSwiftUISettingsWindowAutosaveFrame()
         quotaMonitor = QuotaMonitor.shared
         setupStatusBar()
         setupStatusPanel()
         startMonitoring()
+        startAppearanceModeMonitoring()
         startLanguageMonitoring()
         showManagedSettingsWindowOnLaunch()
-        GitHubReleaseUpdater.shared.checkForUpdatesIfNeededOnLaunch()
+        if GitHubReleaseUpdater.isUpdateCheckingAvailable {
+            GitHubReleaseUpdater.shared.checkForUpdatesIfNeededOnLaunch()
+        }
+        showStatusPanelForAutomationIfRequested()
+        openMenuSignalForAutomationIfRequested()
     }
 
     private func setupStatusBar() {
@@ -60,7 +80,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let icon = makeStatusBarIcon()
         icon.isTemplate = true
         button.image = icon
-        button.imagePosition = .imageOnly
+        button.imagePosition = .imageLeading
         button.imageScaling = .scaleProportionallyDown
         button.contentTintColor = nil
         button.toolTip = L10n.t(.apiQuotaTitle)
@@ -68,6 +88,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // 监听点击
         button.target = self
         button.action = #selector(togglePopover)
+        updateStatusItemPresentation()
     }
 
     private func makeStatusBarIcon() -> NSImage {
@@ -182,6 +203,104 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    @objc func showStatusPanelForAutomation() {
+        if isVisualQAAutomation {
+            showStatusPanelAtAutomationFallbackPosition()
+            return
+        }
+
+        if let button = statusItem?.button {
+            showStatusPanel(relativeTo: button)
+            stopPopoverMouseExitMonitor()
+            return
+        }
+
+        showStatusPanelAtAutomationFallbackPosition()
+    }
+
+    private func showStatusPanelForAutomationIfRequested() {
+        guard ProcessInfo.processInfo.environment["QUOTARADAR_SHOW_STATUS_PANEL_FOR_AUTOMATION"] == "1" else {
+            return
+        }
+
+        scheduleStatusPanelForAutomationAttempt(remainingAttempts: 12)
+    }
+
+    private func scheduleStatusPanelForAutomationAttempt(remainingAttempts: Int) {
+        guard remainingAttempts > 0 else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            self.showStatusPanelForAutomation()
+            self.scheduleStatusPanelForAutomationAttempt(remainingAttempts: remainingAttempts - 1)
+        }
+    }
+
+    private func showStatusPanelAtAutomationFallbackPosition() {
+        guard let panel = statusPanel else { return }
+        let visibleFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1512, height: 949)
+        let size = statusPanelSize
+        let frame = NSRect(
+            x: visibleFrame.maxX - size.width - statusPanelScreenInset,
+            y: visibleFrame.maxY - size.height - statusPanelScreenInset,
+            width: size.width,
+            height: size.height
+        )
+        panel.setFrame(frame, display: true)
+        configureStatusPanelWindowAppearance(window: panel)
+        panel.orderFrontRegardless()
+        stopPopoverMouseExitMonitor()
+    }
+
+    @MainActor
+    private func openMenuSignalForAutomationIfRequested() {
+        guard let requestedSignal = ProcessInfo.processInfo.environment["QUOTARADAR_OPEN_MENU_SIGNAL_FOR_AUTOMATION"],
+              !requestedSignal.isEmpty else {
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            self?.openMenuSignalForAutomation(requestedSignal)
+        }
+    }
+
+    @MainActor
+    private func openMenuSignalForAutomation(_ requestedSignal: String) {
+        guard let item = menuSignalItemForAutomation(requestedSignal) else {
+            return
+        }
+
+        openProviderFromStatusPopover(item.provider, credentialID: item.key.id, reason: item.signalReason)
+    }
+
+    @MainActor
+    private func menuSignalItemForAutomation(_ requestedSignal: String) -> MenuQuotaItem? {
+        let normalizedSignal = requestedSignal
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let layout = quotaMonitor.menuSignalLayout
+
+        switch normalizedSignal {
+        case "attention", "needs-attention", "needsattention":
+            return layout.attentionItems.first ?? layout.visibleItems.first
+        case "failed", "failure", "check-failed", "checkfailed":
+            return layout.attentionItems.first { $0.signalReason == .failed } ?? layout.attentionItems.first ?? layout.visibleItems.first
+        case "low", "low-quota", "lowquota":
+            return layout.lowQuotaItems.first
+        case "expiring", "expiring-soon", "expiringsoon":
+            return layout.expiringSoonItems.first
+        case "recent", "recent-usage", "recentusage":
+            return layout.recentUsageItems.first
+        case "first":
+            return layout.visibleItems.first
+        default:
+            return layout.visibleItems.first { item in
+                item.provider.rawValue.lowercased() == normalizedSignal
+                    || item.provider.displayName(language: .english).lowercased() == normalizedSignal
+            }
+        }
+    }
+
     private func showStatusPanel(relativeTo button: NSStatusBarButton) {
         guard let panel = statusPanel else { return }
 
@@ -213,9 +332,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let maxX = visibleFrame.maxX - size.width - statusPanelScreenInset
         let preferredX = buttonFrame.midX - MenuContentView.menuSize.width / 2 - statusPanelOuterPadding
         let x = min(max(preferredX, minX), maxX)
-        let preferredY = buttonFrame.minY - statusPanelGap - MenuContentView.menuSize.height - statusPanelOuterPadding
-        let maxY = visibleFrame.maxY - statusPanelScreenInset - MenuContentView.menuSize.height - statusPanelOuterPadding
-        let minY = visibleFrame.minY + statusPanelScreenInset - statusPanelOuterPadding
+        let preferredY = buttonFrame.minY - statusPanelGap - statusPanelSize.height
+        let maxY = visibleFrame.maxY - statusPanelScreenInset - statusPanelSize.height
+        let minY = visibleFrame.minY + statusPanelScreenInset
         let y = min(max(preferredY, minY), maxY)
         return NSRect(x: x, y: y, width: size.width, height: size.height)
     }
@@ -388,6 +507,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @MainActor
     private func startMonitoring() {
+        quotaMonitor.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async {
+                    self?.updateStatusItemPresentation()
+                }
+            }
+            .store(in: &cancellables)
+
         configureAutoRefreshTimer()
         AppAppearanceStore.shared.$autoRefreshInterval
             .removeDuplicates()
@@ -413,15 +541,48 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             .store(in: &cancellables)
     }
 
+    private func startAppearanceModeMonitoring() {
+        AppAppearanceStore.shared.$appearanceMode
+            .removeDuplicates()
+            .sink { [weak self] appearanceMode in
+                self?.applyConfiguredAppearanceMode(appearanceMode)
+            }
+            .store(in: &cancellables)
+    }
+
     private func updateLocalizedStatusBarStrings() {
-        if let button = statusItem?.button {
-            button.toolTip = L10n.t(.apiQuotaTitle)
-            button.image?.accessibilityDescription = L10n.t(.apiQuotaTitle)
-        }
+        updateStatusItemPresentation()
 
         statusPanelSettingsOverlayButton?.toolTip = L10n.t(.settingsTab)
         statusPanelSettingsOverlayButton?.setAccessibilityLabel(L10n.t(.settingsTab))
         settingsWindow?.title = L10n.t(.settingsWindowTitle)
+    }
+
+    private func updateStatusItemPresentation() {
+        Task { @MainActor [weak self] in
+            self?.applyStatusItemPresentation()
+        }
+    }
+
+    @MainActor
+    private func applyStatusItemPresentation() {
+        guard let statusItem, let button = statusItem.button else { return }
+
+        let shortText = quotaMonitor?.menuQuotaSummary.statusItemShortText
+        button.toolTip = L10n.t(.apiQuotaTitle)
+        button.image?.accessibilityDescription = L10n.t(.apiQuotaTitle)
+        button.imagePosition = .imageLeading
+
+        guard let shortText, !shortText.isEmpty else {
+            button.title = ""
+            statusItem.length = NSStatusItem.squareLength
+            return
+        }
+
+        button.title = shortText
+        button.font = .systemFont(ofSize: 11, weight: .semibold)
+        let textWidth = (shortText as NSString).size(withAttributes: [.font: button.font ?? NSFont.systemFont(ofSize: 11, weight: .semibold)]).width
+        statusItem.length = ceil(NSStatusBar.system.thickness + textWidth + statusItemTextHorizontalPadding)
     }
 
     @MainActor
@@ -505,6 +666,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    func openProviderFromStatusPopover(_ provider: Provider, credentialID: UUID?, reason: MenuSignalReason?) {
+        closeStatusPopover()
+        DispatchQueue.main.async { [weak self] in
+            SettingsNavigationStore.shared.focusProvider(provider, credentialID: credentialID, reason: reason)
+            self?.openPreferences(destination: .providers)
+        }
+    }
+
     func openPreferences(destination: SettingsDestination) {
         SettingsNavigationStore.shared.select(destination)
         clearSwiftUISettingsWindowAutosaveFrame()
@@ -582,12 +751,64 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.contentMinSize = minimumSettingsWindowSize
         window.collectionBehavior.insert(.moveToActiveSpace)
 
-        if window.contentView?.bounds.width ?? 0 < preferredSettingsContentSize.width ||
+        let forcedContentSize = forcedVisualQASettingsContentSize
+        let preferredContentSize = forcedContentSize ?? preferredSettingsContentSize
+        if let forcedContentSize {
+            window.setContentSize(forcedContentSize)
+        } else if window.contentView?.bounds.width ?? 0 < preferredSettingsContentSize.width ||
             window.contentView?.bounds.height ?? 0 < preferredSettingsContentSize.height {
-            window.setContentSize(preferredSettingsContentSize)
+            window.setContentSize(preferredContentSize)
         }
 
-        restoreOrRepairSettingsWindowPlacement(window, restoreSavedFrameIfNeeded: restoreSavedFrameIfNeeded)
+        restoreOrRepairSettingsWindowPlacement(
+            window,
+            restoreSavedFrameIfNeeded: restoreSavedFrameIfNeeded && forcedContentSize == nil
+        )
+    }
+
+    private func applyConfiguredAppearanceMode(_ appearanceMode: AppThemeModeOption? = nil) {
+        guard !applyVisualQAAppearanceOverrideIfRequested() else { return }
+
+        switch appearanceMode ?? AppAppearanceStore.shared.appearanceMode {
+        case .system:
+            NSApp.appearance = nil
+            settingsWindow?.appearance = nil
+            statusPanel?.appearance = nil
+        case .light:
+            applyAppAppearance(NSAppearance(named: .aqua))
+        case .dark:
+            applyAppAppearance(NSAppearance(named: .darkAqua))
+        }
+    }
+
+    private func applyAppAppearance(_ appearance: NSAppearance?) {
+        NSApp.appearance = appearance
+        settingsWindow?.appearance = appearance
+        statusPanel?.appearance = appearance
+    }
+
+    @discardableResult
+    private func applyVisualQAAppearanceOverrideIfRequested() -> Bool {
+        switch ProcessInfo.processInfo.environment["QUOTARADAR_VISUAL_QA_APPEARANCE"]?.lowercased() {
+        case "light":
+            applyAppAppearance(NSAppearance(named: .aqua))
+            return true
+        case "dark":
+            applyAppAppearance(NSAppearance(named: .darkAqua))
+            return true
+        default:
+            return false
+        }
+    }
+
+    private static func visualQASettingsContentSize(from rawValue: String?) -> NSSize? {
+        guard let rawValue, !rawValue.isEmpty else { return nil }
+        let parts = rawValue
+            .lowercased()
+            .split(separator: "x", maxSplits: 1)
+            .compactMap { Double($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        guard parts.count == 2 else { return nil }
+        return NSSize(width: max(900, parts[0]), height: max(600, parts[1]))
     }
 
     private func clearSwiftUISettingsWindowAutosaveFrame() {
@@ -708,6 +929,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func saveSettingsWindowFrame(_ window: NSWindow) {
         guard !isApplyingSettingsWindowPlacement,
+              !isVisualQAAutomation,
               window === settingsWindow,
               settingsWindowFrameIsUsable(window.frame) else {
             return

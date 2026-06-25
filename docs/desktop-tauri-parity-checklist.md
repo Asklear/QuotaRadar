@@ -4,10 +4,13 @@ This checklist is the gate for deciding whether the Tauri desktop app is close e
 
 ## Current status
 
-- Track: Tauri cross-platform preview under `apps/desktop-tauri`
+- Track: Tauri cross-platform migration under `apps/desktop-tauri`
 - Stable release track: Swift macOS app
 - Local platform checked: macOS arm64
-- Windows/Linux screenshot QA: pending real runner or device screenshots
+- Preview readiness: not ready. The Tauri app still needs Swift mainline feature parity and a substantial visual rework before preview handoff.
+- Mainline catch-up: pending for Swift v0.3.5-v0.3.9 features such as quota history, recent-change semantics, local notifications, provider calibration, release QA split, white-label/no-updater behavior, and refined provider/account handoff from menu bar signals.
+- Visual parity: currently a major blocker. Tauri screens must be reworked toward the Swift app's compact native monitoring panel style, with tighter metrics, fine separators, fewer large cards, and the same provider/account information hierarchy.
+- Windows/Linux screenshot QA: pending real runner or device screenshots after the macOS visual baseline is closer to Swift.
 - Visual QA on 2026-06-12: local main-window and tray-popover screenshots showed no obvious top clipping, sidebar overlap, or action-button displacement. A later real macOS bundle check confirmed the Swift-shared app mark, provider icon assets, and fixed-size menu bar popover, while also exposing a main-window initial-placement issue on multi-display setups.
 - Stability hardening on 2026-06-13: the Tauri preview repairs off-screen main-window frames, prefers the current interaction display when no valid user frame exists, excludes generated Rust/Playwright artifacts from Vite watch, and provides local macOS ad-hoc signing plus `/tmp/quotaradar-tauri-qa...` screenshot QA commands.
 - Latest local verification commands:
@@ -23,11 +26,11 @@ This checklist is the gate for deciding whether the Tauri desktop app is close e
 
 | Area | Required behavior | Status | Notes |
 | --- | --- | --- | --- |
-| Tray popover | Risk-first menu bar surface with quota risk summary and attention list | Partial | Mock route and real macOS bundle QA cover fixed popover size and top clipping. Needs native tray positioning QA on Windows/Linux and more dark/transparent menu-bar checks. |
-| Main quota monitoring | Provider-first quota table with configured providers only | Partial | Mock UI and selectors cover configured-provider filtering and provider summaries. Swift-shared app/provider icons are now in place. Main-window placement now repairs off-screen saved frames; still needs repeated real multi-display QA before broader preview. |
-| Credentials | Provider-aware credential management, copy only for copyable API keys | Partial | Unit/integration tests cover credential creation, copyability, web authorization shell, and stored companion API keys. |
-| Diagnostics | Shows configured providers only, concise health/HTTP state, no duplicated quota rows | Partial | Mock diagnostics exist; needs real Tauri state verification with stored credentials. |
-| Settings | Language, launch at login, update checks, refresh intervals, costly refresh, proxy, transparency, provider order | Partial | Unit/integration tests cover settings contracts and provider ordering. Needs native autostart and proxy QA per OS. |
+| Tray popover | Risk-first menu bar surface with quota risk summary, watchlist, recent-change context, and provider/account handoff | Behind Swift | Mock route and real macOS bundle QA cover fixed popover size and top clipping, but the visual hierarchy and Swift v0.3.5-v0.3.9 signal behavior need to be replicated. Needs native tray positioning QA on Windows/Linux after macOS parity improves. |
+| Main quota monitoring | Provider-first quota table with Key Quota, Credential Pool, Critical Time, Status, recent-change hints, and expanded account grouping | Behind Swift | Mock UI and selectors cover configured-provider filtering and provider summaries, but current styling is still too card-like and does not yet match the Swift compact table/grouping surface. |
+| Credentials | Provider-aware credential management, copy only for copyable API keys, Swift config import, and metadata/export compatibility | Partial | Unit/integration tests cover credential creation, copyability, web authorization shell, stored companion API keys, and Claude settings import. Needs real migration coverage for Swift local config, generic `.env` import, Stronghold/store metadata compatibility, and no-secret export scans. |
+| Diagnostics | Shows configured providers only, concise health/HTTP state, no duplicated quota rows, calibration-aware failures | Behind Swift | Mock diagnostics exist; needs Swift mainline provider calibration and live-acceptance semantics replicated in the Tauri state model. |
+| Settings | Language, launch at login, update checks, refresh intervals, costly refresh, proxy, transparency, provider order, white-label/no-updater boundaries | Partial | Unit/integration tests cover settings contracts and provider ordering. Needs native autostart/proxy QA per OS and mainline release-boundary behavior. |
 | i18n | Simplified Chinese, Traditional Chinese, English, Japanese, Korean with no missing keys | Pass in source checks | `scripts/check_tauri_sources.sh` validates locale key parity and empty values. |
 | Provider order | Custom order applies to all main pages and tray popover | Partial | Selector/unit coverage exists; drag-and-drop behavior needs visual QA. |
 | Secret safety | No real secrets in source/tests/docs/screenshots; web login authorization is not copyable | Pass in source checks | Safety script scans source/docs and asserts dashboard authorization is not copyable. |
@@ -63,8 +66,9 @@ Playwright screenshots are generated under `apps/desktop-tauri/tests/e2e/screens
 
 ## Exit criteria
 
-- Local macOS e2e screenshots pass and are visually checked.
+- Swift v0.3.9 provider, history, notification, calibration, release-QA, and white-label semantics are either implemented in Tauri or explicitly documented as unsupported.
+- Local macOS e2e screenshots pass, are visually checked against current Swift screenshots, and no longer show the large style gap.
 - GitHub Actions preview passes on macOS, Windows, and Linux.
-- Windows and Linux screenshots are reviewed for layout regressions.
+- Windows and Linux screenshots are reviewed for layout regressions after macOS visual parity is acceptable.
 - All source safety checks pass.
 - Any intentional UI divergence is recorded in `docs/desktop-tauri-ui-spec.md`.

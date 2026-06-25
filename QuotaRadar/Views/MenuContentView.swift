@@ -2,13 +2,14 @@ import AppKit
 import SwiftUI
 
 struct MenuContentView: View {
-    static let menuSize = CGSize(width: 560, height: 500)
+    static let menuSize = CGSize(width: 520, height: 500)
     private static let menuGlassCornerRadius: CGFloat = 20
-    private static let contentHorizontalInset: CGFloat = 22
-    private static let contentTopSafeInset: CGFloat = 18
-    private static let contentBottomInset: CGFloat = 14
+    private static let contentHorizontalInset: CGFloat = 18
+    private static let contentTopSafeInset: CGFloat = 16
+    private static let contentBottomInset: CGFloat = 12
 
     @ObservedObject var monitor: QuotaMonitor
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var languageStore = AppLanguageStore.shared
     @ObservedObject private var appearanceStore = AppAppearanceStore.shared
     @ObservedObject private var quoteStore = AIQuoteStore.shared
@@ -17,16 +18,18 @@ struct MenuContentView: View {
         appearanceStore.statusBarTransparency
     }
 
-    private var blurOpacity: Double {
-        0.32 + (1 - statusBarTransparency) * 0.58
-    }
-
-    private var backdropTintOpacity: Double {
-        0.04 + (1 - statusBarTransparency) * 0.44
+    private var menuSurfaceOpacity: Double {
+        StatusBarGlassMetrics.menuSurfaceOpacity(for: statusBarTransparency)
     }
 
     private var glassHighlightOpacity: Double {
         0.08 + (1 - statusBarTransparency) * 0.08
+    }
+
+    private var glassDepthOpacity: Double {
+        colorScheme == .light
+            ? 0.045 + statusBarTransparency * 0.035
+            : 0.018 + statusBarTransparency * 0.018
     }
 
     private var borderOpacity: Double {
@@ -39,14 +42,11 @@ struct MenuContentView: View {
 
     var body: some View {
         let currentLanguage = languageStore.language
+        let signalLayout = monitor.menuSignalLayout
 
         ZStack {
-            VisualEffectBlur(material: .popover, blendingMode: .behindWindow)
-                .opacity(blurOpacity)
-                .allowsHitTesting(false)
-
             Color(nsColor: .windowBackgroundColor)
-                .opacity(backdropTintOpacity)
+                .opacity(menuSurfaceOpacity)
                 .allowsHitTesting(false)
 
             LinearGradient(
@@ -59,7 +59,17 @@ struct MenuContentView: View {
             )
             .allowsHitTesting(false)
 
-            VStack(spacing: 12) {
+            LinearGradient(
+                colors: [
+                    Color.clear,
+                    Color.black.opacity(glassDepthOpacity)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .allowsHitTesting(false)
+
+            VStack(spacing: 7) {
                 HeaderView(
                     lastError: monitor.lastError,
                     refreshMessage: monitor.refreshMessage,
@@ -74,11 +84,14 @@ struct MenuContentView: View {
                 } else {
                     MenuRiskSummaryCard(summary: monitor.menuQuotaSummary)
 
-                    MenuLowQuotaItemsView(monitor: monitor)
+                    MenuWatchedProviderItemsView(monitor: monitor, items: signalLayout.watchedProviderItems)
 
-                    MenuExpiringQuotaItemsView(monitor: monitor)
+                    MenuSignalFeedView(monitor: monitor, layout: signalLayout)
 
-                    MenuAttentionItemsView(monitor: monitor)
+                    MenuHiddenQuotaItemsView(
+                        hiddenCount: signalLayout.hiddenItemCount,
+                        onOpenProviders: { openProvidersOverview() }
+                    )
 
                     Spacer(minLength: 0)
                 }
@@ -111,6 +124,15 @@ struct MenuContentView: View {
     private func openAPIKeyConfiguration() {
         if let delegate = NSApp.delegate as? AppDelegate {
             delegate.openPreferencesFromStatusPopover(destination: .apiKeys)
+        } else {
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    private func openProvidersOverview() {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.openPreferencesFromStatusPopover(destination: .providers)
         } else {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             NSApp.activate(ignoringOtherApps: true)
@@ -165,11 +187,12 @@ struct HeaderView: View {
     let onOpenSettings: () -> Void
 
     private var headerFillOpacity: Double {
-        0.22 + (1 - menuGlassTransparency) * 0.30
+        StatusBarGlassMetrics.headerFillOpacity(for: menuGlassTransparency)
     }
 
     private var headerStatusMessage: String? {
-        refreshMessage
+        if refreshMessage == L10n.t(.updatedJustNow) { return nil }
+        return refreshMessage
     }
 
     private var hasSettingsAttention: Bool {
@@ -372,7 +395,11 @@ struct MonitorModule<Content: View>: View {
     @ViewBuilder var content: Content
 
     private var moduleFillOpacity: Double {
-        0.045 + (1 - menuGlassTransparency) * 0.22
+        StatusBarGlassMetrics.moduleFillOpacity(for: menuGlassTransparency)
+    }
+
+    private var moduleMaterialOpacity: Double {
+        StatusBarGlassMetrics.moduleMaterialOpacity(for: menuGlassTransparency)
     }
 
     private var moduleStrokeOpacity: Double {
@@ -383,19 +410,19 @@ struct MonitorModule<Content: View>: View {
         VStack(alignment: .leading, spacing: spacing) {
             content
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(.regularMaterial)
-                .opacity(0.22 + (1 - menuGlassTransparency) * 0.34)
+                .opacity(moduleMaterialOpacity)
         )
         .background(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(moduleFillOpacity))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .stroke(Color.white.opacity(moduleStrokeOpacity), lineWidth: 0.8)
         )
     }
@@ -422,29 +449,36 @@ struct MenuSectionHeader: View {
     }
 }
 
+struct MenuSignalReasonBadge: View {
+    let text: String
+    var tint: Color = .secondary
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(tint)
+            .lineLimit(1)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(tint.opacity(0.11), in: Capsule())
+    }
+}
+
 struct MenuRiskSummaryCard: View {
     let summary: MenuQuotaSummary
 
     var body: some View {
-        MonitorModule(spacing: 9) {
-            VStack(alignment: .leading, spacing: 10) {
-                MenuSectionHeader(title: L10n.t(.quotaRiskToday), detail: L10n.t(.quotaStatus))
+        MonitorModule(spacing: 0) {
+            HStack(alignment: .center, spacing: 10) {
+                MenuSectionHeader(title: L10n.t(.sidebarStatistics))
 
-                HStack(spacing: 0) {
-                    CompactMetricItem(value: "\(summary.lowCount)", label: L10n.t(.low), valueColor: summary.lowCount > 0 ? .orange : .secondary)
+                Spacer(minLength: 4)
 
-                    Divider()
-                        .frame(height: 28)
-                        .background(Color.white.opacity(0.18))
+                CompactMetricItem(value: "\(summary.lowCount)", label: L10n.t(.low), valueColor: summary.lowCount > 0 ? .orange : .secondary)
 
-                    CompactMetricItem(value: "\(summary.failedCount)", label: L10n.t(.failed), valueColor: summary.failedCount > 0 ? .red : .secondary)
+                CompactMetricItem(value: "\(summary.failedCount)", label: L10n.t(.failed), valueColor: summary.failedCount > 0 ? .red : .secondary)
 
-                    Divider()
-                        .frame(height: 28)
-                        .background(Color.white.opacity(0.18))
-
-                    CompactMetricItem(value: "\(summary.availableCount)", label: L10n.t(.available), valueColor: .green)
-                }
+                CompactMetricItem(value: "\(summary.availableCount)", label: L10n.t(.available), valueColor: .green)
             }
         }
     }
@@ -456,16 +490,16 @@ struct CompactMetricItem: View {
     var valueColor: Color = .primary
 
     var body: some View {
-        VStack(spacing: 1) {
+        HStack(spacing: 3) {
             Text(value)
-                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(valueColor)
 
             Text(label)
-                .font(.caption2)
+                .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
+        .lineLimit(1)
     }
 }
 
@@ -485,7 +519,7 @@ struct MenuProviderOverviewCard: View {
     var body: some View {
         MonitorModule(spacing: 8) {
             VStack(alignment: .leading, spacing: 9) {
-                MenuSectionHeader(title: L10n.t(.providers), detail: L10n.t(.quotaStatus))
+                MenuSectionHeader(title: L10n.t(.providers))
 
                 MenuBoundedScrollRegion {
                     VStack(alignment: .leading, spacing: 9) {
@@ -537,8 +571,8 @@ struct MenuProviderQuotaCell: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.72)
 
-                    if let planName = stat.provider.planTypeDisplayName() {
-                        Text(planName)
+                    if let planType = stat.provider.planTypeDisplayName() {
+                        Text(planType)
                             .font(.system(size: 7.5, weight: .medium))
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
@@ -575,115 +609,306 @@ struct MenuProviderQuotaCell: View {
 
 // MARK: - Attention Quota Items
 
-struct MenuLowQuotaItemsView: View {
+struct MenuWatchedProviderItemsView: View {
     @ObservedObject var monitor: QuotaMonitor
+    let items: [MenuQuotaItem]
 
     var body: some View {
-        if !monitor.menuLowQuotaItems.isEmpty {
+        if !items.isEmpty {
             MonitorModule(spacing: 8) {
                 VStack(alignment: .leading, spacing: 8) {
-                    MenuSectionHeader(title: L10n.t(.lowQuotaProviders), detail: L10n.t(.keyQuota))
+                    MenuSectionHeader(title: L10n.t(.watchedProviders))
 
-                    ForEach(monitor.menuLowQuotaItems) { item in
-                        MenuCompactQuotaItemRow(item: item)
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct MenuExpiringQuotaItemsView: View {
-    @ObservedObject var monitor: QuotaMonitor
-
-    var body: some View {
-        if !monitor.menuExpiringQuotaItems.isEmpty {
-            MonitorModule(spacing: 8) {
-                VStack(alignment: .leading, spacing: 8) {
-                    MenuSectionHeader(title: L10n.t(.expiringSoon), detail: L10n.t(.criticalTime))
-
-                    ForEach(monitor.menuExpiringQuotaItems) { item in
-                        MenuExpiringQuotaItemRow(item: item)
-                    }
-                }
-            }
-        }
-    }
-}
-
-struct MenuAttentionItemsView: View {
-    @ObservedObject var monitor: QuotaMonitor
-
-    var body: some View {
-        MonitorModule(spacing: 9) {
-            VStack(alignment: .leading, spacing: 10) {
-                MenuSectionHeader(title: L10n.t(.needsAttention), detail: L10n.t(.quotaStatus))
-
-                if monitor.menuAttentionQuotaItems.isEmpty {
-                    HStack(spacing: 8) {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text(L10n.t(.noAttentionItems))
-                            .font(.caption2)
-                        Spacer()
-                    }
-                    .foregroundStyle(.green)
-                } else {
-                    ForEach(monitor.menuAttentionQuotaItems) { item in
-                        MenuQuotaItemRow(
+                    ForEach(items) { item in
+                        MenuWatchedProviderItemRow(
                             item: item,
                             isRefreshing: monitor.refreshingProviders.contains(item.provider),
-                            onRefresh: { monitor.refreshProvider(item.provider) }
+                            onRefresh: { monitor.refreshProvider(item.provider) },
+                            onOpenProvider: { openProvider(item) }
                         )
                     }
                 }
             }
         }
     }
+
+    private func openProvider(_ item: MenuQuotaItem) {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.openProviderFromStatusPopover(item.provider, credentialID: item.key.id, reason: item.signalReason)
+        }
+    }
+}
+
+struct MenuSignalFeedView: View {
+    @ObservedObject var monitor: QuotaMonitor
+    let layout: MenuQuotaSignalLayout
+
+    private var sections: [MenuSignalFeedSection] {
+        [
+            MenuSignalFeedSection(title: L10n.t(.needsAttention), items: layout.attentionItems),
+            MenuSignalFeedSection(title: L10n.t(.lowQuotaProviders), items: layout.lowQuotaItems),
+            MenuSignalFeedSection(title: L10n.t(.expiringSoon), items: layout.expiringSoonItems),
+            MenuSignalFeedSection(title: L10n.t(.recentProviderUsage), items: layout.recentUsageItems),
+        ].filter { !$0.items.isEmpty }
+    }
+
+    var body: some View {
+        if !sections.isEmpty {
+            MonitorModule(spacing: 6) {
+                VStack(alignment: .leading, spacing: 6) {
+                    MenuSectionHeader(title: L10n.t(.needsAttention))
+
+                    ForEach(sections) { section in
+                        if sections.count > 1, section.id != sections.first?.id {
+                            Text(section.title)
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.tertiary)
+                                .textCase(.uppercase)
+                                .padding(.top, section.id == sections.first?.id ? 0 : 2)
+                        }
+
+                        ForEach(section.items) { item in
+                            MenuSignalFeedItemRow(
+                                item: item,
+                                activitySummary: monitor.activitySummary(for: item.key),
+                                isRefreshing: monitor.refreshingProviders.contains(item.provider),
+                                onRefresh: { monitor.refreshProvider(item.provider) },
+                                onOpenProvider: { openProvider(item) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func openProvider(_ item: MenuQuotaItem) {
+        if let delegate = NSApp.delegate as? AppDelegate {
+            delegate.openProviderFromStatusPopover(item.provider, credentialID: item.key.id, reason: item.signalReason)
+        }
+    }
+}
+
+private struct MenuSignalFeedSection: Identifiable {
+    var id: String { title }
+    let title: String
+    let items: [MenuQuotaItem]
+}
+
+struct MenuHiddenQuotaItemsView: View {
+    let hiddenCount: Int
+    let onOpenProviders: () -> Void
+
+    var body: some View {
+        if hiddenCount > 0 {
+            Button(action: onOpenProviders) {
+                HStack(spacing: 8) {
+                    Image(systemName: "ellipsis.circle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+
+                    Text(L10n.format(.hiddenQuotaSignalCount, hiddenCount))
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 8)
+
+                    Image(systemName: "arrow.right.circle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity)
+                .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(Color.primary.opacity(0.055), lineWidth: 0.8)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+struct MenuSignalFeedItemRow: View {
+    let item: MenuQuotaItem
+    let activitySummary: QuotaActivitySummary
+    let isRefreshing: Bool
+    let onRefresh: () -> Void
+    let onOpenProvider: () -> Void
+
+    private var key: APIKey {
+        item.key
+    }
+
+    private var presentation: QuotaPresentation {
+        key.quotaPresentation
+    }
+
+    private var reasonText: String {
+        item.signalReason == .recentActivity
+            ? L10n.t(.recentProviderUsage)
+            : item.signalReason.displayText
+    }
+
+    private var reasonTint: Color {
+        switch item.signalReason {
+        case .recentActivity:
+            return activitySummary.deltaText == nil ? .secondary : .orange
+        case .lowQuota, .expiringSoon:
+            return .orange
+        default:
+            return key.status.color
+        }
+    }
+
+    private var compactDiagnosticText: String {
+        let diagnosticText = presentation.diagnosticText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+            !diagnosticText.isEmpty,
+            diagnosticText != L10n.t(.notChecked),
+            presentation.diagnosticText != presentation.primaryText
+        else {
+            return ""
+        }
+        return diagnosticText
+    }
+
+    private var primaryDetailText: String {
+        if item.signalReason == .expiringSoon {
+            return key.planEndSummary
+        }
+
+        if item.signalReason == .recentActivity,
+           let activityText = activitySummary.activityText,
+           !activityText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "\(presentation.primaryText) · \(activityText)"
+        }
+
+        if !compactDiagnosticText.isEmpty {
+            return "\(presentation.primaryText) · \(compactDiagnosticText)"
+        }
+
+        return presentation.primaryText
+    }
+
+    private var badgeText: String {
+        guard item.signalReason == .recentActivity else {
+            return presentation.badgeText
+        }
+
+        if let deltaText = activitySummary.deltaText {
+            return L10n.compactDeltaIndicator(deltaText)
+        }
+        if activitySummary.kind == .recovered {
+            return L10n.t(.quotaTrendReplenished)
+        }
+        return presentation.badgeText
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(action: onOpenProvider) {
+                HStack(spacing: 8) {
+                    ProviderIcon(provider: item.provider, size: 20)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 5) {
+                            Text(item.provider.displayName())
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .lineLimit(1)
+
+                            MenuSignalReasonBadge(text: reasonText, tint: reasonTint)
+
+                            if let contextLabel = item.statusBarAccountContextLabel {
+                                Text(contextLabel)
+                                    .font(.system(size: 10.5, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+
+                        Text(primaryDetailText)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer(minLength: 6)
+
+                    Text(badgeText)
+                        .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                        .foregroundStyle(reasonTint)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .frame(minWidth: 38)
+                        .background(reasonTint.opacity(0.12), in: Capsule())
+                }
+            }
+            .buttonStyle(.plain)
+
+            ProviderRefreshButton(provider: item.provider, isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
+                .scaleEffect(0.72)
+                .frame(width: 22, height: 22)
+        }
+    }
 }
 
 struct MenuExpiringQuotaItemRow: View {
     let item: MenuQuotaItem
+    let onOpenProvider: () -> Void
 
     private var key: APIKey {
         item.key
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            ProviderIcon(provider: item.provider, size: 20)
+        Button(action: onOpenProvider) {
+            HStack(spacing: 8) {
+                ProviderIcon(provider: item.provider, size: 20)
 
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(spacing: 5) {
-                    Text(item.provider.displayName())
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 5) {
+                        Text(item.provider.displayName())
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .lineLimit(1)
 
-                    Text(key.statusBarCredentialLabel)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        MenuSignalReasonBadge(text: item.signalReason.displayText, tint: .orange)
+
+                        if let contextLabel = item.statusBarAccountContextLabel {
+                            Text(contextLabel)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Text(key.planEndSummary)
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
                         .lineLimit(1)
                 }
 
-                Text(key.planEndSummary)
-                    .font(.caption2)
+                Spacer(minLength: 6)
+
+                Image(systemName: "calendar.badge.exclamationmark")
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.orange)
-                    .lineLimit(1)
+                    .frame(width: 24, height: 24)
+                    .background(Color.orange.opacity(0.12), in: Circle())
             }
-
-            Spacer(minLength: 6)
-
-            Image(systemName: "calendar.badge.exclamationmark")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.orange)
-                .frame(width: 24, height: 24)
-                .background(Color.orange.opacity(0.12), in: Circle())
         }
+        .buttonStyle(.plain)
     }
 }
 
-struct MenuCompactQuotaItemRow: View {
+struct MenuWatchedProviderItemRow: View {
     let item: MenuQuotaItem
+    let isRefreshing: Bool
+    let onRefresh: () -> Void
+    let onOpenProvider: () -> Void
 
     private var key: APIKey {
         item.key
@@ -703,10 +928,14 @@ struct MenuCompactQuotaItemRow: View {
                         .font(.system(size: 11.5, weight: .semibold))
                         .lineLimit(1)
 
-                    Text(key.statusBarCredentialLabel)
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    MenuSignalReasonBadge(text: L10n.t(.watchedProviders), tint: key.status.color)
+
+                    if let contextLabel = item.statusBarAccountContextLabel {
+                        Text(contextLabel)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
 
                 Text(presentation.primaryText)
@@ -719,19 +948,102 @@ struct MenuCompactQuotaItemRow: View {
 
             Text(presentation.badgeText)
                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(.orange)
+                .foregroundStyle(key.status.color)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .frame(minWidth: 38)
-                .background(Color.orange.opacity(0.12), in: Capsule())
+                .background(key.status.color.opacity(0.12), in: Capsule())
+
+            ProviderRefreshButton(provider: item.provider, isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
+                .scaleEffect(0.72)
+                .frame(width: 22, height: 22)
         }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onOpenProvider)
     }
 }
 
-struct MenuQuotaItemRow: View {
+struct MenuRecentUsageItemRow: View {
     let item: MenuQuotaItem
+    let activitySummary: QuotaActivitySummary
     let isRefreshing: Bool
     let onRefresh: () -> Void
+    let onOpenProvider: () -> Void
+
+    private var key: APIKey {
+        item.key
+    }
+
+    private var trendText: String {
+        if let deltaText = activitySummary.deltaText {
+            return L10n.compactDeltaIndicator(deltaText)
+        }
+        if activitySummary.kind == .recovered {
+            return L10n.t(.quotaTrendReplenished)
+        }
+        return key.quotaPresentation.primaryText
+    }
+
+    private var trendTint: Color {
+        activitySummary.deltaText == nil ? .secondary : .orange
+    }
+
+    private var detailText: String {
+        guard let activityText = activitySummary.activityText,
+              !activityText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return key.quotaPresentation.primaryText
+        }
+        return "\(key.quotaPresentation.primaryText) · \(activityText)"
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ProviderIcon(provider: item.provider, size: 20)
+
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(spacing: 5) {
+                    Text(item.provider.displayName())
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .lineLimit(1)
+
+                    MenuSignalReasonBadge(text: L10n.t(.recentProviderUsage), tint: trendTint)
+
+                    if let contextLabel = item.statusBarAccountContextLabel {
+                        Text(contextLabel)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Text(detailText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 6)
+
+            Text(trendText)
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(trendTint)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .frame(minWidth: 42)
+                .background(Color.orange.opacity(activitySummary.deltaText == nil ? 0.06 : 0.12), in: Capsule())
+
+            ProviderRefreshButton(provider: item.provider, isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
+                .scaleEffect(0.72)
+                .frame(width: 22, height: 22)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onOpenProvider)
+    }
+}
+
+struct MenuCompactQuotaItemRow: View {
+    let item: MenuQuotaItem
+    let onOpenProvider: () -> Void
 
     private var key: APIKey {
         item.key
@@ -741,63 +1053,140 @@ struct MenuQuotaItemRow: View {
         key.quotaPresentation
     }
 
+    private var compactTimingText: String {
+        [
+            presentation.resetText,
+            presentation.planEndText
+        ]
+        .filter { !$0.isEmpty }
+        .joined(separator: " · ")
+    }
+
     var body: some View {
-        HStack(spacing: 10) {
-            ProviderIcon(provider: item.provider, size: 28)
+        Button(action: onOpenProvider) {
+            HStack(spacing: 8) {
+                ProviderIcon(provider: item.provider, size: 20)
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(item.provider.displayName())
-                        .font(.system(size: 12, weight: .semibold))
-                        .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 5) {
+                        Text(item.provider.displayName())
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .lineLimit(1)
 
-                    Text(key.statusBarCredentialLabel)
-                        .font(.system(size: 11, weight: .medium))
+                        MenuSignalReasonBadge(text: item.signalReason.displayText, tint: .orange)
+
+                        if let contextLabel = item.statusBarAccountContextLabel {
+                            Text(contextLabel)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Text(presentation.primaryText)
+                        .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+
+                    if !compactTimingText.isEmpty {
+                        Text(compactTimingText)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
                 }
 
-                Text(presentation.primaryText)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                Spacer(minLength: 6)
 
-                let metadataItems = [
-                    presentation.resetText,
-                    presentation.planEndText,
-                    presentation.sourceText
-                ].filter { !$0.isEmpty }
+                Text(presentation.badgeText)
+                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .frame(minWidth: 38)
+                    .background(Color.orange.opacity(0.12), in: Capsule())
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
 
-                if !metadataItems.isEmpty {
-                    Text(metadataItems.joined(separator: " · "))
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
+struct MenuQuotaItemRow: View {
+    let item: MenuQuotaItem
+    let isRefreshing: Bool
+    let onRefresh: () -> Void
+    let onOpenProvider: () -> Void
 
-                if !presentation.diagnosticText.isEmpty && presentation.diagnosticText != L10n.t(.notChecked) {
-                    Text(presentation.diagnosticText)
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                }
+    private var key: APIKey {
+        item.key
+    }
 
-                if !key.quotaWindowDetails.isEmpty {
-                    QuotaWindowDetails(windows: key.quotaWindowDetails, compact: true)
+    private var presentation: QuotaPresentation {
+        key.quotaPresentation
+    }
+
+    private var compactDiagnosticText: String {
+        let diagnosticText = presentation.diagnosticText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+            !diagnosticText.isEmpty,
+            diagnosticText != L10n.t(.notChecked),
+            presentation.diagnosticText != presentation.primaryText
+        else {
+            return ""
+        }
+        return diagnosticText
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(action: onOpenProvider) {
+                HStack(spacing: 10) {
+                    ProviderIcon(provider: item.provider, size: 28)
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(item.provider.displayName())
+                                .font(.system(size: 12, weight: .semibold))
+                                .lineLimit(1)
+
+                            MenuSignalReasonBadge(text: item.signalReason.displayText, tint: key.status.color)
+
+                            if let contextLabel = item.statusBarAccountContextLabel {
+                                Text(contextLabel)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+
+                        Text(presentation.primaryText)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+
+                        if !compactDiagnosticText.isEmpty {
+                            Text(compactDiagnosticText)
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Text(presentation.badgeText)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(key.status.color)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .frame(minWidth: 42)
+                        .background(key.status.color.opacity(0.12), in: Capsule())
                 }
             }
+            .buttonStyle(.plain)
 
-            Spacer(minLength: 8)
-
-            Text(presentation.badgeText)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundColor(key.status.color)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .frame(minWidth: 42)
-                .background(key.status.color.opacity(0.12), in: Capsule())
-
-            RefreshButton(isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
+            ProviderRefreshButton(provider: item.provider, isRefreshing: .constant(isRefreshing), isEnabled: item.canRefresh, action: onRefresh)
                 .scaleEffect(0.82)
                 .frame(width: 28, height: 28)
         }
