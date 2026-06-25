@@ -20,6 +20,7 @@ pub fn run() {
             app.handle()
                 .plugin(tauri_plugin_stronghold::Builder::with_argon2(&salt_path).build())?;
             run_swift_configuration_migration(app.handle());
+            sync_launch_at_login(app.handle());
             platform::tray::setup_tray_shell(app.handle())?;
             platform::window::setup_main_window(app.handle())?;
             Ok(())
@@ -90,3 +91,9 @@ fn run_swift_configuration_migration<R: Runtime>(app: &AppHandle<R>) {
 
 #[cfg(not(target_os = "macos"))]
 fn run_swift_configuration_migration<R: Runtime>(_app: &AppHandle<R>) {}
+
+fn sync_launch_at_login<R: Runtime>(app: &AppHandle<R>) {
+    if let Err(error) = commands::settings::sync_launch_at_login_for_app(app) {
+        eprintln!("Quota Radar launch-at-login sync skipped: {error}");
+    }
+}

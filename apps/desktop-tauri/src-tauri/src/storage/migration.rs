@@ -342,6 +342,7 @@ fn map_swift_provider(provider: &str) -> Option<&'static str> {
         "SerpAPI" => Some("serpapi"),
         "Serper" => Some("serper"),
         "Exa" => Some("exa"),
+        "Querit" => Some("querit"),
         "Bocha" => Some("bocha"),
         "AnySearch" => Some("anysearch"),
         "微信搜索" | "WeChat Search" => Some("wxmp"),

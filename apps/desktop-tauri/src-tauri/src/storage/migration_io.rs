@@ -49,22 +49,27 @@ pub fn migrate_swift_configuration_from_paths(
     secret_vault: &impl SecretVault,
     paths: &SwiftMigrationFilePaths,
 ) -> Result<MigrationSummary, String> {
-    if metadata_store
+    let migration_completed = metadata_store
         .get_value(SWIFT_MIGRATION_COMPLETED_KEY)
         .and_then(|value| value.as_bool())
-        == Some(true)
-    {
-        return Ok(MigrationSummary::default());
-    }
+        == Some(true);
 
     let quota_radar_preferences = read_plist(&paths.quota_radar_preferences)?;
     let quota_bar_preferences = read_plist(&paths.quota_bar_preferences)?;
-    let quota_radar_defaults_json = quota_radar_preferences
-        .as_ref()
-        .and_then(defaults_json_from_plist);
-    let quota_bar_defaults_json = quota_bar_preferences
-        .as_ref()
-        .and_then(defaults_json_from_plist);
+    let quota_radar_defaults_json = if migration_completed {
+        None
+    } else {
+        quota_radar_preferences
+            .as_ref()
+            .and_then(defaults_json_from_plist)
+    };
+    let quota_bar_defaults_json = if migration_completed {
+        None
+    } else {
+        quota_bar_preferences
+            .as_ref()
+            .and_then(defaults_json_from_plist)
+    };
     let quota_radar_metadata_json = quota_radar_preferences
         .as_ref()
         .and_then(|plist| data_string_from_plist(plist, "apiKeyMetadata"));
