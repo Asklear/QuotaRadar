@@ -4,6 +4,8 @@ import {
   useLocale,
   useTranslate,
 } from "../i18n";
+import { ProviderIcon } from "../components/ProviderIcon";
+import { providerRegistry } from "../shared/mockData";
 import {
   credentialNeedsAttention,
   credentialPercentRemaining,
@@ -20,6 +22,15 @@ function itemLabel(credential: CredentialView) {
   const percent = credentialPercentRemaining(credential);
   const suffix = typeof percent === "number" ? ` · ${Math.round(percent * 10) / 10}%` : "";
   return `${credential.name}${suffix}`;
+}
+
+function remainingText(credential: CredentialView) {
+  const percent = credentialPercentRemaining(credential);
+  if (typeof percent === "number") {
+    return `${Math.round(percent * 10) / 10}%`;
+  }
+
+  return credential.remainingBadgeText;
 }
 
 function sortByPlanEnd(left: CredentialView, right: CredentialView) {
@@ -42,43 +53,121 @@ export function AttentionList({ credentials }: AttentionListProps) {
   const locale = useLocale();
   const t = useTranslate();
   const active = credentials.filter((credential) => credential.active);
+  const favorites = active.filter((credential) => !credentialNeedsAttention(credential)).slice(0, 2);
   const lowCredentials = active
     .filter((credential) => !isAttentionStatus(credential.status) && isLowCredential(credential))
-    .slice(0, 3);
+    .slice(0, 1);
   const expiringCredentials = active
     .filter((credential) => credential.planEndsAt)
     .sort(sortByPlanEnd)
-    .slice(0, 3);
-  const needsAttention = active.filter(credentialNeedsAttention).slice(0, 2);
+    .slice(0, 1);
+  const needsAttention = active
+    .filter(credentialNeedsAttention)
+    .sort((left, right) => Number(isAttentionStatus(right.status)) - Number(isAttentionStatus(left.status)))
+    .slice(0, 1);
+  const providerFor = (credential: CredentialView) =>
+    providerRegistry.find((provider) => provider.id === credential.providerId);
 
   return (
-    <div className="attention-stack">
-      <section className="attention-section monitor-module">
-        <h2>{t("tray.low")}</h2>
-        {lowCredentials.map((credential) => (
-          <div key={credential.id} className="attention-item" data-testid="low-quota-item">
-            <span>{itemLabel(credential)}</span>
-            <small>{credential.providerId}</small>
-          </div>
-        ))}
+    <div className="tray-section-stack">
+      <section className="tray-list-section monitor-module">
+        <h2>{t("tray.favorites")}</h2>
+        {favorites.map((credential) => {
+          const provider = providerFor(credential);
+          return (
+            <div key={credential.id} className="tray-provider-row" data-testid="favorite-item">
+              {provider ? <ProviderIcon provider={provider} /> : null}
+              <div className="tray-provider-copy">
+                <div>
+                  <strong>{provider?.displayName ?? credential.name}</strong>
+                  <span className="tray-chip" data-tone="healthy">
+                    {t("tray.favorites")}
+                  </span>
+                  <span>{credential.maskedValue}</span>
+                </div>
+                <small>{credential.remainingBadgeText}</small>
+              </div>
+              <span className="tray-value-pill" data-tone="healthy">
+                {remainingText(credential)}
+              </span>
+            </div>
+          );
+        })}
       </section>
-      <section className="attention-section monitor-module">
-        <h2>{t("tray.expiringSoon")}</h2>
-        {expiringCredentials.map((credential) => (
-          <div key={credential.id} className="attention-item" data-testid="expiring-item">
-            <span>{credential.name}</span>
-            <small>{credential.planEndsAt ? formatCompactDateTime(credential.planEndsAt, locale) : ""}</small>
-          </div>
-        ))}
-      </section>
-      <section className="attention-section monitor-module">
-        <h2>{t("tray.needsAttention")}</h2>
-        {needsAttention.map((credential) => (
-          <div key={credential.id} className="attention-item" data-testid="needs-attention-item">
-            <span>{credential.name}</span>
-            <small>{attentionReason(credential, t)}</small>
-          </div>
-        ))}
+
+      <section className="tray-list-section monitor-module">
+        <h2>{t("tray.headsUp")}</h2>
+
+        <h3>{t("tray.low").toUpperCase()}</h3>
+        {lowCredentials.map((credential) => {
+          const provider = providerFor(credential);
+          return (
+            <div key={credential.id} className="tray-provider-row" data-testid="low-quota-item">
+              {provider ? <ProviderIcon provider={provider} /> : null}
+              <div className="tray-provider-copy">
+                <div>
+                  <strong>{provider?.displayName ?? credential.name}</strong>
+                  <span className="tray-chip" data-tone="warning">
+                    {attentionReason(credential, t)}
+                  </span>
+                  <span>{credential.name}</span>
+                </div>
+                <small>{itemLabel(credential)}</small>
+              </div>
+              <span className="tray-value-pill" data-tone="warning">
+                {remainingText(credential)}
+              </span>
+            </div>
+          );
+        })}
+
+        <h3>{t("tray.expiringSoon").toUpperCase()}</h3>
+        {expiringCredentials.map((credential) => {
+          const provider = providerFor(credential);
+          return (
+            <div key={credential.id} className="tray-provider-row" data-testid="expiring-item">
+              {provider ? <ProviderIcon provider={provider} /> : null}
+              <div className="tray-provider-copy">
+                <div>
+                  <strong>{provider?.displayName ?? credential.name}</strong>
+                  <span className="tray-chip" data-tone="warning">
+                    {t("tray.expiringSoon")}
+                  </span>
+                  <span>{credential.name}</span>
+                </div>
+                <small>
+                  {credential.planEndsAt ? formatCompactDateTime(credential.planEndsAt, locale) : ""}
+                </small>
+              </div>
+              <span className="tray-value-pill" data-tone="warning">
+                {remainingText(credential)}
+              </span>
+            </div>
+          );
+        })}
+
+        <h3>{t("tray.needsAttention").toUpperCase()}</h3>
+        {needsAttention.map((credential) => {
+          const provider = providerFor(credential);
+          return (
+            <div key={credential.id} className="tray-provider-row" data-testid="needs-attention-item">
+              {provider ? <ProviderIcon provider={provider} /> : null}
+              <div className="tray-provider-copy">
+                <div>
+                  <strong>{provider?.displayName ?? credential.name}</strong>
+                  <span className="tray-chip" data-tone="attention">
+                    {attentionReason(credential, t)}
+                  </span>
+                  <span>{credential.name}</span>
+                </div>
+                <small>{credential.diagnosticMessage ?? credential.remainingBadgeText}</small>
+              </div>
+              <span className="tray-value-pill" data-tone="attention">
+                {remainingText(credential)}
+              </span>
+            </div>
+          );
+        })}
       </section>
     </div>
   );

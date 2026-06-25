@@ -22,6 +22,23 @@ fn tavily_and_deepseek_are_registered_provider_clients() {
     assert!(registered_ids.contains(&"tavily"));
     assert!(registered_ids.contains(&"deepseek"));
     assert!(registered_ids.contains(&"querit"));
+    assert!(registered_ids.contains(&"anthropic_credits"));
+}
+
+#[test]
+fn anthropic_credits_is_visible_as_separate_llm_provider() {
+    let visible_ids = visible_provider_ids();
+    let definitions = visible_provider_definitions();
+    let definition = definitions
+        .iter()
+        .find(|provider| provider.id == "anthropic_credits")
+        .expect("Anthropic Credits should be visible");
+
+    assert!(visible_ids.contains(&"anthropic_credits"));
+    assert_eq!(definition.display_name, "Anthropic Credits");
+    assert_eq!(definition.family_name, "Anthropic");
+    assert_eq!(definition.plan_type.as_deref(), Some("Credits"));
+    assert!(!definition.quota_check_consumes_search_quota);
 }
 
 #[test]

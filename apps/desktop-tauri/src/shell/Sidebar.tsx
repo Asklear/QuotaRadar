@@ -33,11 +33,16 @@ export function Sidebar({
   const stats = buildProviderStats(providers, credentials, locale);
   const summary = buildMenuSummary(credentials);
   const navItems = [
-    { id: "quota", label: t("nav.quotaMonitoring"), icon: <Gauge size={17} /> },
+    { id: "quota", label: t("quota.overviewTitle"), icon: <Gauge size={17} /> },
     { id: "credentials", label: t("nav.credentials"), icon: <KeyRound size={17} /> },
     { id: "diagnostics", label: t("nav.diagnostics"), icon: <Stethoscope size={17} /> },
     { id: "settings", label: t("nav.settings"), icon: <SlidersHorizontal size={17} /> },
   ] satisfies Array<{ id: AppPage; label: string; icon: ReactNode }>;
+  const statistics = [
+    { label: t("sidebar.creds"), value: credentials.length },
+    { label: t("sidebar.providers"), value: stats.length },
+    { label: t("tray.low"), value: summary.lowCount, tone: summary.lowCount > 0 ? "attention" : "healthy" },
+  ];
 
   return (
     <aside className="app-sidebar">
@@ -61,20 +66,17 @@ export function Sidebar({
         ))}
       </nav>
 
-      <div className="sidebar-metrics" aria-label="Quota summary">
-        <div className="sidebar-metric">
-          <span>{credentials.length}</span>
-          <small>{t("sidebar.creds")}</small>
+      <section className="sidebar-statistics" aria-label={t("sidebar.statistics")}>
+        <h2>{t("sidebar.statistics")}</h2>
+        <div className="sidebar-stat-list">
+          {statistics.map((item) => (
+            <div className="sidebar-stat-row" data-tone={item.tone} key={item.label}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+            </div>
+          ))}
         </div>
-        <div className="sidebar-metric">
-          <span>{stats.length}</span>
-          <small>{t("sidebar.providers")}</small>
-        </div>
-        <div className="sidebar-metric" data-tone={summary.lowCount > 0 ? "attention" : "healthy"}>
-          <span>{summary.lowCount}</span>
-          <small>{t("tray.low")}</small>
-        </div>
-      </div>
+      </section>
 
       <div className="sidebar-spacer" />
       <div className="sidebar-health">

@@ -1,5 +1,5 @@
 import { ProviderCategorySection } from "../quota/ProviderCategorySection";
-import { useLocale } from "../i18n";
+import { useLocale, useTranslate } from "../i18n";
 import { mockCredentials, providerRegistry } from "../shared/mockData";
 import { buildProviderStats } from "../shared/selectors";
 import type { CredentialView, ProviderCategory, ProviderDefinition } from "../shared/types";
@@ -20,10 +20,19 @@ export function QuotaMonitoringPage({
   onStartWebAuthorization,
 }: QuotaMonitoringPageProps) {
   const locale = useLocale();
+  const t = useTranslate();
   const stats = buildProviderStats(providers, credentials, locale);
+  const supportedCount = providers.filter((provider) => !provider.hidden).length;
+  const overviewSummary = t("quota.overviewSummary")
+    .replace("{configured}", String(stats.length))
+    .replace("{supported}", String(supportedCount));
 
   return (
     <div className="quota-page">
+      <header className="quota-page-header">
+        <h2>{t("quota.overviewTitle")}</h2>
+        <p>{overviewSummary}</p>
+      </header>
       {categoryOrder.map((category) => {
         const categoryStats = stats.filter((stat) => stat.provider.category === category);
         if (categoryStats.length === 0) {

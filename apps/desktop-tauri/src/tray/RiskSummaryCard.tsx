@@ -10,17 +10,20 @@ export function RiskSummaryCard({ summary }: RiskSummaryCardProps) {
 
   return (
     <section className="risk-card monitor-module" aria-label="Risk summary">
-      <div className="risk-card-item" data-tone="attention">
-        <span>{summary.lowCount}</span>
-        <small>{t("tray.low")}</small>
-      </div>
-      <div className="risk-card-item" data-tone="attention">
-        <span>{summary.failedCount}</span>
-        <small>{t("tray.failed")}</small>
-      </div>
-      <div className="risk-card-item" data-tone="healthy">
-        <span>{summary.availableCount}</span>
-        <small>{t("tray.available")}</small>
+      <h2>{t("tray.statistics")}</h2>
+      <div className="risk-card-items">
+        <div className="risk-card-item" data-tone="warning">
+          <span>{summary.lowCount}</span>
+          <small>{t("tray.low")}</small>
+        </div>
+        <div className="risk-card-item" data-tone="attention">
+          <span>{summary.failedCount}</span>
+          <small>{t("tray.failed")}</small>
+        </div>
+        <div className="risk-card-item" data-tone="healthy">
+          <span>{summary.availableCount}</span>
+          <small>{t("tray.available")}</small>
+        </div>
       </div>
     </section>
   );

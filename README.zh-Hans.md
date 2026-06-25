@@ -67,21 +67,7 @@ bash Tests/run_behavior_tests.sh
 
 ## Tauri 跨平台迁移轨道
 
-`apps/desktop-tauri` 里的 Tauri 版本是跨平台迁移轨道，不是当前稳定发布线，也还不能替代 Swift macOS 版本。它需要先追平 Swift 主线的功能、quota history 语义、provider 校准规则，并把主窗口和状态栏弹窗复刻到足够接近原生紧凑监控工具风格，之后才适合进入 preview 候选。
-
-开发这个轨道时常用检查命令：
-
-```bash
-bash scripts/check_tauri_sources.sh
-cd apps/desktop-tauri
-pnpm install
-pnpm test -- --run
-pnpm typecheck
-cargo test --manifest-path src-tauri/Cargo.toml
-pnpm tauri build --no-bundle --ci
-```
-
-当前 Tauri 差距清单见 [Desktop Tauri Parity Checklist](./docs/desktop-tauri-parity-checklist.md)。
+`apps/desktop-tauri` 是跨平台迁移轨道，不是稳定发布线，也还不能替代 Swift macOS 版本。它需要先追平 Swift 主线功能、provider 校准和 quota history 语义，并把主窗口和状态栏弹窗复刻到接近原生紧凑监控工具风格；差距和检查命令见 [Desktop Tauri Parity Checklist](./docs/desktop-tauri-parity-checklist.md)。
 
 ## 白牌构建
 

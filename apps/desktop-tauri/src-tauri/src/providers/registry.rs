@@ -1,7 +1,8 @@
 use crate::domain::ProviderDefinition;
 
 use super::{
-    aliyun_coding_plan::AliyunCodingPlanProvider, anysearch::AnySearchProvider,
+    aliyun_coding_plan::AliyunCodingPlanProvider,
+    anthropic_credits::AnthropicCreditsProvider, anysearch::AnySearchProvider,
     bocha::BochaProvider, brave::BraveProvider, claude_subscription::ClaudeSubscriptionProvider,
     codex_subscription::CodexSubscriptionProvider, deepseek::DeepSeekProvider, exa::ExaProvider,
     kimi_subscription::KimiSubscriptionProvider, opencode_go::OpenCodeGoProvider,
@@ -24,6 +25,7 @@ pub fn provider_clients() -> Vec<Box<dyn ProviderClient>> {
         Box::<QueritProvider>::default(),
         Box::<DeepSeekProvider>::default(),
         Box::<ClaudeSubscriptionProvider>::default(),
+        Box::<AnthropicCreditsProvider>::default(),
         Box::<CodexSubscriptionProvider>::default(),
         Box::<KimiSubscriptionProvider>::default(),
         Box::<OpenCodeGoProvider>::default(),
@@ -135,6 +137,14 @@ pub fn visible_provider_definitions() -> Vec<ProviderDefinition> {
             "https://claude.ai/settings/usage",
         ),
         ProviderDefinition::new_llm(
+            "anthropic_credits",
+            "Anthropic Credits",
+            "Anthropic",
+            "Credits",
+            "anthropic",
+            "https://claude.ai/settings/billing",
+        ),
+        ProviderDefinition::new_llm(
             "codex",
             "Codex",
             "OpenAI",
@@ -206,6 +216,7 @@ pub fn visible_provider_ids() -> Vec<&'static str> {
         "querit",
         "deepseek",
         "claude",
+        "anthropic_credits",
         "codex",
         "kimi",
         "opencode_go",

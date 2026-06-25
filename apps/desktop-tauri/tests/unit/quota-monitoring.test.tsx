@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { QuotaMonitoringPage } from "../../src/pages/QuotaMonitoringPage";
 
 describe("QuotaMonitoringPage", () => {
+  it("renders the Swift-style quota overview title and summary", () => {
+    render(<QuotaMonitoringPage />);
+
+    expect(screen.getByRole("heading", { name: "Quota Overview" })).toBeVisible();
+    expect(screen.getByText(/configured .* supported/)).toBeVisible();
+  });
+
   it("renders AI Search before LLM", () => {
     render(<QuotaMonitoringPage />);
     const aiSearch = screen.getByRole("heading", { name: "AI Search" });
@@ -12,7 +19,7 @@ describe("QuotaMonitoringPage", () => {
 
   it("renders provider summary headers", () => {
     render(<QuotaMonitoringPage />);
-    for (const header of ["Provider", "Key Quota", "Credential Pool", "Critical Time", "Status"]) {
+    for (const header of ["Provider", "Key Quota", "Credential Pool", "Critical Time", "State"]) {
       expect(screen.getAllByText(header).length).toBeGreaterThan(0);
     }
   });

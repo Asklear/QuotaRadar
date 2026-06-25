@@ -14,13 +14,14 @@ describe("TrayPopover", () => {
 
   it("renders header, quote, and settings action", () => {
     render(<TrayPopover />);
-    expect(screen.getByText("API Quota")).toBeInTheDocument();
-    expect(screen.getByText("Keep quota anxiety visible, not loud.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Quota Radar" })).toBeInTheDocument();
+    expect(screen.getByText("Good prompts save spend.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
   });
 
   it("renders risk summary buckets", () => {
     render(<TrayPopover />);
+    expect(screen.getByRole("heading", { name: "Statistics" })).toBeInTheDocument();
     const summary = within(screen.getByLabelText("Risk summary"));
     expect(summary.getByText("Low")).toBeInTheDocument();
     expect(summary.getByText("Failed")).toBeInTheDocument();
@@ -30,10 +31,12 @@ describe("TrayPopover", () => {
   it("uses a compact native-monitor surface instead of a dashboard card grid", () => {
     const { container } = render(<TrayPopover />);
 
-    expect(screen.getByTestId("tray-popover")).toHaveAttribute("data-style", "glass-modules");
+    expect(screen.getByTestId("tray-popover")).toHaveAttribute("data-style", "native-popover");
     expect(container.querySelector(".monitor-module")).toBeInTheDocument();
     expect(container.querySelector(".attention-grid")).not.toBeInTheDocument();
-    expect(container.querySelector(".attention-stack")).toBeInTheDocument();
+    expect(container.querySelector(".tray-section-stack")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Favorites" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Heads Up" })).toBeInTheDocument();
   });
 
   it("limits attention lists for menu bar density", () => {
@@ -58,9 +61,9 @@ describe("TrayPopover", () => {
     );
 
     expect(screen.getAllByText("紧张").length).toBeGreaterThan(0);
-    expect(screen.getByText("即将到期")).toBeInTheDocument();
-    expect(screen.getByText("需要关注")).toBeInTheDocument();
-    expect(screen.getByText("额度紧张")).toBeInTheDocument();
+    expect(screen.getAllByText("即将到期").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("需要关注").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("额度紧张").length).toBeGreaterThan(0);
     expect(screen.queryAllByText(/Jul|low quota/i)).toHaveLength(0);
   });
 

@@ -56,6 +56,7 @@ export function ProviderQuotaRow({
     <div className="provider-row-shell" data-expanded={expanded} role="row">
       <div
         className="provider-row-card"
+        data-tone={tone}
         role="button"
         tabIndex={0}
         aria-expanded={expanded}

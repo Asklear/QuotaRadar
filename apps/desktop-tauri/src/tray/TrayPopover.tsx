@@ -23,7 +23,7 @@ export function TrayPopover({
     <div
       className="tray-popover"
       data-testid="tray-popover"
-      data-style="glass-modules"
+      data-style="native-popover"
       onPointerLeave={onRequestClose}
       style={{ width: "var(--qr-tray-width)", height: "var(--qr-tray-height)" }}
     >

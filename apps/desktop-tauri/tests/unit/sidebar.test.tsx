@@ -6,6 +6,17 @@ describe("AppShell", () => {
   it("renders navigation in the product order", () => {
     render(<AppShell />);
     const labels = screen.getAllByRole("button").map((button) => button.textContent);
-    expect(labels.join("|")).toContain("Quota Monitoring|Credentials|Diagnostics|Settings");
+    expect(labels.join("|")).toContain("Quota Overview|Credentials|Diagnostics|Settings");
+  });
+
+  it("renders sidebar statistics as the Swift-style vertical list", () => {
+    const { container } = render(<AppShell />);
+
+    expect(screen.getByRole("heading", { name: "STATISTICS" })).toBeVisible();
+    expect(screen.getByText("Keys")).toBeVisible();
+    expect(screen.getByText("Providers")).toBeVisible();
+    expect(screen.getByText("Low")).toBeVisible();
+    expect(container.querySelector(".sidebar-statistics")).toBeInTheDocument();
+    expect(container.querySelector(".sidebar-metrics")).not.toBeInTheDocument();
   });
 });

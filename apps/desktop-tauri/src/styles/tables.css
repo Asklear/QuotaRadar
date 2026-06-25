@@ -1,17 +1,33 @@
 .quota-page {
   display: grid;
-  gap: 16px;
+  gap: 18px;
+}
+
+.quota-page-header {
+  display: grid;
+  gap: 4px;
+  padding: 0 0 6px;
+}
+
+.quota-page-header h2 {
+  margin: 0;
+  color: var(--qr-color-text);
+  font-size: 24px;
+  font-weight: 740;
+  letter-spacing: 0;
+}
+
+.quota-page-header p {
+  margin: 0;
+  color: var(--qr-color-muted);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .quota-category {
-  overflow: hidden;
-  border: 1px solid var(--qr-color-border);
-  border-radius: 16px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(249, 249, 251, 0.58)),
-    var(--qr-color-surface);
-  box-shadow: var(--qr-material-shadow);
-  backdrop-filter: blur(24px) saturate(1.16);
+  display: grid;
+  gap: 10px;
+  overflow: visible;
 }
 
 .quota-category-banner {
@@ -19,19 +35,39 @@
   width: 100%;
   align-items: center;
   justify-content: space-between;
-  padding: 13px 16px 11px;
+  min-height: 56px;
+  padding: 10px 12px 10px 16px;
   color: var(--qr-color-text);
-  border: 0;
-  border-bottom: 1px solid var(--qr-color-hairline);
-  background: rgba(255, 255, 255, 0.34);
+  border: 1px solid var(--qr-color-border);
+  border-radius: var(--qr-radius-panel);
+  background: rgba(60, 60, 67, 0.045);
   text-align: left;
   cursor: default;
 }
 
+.quota-category-banner-content {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 13px;
+}
+
+.quota-category-icon {
+  display: grid;
+  width: 29px;
+  height: 29px;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--qr-color-text);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.48);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
 .quota-category-banner h2 {
   margin: 0;
-  font-size: 14px;
-  font-weight: 690;
+  font-size: 15px;
+  font-weight: 720;
   letter-spacing: 0;
 }
 
@@ -41,10 +77,25 @@
   font-size: 12px;
 }
 
+.quota-category-active {
+  flex: 0 0 auto;
+  padding: 5px 11px;
+  color: rgba(60, 60, 67, 0.72);
+  border-radius: 999px;
+  background: rgba(60, 60, 67, 0.06);
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
 .provider-list {
   display: grid;
-  gap: 7px;
-  padding: 10px;
+  overflow: hidden;
+  border: 1px solid var(--qr-color-border);
+  border-radius: var(--qr-radius-panel);
+  background: rgba(255, 255, 255, 0.38);
+  box-shadow: var(--qr-material-shadow-soft);
+  backdrop-filter: blur(24px) saturate(1.12);
 }
 
 .provider-list-header {
@@ -52,11 +103,13 @@
   grid-template-columns: minmax(220px, 1.35fr) 0.7fr 0.65fr 0.85fr 0.72fr 104px;
   gap: 10px;
   align-items: center;
-  padding: 0 10px 3px;
+  padding: 13px 17px 12px;
   color: var(--qr-color-muted);
-  font-size: 10px;
-  font-weight: 650;
+  border-bottom: 1px solid var(--qr-color-hairline);
+  font-size: 10.5px;
+  font-weight: 720;
   letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .provider-list-header span:nth-child(n + 2) {
@@ -65,7 +118,7 @@
 
 .provider-list-body {
   display: grid;
-  gap: 7px;
+  gap: 0;
 }
 
 .provider-row-shell {
@@ -74,36 +127,44 @@
 }
 
 .provider-row-card {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(220px, 1.35fr) 0.7fr 0.65fr 0.85fr 0.72fr 104px;
   gap: 10px;
   align-items: center;
-  min-height: 54px;
-  padding: 8px 10px;
-  border: 1px solid transparent;
-  border-radius: 11px;
-  background: rgba(255, 255, 255, 0.46);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58);
+  min-height: 61px;
+  padding: 9px 17px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   cursor: default;
   outline: none;
 }
 
+.provider-row-shell + .provider-row-shell .provider-row-card {
+  border-top: 1px solid var(--qr-color-hairline);
+}
+
+.provider-row-card[data-tone="attention"] {
+  background: rgba(255, 59, 48, 0.045);
+  box-shadow: inset 3px 0 0 rgba(255, 59, 48, 0.54);
+}
+
 .provider-row-card:hover {
-  background: rgba(255, 255, 255, 0.62);
+  background: rgba(255, 255, 255, 0.38);
 }
 
 .provider-row-card:focus-visible {
-  border-color: rgba(0, 122, 255, 0.34);
+  outline: 3px solid rgba(0, 122, 255, 0.13);
+  outline-offset: -3px;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.7),
-    0 0 0 3px rgba(0, 122, 255, 0.12);
+    inset 3px 0 0 rgba(0, 122, 255, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .provider-row-shell[data-expanded="true"] .provider-row-card {
-  border-color: rgba(60, 60, 67, 0.11);
-  border-bottom-color: transparent;
-  border-radius: 11px 11px 8px 8px;
-  background: rgba(255, 255, 255, 0.68);
+  background: rgba(255, 255, 255, 0.46);
 }
 
 .credential-table {
@@ -140,13 +201,13 @@
 
 .provider-icon {
   display: grid;
-  width: 29px;
-  height: 29px;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid var(--qr-color-border);
+  border: 1px solid rgba(60, 60, 67, 0.1);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.74);
+  background: rgba(255, 255, 255, 0.56);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.78),
     0 2px 5px rgba(0, 0, 0, 0.04);
@@ -154,15 +215,15 @@
 
 .provider-icon img {
   display: block;
-  width: 21px;
-  height: 21px;
+  width: 20px;
+  height: 20px;
   object-fit: contain;
 }
 
 .provider-name,
 .credential-name {
   font-size: 13px;
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .provider-title-block {
@@ -212,7 +273,7 @@
   overflow: hidden;
   color: var(--qr-color-text);
   font-size: 13px;
-  font-weight: 680;
+  font-weight: 700;
   text-overflow: ellipsis;
 }
 
@@ -229,7 +290,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: 999px;
   background: rgba(52, 199, 89, 0.1);
   color: var(--qr-color-healthy);
@@ -254,18 +315,18 @@
   display: inline-flex;
   justify-content: flex-end;
   gap: 5px;
-  min-width: 104px;
+  min-width: 96px;
 }
 
 .quota-actions button {
   display: grid;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   place-items: center;
   color: var(--qr-color-muted);
   border: 1px solid var(--qr-color-border);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.58);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.38);
 }
 
 .quota-actions button:hover {
@@ -273,13 +334,13 @@
 }
 
 .provider-detail-panel {
-  margin: 0 8px 8px;
+  margin: 0;
   padding: 0;
-  border: 1px solid rgba(60, 60, 67, 0.09);
+  border: 0;
   border-top: 0;
-  border-radius: 0 0 11px 11px;
-  background: rgba(255, 255, 255, 0.34);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38);
+  border-radius: 0;
+  background: rgba(255, 255, 255, 0.28);
+  box-shadow: inset 0 1px 0 var(--qr-color-hairline);
 }
 
 .credential-detail {

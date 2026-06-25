@@ -10,15 +10,23 @@
   box-sizing: border-box;
 }
 
+html,
+#root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
+  width: 100vw;
+  height: 100vh;
   min-width: var(--qr-main-min-width);
   min-height: var(--qr-main-min-height);
+  overflow: hidden;
   color: var(--qr-color-text);
   font-family: var(--qr-font-family);
-  background:
-    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.88), transparent 34%),
-    linear-gradient(180deg, #f6f6f8 0%, #efeff2 100%);
+  background: #f0f0f2;
 }
 
 body[data-qr-view="tray"],

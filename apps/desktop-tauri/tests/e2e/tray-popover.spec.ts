@@ -6,7 +6,10 @@ test("tray route renders a fixed-size quota popover", async ({ page }) => {
 
   const popover = page.getByTestId("tray-popover");
   await expect(popover).toBeVisible();
-  await expect(page.getByRole("heading", { name: "API Quota" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Quota Radar" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Statistics" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Favorites" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Heads Up" })).toBeVisible();
   await expect(page.getByTestId("tray-app-mark").locator("img")).toHaveAttribute("src", /app-icon\.png$/);
   await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
 
@@ -16,8 +19,8 @@ test("tray route renders a fixed-size quota popover", async ({ page }) => {
   expect(markBox).not.toBeNull();
   expect(Math.round(box!.width)).toBe(560);
   expect(Math.round(box!.height)).toBe(500);
-  expect(Math.round(markBox!.width)).toBe(22);
-  expect(Math.round(markBox!.height)).toBe(22);
+  expect(Math.round(markBox!.width)).toBe(30);
+  expect(Math.round(markBox!.height)).toBe(30);
 
   await page.screenshot({ path: "tests/e2e/screenshots/tray-popover.png", fullPage: true });
 });

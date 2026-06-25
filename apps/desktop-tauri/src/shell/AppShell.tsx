@@ -37,7 +37,7 @@ export function AppShell({
       <main className="app-main">
         {children ?? (
           <section className="app-panel">
-            <h2 className="page-title">{t("nav.quotaMonitoring")}</h2>
+            <h2 className="page-title">{t("quota.overviewTitle")}</h2>
             <p className="page-subtitle">{t("app.previewReady")}</p>
           </section>
         )}

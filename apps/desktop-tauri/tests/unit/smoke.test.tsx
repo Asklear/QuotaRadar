@@ -23,7 +23,7 @@ describe("App", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     fireEvent.change(screen.getByLabelText("Language"), { target: { value: "zh-Hans" } });
-    fireEvent.click(screen.getByRole("button", { name: "额度监控" }));
+    fireEvent.click(screen.getByRole("button", { name: "额度概览" }));
 
     expect(screen.queryByText(/Jul/)).not.toBeInTheDocument();
 

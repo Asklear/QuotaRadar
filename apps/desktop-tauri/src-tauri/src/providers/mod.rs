@@ -1,4 +1,5 @@
 pub mod aliyun_coding_plan;
+pub mod anthropic_credits;
 pub mod anysearch;
 pub mod bocha;
 pub mod brave;
@@ -27,6 +28,8 @@ pub use http::{
 
 #[cfg(test)]
 mod aliyun_coding_plan_tests;
+#[cfg(test)]
+mod anthropic_credits_tests;
 #[cfg(test)]
 mod anysearch_tests;
 #[cfg(test)]

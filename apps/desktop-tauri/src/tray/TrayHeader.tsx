@@ -9,7 +9,7 @@ export function TrayHeader() {
     <header className="tray-header">
       <AppMark className="tray-mark" testId="tray-app-mark" />
       <div className="tray-title-block">
-        <h1>{t("app.subtitle")}</h1>
+        <h1>{t("app.name")}</h1>
         <p>{t("tray.quote")}</p>
       </div>
       <button className="tray-settings-button" aria-label={t("nav.settings")}>
