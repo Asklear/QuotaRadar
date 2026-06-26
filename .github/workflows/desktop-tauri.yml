@@ -1,10 +1,27 @@
 name: Desktop Tauri Preview
 
 on:
+  workflow_dispatch:
   push:
     branches: ["main", "feat/tauri-multiplatform"]
+    paths:
+      - ".github/workflows/desktop-tauri.yml"
+      - "apps/desktop-tauri/**"
+      - "docs/desktop-tauri-*.md"
+      - "docs/tauri-provider-migration-checklist.md"
+      - "scripts/*tauri*"
+      - "scripts/check_tauri_sources.sh"
+      - "scripts/run_tauri_cargo_tests.sh"
   pull_request:
     branches: ["main"]
+    paths:
+      - ".github/workflows/desktop-tauri.yml"
+      - "apps/desktop-tauri/**"
+      - "docs/desktop-tauri-*.md"
+      - "docs/tauri-provider-migration-checklist.md"
+      - "scripts/*tauri*"
+      - "scripts/check_tauri_sources.sh"
+      - "scripts/run_tauri_cargo_tests.sh"
 
 jobs:
   desktop-tauri:

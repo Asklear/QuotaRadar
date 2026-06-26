@@ -221,6 +221,29 @@ import sys
 from pathlib import Path
 
 config = json.loads(Path("apps/desktop-tauri/src-tauri/tauri.conf.json").read_text(encoding="utf-8"))
+if config.get("productName") != "Quota Radar Tauri Preview":
+    sys.exit("FAIL: Tauri preview app must not share the stable Swift app product name")
+if config.get("identifier") == "com.gaorongvc.quotaradar":
+    sys.exit("FAIL: Tauri preview app must not share the stable Swift app bundle identifier")
+windows = config.get("app", {}).get("windows", [])
+main_window = next((window for window in windows if window.get("label") == "main"), None)
+if not main_window or main_window.get("title") != "Quota Radar Tauri Preview":
+    sys.exit("FAIL: Tauri preview main window title must distinguish it from the Swift app")
+
+workflow = Path(".github/workflows/desktop-tauri.yml")
+if not workflow.exists():
+    sys.exit("FAIL: Tauri desktop workflow is required")
+workflow_text = workflow.read_text(encoding="utf-8")
+for required in (
+    "workflow_dispatch:",
+    "paths:",
+    "apps/desktop-tauri/**",
+    "scripts/check_tauri_sources.sh",
+    "scripts/run_tauri_cargo_tests.sh",
+):
+    if required not in workflow_text:
+        sys.exit(f"FAIL: Tauri desktop workflow must include guarded trigger entry: {required}")
+
 bundle = config.get("bundle", {})
 if bundle.get("targets") != "all":
     sys.exit("FAIL: Tauri bundle targets must be 'all' so each OS builds its native package set")

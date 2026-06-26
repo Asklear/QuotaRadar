@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Quota Radar",
+  "productName": "Quota Radar Tauri Preview",
   "version": "0.0.0",
   "identifier": "ai.asklear.quotaradar.desktop",
   "build": {
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Quota Radar",
+        "title": "Quota Radar Tauri Preview",
         "width": 1120,
         "height": 640,
         "minWidth": 900,

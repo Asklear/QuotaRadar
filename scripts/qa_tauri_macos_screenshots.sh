@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_PATH="${QR_TAURI_APP_PATH:-$ROOT_DIR/apps/desktop-tauri/src-tauri/target/release/bundle/macos/Quota Radar.app}"
+APP_PATH="${QR_TAURI_APP_PATH:-$ROOT_DIR/apps/desktop-tauri/src-tauri/target/release/bundle/macos/Quota Radar Tauri Preview.app}"
 OUT_DIR="${1:-/tmp/quotaradar-tauri-qa-$(date +%Y%m%d-%H%M%S)}"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then

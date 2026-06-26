@@ -28,10 +28,10 @@ pnpm tauri build --bundles app
 pnpm sign:mac
 ```
 
-The `pnpm sign:mac` command runs `scripts/sign_tauri_macos_app.sh`, which signs `apps/desktop-tauri/src-tauri/target/release/bundle/macos/Quota Radar.app` with an ad-hoc identity and then runs:
+The `pnpm sign:mac` command runs `scripts/sign_tauri_macos_app.sh`, which signs `apps/desktop-tauri/src-tauri/target/release/bundle/macos/Quota Radar Tauri Preview.app` with an ad-hoc identity and then runs:
 
 ```bash
-codesign --verify --deep --strict "apps/desktop-tauri/src-tauri/target/release/bundle/macos/Quota Radar.app"
+codesign --verify --deep --strict "apps/desktop-tauri/src-tauri/target/release/bundle/macos/Quota Radar Tauri Preview.app"
 ```
 
 This is only for local preview stability. It does not replace Developer ID signing, notarization, or signed updater manifests.
