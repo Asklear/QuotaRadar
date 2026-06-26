@@ -85,6 +85,11 @@ export interface WebAuthorizationSession {
   message: string;
 }
 
+export type StartWebAuthorizationHandler = (
+  providerId: string,
+  targetCredentialId?: string,
+) => Promise<WebAuthorizationSession> | WebAuthorizationSession | void;
+
 export interface CapturedWebAuthorization {
   providerId: string;
   targetCredentialId?: string;

@@ -2,7 +2,12 @@ import { ProviderCategorySection } from "../quota/ProviderCategorySection";
 import { useLocale, useTranslate } from "../i18n";
 import { mockCredentials, providerRegistry } from "../shared/mockData";
 import { buildProviderStats } from "../shared/selectors";
-import type { CredentialView, ProviderCategory, ProviderDefinition } from "../shared/types";
+import type {
+  CredentialView,
+  ProviderCategory,
+  ProviderDefinition,
+  StartWebAuthorizationHandler,
+} from "../shared/types";
 
 const categoryOrder: ProviderCategory[] = ["AI Search", "LLM"];
 
@@ -10,7 +15,7 @@ interface QuotaMonitoringPageProps {
   providers?: ProviderDefinition[];
   credentials?: CredentialView[];
   onRefreshProvider?: (providerId: string) => void | Promise<void>;
-  onStartWebAuthorization?: (providerId: string, targetCredentialId?: string) => void | Promise<void>;
+  onStartWebAuthorization?: StartWebAuthorizationHandler;
 }
 
 export function QuotaMonitoringPage({

@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { Cpu, Search } from "lucide-react";
 import { useTranslate } from "../i18n";
-import type { ProviderCategory, ProviderStats } from "../shared/types";
+import type { ProviderCategory, ProviderStats, StartWebAuthorizationHandler } from "../shared/types";
 import { ProviderQuotaTable } from "./ProviderQuotaTable";
 
 interface ProviderCategorySectionProps {
   category: ProviderCategory;
   stats: ProviderStats[];
   onRefreshProvider?: (providerId: string) => void | Promise<void>;
-  onStartWebAuthorization?: (providerId: string, targetCredentialId?: string) => void | Promise<void>;
+  onStartWebAuthorization?: StartWebAuthorizationHandler;
 }
 
 export function ProviderCategorySection({

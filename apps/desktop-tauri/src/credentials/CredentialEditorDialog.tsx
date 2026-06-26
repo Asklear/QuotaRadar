@@ -1,14 +1,20 @@
-import { Eye, X } from "lucide-react";
+import { ExternalLink, Eye, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslate } from "../i18n";
 import { providerRegistry } from "../shared/mockData";
-import type { CredentialInput, CredentialKind, ProviderDefinition } from "../shared/types";
+import type {
+  CredentialInput,
+  CredentialKind,
+  ProviderDefinition,
+  StartWebAuthorizationHandler,
+} from "../shared/types";
 
 interface CredentialEditorDialogProps {
   open: boolean;
   onClose: () => void;
   providers?: ProviderDefinition[];
   onSave?: (input: CredentialInput) => Promise<void> | void;
+  onStartWebAuthorization?: StartWebAuthorizationHandler;
 }
 
 export function CredentialEditorDialog({
@@ -16,6 +22,7 @@ export function CredentialEditorDialog({
   onClose,
   providers = providerRegistry,
   onSave,
+  onStartWebAuthorization,
 }: CredentialEditorDialogProps) {
   const t = useTranslate();
   const [providerId, setProviderId] = useState(providers[0]?.id ?? "");
@@ -25,6 +32,11 @@ export function CredentialEditorDialog({
   const [note, setNote] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [authenticating, setAuthenticating] = useState(false);
+  const [authorizationStatus, setAuthorizationStatus] = useState<{
+    tone: "success" | "error";
+    text: string;
+  }>();
   const selectedProvider = useMemo(
     () => providers.find((provider) => provider.id === providerId) ?? providers[0],
     [providerId, providers],
@@ -60,6 +72,30 @@ export function CredentialEditorDialog({
       onClose();
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleStartWebAuthorization() {
+    if (!selectedProvider || !onStartWebAuthorization || authenticating) {
+      return;
+    }
+
+    setAuthenticating(true);
+    setAuthorizationStatus(undefined);
+    try {
+      const session = await onStartWebAuthorization(selectedProvider.id);
+      if (session?.message) {
+        setAuthorizationStatus({ tone: "success", text: session.message });
+      }
+    } catch (error) {
+      setAuthorizationStatus({
+        tone: "error",
+        text: `${t("credentialEditor.webAuthorizationFailed")} ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      });
+    } finally {
+      setAuthenticating(false);
     }
   }
 
@@ -112,14 +148,40 @@ export function CredentialEditorDialog({
                 </button>
               </div>
             </label>
-            <label>
-              {t("credentialEditor.webAuthorization")}
+            <div className="credential-dialog-field">
+              <div className="credential-auth-row">
+                <span>{t("credentialEditor.webAuthorization")}</span>
+                {selectedProvider?.supportsReauth ? (
+                  <button
+                    aria-label={`${t("credentialEditor.openWebLogin")} ${selectedProvider.displayName}`}
+                    className="credential-auth-button"
+                    disabled={authenticating}
+                    onClick={handleStartWebAuthorization}
+                    type="button"
+                  >
+                    <ExternalLink size={14} />
+                    {authenticating
+                      ? t("credentialEditor.openingWebLogin")
+                      : t("credentialEditor.openWebLogin")}
+                  </button>
+                ) : null}
+              </div>
               <textarea
+                aria-label={t("credentialEditor.webAuthorization")}
                 placeholder={t("credentialEditor.webAuthorizationPlaceholder")}
                 value={authorization}
                 onChange={(event) => setAuthorization(event.target.value)}
               />
-            </label>
+              {authorizationStatus ? (
+                <span
+                  className="credential-auth-status"
+                  data-tone={authorizationStatus.tone}
+                  role="status"
+                >
+                  {authorizationStatus.text}
+                </span>
+              ) : null}
+            </div>
             <label>
               {t("credentialEditor.note")}
               <input placeholder={t("credentialEditor.optional")} value={note} onChange={(event) => setNote(event.target.value)} />

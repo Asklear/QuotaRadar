@@ -11,14 +11,24 @@ import {
   listCredentials,
 } from "../lib/tauriClient";
 import { mockCredentials, providerRegistry } from "../shared/mockData";
-import type { CredentialInput, CredentialView, ProviderDefinition } from "../shared/types";
+import type {
+  CredentialInput,
+  CredentialView,
+  ProviderDefinition,
+  StartWebAuthorizationHandler,
+} from "../shared/types";
 
 interface CredentialsPageProps {
   providers?: ProviderDefinition[];
   credentials?: CredentialView[];
+  onStartWebAuthorization?: StartWebAuthorizationHandler;
 }
 
-export function CredentialsPage({ providers = providerRegistry, credentials = mockCredentials }: CredentialsPageProps) {
+export function CredentialsPage({
+  providers = providerRegistry,
+  credentials = mockCredentials,
+  onStartWebAuthorization,
+}: CredentialsPageProps) {
   const t = useTranslate();
   const [editorOpen, setEditorOpen] = useState(false);
   const [visibleCredentials, setVisibleCredentials] = useState(credentials);
@@ -139,6 +149,7 @@ export function CredentialsPage({ providers = providerRegistry, credentials = mo
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
         onSave={handleSaveCredential}
+        onStartWebAuthorization={onStartWebAuthorization}
         providers={providers}
       />
     </div>

@@ -3,7 +3,7 @@ import { ExternalLink, RefreshCw, RotateCcw } from "lucide-react";
 import { ProviderIcon } from "../components/ProviderIcon";
 import { StatusPill } from "../components/StatusPill";
 import { useTranslate } from "../i18n";
-import type { ProviderStats } from "../shared/types";
+import type { ProviderStats, StartWebAuthorizationHandler } from "../shared/types";
 import { CredentialDetailTable } from "./CredentialDetailTable";
 
 interface ProviderQuotaRowProps {
@@ -11,7 +11,7 @@ interface ProviderQuotaRowProps {
   expanded: boolean;
   onToggle: () => void;
   onRefreshProvider?: (providerId: string) => void | Promise<void>;
-  onStartWebAuthorization?: (providerId: string, targetCredentialId?: string) => void | Promise<void>;
+  onStartWebAuthorization?: StartWebAuthorizationHandler;
 }
 
 export function ProviderQuotaRow({

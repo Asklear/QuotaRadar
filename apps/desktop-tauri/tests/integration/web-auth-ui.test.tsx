@@ -75,11 +75,13 @@ function mockDesktopCommands(state: AppState) {
 
 describe("web authorization UI shell", () => {
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.mocked(invoke).mockReset();
     setTauriRuntime(false);
   });
 
   it("starts reauthorization for the provider and the existing dashboard account", async () => {
+    vi.spyOn(window, "open").mockImplementation(() => null);
     setTauriRuntime(true);
     mockDesktopCommands({
       providers: [claudeProvider],
@@ -100,6 +102,7 @@ describe("web authorization UI shell", () => {
   });
 
   it("does not silently choose a target when multiple dashboard authorizations exist", async () => {
+    vi.spyOn(window, "open").mockImplementation(() => null);
     setTauriRuntime(true);
     mockDesktopCommands({
       providers: [claudeProvider],
@@ -118,6 +121,63 @@ describe("web authorization UI shell", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Claude Reauthorize choose account" }));
 
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("start_web_authorization", {
+        providerId: "claude",
+        targetCredentialId: undefined,
+      }),
+    );
+  });
+
+  it("starts first-time web authorization from the add credential dialog", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    setTauriRuntime(true);
+    mockDesktopCommands({
+      providers: [claudeProvider],
+      credentials: [],
+    });
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command === "get_app_state") {
+        return Promise.resolve({
+          providers: [claudeProvider],
+          credentials: [],
+        });
+      }
+      if (command === "get_settings") {
+        return Promise.resolve({
+          ...mockSettings,
+          providerOrder: ["claude"],
+        });
+      }
+      if (command === "get_update_state") {
+        return Promise.resolve(mockUpdateState);
+      }
+      if (command === "list_credentials") {
+        return Promise.resolve([]);
+      }
+      if (command === "start_web_authorization") {
+        return Promise.resolve({
+          providerId: "claude",
+          targetCredentialId: (args as { targetCredentialId?: string }).targetCredentialId,
+          loginUrl: "https://claude.ai/settings/usage",
+          message: "Choose an authorization target",
+        });
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+
+    render(<App />);
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("get_app_state"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Credentials" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add Credential" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open web login Claude" }));
+
+    expect(open).toHaveBeenCalledWith(
+      "https://claude.ai/settings/usage",
+      "_blank",
+      "noopener,noreferrer",
+    );
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith("start_web_authorization", {
         providerId: "claude",

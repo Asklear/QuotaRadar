@@ -20,7 +20,7 @@ import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { QuotaMonitoringPage } from "./pages/QuotaMonitoringPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TrayPopover } from "./tray/TrayPopover";
-import type { AppSettings, ProviderDefinition } from "./shared/types";
+import type { AppSettings, ProviderDefinition, WebAuthorizationSession } from "./shared/types";
 import { LocaleContext, normalizeLocale } from "./i18n";
 
 function orderProviders(providers: ProviderDefinition[], providerOrder: string[]) {
@@ -91,8 +91,17 @@ export default function App() {
     setAppState(await refreshProvider(providerId, "manual"));
   }
 
-  async function handleStartWebAuthorization(providerId: string, targetCredentialId?: string) {
-    await startWebAuthorization(providerId, targetCredentialId);
+  async function handleStartWebAuthorization(
+    providerId: string,
+    targetCredentialId?: string,
+  ): Promise<WebAuthorizationSession> {
+    const providerLoginUrl = providers.find((provider) => provider.id === providerId)?.dashboardUrl;
+    openExternalUrl(providerLoginUrl);
+    const session = await startWebAuthorization(providerId, targetCredentialId);
+    if (session.loginUrl !== providerLoginUrl) {
+      openExternalUrl(session.loginUrl);
+    }
+    return session;
   }
 
   if (isTrayView) {
@@ -114,7 +123,13 @@ export default function App() {
         onStartWebAuthorization={handleStartWebAuthorization}
       />
     ),
-    credentials: <CredentialsPage providers={providers} credentials={appState.credentials} />,
+    credentials: (
+      <CredentialsPage
+        providers={providers}
+        credentials={appState.credentials}
+        onStartWebAuthorization={handleStartWebAuthorization}
+      />
+    ),
     diagnostics: <DiagnosticsPage providers={providers} credentials={appState.credentials} />,
     settings: (
       <SettingsPage
@@ -140,4 +155,16 @@ export default function App() {
       </AppShell>
     </LocaleContext.Provider>
   );
+}
+
+function openExternalUrl(url?: string) {
+  if (!url) {
+    return;
+  }
+
+  try {
+    window.open(url, "_blank", "noopener,noreferrer");
+  } catch {
+    // Opening the system browser is best effort; authorization session creation still proceeds.
+  }
 }
