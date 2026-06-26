@@ -13,6 +13,7 @@ use crate::{
 pub trait AutostartController {
     fn enable(&self) -> Result<(), String>;
     fn disable(&self) -> Result<(), String>;
+    fn is_enabled(&self) -> Result<bool, String>;
 }
 
 struct TauriAutostartController<'a, R: Runtime> {
@@ -39,6 +40,13 @@ impl<R: Runtime> AutostartController for TauriAutostartController<'_, R> {
             .disable()
             .map_err(|error| error.to_string())
     }
+
+    fn is_enabled(&self) -> Result<bool, String> {
+        self.app
+            .autolaunch()
+            .is_enabled()
+            .map_err(|error| error.to_string())
+    }
 }
 
 pub fn sync_launch_at_login(
@@ -47,8 +55,10 @@ pub fn sync_launch_at_login(
 ) -> Result<(), String> {
     if settings.launch_at_login {
         autostart.enable()
-    } else {
+    } else if autostart.is_enabled()? {
         autostart.disable()
+    } else {
+        Ok(())
     }
 }
 
@@ -108,6 +118,7 @@ mod tests {
     #[derive(Default)]
     struct RecordingAutostart {
         calls: RefCell<Vec<&'static str>>,
+        enabled: bool,
     }
 
     impl AutostartController for RecordingAutostart {
@@ -119,6 +130,11 @@ mod tests {
         fn disable(&self) -> Result<(), String> {
             self.calls.borrow_mut().push("disable");
             Ok(())
+        }
+
+        fn is_enabled(&self) -> Result<bool, String> {
+            self.calls.borrow_mut().push("is_enabled");
+            Ok(self.enabled)
         }
     }
 
@@ -137,10 +153,24 @@ mod tests {
     fn sync_launch_at_login_disables_autostart_when_setting_is_disabled() {
         let mut settings = default_settings();
         settings.launch_at_login = false;
+        let autostart = RecordingAutostart {
+            enabled: true,
+            ..RecordingAutostart::default()
+        };
+
+        sync_launch_at_login(&settings, &autostart).expect("autostart should sync");
+
+        assert_eq!(&*autostart.calls.borrow(), &["is_enabled", "disable"]);
+    }
+
+    #[test]
+    fn sync_launch_at_login_skips_disable_when_setting_and_autostart_are_disabled() {
+        let mut settings = default_settings();
+        settings.launch_at_login = false;
         let autostart = RecordingAutostart::default();
 
         sync_launch_at_login(&settings, &autostart).expect("autostart should sync");
 
-        assert_eq!(&*autostart.calls.borrow(), &["disable"]);
+        assert_eq!(&*autostart.calls.borrow(), &["is_enabled"]);
     }
 }

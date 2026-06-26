@@ -225,6 +225,9 @@ if config.get("productName") != "Quota Radar Tauri Preview":
     sys.exit("FAIL: Tauri preview app must not share the stable Swift app product name")
 if config.get("identifier") == "com.gaorongvc.quotaradar":
     sys.exit("FAIL: Tauri preview app must not share the stable Swift app bundle identifier")
+main_rs = Path("apps/desktop-tauri/src-tauri/src/main.rs").read_text(encoding="utf-8")
+if 'windows_subsystem = "windows"' not in main_rs:
+    sys.exit("FAIL: Tauri Windows release binary must use the windows GUI subsystem")
 windows = config.get("app", {}).get("windows", [])
 main_window = next((window for window in windows if window.get("label") == "main"), None)
 if not main_window or main_window.get("title") != "Quota Radar Tauri Preview":
