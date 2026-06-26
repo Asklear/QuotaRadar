@@ -238,6 +238,7 @@ for required in (
     "workflow_dispatch:",
     "paths:",
     "apps/desktop-tauri/**",
+    "QuotaRadar/Assets.xcassets/ProviderIcons/**",
     "scripts/check_tauri_sources.sh",
     "scripts/run_tauri_cargo_tests.sh",
 ):
