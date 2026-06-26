@@ -9,6 +9,7 @@ fn default_settings_include_stable_provider_order_and_refresh_policy() {
 
     assert_eq!(settings.language, "en");
     assert_eq!(settings.proxy.mode, ProxyMode::System);
+    assert!(!settings.launch_at_login);
     assert_eq!(settings.auto_refresh_interval, RefreshInterval::Off);
     assert_eq!(settings.costly_refresh_interval, RefreshInterval::Off);
     assert_eq!(

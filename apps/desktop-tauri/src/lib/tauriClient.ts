@@ -19,7 +19,7 @@ export const mockAppState: AppState = {
 
 export const mockSettings: AppSettings = {
   language: "en",
-  launchAtLogin: true,
+  launchAtLogin: false,
   updateCheck: true,
   autoRefreshInterval: "off",
   costlyRefreshInterval: "off",

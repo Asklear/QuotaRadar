@@ -45,7 +45,7 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             language: "en".to_string(),
-            launch_at_login: true,
+            launch_at_login: false,
             update_check: true,
             auto_refresh_interval: RefreshInterval::Off,
             costly_refresh_interval: RefreshInterval::Off,

@@ -76,5 +76,6 @@ describe("settings commands", () => {
 
     expect(invoke).not.toHaveBeenCalled();
     expect(settings).toEqual(mockSettings);
+    expect(settings.launchAtLogin).toBe(false);
   });
 });
