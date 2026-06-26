@@ -34,6 +34,7 @@ pub fn run() {
             commands::credentials::list_credentials,
             commands::auth::save_web_authorization,
             commands::auth::start_web_authorization,
+            commands::external::open_external_url,
             commands::providers::list_provider_definitions,
             commands::providers::refresh_provider,
             commands::credentials::set_credential_active,

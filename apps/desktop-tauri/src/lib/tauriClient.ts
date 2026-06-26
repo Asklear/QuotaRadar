@@ -182,6 +182,18 @@ export async function startWebAuthorization(
   return invoke<WebAuthorizationSession>("start_web_authorization", { providerId, targetCredentialId });
 }
 
+export async function openExternalUrl(url?: string): Promise<void> {
+  if (!url) {
+    return;
+  }
+
+  if (isTauriRuntime()) {
+    return invoke<void>("open_external_url", { url });
+  }
+
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 export async function saveWebAuthorization(input: CapturedWebAuthorization): Promise<CredentialView> {
   if (!isTauriRuntime()) {
     return buildMockCredential({

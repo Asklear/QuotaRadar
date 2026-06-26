@@ -69,6 +69,9 @@ function mockDesktopCommands(state: AppState) {
         message: "Ready to update Claude Pro Login",
       });
     }
+    if (command === "open_external_url") {
+      return Promise.resolve(undefined);
+    }
     throw new Error(`Unexpected command: ${command}`);
   });
 }
@@ -163,6 +166,9 @@ describe("web authorization UI shell", () => {
           message: "Choose an authorization target",
         });
       }
+      if (command === "open_external_url") {
+        return Promise.resolve(undefined);
+      }
       throw new Error(`Unexpected command: ${command}`);
     });
 
@@ -173,11 +179,12 @@ describe("web authorization UI shell", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Add Credential" }));
     fireEvent.click(await screen.findByRole("button", { name: "Open web login Claude" }));
 
-    expect(open).toHaveBeenCalledWith(
-      "https://claude.ai/settings/usage",
-      "_blank",
-      "noopener,noreferrer",
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("open_external_url", {
+        url: "https://claude.ai/settings/usage",
+      }),
     );
+    expect(open).not.toHaveBeenCalled();
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith("start_web_authorization", {
         providerId: "claude",

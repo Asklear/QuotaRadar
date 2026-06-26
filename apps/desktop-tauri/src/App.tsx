@@ -7,6 +7,7 @@ import {
   mockSettings,
   mockUpdateState,
   moveProvider,
+  openExternalUrl,
   refreshProvider,
   resetProviderOrder,
   checkForUpdates,
@@ -96,10 +97,10 @@ export default function App() {
     targetCredentialId?: string,
   ): Promise<WebAuthorizationSession> {
     const providerLoginUrl = providers.find((provider) => provider.id === providerId)?.dashboardUrl;
-    openExternalUrl(providerLoginUrl);
+    await openExternalUrl(providerLoginUrl);
     const session = await startWebAuthorization(providerId, targetCredentialId);
     if (session.loginUrl !== providerLoginUrl) {
-      openExternalUrl(session.loginUrl);
+      await openExternalUrl(session.loginUrl);
     }
     return session;
   }
@@ -155,16 +156,4 @@ export default function App() {
       </AppShell>
     </LocaleContext.Provider>
   );
-}
-
-function openExternalUrl(url?: string) {
-  if (!url) {
-    return;
-  }
-
-  try {
-    window.open(url, "_blank", "noopener,noreferrer");
-  } catch {
-    // Opening the system browser is best effort; authorization session creation still proceeds.
-  }
 }

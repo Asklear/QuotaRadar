@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getAppState, saveWebAuthorization } from "../../src/lib/tauriClient";
+import { getAppState, openExternalUrl, saveWebAuthorization } from "../../src/lib/tauriClient";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
@@ -89,5 +89,14 @@ describe("tauriClient", () => {
       },
     });
     expect(credential.copyable).toBe(false);
+  });
+
+  it("opens external URLs through Tauri in desktop runtime", async () => {
+    setTauriRuntime(true);
+    vi.mocked(invoke).mockResolvedValue(undefined);
+
+    await openExternalUrl("https://chatgpt.com");
+
+    expect(invoke).toHaveBeenCalledWith("open_external_url", { url: "https://chatgpt.com" });
   });
 });
