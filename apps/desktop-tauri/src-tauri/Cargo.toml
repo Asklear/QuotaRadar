@@ -27,3 +27,6 @@ plist = "1.7"
 tauri-plugin-autostart = "2"
 tauri-plugin-positioner = { version = "2", features = ["tray-icon"] }
 tauri-plugin-updater = "2"
+
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { CredentialEditorDialog } from "../../src/credentials/CredentialEditorDialog";
 import { CredentialsPage } from "../../src/pages/CredentialsPage";
 
 describe("CredentialsPage", () => {
@@ -56,6 +57,28 @@ describe("CredentialsPage", () => {
 
     expect(await screen.findByText("Tavily Test Key")).toBeInTheDocument();
     expect(screen.getByText("tvly••••alue")).toBeInTheDocument();
+  });
+
+  it("keeps the editor open and shows save failures", async () => {
+    render(
+      <CredentialEditorDialog
+        open
+        onClose={vi.fn()}
+        onSave={async () => {
+          throw new Error("Windows store save failed");
+        }}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("API key"), {
+      target: { value: "tvly-local-test-value" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add Credential" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not save credential: Windows store save failed",
+    );
+    expect(screen.getByRole("dialog", { name: "Add Credential" })).toBeInTheDocument();
   });
 
   it("shows import feedback when importing Claude settings", async () => {

@@ -32,6 +32,7 @@ export function CredentialEditorDialog({
   const [note, setNote] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string>();
   const [authenticating, setAuthenticating] = useState(false);
   const [authorizationStatus, setAuthorizationStatus] = useState<{
     tone: "success" | "error";
@@ -60,6 +61,7 @@ export function CredentialEditorDialog({
 
     const credentialName = name.trim() || defaultName;
     setSaving(true);
+    setSaveError(undefined);
     try {
       await onSave?.({
         id: makeCredentialId(selectedProvider.id, credentialName),
@@ -70,6 +72,8 @@ export function CredentialEditorDialog({
         note: note.trim() || undefined,
       });
       onClose();
+    } catch (error) {
+      setSaveError(`${t("credentialEditor.saveFailed")} ${errorMessage(error)}`);
     } finally {
       setSaving(false);
     }
@@ -188,6 +192,11 @@ export function CredentialEditorDialog({
             </label>
           </form>
         </div>
+        {saveError ? (
+          <div className="credential-save-status" data-tone="error" role="alert">
+            {saveError}
+          </div>
+        ) : null}
         <footer className="credential-dialog-footer">
           <button onClick={onClose}>{t("credentialEditor.cancel")}</button>
           <button className="primary-button" disabled={!secret || saving} form="credential-editor-form" type="submit">
@@ -206,4 +215,8 @@ function makeCredentialId(providerId: string, name: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
   return `${providerId}-${slug || "credential"}`;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }

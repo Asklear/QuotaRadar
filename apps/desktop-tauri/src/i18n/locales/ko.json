@@ -75,6 +75,7 @@
   "credentialEditor.openWebLogin": "웹 로그인 열기",
   "credentialEditor.openingWebLogin": "웹 로그인 여는 중",
   "credentialEditor.webAuthorizationFailed": "웹 로그인 실패:",
+  "credentialEditor.saveFailed": "자격 증명을 저장할 수 없음:",
   "credentialEditor.note": "메모",
   "credentialEditor.optional": "선택 사항",
   "credentialEditor.cancel": "취소",

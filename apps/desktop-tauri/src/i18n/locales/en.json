@@ -75,6 +75,7 @@
   "credentialEditor.openWebLogin": "Open web login",
   "credentialEditor.openingWebLogin": "Opening web login",
   "credentialEditor.webAuthorizationFailed": "Web login failed:",
+  "credentialEditor.saveFailed": "Could not save credential:",
   "credentialEditor.note": "Note",
   "credentialEditor.optional": "Optional",
   "credentialEditor.cancel": "Cancel",

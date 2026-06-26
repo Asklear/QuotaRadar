@@ -75,6 +75,7 @@
   "credentialEditor.openWebLogin": "打开网页登录",
   "credentialEditor.openingWebLogin": "正在打开网页登录",
   "credentialEditor.webAuthorizationFailed": "网页登录失败：",
+  "credentialEditor.saveFailed": "无法保存凭据：",
   "credentialEditor.note": "备注",
   "credentialEditor.optional": "可选",
   "credentialEditor.cancel": "取消",

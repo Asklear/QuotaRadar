@@ -8,3 +8,5 @@ pub mod updates;
 
 #[cfg(test)]
 mod auth_tests;
+#[cfg(test)]
+mod credentials_tests;

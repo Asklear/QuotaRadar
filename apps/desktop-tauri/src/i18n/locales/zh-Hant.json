@@ -75,6 +75,7 @@
   "credentialEditor.openWebLogin": "開啟網頁登入",
   "credentialEditor.openingWebLogin": "正在開啟網頁登入",
   "credentialEditor.webAuthorizationFailed": "網頁登入失敗：",
+  "credentialEditor.saveFailed": "無法儲存憑據：",
   "credentialEditor.note": "備註",
   "credentialEditor.optional": "可選",
   "credentialEditor.cancel": "取消",

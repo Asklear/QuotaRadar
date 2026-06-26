@@ -75,6 +75,7 @@
   "credentialEditor.openWebLogin": "Web ログインを開く",
   "credentialEditor.openingWebLogin": "Web ログインを開いています",
   "credentialEditor.webAuthorizationFailed": "Web ログイン失敗:",
+  "credentialEditor.saveFailed": "認証情報を保存できません:",
   "credentialEditor.note": "メモ",
   "credentialEditor.optional": "任意",
   "credentialEditor.cancel": "キャンセル",
