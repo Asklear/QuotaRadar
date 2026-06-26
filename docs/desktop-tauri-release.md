@@ -10,7 +10,13 @@ This document defines the release boundary for the cross-platform Tauri migratio
 - Windows: NSIS/MSI package targets when built on Windows
 - Linux: AppImage, deb, and rpm package targets where the runner has the required system tooling
 
-The CI preview still runs `pnpm tauri build --no-bundle --ci`. That command proves the desktop app compiles on macOS, Windows, and Linux without producing unsigned installers on every pull request; it does not mean the app is feature- or visually ready for preview users.
+The CI preview builds a small unsigned/ad-hoc artifact set for internal QA:
+
+- macOS: `QuotaRadar-Tauri-Preview-macos.zip`, containing an ad-hoc signed `Quota Radar Tauri Preview.app`.
+- Windows: a generated NSIS `.exe` installer.
+- Linux: a generated `.deb` package.
+
+These artifacts are uploaded by GitHub Actions for short-lived internal testing. They are not updater assets and do not mean the app is feature- or visually ready for preview users.
 
 ## Unsigned preview boundary
 

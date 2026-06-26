@@ -26,6 +26,7 @@ DerivedData/
 .worktrees/
 
 apps/desktop-tauri/node_modules/
+apps/desktop-tauri/artifacts/
 apps/desktop-tauri/dist/
 apps/desktop-tauri/playwright-report/
 apps/desktop-tauri/tests/e2e/artifacts/

@@ -32,7 +32,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14, windows-latest, ubuntu-24.04]
+        include:
+          - os: macos-14
+            artifact_name: quotaradar-tauri-preview-macos
+          - os: windows-latest
+            artifact_name: quotaradar-tauri-preview-windows-nsis
+          - os: ubuntu-24.04
+            artifact_name: quotaradar-tauri-preview-linux-deb
 
     defaults:
       run:
@@ -92,5 +98,48 @@ jobs:
       - name: Test Rust backend
         run: bash ../../scripts/run_tauri_cargo_tests.sh
 
-      - name: Build Tauri desktop preview
-        run: pnpm tauri build --no-bundle --ci
+      - name: Build macOS Tauri app bundle
+        if: runner.os == 'macOS'
+        run: pnpm tauri build --bundles app --ci
+
+      - name: Ad-hoc sign macOS app bundle
+        if: runner.os == 'macOS'
+        run: pnpm sign:mac
+
+      - name: Stage macOS artifact
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p artifacts
+          ditto -c -k --keepParent \
+            "src-tauri/target/release/bundle/macos/Quota Radar Tauri Preview.app" \
+            "artifacts/QuotaRadar-Tauri-Preview-macos.zip"
+
+      - name: Build Windows Tauri installer
+        if: runner.os == 'Windows'
+        run: pnpm tauri build --bundles nsis --ci
+
+      - name: Stage Windows artifact
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          Copy-Item "src-tauri/target/release/bundle/nsis/*.exe" artifacts/
+
+      - name: Build Linux Tauri package
+        if: runner.os == 'Linux'
+        run: pnpm tauri build --bundles deb --ci
+
+      - name: Stage Linux artifact
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p artifacts
+          cp src-tauri/target/release/bundle/deb/*.deb artifacts/
+
+      - name: Upload Tauri preview artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: apps/desktop-tauri/artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0

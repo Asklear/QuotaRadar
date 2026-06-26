@@ -239,11 +239,21 @@ for required in (
     "paths:",
     "apps/desktop-tauri/**",
     "QuotaRadar/Assets.xcassets/ProviderIcons/**",
+    "pnpm tauri build --bundles app --ci",
+    "pnpm tauri build --bundles nsis --ci",
+    "pnpm tauri build --bundles deb --ci",
+    "actions/upload-artifact@",
+    "if-no-files-found: error",
+    "retention-days:",
     "scripts/check_tauri_sources.sh",
     "scripts/run_tauri_cargo_tests.sh",
 ):
     if required not in workflow_text:
         sys.exit(f"FAIL: Tauri desktop workflow must include guarded trigger entry: {required}")
+
+gitignore = Path(".gitignore").read_text(encoding="utf-8")
+if "apps/desktop-tauri/artifacts/" not in gitignore:
+    sys.exit("FAIL: Tauri CI artifact staging directory must be ignored")
 
 bundle = config.get("bundle", {})
 if bundle.get("targets") != "all":
