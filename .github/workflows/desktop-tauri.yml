@@ -118,6 +118,23 @@ jobs:
         if: runner.os == 'Windows'
         run: pnpm tauri build --bundles nsis --ci
 
+      - name: Smoke Windows release app starts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem "src-tauri/target/release" -Filter "*.exe" |
+            Where-Object { $_.Name -notlike "*setup*" } |
+            Select-Object -First 1
+          if (-not $exe) {
+            throw "No Windows release executable found under src-tauri/target/release"
+          }
+          $process = Start-Process -FilePath $exe.FullName -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) {
+            throw "Windows release app exited early with code $($process.ExitCode)"
+          }
+          Stop-Process -Id $process.Id -Force
+
       - name: Stage Windows artifact
         if: runner.os == 'Windows'
         shell: pwsh
