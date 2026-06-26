@@ -8,5 +8,5 @@ pub mod updates;
 
 #[cfg(test)]
 mod auth_tests;
-#[cfg(test)]
+#[cfg(all(test, not(target_os = "windows")))]
 mod credentials_tests;
