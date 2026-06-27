@@ -4,6 +4,10 @@ use tauri::{AppHandle, Runtime};
 
 use crate::{
     domain::{CredentialKind, CredentialView},
+    platform::web_auth::{
+        open_web_authorization_window, web_authorization_started_message,
+        WebAuthorizationWindowRequest,
+    },
     providers::registry::visible_provider_definitions,
     storage::{
         metadata_store::{load_credentials, save_credentials, MetadataStore, TauriMetadataStore},
@@ -51,12 +55,30 @@ pub fn start_web_authorization<R: Runtime>(
         .find(|provider| provider.id == provider_id)
         .and_then(|provider| provider.dashboard_url);
 
-    Ok(start_web_authorization_session(
+    let session = start_web_authorization_session(
         &provider_id,
         target_credential_id.as_deref(),
         target_name,
         login_url.as_deref(),
-    ))
+    );
+    let login_url = session
+        .login_url
+        .clone()
+        .ok_or_else(|| "Provider does not have a web authorization URL".to_string())?;
+    open_web_authorization_window(
+        &app,
+        WebAuthorizationWindowRequest {
+            provider_id,
+            target_credential_id,
+            target_name: target_name.map(ToString::to_string),
+            login_url,
+        },
+    )?;
+
+    Ok(WebAuthorizationSession {
+        message: web_authorization_started_message(&session),
+        ..session
+    })
 }
 
 #[tauri::command]
@@ -104,8 +126,9 @@ pub fn save_web_authorization_with_stores(
         .name
         .clone()
         .unwrap_or_else(|| format!("{} Web Login", input.provider_id));
-    let secret =
-        serde_json::to_string(&input.captured_fields).map_err(|error| error.to_string())?;
+    let existing_secret = secret_vault.read(&credential_id)?;
+    let captured_fields = merge_captured_fields(existing_secret.as_deref(), input.captured_fields);
+    let secret = serde_json::to_string(&captured_fields).map_err(|error| error.to_string())?;
     let credential_input = CredentialSecretInput {
         id: credential_id,
         provider_id: input.provider_id,
@@ -124,4 +147,31 @@ pub fn save_web_authorization_with_stores(
     save_credentials(metadata_store, &credentials)?;
 
     Ok(metadata)
+}
+
+fn merge_captured_fields(existing_secret: Option<&str>, captured_fields: Value) -> Value {
+    let Some(existing_secret) = existing_secret
+        .map(str::trim)
+        .filter(|secret| !secret.is_empty())
+    else {
+        return captured_fields;
+    };
+
+    let Ok(mut existing_value) = serde_json::from_str::<Value>(existing_secret) else {
+        return captured_fields;
+    };
+    let (Some(existing_object), Some(captured_object)) =
+        (existing_value.as_object_mut(), captured_fields.as_object())
+    else {
+        return captured_fields;
+    };
+
+    for (key, value) in captured_object {
+        existing_object.insert(key.clone(), value.clone());
+        if key == "cookie" && existing_object.contains_key("cookies") {
+            existing_object.insert("cookies".to_string(), value.clone());
+        }
+    }
+
+    existing_value
 }

@@ -3,11 +3,11 @@ import {
   getAppState,
   getSettings,
   getUpdateState,
+  listenForWebAuthorizationSaved,
   mockAppState,
   mockSettings,
   mockUpdateState,
   moveProvider,
-  openExternalUrl,
   refreshProvider,
   resetProviderOrder,
   checkForUpdates,
@@ -58,6 +58,28 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+
+    void listenForWebAuthorizationSaved(async () => {
+      const state = await getAppState();
+      if (!cancelled) {
+        setAppState(state);
+      }
+    }).then((listener) => {
+      unsubscribe = listener;
+      if (cancelled) {
+        unsubscribe();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, []);
+
+  useEffect(() => {
     document.body.dataset.qrView = isTrayView ? "tray" : "main";
 
     return () => {
@@ -96,13 +118,7 @@ export default function App() {
     providerId: string,
     targetCredentialId?: string,
   ): Promise<WebAuthorizationSession> {
-    const providerLoginUrl = providers.find((provider) => provider.id === providerId)?.dashboardUrl;
-    await openExternalUrl(providerLoginUrl);
-    const session = await startWebAuthorization(providerId, targetCredentialId);
-    if (session.loginUrl !== providerLoginUrl) {
-      await openExternalUrl(session.loginUrl);
-    }
-    return session;
+    return startWebAuthorization(providerId, targetCredentialId);
   }
 
   if (isTrayView) {

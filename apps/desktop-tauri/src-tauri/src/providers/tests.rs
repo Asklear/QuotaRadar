@@ -42,6 +42,22 @@ fn anthropic_credits_is_visible_as_separate_llm_provider() {
 }
 
 #[test]
+fn only_dashboard_cookie_providers_show_reauthorization() {
+    let definitions = visible_provider_definitions();
+    let deepseek = definitions
+        .iter()
+        .find(|provider| provider.id == "deepseek")
+        .expect("DeepSeek should be visible");
+    let codex = definitions
+        .iter()
+        .find(|provider| provider.id == "codex")
+        .expect("Codex should be visible");
+
+    assert!(!deepseek.supports_reauth);
+    assert!(codex.supports_reauth);
+}
+
+#[test]
 fn no_cost_api_key_providers_do_not_consume_quota_on_check() {
     for provider in visible_provider_definitions()
         .into_iter()

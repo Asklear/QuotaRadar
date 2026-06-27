@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import cargoToml from "../../src-tauri/Cargo.toml?raw";
 import libRs from "../../src-tauri/src/lib.rs?raw";
+import webAuthRs from "../../src-tauri/src/platform/web_auth.rs?raw";
 
 describe("desktop runtime source guards", () => {
   it("registers single-instance before other Tauri plugins and reopens the main window", () => {
@@ -15,5 +16,12 @@ describe("desktop runtime source guards", () => {
     expect(singleInstanceIndex).toBeGreaterThanOrEqual(0);
     expect(firstOtherPluginIndex).toBeGreaterThanOrEqual(0);
     expect(singleInstanceIndex).toBeLessThan(firstOtherPluginIndex);
+  });
+
+  it("keeps web authorization inside a capturable Tauri webview", () => {
+    expect(webAuthRs).toContain("WebviewWindowBuilder::new");
+    expect(webAuthRs).toContain("WebviewUrl::External");
+    expect(webAuthRs).toContain("window.cookies()");
+    expect(webAuthRs).toContain("save_web_authorization_with_stores");
   });
 });

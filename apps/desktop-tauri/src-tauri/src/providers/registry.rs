@@ -1,13 +1,13 @@
 use crate::domain::ProviderDefinition;
 
 use super::{
-    aliyun_coding_plan::AliyunCodingPlanProvider,
-    anthropic_credits::AnthropicCreditsProvider, anysearch::AnySearchProvider,
-    bocha::BochaProvider, brave::BraveProvider, claude_subscription::ClaudeSubscriptionProvider,
-    codex_subscription::CodexSubscriptionProvider, deepseek::DeepSeekProvider, exa::ExaProvider,
-    kimi_subscription::KimiSubscriptionProvider, opencode_go::OpenCodeGoProvider,
-    querit::QueritProvider, serpapi::SerpApiProvider, serper::SerperProvider,
-    tavily::TavilyProvider, tencent_cloud_coding_plan::TencentCloudCodingPlanProvider,
+    aliyun_coding_plan::AliyunCodingPlanProvider, anthropic_credits::AnthropicCreditsProvider,
+    anysearch::AnySearchProvider, bocha::BochaProvider, brave::BraveProvider,
+    claude_subscription::ClaudeSubscriptionProvider, codex_subscription::CodexSubscriptionProvider,
+    deepseek::DeepSeekProvider, exa::ExaProvider, kimi_subscription::KimiSubscriptionProvider,
+    opencode_go::OpenCodeGoProvider, querit::QueritProvider, serpapi::SerpApiProvider,
+    serper::SerperProvider, tavily::TavilyProvider,
+    tencent_cloud_coding_plan::TencentCloudCodingPlanProvider,
     volcengine_coding_plan::VolcengineCodingPlanProvider, wxmp::WxmpProvider,
     xfyun_coding_plan::XfyunCodingPlanProvider, ProviderClient,
 };
@@ -120,14 +120,17 @@ pub fn visible_provider_definitions() -> Vec<ProviderDefinition> {
                 false,
             )
         },
-        ProviderDefinition::new_llm(
-            "deepseek",
-            "DeepSeek",
-            "DeepSeek",
-            "Balance",
-            "deepseek",
-            "https://platform.deepseek.com/usage",
-        ),
+        ProviderDefinition {
+            supports_reauth: false,
+            ..ProviderDefinition::new_llm(
+                "deepseek",
+                "DeepSeek",
+                "DeepSeek",
+                "Balance",
+                "deepseek",
+                "https://platform.deepseek.com/usage",
+            )
+        },
         ProviderDefinition::new_llm(
             "claude",
             "Claude",

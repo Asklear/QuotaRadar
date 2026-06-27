@@ -208,6 +208,17 @@ export async function saveWebAuthorization(input: CapturedWebAuthorization): Pro
   return invoke<CredentialView>("save_web_authorization", { input });
 }
 
+export async function listenForWebAuthorizationSaved(onSaved: () => void | Promise<void>): Promise<() => void> {
+  if (!isTauriRuntime()) {
+    return () => {};
+  }
+
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen("web_authorization_saved", () => {
+    void onSaved();
+  });
+}
+
 export async function getUpdateState(): Promise<UpdateState> {
   if (!isTauriRuntime()) {
     return mockUpdateState;

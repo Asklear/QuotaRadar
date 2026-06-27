@@ -66,3 +66,50 @@ fn save_web_authorization_persists_dashboard_cookie_metadata_and_secret() {
         .contains("sessionKey=mock-session"));
     assert!(copy_secret_value(&secret_vault, "claude-web-pro", saved.copyable).is_err());
 }
+
+#[test]
+fn save_web_authorization_preserves_existing_json_fields_when_refreshing_cookie() {
+    let metadata_store = MemoryMetadataStore::default();
+    let secret_vault = MemorySecretVault::default();
+    save_web_authorization_with_stores(
+        &metadata_store,
+        &secret_vault,
+        CapturedWebAuthorization {
+            provider_id: "opencode_go".to_string(),
+            target_credential_id: Some("opencode-web-pro".to_string()),
+            name: Some("OpenCode Go Login".to_string()),
+            captured_fields: json!({
+                "cookie": "auth=old-session",
+                "workspaceID": "wrk_1",
+                "serverID": "srv_1",
+                "serverInstance": "server-fn:11"
+            }),
+        },
+    )
+    .expect("initial authorization should save");
+
+    save_web_authorization_with_stores(
+        &metadata_store,
+        &secret_vault,
+        CapturedWebAuthorization {
+            provider_id: "opencode_go".to_string(),
+            target_credential_id: Some("opencode-web-pro".to_string()),
+            name: Some("OpenCode Go Login".to_string()),
+            captured_fields: json!({
+                "cookie": "auth=new-session; oc_locale=zh"
+            }),
+        },
+    )
+    .expect("refreshed authorization should save");
+
+    let saved_secret = secret_vault
+        .read("opencode-web-pro")
+        .expect("secret should load")
+        .expect("secret should exist");
+    let saved_value: serde_json::Value =
+        serde_json::from_str(&saved_secret).expect("secret should stay JSON");
+    assert_eq!(saved_value["cookie"], "auth=new-session; oc_locale=zh");
+    assert_eq!(saved_value["workspaceID"], "wrk_1");
+    assert_eq!(saved_value["serverID"], "srv_1");
+    assert_eq!(saved_value["serverInstance"], "server-fn:11");
+}

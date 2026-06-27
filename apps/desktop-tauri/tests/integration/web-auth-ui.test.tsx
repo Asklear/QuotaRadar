@@ -132,7 +132,7 @@ describe("web authorization UI shell", () => {
     );
   });
 
-  it("starts first-time web authorization from the add credential dialog", async () => {
+  it("starts first-time web authorization in the desktop auth window from the add credential dialog", async () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
     setTauriRuntime(true);
     mockDesktopCommands({
@@ -179,17 +179,13 @@ describe("web authorization UI shell", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Add Credential" }));
     fireEvent.click(await screen.findByRole("button", { name: "Open web login Claude" }));
 
-    await waitFor(() =>
-      expect(invoke).toHaveBeenCalledWith("open_external_url", {
-        url: "https://claude.ai/settings/usage",
-      }),
-    );
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("start_web_authorization", {
+      providerId: "claude",
+      targetCredentialId: undefined,
+    }));
+    expect(invoke).not.toHaveBeenCalledWith("open_external_url", {
+      url: "https://claude.ai/settings/usage",
+    });
     expect(open).not.toHaveBeenCalled();
-    await waitFor(() =>
-      expect(invoke).toHaveBeenCalledWith("start_web_authorization", {
-        providerId: "claude",
-        targetCredentialId: undefined,
-      }),
-    );
   });
 });

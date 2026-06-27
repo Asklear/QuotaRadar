@@ -108,7 +108,7 @@ export const providerRegistry: ProviderDefinition[] = [
     planType: "Balance",
     icon: "deepseek",
     dashboardUrl: "https://platform.deepseek.com/usage",
-    supportsReauth: true,
+    supportsReauth: false,
     supportsRefresh: true,
     quotaCheckConsumesSearchQuota: false,
   },
