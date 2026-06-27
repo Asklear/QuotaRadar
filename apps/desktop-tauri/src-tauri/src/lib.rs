@@ -10,6 +10,11 @@ use tauri::{AppHandle, Manager, Runtime};
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Err(error) = platform::window::reopen_main_window(app) {
+                eprintln!("Quota Radar failed to reopen main window: {error}");
+            }
+        }))
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
