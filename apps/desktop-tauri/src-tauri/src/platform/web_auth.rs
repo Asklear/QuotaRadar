@@ -1,7 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc, Arc,
     },
     thread,
@@ -26,6 +26,7 @@ use super::window::reopen_main_window;
 
 const WEB_AUTH_SAVED_EVENT: &str = "web_authorization_saved";
 const WEB_AUTH_WINDOW_PREFIX: &str = "web-auth";
+static WEB_AUTH_WINDOW_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 const WEB_STORAGE_CAPTURE_SCRIPT: &str = r#"
 (() => {
   const keys = [
@@ -98,11 +99,9 @@ pub fn open_web_authorization_window<R: Runtime>(
         return Err("Web authorization URL must be http or https".to_string());
     }
 
-    let label = web_auth_window_label(&request.provider_id);
-    if let Some(existing_window) = app.get_webview_window(&label) {
-        let _ = existing_window.close();
-    }
+    close_existing_web_auth_windows(app);
 
+    let label = web_auth_window_label(&request.provider_id);
     let capture_session = Arc::new(CaptureSession {
         provider_id: request.provider_id.clone(),
         target_credential_id: request.target_credential_id.clone(),
@@ -115,7 +114,7 @@ pub fn open_web_authorization_window<R: Runtime>(
     let app_for_page_load = app.clone();
     let capture_session_for_page_load = capture_session.clone();
 
-    WebviewWindowBuilder::new(app, &label, WebviewUrl::External(login_url))
+    let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(login_url))
         .title(format!("Quota Radar - {}", request.provider_id))
         .inner_size(720.0, 820.0)
         .min_inner_size(520.0, 600.0)
@@ -139,8 +138,10 @@ pub fn open_web_authorization_window<R: Runtime>(
             );
         })
         .build()
-        .map(|_| ())
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+
+    schedule_capture_attempt(app.clone(), window, capture_session, 0);
+    Ok(())
 }
 
 pub fn web_authorization_started_message(session: &WebAuthorizationSession) -> String {
@@ -197,7 +198,7 @@ pub fn dashboard_reauth_provider_config(
         "xfyun_coding_plan" => DashboardReauthProviderConfig {
             provider_id: "xfyun_coding_plan",
             cookie_domains: &["xfyun.cn", "maas.xfyun.cn"],
-            required_names: &["ssoSessionId", "tenantToken", "atp-auth-token", "account_id"],
+            required_names: &["ssoSessionId", "tenantToken"],
             default_name: "XFYUN_CODING_PLAN_COOKIE",
         },
         "volcengine_coding_plan" => DashboardReauthProviderConfig {
@@ -463,11 +464,22 @@ fn automatic_retry_delays(provider_id: &str) -> Vec<Duration> {
             Duration::from_secs(2),
             Duration::from_secs(4),
             Duration::from_secs(7),
+            Duration::from_secs(10),
+            Duration::from_secs(15),
+            Duration::from_secs(20),
+            Duration::from_secs(30),
+            Duration::from_secs(30),
         ],
         _ => vec![
             Duration::from_millis(350),
             Duration::from_secs(1),
             Duration::from_secs(2),
+            Duration::from_secs(4),
+            Duration::from_secs(7),
+            Duration::from_secs(10),
+            Duration::from_secs(15),
+            Duration::from_secs(20),
+            Duration::from_secs(30),
         ],
     }
 }
@@ -581,6 +593,21 @@ fn normalize_domain(domain: &str) -> String {
     domain.trim().trim_start_matches('.').to_ascii_lowercase()
 }
 
+fn close_existing_web_auth_windows<R: Runtime>(app: &AppHandle<R>) {
+    for (label, window) in app.webview_windows() {
+        if is_web_auth_window_label(&label) {
+            let _ = window.close();
+        }
+    }
+}
+
+fn is_web_auth_window_label(label: &str) -> bool {
+    label
+        .strip_prefix(WEB_AUTH_WINDOW_PREFIX)
+        .map(|suffix| suffix.starts_with('-'))
+        .unwrap_or(false)
+}
+
 fn web_auth_window_label(provider_id: &str) -> String {
     let sanitized = provider_id
         .chars()
@@ -592,7 +619,8 @@ fn web_auth_window_label(provider_id: &str) -> String {
             }
         })
         .collect::<String>();
-    format!("{WEB_AUTH_WINDOW_PREFIX}-{sanitized}")
+    let sequence = WEB_AUTH_WINDOW_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    format!("{WEB_AUTH_WINDOW_PREFIX}-{sanitized}-{sequence}")
 }
 
 #[cfg(test)]
@@ -620,6 +648,38 @@ mod tests {
             &["uin", "skey"]
         );
         assert!(dashboard_reauth_provider_config("deepseek").is_none());
+    }
+
+    #[test]
+    fn xfyun_reauth_required_names_match_provider_cookie_contract() {
+        let config = dashboard_reauth_provider_config("xfyun_coding_plan")
+            .expect("xfyun should support web auth capture");
+        let material = CapturedCredentialMaterial {
+            cookie_header: "ssoSessionId=session; tenantToken=tenant".to_string(),
+            fields: BTreeMap::new(),
+        };
+
+        assert_eq!(config.required_names, &["ssoSessionId", "tenantToken"]);
+        assert!(captured_material_is_ready(&material, config.required_names));
+    }
+
+    #[test]
+    fn web_auth_retry_delays_allow_human_login_time() {
+        let total_retry_window = automatic_retry_delays("xfyun_coding_plan")
+            .into_iter()
+            .fold(Duration::ZERO, |total, delay| total + delay);
+
+        assert!(total_retry_window >= Duration::from_secs(60));
+    }
+
+    #[test]
+    fn web_auth_window_labels_are_detected_as_auth_windows() {
+        let label = web_auth_window_label("xfyun/coding plan");
+
+        assert!(is_web_auth_window_label(&label));
+        assert!(is_web_auth_window_label("web-auth-claude"));
+        assert!(!is_web_auth_window_label("web-authentic"));
+        assert!(!is_web_auth_window_label("main"));
     }
 
     #[test]
