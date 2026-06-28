@@ -5,7 +5,7 @@ use tauri::{AppHandle, Runtime};
 use crate::{
     domain::{CredentialKind, CredentialView},
     platform::web_auth::{
-        open_web_authorization_window, web_authorization_started_message,
+        spawn_web_authorization_window, web_authorization_started_message,
         WebAuthorizationWindowRequest,
     },
     providers::registry::visible_provider_definitions,
@@ -65,7 +65,7 @@ pub fn start_web_authorization<R: Runtime>(
         .login_url
         .clone()
         .ok_or_else(|| "Provider does not have a web authorization URL".to_string())?;
-    open_web_authorization_window(
+    spawn_web_authorization_window(
         &app,
         WebAuthorizationWindowRequest {
             provider_id,

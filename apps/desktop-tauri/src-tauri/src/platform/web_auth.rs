@@ -172,6 +172,44 @@ pub fn open_web_authorization_window<R: Runtime>(
     Ok(())
 }
 
+pub fn spawn_web_authorization_window<R: Runtime>(
+    app: &AppHandle<R>,
+    request: WebAuthorizationWindowRequest,
+) -> Result<(), String> {
+    validate_web_authorization_window_request(&request)?;
+
+    let app_for_window = app.clone();
+    app.run_on_main_thread(move || {
+        let failure_request = request.clone();
+        if let Err(error) = open_web_authorization_window(&app_for_window, request) {
+            emit_web_authorization_failure(
+                &app_for_window,
+                &failure_request.provider_id,
+                failure_request.target_credential_id.clone(),
+                format!("Could not open the web login window: {error}"),
+            );
+            let _ = reopen_main_window(&app_for_window);
+        }
+    })
+    .map_err(|error| error.to_string())
+}
+
+fn validate_web_authorization_window_request(
+    request: &WebAuthorizationWindowRequest,
+) -> Result<(), String> {
+    dashboard_reauth_provider_config(&request.provider_id).ok_or_else(|| {
+        format!(
+            "{} does not support automatic web authorization capture",
+            request.provider_id
+        )
+    })?;
+    let login_url = Url::parse(&request.login_url).map_err(|error| error.to_string())?;
+    if !matches!(login_url.scheme(), "http" | "https") {
+        return Err("Web authorization URL must be http or https".to_string());
+    }
+    Ok(())
+}
+
 pub fn web_authorization_started_message(session: &WebAuthorizationSession) -> String {
     if session.target_credential_id.is_some() {
         format!("{}; waiting for dashboard login", session.message)
@@ -486,16 +524,30 @@ fn fail_web_authorization<R: Runtime>(
         return;
     }
 
+    emit_web_authorization_failure(
+        app,
+        &capture_session.provider_id,
+        capture_session.target_credential_id.clone(),
+        message,
+    );
+    let _ = window.close();
+    let _ = reopen_main_window(app);
+}
+
+fn emit_web_authorization_failure<R: Runtime>(
+    app: &AppHandle<R>,
+    provider_id: &str,
+    target_credential_id: Option<String>,
+    message: String,
+) {
     let payload = WebAuthorizationFailedPayload {
-        provider_id: capture_session.provider_id.clone(),
-        target_credential_id: capture_session.target_credential_id.clone(),
+        provider_id: provider_id.to_string(),
+        target_credential_id,
         message,
     };
     if let Err(error) = app.emit(WEB_AUTH_FAILED_EVENT, payload) {
         eprintln!("Quota Radar failed to emit web authorization failure: {error}");
     }
-    let _ = window.close();
-    let _ = reopen_main_window(app);
 }
 
 fn web_authorization_missing_material_message(

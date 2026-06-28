@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import cargoToml from "../../src-tauri/Cargo.toml?raw";
+import authRs from "../../src-tauri/src/commands/auth.rs?raw";
 import libRs from "../../src-tauri/src/lib.rs?raw";
 import webAuthRs from "../../src-tauri/src/platform/web_auth.rs?raw";
 
@@ -24,5 +25,10 @@ describe("desktop runtime source guards", () => {
     expect(webAuthRs).toContain("window.navigate(load_plan.navigation_url)");
     expect(webAuthRs).toContain("window.cookies()");
     expect(webAuthRs).toContain("save_web_authorization_with_stores");
+  });
+
+  it("starts web authorization without blocking the command on auth window creation", () => {
+    expect(authRs).toContain("spawn_web_authorization_window");
+    expect(authRs).not.toContain("open_web_authorization_window(");
   });
 });
