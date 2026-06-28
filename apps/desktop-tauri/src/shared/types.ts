@@ -94,6 +94,7 @@ export interface WebAuthorizationFailure {
 export type StartWebAuthorizationHandler = (
   providerId: string,
   targetCredentialId?: string,
+  targetName?: string,
 ) => Promise<WebAuthorizationSession> | WebAuthorizationSession | void;
 
 export interface CapturedWebAuthorization {

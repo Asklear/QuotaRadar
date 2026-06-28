@@ -87,7 +87,12 @@ export function CredentialEditorDialog({
     setAuthenticating(true);
     setAuthorizationStatus(undefined);
     try {
-      const session = await onStartWebAuthorization(selectedProvider.id);
+      const credentialName = name.trim() || defaultName;
+      const session = await onStartWebAuthorization(
+        selectedProvider.id,
+        makeCredentialId(selectedProvider.id, credentialName),
+        credentialName,
+      );
       if (session?.message) {
         setAuthorizationStatus({ tone: "success", text: session.message });
       }

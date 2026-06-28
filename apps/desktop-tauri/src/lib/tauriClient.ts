@@ -169,6 +169,7 @@ export async function refreshProvider(providerId: string, mode: RefreshMode = "m
 export async function startWebAuthorization(
   providerId: string,
   targetCredentialId?: string,
+  targetName?: string,
 ): Promise<WebAuthorizationSession> {
   if (!isTauriRuntime()) {
     return {
@@ -181,7 +182,12 @@ export async function startWebAuthorization(
     };
   }
 
-  return invoke<WebAuthorizationSession>("start_web_authorization", { providerId, targetCredentialId });
+  return invoke<WebAuthorizationSession>(
+    "start_web_authorization",
+    targetName === undefined
+      ? { providerId, targetCredentialId }
+      : { providerId, targetCredentialId, targetName },
+  );
 }
 
 export async function openExternalUrl(url?: string): Promise<void> {
@@ -210,13 +216,15 @@ export async function saveWebAuthorization(input: CapturedWebAuthorization): Pro
   return invoke<CredentialView>("save_web_authorization", { input });
 }
 
-export async function listenForWebAuthorizationSaved(onSaved: () => void | Promise<void>): Promise<() => void> {
+export async function listenForWebAuthorizationSaved(
+  onSaved: (credential: CredentialView) => void | Promise<void>,
+): Promise<() => void> {
   if (!isTauriRuntime()) {
     return () => {};
   }
 
-  return listen("web_authorization_saved", () => {
-    void onSaved();
+  return listen<CredentialView>("web_authorization_saved", (event) => {
+    void onSaved(event.payload);
   });
 }
 

@@ -22,7 +22,7 @@ import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { QuotaMonitoringPage } from "./pages/QuotaMonitoringPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TrayPopover } from "./tray/TrayPopover";
-import type { AppSettings, ProviderDefinition, WebAuthorizationSession } from "./shared/types";
+import type { AppSettings, CredentialView, ProviderDefinition, WebAuthorizationSession } from "./shared/types";
 import { LocaleContext, normalizeLocale, translate } from "./i18n";
 
 function orderProviders(providers: ProviderDefinition[], providerOrder: string[]) {
@@ -41,6 +41,7 @@ export default function App() {
   const [settings, setSettings] = useState(mockSettings);
   const [updateState, setUpdateState] = useState(mockUpdateState);
   const [webAuthorizationError, setWebAuthorizationError] = useState<string | undefined>();
+  const [lastWebAuthorizationSaved, setLastWebAuthorizationSaved] = useState<CredentialView>();
   const isTrayView = new URLSearchParams(window.location.search).get("view") === "tray";
 
   useEffect(() => {
@@ -63,11 +64,21 @@ export default function App() {
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;
 
-    void listenForWebAuthorizationSaved(async () => {
-      const state = await getAppState();
+    void listenForWebAuthorizationSaved(async (credential) => {
+      let state;
+      let refreshError: string | undefined;
+      try {
+        state = isTrayView
+          ? await getAppState()
+          : await refreshProvider(credential.providerId, "manual");
+      } catch (error) {
+        state = await getAppState();
+        refreshError = `Saved authorization, but quota refresh failed: ${errorMessage(error)}`;
+      }
       if (!cancelled) {
-        setWebAuthorizationError(undefined);
+        setWebAuthorizationError(refreshError);
         setAppState(state);
+        setLastWebAuthorizationSaved(credential);
       }
     }).then((listener) => {
       unsubscribe = listener;
@@ -141,9 +152,10 @@ export default function App() {
   async function handleStartWebAuthorization(
     providerId: string,
     targetCredentialId?: string,
+    targetName?: string,
   ): Promise<WebAuthorizationSession> {
     setWebAuthorizationError(undefined);
-    return startWebAuthorization(providerId, targetCredentialId);
+    return startWebAuthorization(providerId, targetCredentialId, targetName);
   }
 
   if (isTrayView) {
@@ -169,6 +181,7 @@ export default function App() {
       <CredentialsPage
         providers={providers}
         credentials={appState.credentials}
+        lastWebAuthorizationSaved={lastWebAuthorizationSaved}
         onStartWebAuthorization={handleStartWebAuthorization}
       />
     ),
@@ -205,4 +218,8 @@ export default function App() {
       </AppShell>
     </LocaleContext.Provider>
   );
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
 }

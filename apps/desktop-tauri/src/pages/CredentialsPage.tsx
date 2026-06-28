@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Plus } from "lucide-react";
 import { CredentialEditorDialog } from "../credentials/CredentialEditorDialog";
 import { ProviderCredentialGroup } from "../credentials/ProviderCredentialGroup";
@@ -21,12 +21,14 @@ import type {
 interface CredentialsPageProps {
   providers?: ProviderDefinition[];
   credentials?: CredentialView[];
+  lastWebAuthorizationSaved?: CredentialView;
   onStartWebAuthorization?: StartWebAuthorizationHandler;
 }
 
 export function CredentialsPage({
   providers = providerRegistry,
   credentials = mockCredentials,
+  lastWebAuthorizationSaved,
   onStartWebAuthorization,
 }: CredentialsPageProps) {
   const t = useTranslate();
@@ -34,6 +36,7 @@ export function CredentialsPage({
   const [visibleCredentials, setVisibleCredentials] = useState(credentials);
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState<{ tone: "success" | "error"; text: string }>();
+  const handledSavedAuthorizationId = useRef<string>();
 
   useEffect(() => {
     if (!isTauriRuntime()) {
@@ -53,6 +56,21 @@ export function CredentialsPage({
       cancelled = true;
     };
   }, [credentials]);
+
+  useEffect(() => {
+    if (!lastWebAuthorizationSaved || handledSavedAuthorizationId.current === lastWebAuthorizationSaved.id) {
+      return;
+    }
+
+    handledSavedAuthorizationId.current = lastWebAuthorizationSaved.id;
+    setVisibleCredentials((currentCredentials) => {
+      const nextCredentials = currentCredentials.filter(
+        (credential) => credential.id !== lastWebAuthorizationSaved.id,
+      );
+      return [...nextCredentials, lastWebAuthorizationSaved];
+    });
+    setEditorOpen(false);
+  }, [lastWebAuthorizationSaved]);
 
   const configuredProviders = useMemo(
     () =>

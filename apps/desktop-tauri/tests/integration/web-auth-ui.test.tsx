@@ -170,8 +170,9 @@ describe("web authorization UI shell", () => {
         return Promise.resolve({
           providerId: "claude",
           targetCredentialId: (args as { targetCredentialId?: string }).targetCredentialId,
+          targetName: (args as { targetName?: string }).targetName,
           loginUrl: "https://claude.ai/settings/usage",
-          message: "Choose an authorization target",
+          message: "Ready to update selected authorization; waiting for dashboard login",
         });
       }
       if (command === "open_external_url") {
@@ -189,12 +190,98 @@ describe("web authorization UI shell", () => {
 
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("start_web_authorization", {
       providerId: "claude",
-      targetCredentialId: undefined,
+      targetCredentialId: "claude-claude-credential",
+      targetName: "Claude Credential",
     }));
     expect(invoke).not.toHaveBeenCalledWith("open_external_url", {
       url: "https://claude.ai/settings/usage",
     });
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it("closes the add credential dialog and refreshes quota after web authorization is saved", async () => {
+    setTauriRuntime(true);
+    const eventHandlers = new Map<string, (event: { payload: unknown }) => void>();
+    vi.mocked(listen).mockImplementation((event, handler) => {
+      eventHandlers.set(event, handler as (event: { payload: unknown }) => void);
+      return Promise.resolve(() => undefined);
+    });
+    const savedAuthorization: CredentialView = {
+      ...claudeAuthorization,
+      id: "claude-claude-credential",
+      name: "Claude Credential",
+      status: "notChecked",
+      remainingBadgeText: "Saved",
+    };
+    const savedState = {
+      providers: [claudeProvider],
+      credentials: [savedAuthorization],
+    };
+    const refreshedState = {
+      providers: [claudeProvider],
+      credentials: [
+        {
+          ...savedAuthorization,
+          status: "healthy" as const,
+          remaining: 42,
+          limit: 100,
+          remainingBadgeText: "42 / 100",
+          quotaWindows: [{ name: "5h", percentRemaining: 42 }],
+          lastHttpStatus: 200,
+        },
+      ],
+    };
+    vi.mocked(invoke).mockImplementation((command, args) => {
+      if (command === "get_app_state") {
+        return Promise.resolve(savedState);
+      }
+      if (command === "get_settings") {
+        return Promise.resolve({
+          ...mockSettings,
+          providerOrder: ["claude"],
+        });
+      }
+      if (command === "get_update_state") {
+        return Promise.resolve(mockUpdateState);
+      }
+      if (command === "list_credentials") {
+        return Promise.resolve([]);
+      }
+      if (command === "start_web_authorization") {
+        return Promise.resolve({
+          providerId: "claude",
+          targetCredentialId: (args as { targetCredentialId?: string }).targetCredentialId,
+          loginUrl: "https://claude.ai/settings/usage",
+          message: "Ready to update selected authorization; waiting for dashboard login",
+        });
+      }
+      if (command === "refresh_provider") {
+        expect(args).toEqual({ providerId: "claude", mode: "manual" });
+        return Promise.resolve(refreshedState);
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+
+    render(<App />);
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("get_app_state"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Credentials" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add Credential" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open web login Claude" }));
+
+    eventHandlers.get("web_authorization_saved")?.({ payload: savedAuthorization });
+
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("refresh_provider", {
+        providerId: "claude",
+        mode: "manual",
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Add Credential" })).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Quota Overview" }));
+    expect(await screen.findByText("42%")).toBeInTheDocument();
   });
 
   it("shows a recoverable error when desktop web authorization capture fails", async () => {

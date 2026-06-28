@@ -41,15 +41,17 @@ pub fn start_web_authorization<R: Runtime>(
     app: AppHandle<R>,
     provider_id: String,
     target_credential_id: Option<String>,
+    target_name: Option<String>,
 ) -> Result<WebAuthorizationSession, String> {
     let metadata_store = TauriMetadataStore::open(&app)?;
     let credentials = load_credentials(&metadata_store)?;
-    let target_name = target_credential_id.as_ref().and_then(|target_id| {
+    let existing_target_name = target_credential_id.as_ref().and_then(|target_id| {
         credentials
             .iter()
             .find(|credential| credential.id == *target_id)
             .map(|credential| credential.name.as_str())
     });
+    let resolved_target_name = existing_target_name.or(target_name.as_deref());
     let login_url = visible_provider_definitions()
         .into_iter()
         .find(|provider| provider.id == provider_id)
@@ -58,7 +60,7 @@ pub fn start_web_authorization<R: Runtime>(
     let session = start_web_authorization_session(
         &provider_id,
         target_credential_id.as_deref(),
-        target_name,
+        resolved_target_name,
         login_url.as_deref(),
     );
     let login_url = session
@@ -70,7 +72,7 @@ pub fn start_web_authorization<R: Runtime>(
         WebAuthorizationWindowRequest {
             provider_id,
             target_credential_id,
-            target_name: target_name.map(ToString::to_string),
+            target_name: resolved_target_name.map(ToString::to_string),
             login_url,
         },
     )?;
