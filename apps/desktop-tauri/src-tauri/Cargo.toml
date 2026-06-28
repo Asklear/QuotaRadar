@@ -31,3 +31,9 @@ tauri-plugin-updater = "2"
 
 [target.'cfg(not(target_os = "windows"))'.dev-dependencies]
 tauri = { version = "2", features = ["test"] }
+
+[features]
+default = []
+# Tauri CLI enables this feature for production builds so windows use bundled
+# frontend assets instead of the development server URL.
+custom-protocol = ["tauri/custom-protocol"]

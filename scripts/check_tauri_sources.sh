@@ -228,6 +228,9 @@ if config.get("identifier") == "com.gaorongvc.quotaradar":
 main_rs = Path("apps/desktop-tauri/src-tauri/src/main.rs").read_text(encoding="utf-8")
 if 'windows_subsystem = "windows"' not in main_rs:
     sys.exit("FAIL: Tauri Windows release binary must use the windows GUI subsystem")
+cargo_toml = Path("apps/desktop-tauri/src-tauri/Cargo.toml").read_text(encoding="utf-8")
+if 'custom-protocol = ["tauri/custom-protocol"]' not in cargo_toml:
+    sys.exit("FAIL: Tauri Cargo.toml must map the custom-protocol feature for production builds")
 windows = config.get("app", {}).get("windows", [])
 main_window = next((window for window in windows if window.get("label") == "main"), None)
 if not main_window or main_window.get("title") != "Quota Radar Tauri Preview":
