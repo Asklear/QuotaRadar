@@ -20,7 +20,8 @@ describe("desktop runtime source guards", () => {
 
   it("keeps web authorization inside a capturable Tauri webview", () => {
     expect(webAuthRs).toContain("WebviewWindowBuilder::new");
-    expect(webAuthRs).toContain("WebviewUrl::External");
+    expect(webAuthRs).toContain("WebviewUrl::App");
+    expect(webAuthRs).toContain("window.navigate(load_plan.navigation_url)");
     expect(webAuthRs).toContain("window.cookies()");
     expect(webAuthRs).toContain("save_web_authorization_with_stores");
   });

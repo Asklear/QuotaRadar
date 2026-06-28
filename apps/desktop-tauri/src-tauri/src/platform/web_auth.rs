@@ -100,6 +100,12 @@ struct WebAuthorizationFailedPayload {
     message: String,
 }
 
+#[derive(Clone, Debug)]
+struct WebAuthWindowLoadPlan {
+    initial_route: String,
+    navigation_url: Url,
+}
+
 pub fn open_web_authorization_window<R: Runtime>(
     app: &AppHandle<R>,
     request: WebAuthorizationWindowRequest,
@@ -119,6 +125,7 @@ pub fn open_web_authorization_window<R: Runtime>(
     close_existing_web_auth_windows(app);
 
     let label = web_auth_window_label(&request.provider_id);
+    let load_plan = web_auth_window_load_plan(login_url);
     let capture_session = Arc::new(CaptureSession {
         provider_id: request.provider_id.clone(),
         target_credential_id: request.target_credential_id.clone(),
@@ -131,30 +138,36 @@ pub fn open_web_authorization_window<R: Runtime>(
     let app_for_page_load = app.clone();
     let capture_session_for_page_load = capture_session.clone();
 
-    WebviewWindowBuilder::new(app, &label, WebviewUrl::External(login_url))
-        .title(format!("Quota Radar - {}", request.provider_id))
-        .inner_size(720.0, 820.0)
-        .min_inner_size(520.0, 600.0)
-        .center()
-        .focused(true)
-        .on_page_load(move |window, payload| {
-            if !should_start_capture_after_page_load(
-                payload.event(),
-                payload.url(),
-                capture_session_for_page_load.cookie_domains,
-            ) {
-                return;
-            }
+    let window =
+        WebviewWindowBuilder::new(app, &label, WebviewUrl::App(load_plan.initial_route.into()))
+            .title(format!("Quota Radar - {}", request.provider_id))
+            .inner_size(720.0, 820.0)
+            .min_inner_size(520.0, 600.0)
+            .center()
+            .focused(true)
+            .on_page_load(move |window, payload| {
+                if !should_start_capture_after_page_load(
+                    payload.event(),
+                    payload.url(),
+                    capture_session_for_page_load.cookie_domains,
+                ) {
+                    return;
+                }
 
-            schedule_capture_attempt(
-                app_for_page_load.clone(),
-                window,
-                capture_session_for_page_load.clone(),
-                0,
-            );
-        })
-        .build()
-        .map_err(|error| error.to_string())?;
+                schedule_capture_attempt(
+                    app_for_page_load.clone(),
+                    window,
+                    capture_session_for_page_load.clone(),
+                    0,
+                );
+            })
+            .build()
+            .map_err(|error| error.to_string())?;
+
+    if let Err(error) = window.navigate(load_plan.navigation_url) {
+        let _ = window.close();
+        return Err(error.to_string());
+    }
 
     Ok(())
 }
@@ -455,11 +468,7 @@ fn capture_unready_retry_outcome(
     capture_retry_outcome(false, provider_id, completed_retry_count)
 }
 
-fn should_start_capture_after_page_load(
-    event: PageLoadEvent,
-    url: &Url,
-    domains: &[&str],
-) -> bool {
+fn should_start_capture_after_page_load(event: PageLoadEvent, url: &Url, domains: &[&str]) -> bool {
     event == PageLoadEvent::Finished && host_matches_allowed_domains(url, domains)
 }
 
@@ -760,6 +769,13 @@ fn web_auth_window_label(provider_id: &str) -> String {
     format!("{WEB_AUTH_WINDOW_PREFIX}-{sanitized}-{sequence}")
 }
 
+fn web_auth_window_load_plan(navigation_url: Url) -> WebAuthWindowLoadPlan {
+    WebAuthWindowLoadPlan {
+        initial_route: "/?view=auth".to_string(),
+        navigation_url,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -855,8 +871,8 @@ mod tests {
     fn capture_starts_only_after_allowed_finished_page_load() {
         let config = dashboard_reauth_provider_config("xfyun_coding_plan")
             .expect("xfyun should support web auth capture");
-        let allowed_url = Url::parse("https://maas.xfyun.cn/packageSubscription")
-            .expect("url should parse");
+        let allowed_url =
+            Url::parse("https://maas.xfyun.cn/packageSubscription").expect("url should parse");
         let unrelated_url = Url::parse("https://example.com/").expect("url should parse");
 
         assert!(should_start_capture_after_page_load(
@@ -874,6 +890,17 @@ mod tests {
             &unrelated_url,
             config.cookie_domains
         ));
+    }
+
+    #[test]
+    fn web_auth_window_load_plan_uses_app_placeholder_before_external_navigation() {
+        let login_url =
+            Url::parse("https://maas.xfyun.cn/packageSubscription").expect("url should parse");
+
+        let load_plan = web_auth_window_load_plan(login_url.clone());
+
+        assert_eq!(load_plan.initial_route, "/?view=auth");
+        assert_eq!(load_plan.navigation_url, login_url);
     }
 
     #[test]
