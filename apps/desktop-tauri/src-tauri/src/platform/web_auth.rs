@@ -179,7 +179,7 @@ pub fn spawn_web_authorization_window<R: Runtime>(
     validate_web_authorization_window_request(&request)?;
 
     let app_for_window = app.clone();
-    app.run_on_main_thread(move || {
+    thread::spawn(move || {
         let failure_request = request.clone();
         if let Err(error) = open_web_authorization_window(&app_for_window, request) {
             emit_web_authorization_failure(
@@ -190,8 +190,8 @@ pub fn spawn_web_authorization_window<R: Runtime>(
             );
             let _ = reopen_main_window(&app_for_window);
         }
-    })
-    .map_err(|error| error.to_string())
+    });
+    Ok(())
 }
 
 fn validate_web_authorization_window_request(

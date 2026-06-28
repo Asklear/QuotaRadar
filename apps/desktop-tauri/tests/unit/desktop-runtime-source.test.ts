@@ -30,5 +30,6 @@ describe("desktop runtime source guards", () => {
   it("starts web authorization without blocking the command on auth window creation", () => {
     expect(authRs).toContain("spawn_web_authorization_window");
     expect(authRs).not.toContain("open_web_authorization_window(");
+    expect(webAuthRs).not.toContain("app.run_on_main_thread(move ||");
   });
 });
