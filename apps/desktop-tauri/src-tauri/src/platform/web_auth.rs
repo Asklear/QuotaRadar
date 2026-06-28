@@ -9,7 +9,7 @@ use std::{
 };
 
 use chrono::Utc;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use tauri::{
     webview::{Cookie, PageLoadEvent},
@@ -50,6 +50,12 @@ const WEB_STORAGE_CAPTURE_SCRIPT: &str = r#"
   }
   return output;
 })()
+"#;
+const DOCUMENT_COOKIE_CAPTURE_SCRIPT: &str = r#"
+(() => ({
+  href: window.location.href,
+  cookie: document.cookie || ''
+}))()
 "#;
 
 #[derive(Debug, Clone)]
@@ -99,6 +105,12 @@ struct WebAuthorizationFailedPayload {
     provider_id: String,
     target_credential_id: Option<String>,
     message: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct DocumentCookieCapture {
+    href: String,
+    cookie: String,
 }
 
 #[derive(Clone, Debug)]
@@ -594,7 +606,10 @@ fn capture_material<R: Runtime>(
     capture_session: &CaptureSession,
 ) -> Result<CapturedCredentialMaterial, String> {
     let cookies = window.cookies().map_err(|error| error.to_string())?;
-    let cookie_header = cookie_header_from_cookies(&cookies, capture_session.cookie_domains);
+    let cookie_header = merge_cookie_headers(
+        &cookie_header_from_cookies(&cookies, capture_session.cookie_domains),
+        &capture_document_cookie_header(window, capture_session.cookie_domains).unwrap_or_default(),
+    );
     let web_storage_fields = capture_web_storage_fields(window).unwrap_or_default();
     let fields = normalized_web_storage_fields(
         &capture_session.provider_id,
@@ -632,6 +647,87 @@ fn capture_web_storage_fields<R: Runtime>(
                 .map(|value| (key, value.to_string()))
         })
         .collect())
+}
+
+fn capture_document_cookie_header<R: Runtime>(
+    window: &WebviewWindow<R>,
+    domains: &[&str],
+) -> Result<String, String> {
+    let (sender, receiver) = mpsc::channel();
+    window
+        .eval_with_callback(DOCUMENT_COOKIE_CAPTURE_SCRIPT, move |result| {
+            let _ = sender.send(result);
+        })
+        .map_err(|error| error.to_string())?;
+
+    let raw_result = receiver
+        .recv_timeout(Duration::from_secs(2))
+        .map_err(|error| error.to_string())?;
+    let parsed = serde_json::from_str::<DocumentCookieCapture>(&raw_result)
+        .map_err(|error| error.to_string())?;
+    let current_url = Url::parse(&parsed.href).map_err(|error| error.to_string())?;
+
+    Ok(cookie_header_from_document_cookie(
+        &parsed.cookie,
+        &current_url,
+        domains,
+    ))
+}
+
+fn cookie_header_from_document_cookie(
+    document_cookie: &str,
+    current_url: &Url,
+    domains: &[&str],
+) -> String {
+    if !host_matches_allowed_domains(current_url, domains) {
+        return String::new();
+    }
+
+    normalized_cookie_pairs(document_cookie)
+        .into_iter()
+        .map(|(_, pair)| pair)
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+fn merge_cookie_headers(primary: &str, fallback: &str) -> String {
+    let mut seen_names = BTreeSet::new();
+    let mut pairs = Vec::new();
+
+    for (name, pair) in normalized_cookie_pairs(primary) {
+        if seen_names.insert(name.clone()) {
+            pairs.push((name, pair));
+        }
+    }
+    for (name, pair) in normalized_cookie_pairs(fallback) {
+        if seen_names.insert(name.clone()) {
+            pairs.push((name, pair));
+        }
+    }
+
+    pairs.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
+    pairs
+        .into_iter()
+        .map(|(_, pair)| pair)
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+fn normalized_cookie_pairs(cookie_header: &str) -> Vec<(String, String)> {
+    let mut pairs = cookie_header
+        .split(';')
+        .filter_map(|part| {
+            let (name, value) = part.split_once('=')?;
+            let name = name.trim();
+            let value = value.trim();
+            if name.is_empty() || value.is_empty() {
+                return None;
+            }
+            Some((name.to_string(), format!("{name}={value}")))
+        })
+        .collect::<Vec<_>>();
+    pairs.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
+    pairs
 }
 
 fn save_captured_material<R: Runtime>(
@@ -1002,6 +1098,32 @@ mod tests {
         assert_eq!(
             cookie_header_from_cookies(&cookies, &["example.com"]),
             "a=2; z=1"
+        );
+    }
+
+    #[test]
+    fn document_cookie_header_accepts_allowed_claude_com_redirect_domain() {
+        let redirected_url =
+            Url::parse("https://claude.com/app-unavailable-in-region").expect("url should parse");
+
+        assert_eq!(
+            cookie_header_from_document_cookie(
+                "theme=dark; sessionKeyLC=claude-session; empty=",
+                &redirected_url,
+                &["claude.ai", "claude.com"],
+            ),
+            "sessionKeyLC=claude-session; theme=dark"
+        );
+    }
+
+    #[test]
+    fn merged_cookie_header_preserves_window_cookie_values() {
+        assert_eq!(
+            merge_cookie_headers(
+                "sessionKey=from-window; __cf_bm=from-window",
+                "sessionKey=from-document; sessionKeyLC=from-document",
+            ),
+            "__cf_bm=from-window; sessionKey=from-window; sessionKeyLC=from-document"
         );
     }
 
