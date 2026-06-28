@@ -85,6 +85,12 @@ export interface WebAuthorizationSession {
   message: string;
 }
 
+export interface WebAuthorizationFailure {
+  providerId: string;
+  targetCredentialId?: string;
+  message: string;
+}
+
 export type StartWebAuthorizationHandler = (
   providerId: string,
   targetCredentialId?: string,

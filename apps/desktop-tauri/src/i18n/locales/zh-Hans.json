@@ -97,6 +97,7 @@
   "tray.expiringSoon": "即将到期",
   "tray.needsAttention": "需要关注",
   "app.previewReady": "额度页面的桌面预览外壳已就绪。",
+  "app.webAuthorizationFailed": "网页登录授权失败：",
   "sidebar.statistics": "统计",
   "sidebar.creds": "密钥",
   "sidebar.providers": "服务商",

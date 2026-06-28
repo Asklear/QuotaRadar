@@ -97,6 +97,7 @@
   "tray.expiringSoon": "Expiring Soon",
   "tray.needsAttention": "Needs Attention",
   "app.previewReady": "Mock desktop shell ready for quota pages.",
+  "app.webAuthorizationFailed": "Web login authorization failed:",
   "sidebar.statistics": "STATISTICS",
   "sidebar.creds": "Keys",
   "sidebar.providers": "Providers",

@@ -97,6 +97,7 @@
   "tray.expiringSoon": "まもなく期限切れ",
   "tray.needsAttention": "要確認",
   "app.previewReady": "クォータ画面用のデスクトッププレビューシェルです。",
+  "app.webAuthorizationFailed": "Web ログイン認証に失敗しました:",
   "sidebar.statistics": "統計",
   "sidebar.creds": "キー",
   "sidebar.providers": "プロバイダー",

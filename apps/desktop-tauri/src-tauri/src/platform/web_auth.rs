@@ -9,6 +9,7 @@ use std::{
 };
 
 use chrono::Utc;
+use serde::Serialize;
 use serde_json::{json, Map, Value};
 use tauri::{
     webview::{Cookie, PageLoadEvent},
@@ -25,6 +26,7 @@ use crate::{
 use super::window::reopen_main_window;
 
 const WEB_AUTH_SAVED_EVENT: &str = "web_authorization_saved";
+const WEB_AUTH_FAILED_EVENT: &str = "web_authorization_failed";
 const WEB_AUTH_WINDOW_PREFIX: &str = "web-auth";
 static WEB_AUTH_WINDOW_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 const WEB_STORAGE_CAPTURE_SCRIPT: &str = r#"
@@ -83,6 +85,21 @@ pub struct CapturedCredentialMaterial {
     pub fields: BTreeMap<String, String>,
 }
 
+#[derive(Debug, PartialEq)]
+enum CaptureRetryOutcome {
+    Ready,
+    Retry { next_completed_retry_count: usize },
+    Failed,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WebAuthorizationFailedPayload {
+    provider_id: String,
+    target_credential_id: Option<String>,
+    message: String,
+}
+
 pub fn open_web_authorization_window<R: Runtime>(
     app: &AppHandle<R>,
     request: WebAuthorizationWindowRequest,
@@ -114,19 +131,18 @@ pub fn open_web_authorization_window<R: Runtime>(
     let app_for_page_load = app.clone();
     let capture_session_for_page_load = capture_session.clone();
 
-    let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(login_url))
+    WebviewWindowBuilder::new(app, &label, WebviewUrl::External(login_url))
         .title(format!("Quota Radar - {}", request.provider_id))
         .inner_size(720.0, 820.0)
         .min_inner_size(520.0, 600.0)
         .center()
         .focused(true)
         .on_page_load(move |window, payload| {
-            if payload.event() != PageLoadEvent::Finished
-                || !host_matches_allowed_domains(
-                    payload.url(),
-                    capture_session_for_page_load.cookie_domains,
-                )
-            {
+            if !should_start_capture_after_page_load(
+                payload.event(),
+                payload.url(),
+                capture_session_for_page_load.cookie_domains,
+            ) {
                 return;
             }
 
@@ -140,7 +156,6 @@ pub fn open_web_authorization_window<R: Runtime>(
         .build()
         .map_err(|error| error.to_string())?;
 
-    schedule_capture_attempt(app.clone(), window, capture_session, 0);
     Ok(())
 }
 
@@ -348,15 +363,53 @@ fn capture_and_save<R: Runtime>(
         Ok(material) => material,
         Err(error) => {
             eprintln!("Quota Radar web authorization capture skipped: {error}");
+            match capture_unready_retry_outcome(&capture_session.provider_id, completed_retry_count)
+            {
+                CaptureRetryOutcome::Retry {
+                    next_completed_retry_count,
+                } => {
+                    schedule_capture_attempt(
+                        app,
+                        window,
+                        capture_session,
+                        next_completed_retry_count,
+                    );
+                }
+                CaptureRetryOutcome::Failed => {
+                    fail_web_authorization(
+                        &app,
+                        &window,
+                        &capture_session,
+                        web_authorization_capture_error_message(&error),
+                    );
+                }
+                CaptureRetryOutcome::Ready => {}
+            }
             return;
         }
     };
 
-    if !captured_material_is_ready(&material, capture_session.required_names) {
-        if completed_retry_count + 1 < automatic_retry_delays(&capture_session.provider_id).len() {
-            schedule_capture_attempt(app, window, capture_session, completed_retry_count + 1);
+    match capture_retry_outcome(
+        captured_material_is_ready(&material, capture_session.required_names),
+        &capture_session.provider_id,
+        completed_retry_count,
+    ) {
+        CaptureRetryOutcome::Ready => {}
+        CaptureRetryOutcome::Retry {
+            next_completed_retry_count,
+        } => {
+            schedule_capture_attempt(app, window, capture_session, next_completed_retry_count);
+            return;
         }
-        return;
+        CaptureRetryOutcome::Failed => {
+            fail_web_authorization(
+                &app,
+                &window,
+                &capture_session,
+                web_authorization_missing_material_message(&capture_session, &material),
+            );
+            return;
+        }
     }
 
     if capture_session
@@ -375,6 +428,90 @@ fn capture_and_save<R: Runtime>(
 
     let _ = window.close();
     let _ = reopen_main_window(&app);
+}
+
+fn capture_retry_outcome(
+    material_ready: bool,
+    provider_id: &str,
+    completed_retry_count: usize,
+) -> CaptureRetryOutcome {
+    if material_ready {
+        return CaptureRetryOutcome::Ready;
+    }
+
+    if completed_retry_count + 1 < automatic_retry_delays(provider_id).len() {
+        return CaptureRetryOutcome::Retry {
+            next_completed_retry_count: completed_retry_count + 1,
+        };
+    }
+
+    CaptureRetryOutcome::Failed
+}
+
+fn capture_unready_retry_outcome(
+    provider_id: &str,
+    completed_retry_count: usize,
+) -> CaptureRetryOutcome {
+    capture_retry_outcome(false, provider_id, completed_retry_count)
+}
+
+fn should_start_capture_after_page_load(
+    event: PageLoadEvent,
+    url: &Url,
+    domains: &[&str],
+) -> bool {
+    event == PageLoadEvent::Finished && host_matches_allowed_domains(url, domains)
+}
+
+fn fail_web_authorization<R: Runtime>(
+    app: &AppHandle<R>,
+    window: &WebviewWindow<R>,
+    capture_session: &CaptureSession,
+    message: String,
+) {
+    if capture_session
+        .saved
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return;
+    }
+
+    let payload = WebAuthorizationFailedPayload {
+        provider_id: capture_session.provider_id.clone(),
+        target_credential_id: capture_session.target_credential_id.clone(),
+        message,
+    };
+    if let Err(error) = app.emit(WEB_AUTH_FAILED_EVENT, payload) {
+        eprintln!("Quota Radar failed to emit web authorization failure: {error}");
+    }
+    let _ = window.close();
+    let _ = reopen_main_window(app);
+}
+
+fn web_authorization_missing_material_message(
+    capture_session: &CaptureSession,
+    material: &CapturedCredentialMaterial,
+) -> String {
+    let missing = missing_required_credential_names(
+        &material.cookie_header,
+        &material.fields,
+        capture_session.required_names,
+    );
+    if missing.is_empty() {
+        return "Could not capture a usable web login authorization before the auth window timed out. Please finish login and try again.".to_string();
+    }
+
+    format!(
+        "Could not capture required login data ({}) before the auth window timed out. Please finish login and try again.",
+        missing.join(", ")
+    )
+}
+
+fn web_authorization_capture_error_message(error: &str) -> String {
+    format!(
+        "Could not inspect the auth window before the web login timed out ({error}). Please finish login and try again."
+    )
 }
 
 fn capture_material<R: Runtime>(
@@ -673,6 +810,38 @@ mod tests {
     }
 
     #[test]
+    fn capture_retry_outcome_fails_after_last_incomplete_attempt() {
+        let retry_count = automatic_retry_delays("xfyun_coding_plan").len();
+
+        assert_eq!(
+            capture_retry_outcome(false, "xfyun_coding_plan", retry_count - 2),
+            CaptureRetryOutcome::Retry {
+                next_completed_retry_count: retry_count - 1
+            }
+        );
+        assert_eq!(
+            capture_retry_outcome(false, "xfyun_coding_plan", retry_count - 1),
+            CaptureRetryOutcome::Failed
+        );
+    }
+
+    #[test]
+    fn capture_errors_use_the_same_exhausting_retry_policy() {
+        let retry_count = automatic_retry_delays("xfyun_coding_plan").len();
+
+        assert_eq!(
+            capture_unready_retry_outcome("xfyun_coding_plan", 0),
+            CaptureRetryOutcome::Retry {
+                next_completed_retry_count: 1
+            }
+        );
+        assert_eq!(
+            capture_unready_retry_outcome("xfyun_coding_plan", retry_count - 1),
+            CaptureRetryOutcome::Failed
+        );
+    }
+
+    #[test]
     fn web_auth_window_labels_are_detected_as_auth_windows() {
         let label = web_auth_window_label("xfyun/coding plan");
 
@@ -680,6 +849,31 @@ mod tests {
         assert!(is_web_auth_window_label("web-auth-claude"));
         assert!(!is_web_auth_window_label("web-authentic"));
         assert!(!is_web_auth_window_label("main"));
+    }
+
+    #[test]
+    fn capture_starts_only_after_allowed_finished_page_load() {
+        let config = dashboard_reauth_provider_config("xfyun_coding_plan")
+            .expect("xfyun should support web auth capture");
+        let allowed_url = Url::parse("https://maas.xfyun.cn/packageSubscription")
+            .expect("url should parse");
+        let unrelated_url = Url::parse("https://example.com/").expect("url should parse");
+
+        assert!(should_start_capture_after_page_load(
+            PageLoadEvent::Finished,
+            &allowed_url,
+            config.cookie_domains
+        ));
+        assert!(!should_start_capture_after_page_load(
+            PageLoadEvent::Started,
+            &allowed_url,
+            config.cookie_domains
+        ));
+        assert!(!should_start_capture_after_page_load(
+            PageLoadEvent::Finished,
+            &unrelated_url,
+            config.cookie_domains
+        ));
     }
 
     #[test]

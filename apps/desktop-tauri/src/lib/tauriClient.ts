@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { mockCredentials, providerRegistry } from "../shared/mockData";
 import type {
   AppSettings,
@@ -9,6 +10,7 @@ import type {
   CredentialView,
   RefreshMode,
   UpdateState,
+  WebAuthorizationFailure,
   WebAuthorizationSession,
 } from "../shared/types";
 
@@ -213,9 +215,20 @@ export async function listenForWebAuthorizationSaved(onSaved: () => void | Promi
     return () => {};
   }
 
-  const { listen } = await import("@tauri-apps/api/event");
   return listen("web_authorization_saved", () => {
     void onSaved();
+  });
+}
+
+export async function listenForWebAuthorizationFailed(
+  onFailed: (failure: WebAuthorizationFailure) => void | Promise<void>,
+): Promise<() => void> {
+  if (!isTauriRuntime()) {
+    return () => {};
+  }
+
+  return listen<WebAuthorizationFailure>("web_authorization_failed", (event) => {
+    void onFailed(event.payload);
   });
 }
 

@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../../src/App";
@@ -7,6 +8,10 @@ import type { AppState, CredentialView, ProviderDefinition } from "../../src/sha
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
+}));
+
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(() => Promise.resolve(() => undefined)),
 }));
 
 function setTauriRuntime(enabled: boolean) {
@@ -78,8 +83,11 @@ function mockDesktopCommands(state: AppState) {
 
 describe("web authorization UI shell", () => {
   afterEach(() => {
-    vi.restoreAllMocks();
+    const mockedWindowOpen = window.open as typeof window.open & { mockRestore?: () => void };
+    mockedWindowOpen.mockRestore?.();
     vi.mocked(invoke).mockReset();
+    vi.mocked(listen).mockReset();
+    vi.mocked(listen).mockImplementation(() => Promise.resolve(() => undefined));
     setTauriRuntime(false);
   });
 
@@ -187,5 +195,33 @@ describe("web authorization UI shell", () => {
       url: "https://claude.ai/settings/usage",
     });
     expect(open).not.toHaveBeenCalled();
+  });
+
+  it("shows a recoverable error when desktop web authorization capture fails", async () => {
+    setTauriRuntime(true);
+    const eventHandlers = new Map<string, (event: { payload: unknown }) => void>();
+    vi.mocked(listen).mockImplementation((event, handler) => {
+      eventHandlers.set(event, handler as (event: { payload: unknown }) => void);
+      return Promise.resolve(() => undefined);
+    });
+    mockDesktopCommands({
+      providers: [claudeProvider],
+      credentials: [claudeAuthorization],
+    });
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(listen).toHaveBeenCalledWith("web_authorization_failed", expect.any(Function)),
+    );
+    eventHandlers.get("web_authorization_failed")?.({
+      payload: {
+        providerId: "claude",
+        message: "Could not capture required login cookies. Please try again.",
+      },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Web login authorization failed");
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not capture required login cookies");
   });
 });

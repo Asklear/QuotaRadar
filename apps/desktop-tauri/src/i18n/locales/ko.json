@@ -97,6 +97,7 @@
   "tray.expiringSoon": "곧 만료",
   "tray.needsAttention": "확인 필요",
   "app.previewReady": "할당량 페이지용 데스크톱 미리보기 셸입니다.",
+  "app.webAuthorizationFailed": "웹 로그인 인증 실패:",
   "sidebar.statistics": "통계",
   "sidebar.creds": "키",
   "sidebar.providers": "제공자",

@@ -3,6 +3,7 @@ import {
   getAppState,
   getSettings,
   getUpdateState,
+  listenForWebAuthorizationFailed,
   listenForWebAuthorizationSaved,
   mockAppState,
   mockSettings,
@@ -22,7 +23,7 @@ import { QuotaMonitoringPage } from "./pages/QuotaMonitoringPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TrayPopover } from "./tray/TrayPopover";
 import type { AppSettings, ProviderDefinition, WebAuthorizationSession } from "./shared/types";
-import { LocaleContext, normalizeLocale } from "./i18n";
+import { LocaleContext, normalizeLocale, translate } from "./i18n";
 
 function orderProviders(providers: ProviderDefinition[], providerOrder: string[]) {
   const order = new Map(providerOrder.map((providerId, index) => [providerId, index]));
@@ -39,6 +40,7 @@ export default function App() {
   const [appState, setAppState] = useState(mockAppState);
   const [settings, setSettings] = useState(mockSettings);
   const [updateState, setUpdateState] = useState(mockUpdateState);
+  const [webAuthorizationError, setWebAuthorizationError] = useState<string | undefined>();
   const isTrayView = new URLSearchParams(window.location.search).get("view") === "tray";
 
   useEffect(() => {
@@ -64,7 +66,29 @@ export default function App() {
     void listenForWebAuthorizationSaved(async () => {
       const state = await getAppState();
       if (!cancelled) {
+        setWebAuthorizationError(undefined);
         setAppState(state);
+      }
+    }).then((listener) => {
+      unsubscribe = listener;
+      if (cancelled) {
+        unsubscribe();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+
+    void listenForWebAuthorizationFailed((failure) => {
+      if (!cancelled) {
+        setWebAuthorizationError(failure.message);
       }
     }).then((listener) => {
       unsubscribe = listener;
@@ -118,6 +142,7 @@ export default function App() {
     providerId: string,
     targetCredentialId?: string,
   ): Promise<WebAuthorizationSession> {
+    setWebAuthorizationError(undefined);
     return startWebAuthorization(providerId, targetCredentialId);
   }
 
@@ -157,6 +182,9 @@ export default function App() {
       />
     ),
   }[activePage];
+  const webAuthorizationAlert = webAuthorizationError
+    ? `${translate("app.webAuthorizationFailed", locale)} ${webAuthorizationError}`
+    : undefined;
 
   return (
     <LocaleContext.Provider value={locale}>
@@ -168,6 +196,11 @@ export default function App() {
         providers={providers}
         updateState={updateState}
       >
+        {webAuthorizationAlert ? (
+          <div className="app-alert" data-tone="error" role="alert">
+            {webAuthorizationAlert}
+          </div>
+        ) : null}
         {page}
       </AppShell>
     </LocaleContext.Provider>

@@ -186,6 +186,17 @@
   scrollbar-gutter: stable;
 }
 
+.app-alert {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  color: #7a2518;
+  font-size: 13px;
+  line-height: 1.45;
+  border: 1px solid rgba(190, 80, 56, 0.32);
+  border-radius: 8px;
+  background: rgba(255, 238, 232, 0.92);
+}
+
 .app-panel {
   min-height: 220px;
   padding: 18px;
