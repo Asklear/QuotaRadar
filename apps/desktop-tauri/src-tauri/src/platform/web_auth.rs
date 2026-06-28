@@ -68,6 +68,7 @@ struct CaptureSession {
     default_name: &'static str,
     cookie_domains: &'static [&'static str],
     required_names: &'static [&'static str],
+    capture_started: Arc<AtomicBool>,
     saved: Arc<AtomicBool>,
 }
 
@@ -133,6 +134,7 @@ pub fn open_web_authorization_window<R: Runtime>(
         default_name: provider_config.default_name,
         cookie_domains: provider_config.cookie_domains,
         required_names: provider_config.required_names,
+        capture_started: Arc::new(AtomicBool::new(false)),
         saved: Arc::new(AtomicBool::new(false)),
     });
     let app_for_page_load = app.clone();
@@ -150,6 +152,11 @@ pub fn open_web_authorization_window<R: Runtime>(
                     payload.event(),
                     payload.url(),
                     capture_session_for_page_load.cookie_domains,
+                ) {
+                    return;
+                }
+                if !try_begin_initial_capture(
+                    capture_session_for_page_load.capture_started.as_ref(),
                 ) {
                     return;
                 }
@@ -231,13 +238,13 @@ pub fn dashboard_reauth_provider_config(
         },
         "claude" => DashboardReauthProviderConfig {
             provider_id: "claude",
-            cookie_domains: &["claude.ai"],
+            cookie_domains: &["claude.ai", "claude.com"],
             required_names: &["sessionKey|sessionKeyLC"],
             default_name: "CLAUDE_SUBSCRIPTION_SESSION",
         },
         "anthropic_credits" => DashboardReauthProviderConfig {
             provider_id: "anthropic_credits",
-            cookie_domains: &["claude.ai"],
+            cookie_domains: &["claude.ai", "claude.com"],
             required_names: &["sessionKey|sessionKeyLC"],
             default_name: "ANTHROPIC_CREDITS_SESSION",
         },
@@ -507,7 +514,14 @@ fn capture_unready_retry_outcome(
 }
 
 fn should_start_capture_after_page_load(event: PageLoadEvent, url: &Url, domains: &[&str]) -> bool {
-    event == PageLoadEvent::Finished && host_matches_allowed_domains(url, domains)
+    matches!(event, PageLoadEvent::Started | PageLoadEvent::Finished)
+        && host_matches_allowed_domains(url, domains)
+}
+
+fn try_begin_initial_capture(capture_started: &AtomicBool) -> bool {
+    capture_started
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
 }
 
 fn fail_web_authorization<R: Runtime>(
@@ -920,7 +934,7 @@ mod tests {
     }
 
     #[test]
-    fn capture_starts_only_after_allowed_finished_page_load() {
+    fn capture_starts_after_allowed_started_or_finished_page_load() {
         let config = dashboard_reauth_provider_config("xfyun_coding_plan")
             .expect("xfyun should support web auth capture");
         let allowed_url =
@@ -932,7 +946,7 @@ mod tests {
             &allowed_url,
             config.cookie_domains
         ));
-        assert!(!should_start_capture_after_page_load(
+        assert!(should_start_capture_after_page_load(
             PageLoadEvent::Started,
             &allowed_url,
             config.cookie_domains
@@ -940,6 +954,28 @@ mod tests {
         assert!(!should_start_capture_after_page_load(
             PageLoadEvent::Finished,
             &unrelated_url,
+            config.cookie_domains
+        ));
+    }
+
+    #[test]
+    fn initial_capture_scheduling_runs_only_once_per_auth_window() {
+        let capture_started = AtomicBool::new(false);
+
+        assert!(try_begin_initial_capture(&capture_started));
+        assert!(!try_begin_initial_capture(&capture_started));
+    }
+
+    #[test]
+    fn claude_web_auth_accepts_claude_com_redirects() {
+        let config = dashboard_reauth_provider_config("claude")
+            .expect("claude should support web auth capture");
+        let redirected_url =
+            Url::parse("https://claude.com/app-unavailable-in-region").expect("url should parse");
+
+        assert!(should_start_capture_after_page_load(
+            PageLoadEvent::Started,
+            &redirected_url,
             config.cookie_domains
         ));
     }
