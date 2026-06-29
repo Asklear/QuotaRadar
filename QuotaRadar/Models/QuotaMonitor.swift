@@ -443,6 +443,7 @@ class QuotaMonitor: ObservableObject {
                         key.planEndsAt = nil
                         key.planDisplayName = nil
                         key.codexResetCreditsRemaining = nil
+                        key.codexResetCreditsEarliestExpiresAt = nil
                         key.quotaLabel = key.provider.localizedUnsupportedQuotaLabel()
                         key.quotaText = LocalizedTextDescriptor.localized(.quotaUnavailable)
                         key.lastHTTPStatus = nil
@@ -462,6 +463,7 @@ class QuotaMonitor: ObservableObject {
                         key.planEndsAt = nil
                         key.planDisplayName = nil
                         key.codexResetCreditsRemaining = nil
+                        key.codexResetCreditsEarliestExpiresAt = nil
                         key.quotaLabel = "No subscribed plan"
                         key.quotaText = LocalizedTextDescriptor.localized(.noSubscribedPlan)
                         key.lastHTTPStatus = 200
@@ -477,6 +479,7 @@ class QuotaMonitor: ObservableObject {
                         key.planEndsAt = nil
                         key.planDisplayName = nil
                         key.codexResetCreditsRemaining = nil
+                        key.codexResetCreditsEarliestExpiresAt = nil
                         key.lastHTTPStatus = (error as? QuotaError)?.httpStatus ?? 401
                         if key.provider.supportsDashboardReauthentication {
                             key.quotaLabel = L10n.t(.credentialExpired)
@@ -500,6 +503,7 @@ class QuotaMonitor: ObservableObject {
                         key.planEndsAt = nil
                         key.planDisplayName = nil
                         key.codexResetCreditsRemaining = nil
+                        key.codexResetCreditsEarliestExpiresAt = nil
                         key.lastHTTPStatus = (error as? QuotaError)?.httpStatus
                         key.quotaLabel = error.localizedDescription
                         key.quotaText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
@@ -596,6 +600,7 @@ class QuotaMonitor: ObservableObject {
         key.planEndsAt = result.planEndsAt
         key.planDisplayName = result.planDisplayName
         key.codexResetCreditsRemaining = result.codexResetCreditsRemaining
+        key.codexResetCreditsEarliestExpiresAt = result.codexResetCreditsEarliestExpiresAt
         key.quotaLabel = result.quotaLabel
         key.quotaText = result.quotaText
         key.lastHTTPStatus = result.httpStatus
@@ -658,6 +663,7 @@ class QuotaMonitor: ObservableObject {
         credential.planEndsAt = nil
         credential.planDisplayName = nil
         credential.codexResetCreditsRemaining = nil
+        credential.codexResetCreditsEarliestExpiresAt = nil
         credential.lastUpdated = nil
         credential.lastHTTPStatus = nil
         credential.lastDiagnosticMessage = nil
@@ -733,6 +739,7 @@ class QuotaMonitor: ObservableObject {
                 replacement.planEndsAt = existingKey.planEndsAt
                 replacement.planDisplayName = existingKey.planDisplayName
                 replacement.codexResetCreditsRemaining = existingKey.codexResetCreditsRemaining
+                replacement.codexResetCreditsEarliestExpiresAt = existingKey.codexResetCreditsEarliestExpiresAt
                 replacement.lastUpdated = existingKey.lastUpdated
                 replacement.lastHTTPStatus = existingKey.lastHTTPStatus
                 replacement.lastDiagnosticMessage = existingKey.lastDiagnosticMessage
@@ -836,6 +843,7 @@ extension QuotaMonitor {
                 planEndsAt: soonPlanEnd,
                 planDisplayName: "Pro",
                 codexResetCreditsRemaining: 3,
+                codexResetCreditsEarliestExpiresAt: weekReset.addingTimeInterval(10 * 24 * 60 * 60),
                 lastUpdated: now,
                 quotaText: .quotaWindows([
                     QuotaWindowText(name: "5h", percentText: "96%", resetAt: hourReset, remainingText: "96 / 100"),
@@ -961,6 +969,7 @@ extension QuotaMonitor {
         planEndsAt: Date? = nil,
         planDisplayName: String? = nil,
         codexResetCreditsRemaining: Int? = nil,
+        codexResetCreditsEarliestExpiresAt: Date? = nil,
         lastUpdated: Date? = nil,
         lastHTTPStatus: Int? = nil,
         lastDiagnosticMessage: String? = nil,
@@ -975,6 +984,7 @@ extension QuotaMonitor {
         apiKey.planEndsAt = planEndsAt
         apiKey.planDisplayName = planDisplayName
         apiKey.codexResetCreditsRemaining = codexResetCreditsRemaining
+        apiKey.codexResetCreditsEarliestExpiresAt = codexResetCreditsEarliestExpiresAt
         apiKey.lastUpdated = lastUpdated
         apiKey.lastHTTPStatus = lastHTTPStatus
         apiKey.lastDiagnosticMessage = lastDiagnosticMessage

@@ -14,6 +14,7 @@ struct QuotaResult {
     var diagnosticMessage: String? = nil
     var diagnosticText: LocalizedTextDescriptor? = nil
     var codexResetCreditsRemaining: Int? = nil
+    var codexResetCreditsEarliestExpiresAt: Date? = nil
 
     init(
         remaining: Int,
@@ -27,7 +28,8 @@ struct QuotaResult {
         httpStatus: Int? = nil,
         diagnosticMessage: String? = nil,
         diagnosticText: LocalizedTextDescriptor? = nil,
-        codexResetCreditsRemaining: Int? = nil
+        codexResetCreditsRemaining: Int? = nil,
+        codexResetCreditsEarliestExpiresAt: Date? = nil
     ) {
         self.remaining = remaining
         self.limit = limit
@@ -43,12 +45,18 @@ struct QuotaResult {
         self.diagnosticMessage = diagnosticMessage
         self.diagnosticText = diagnosticText ?? diagnosticMessage.flatMap(LocalizedTextDescriptor.fromLegacyLabel)
         self.codexResetCreditsRemaining = codexResetCreditsRemaining
+        self.codexResetCreditsEarliestExpiresAt = codexResetCreditsEarliestExpiresAt
     }
 }
 
 struct SubscriptionLifecycleInfo {
     var planEndsAt: Date?
     var planDisplayName: String?
+}
+
+struct CodexResetCreditMetadata {
+    var availableCount: Int?
+    var earliestExpiresAt: Date?
 }
 
 struct ClaudeOrganizationContext {
@@ -850,6 +858,42 @@ enum QuotaParsers {
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                 .joined(separator: " · "),
             codexResetCreditsRemaining: resetCreditsRemaining
+        )
+    }
+
+    static func parseCodexResetCreditDetails(_ data: Data) throws -> CodexResetCreditMetadata {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw QuotaError.invalidResponse
+        }
+
+        let availableCount: Int?
+        if let number = object["available_count"] as? NSNumber, number.intValue >= 0 {
+            availableCount = number.intValue
+        } else {
+            availableCount = nil
+        }
+
+        let credits = object["credits"] as? [[String: Any]] ?? []
+        let earliestExpiresAt = credits.compactMap { credit -> Date? in
+            let status = (credit["status"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if ["redeemed", "consumed", "expired", "used"].contains(status ?? "") {
+                return nil
+            }
+            if firstDateValue(in: credit, keys: ["redeemed_at", "redeemedAt"]) != nil {
+                return nil
+            }
+            if let resetType = credit["reset_type"] as? String,
+               !resetType.isEmpty,
+               resetType != "codex_rate_limits" {
+                return nil
+            }
+            return firstDateValue(in: credit, keys: ["expires_at", "expiresAt"])
+        }
+        .min()
+
+        return CodexResetCreditMetadata(
+            availableCount: availableCount,
+            earliestExpiresAt: earliestExpiresAt
         )
     }
 
@@ -3660,6 +3704,15 @@ actor QuotaService {
             result.planEndsAt = lifecycle.planEndsAt
             result.planDisplayName = lifecycle.planDisplayName ?? result.planDisplayName
         }
+        if let accountID = sessionContext.accountID,
+           let resetCredits = try? await fetchCodexResetCreditMetadata(
+                cookie: credential.cookie,
+                accessToken: sessionContext.accessToken,
+                accountID: accountID
+           ) {
+            result.codexResetCreditsRemaining = resetCredits.availableCount ?? result.codexResetCreditsRemaining
+            result.codexResetCreditsEarliestExpiresAt = resetCredits.earliestExpiresAt
+        }
 
         return withHTTPStatus(result, from: httpResponse)
     }
@@ -3797,6 +3850,42 @@ actor QuotaService {
             planEndsAt: accountCheckLifecycle.planEndsAt ?? lifecycle.planEndsAt,
             planDisplayName: accountCheckLifecycle.planDisplayName ?? lifecycle.planDisplayName
         )
+    }
+
+    private func fetchCodexResetCreditMetadata(
+        cookie: String,
+        accessToken: String,
+        accountID: String
+    ) async throws -> CodexResetCreditMetadata {
+        var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits")!)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("zh-CN,zh;q=0.9", forHTTPHeaderField: "Accept-Language")
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+        request.setValue("no-cache", forHTTPHeaderField: "Pragma")
+        request.setValue(cookie, forHTTPHeaderField: "Cookie")
+        request.setValue("https://chatgpt.com/codex", forHTTPHeaderField: "Referer")
+        request.setValue("\"Chromium\";v=\"148\", \"Google Chrome\";v=\"148\", \"Not/A)Brand\";v=\"99\"", forHTTPHeaderField: "sec-ch-ua")
+        request.setValue("?0", forHTTPHeaderField: "sec-ch-ua-mobile")
+        request.setValue("\"macOS\"", forHTTPHeaderField: "sec-ch-ua-platform")
+        request.setValue("empty", forHTTPHeaderField: "sec-fetch-dest")
+        request.setValue("cors", forHTTPHeaderField: "sec-fetch-mode")
+        request.setValue("same-origin", forHTTPHeaderField: "sec-fetch-site")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(accountID, forHTTPHeaderField: "chatgpt-account-id")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+        return try QuotaParsers.parseCodexResetCreditDetails(data)
     }
 
     private func fetchCodexAccountsCheckLifecycle(

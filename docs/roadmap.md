@@ -48,7 +48,7 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Add menu-signal automation fallback so collapsed provider-level attention signals still focus the most relevant visible account when a dedicated failure row is not present.
 - [x] Read Codex subscription reset-credit availability from `rate_limit_reset_credits.available_count` and persist it as non-secret credential metadata.
 - [x] Add a guarded Codex `Use reset` action in the expanded account quota row. The action consumes one reset credit only after confirmation, refreshes the same account after the reset, and records the resulting quota snapshot.
-- [x] Document that no Codex reset-credit expiry field has been observed yet; Quota Radar stores and displays only the available count.
+- [x] Read Codex reset-credit detail metadata from `/backend-api/wham/rate-limit-reset-credits`, persist the available count plus earliest unredeemed expiry, and display that expiry next to the account-level reset action.
 - [x] Let Claude web-login authorization accept both `sessionKey` and `sessionKeyLC`, matching the current cookies exposed by WebKit.
 - [x] Harden dashboard reauthentication capture for web-login providers: manual save now reads cookies and WebStorage from the current embedded WebView, avoiding first-login failures caused by reading the global WebKit data store too early.
 - [x] Keep Volcengine automatic login capture watching longer during first-login SSO cookie settling, so the first reauthentication attempt can save without closing and reopening the window.
@@ -344,7 +344,7 @@ Keep this separate from Claude / Codex subscription quota. Subscription quota tr
 - [ ] Keep macOS as the short-term priority and preserve the native SwiftUI menu bar experience.
 - [ ] Treat the current Tauri app as a migration track, not a preview handoff:
   - Merge Swift mainline regularly before adding new Tauri work.
-  - Replicate Swift v0.3.9 quota history, local notifications, provider calibration, release QA, white-label/no-updater behavior, and provider/account handoff semantics.
+  - Replicate Swift v0.4.0 quota history, local notifications, provider calibration, release QA, white-label/no-updater behavior, and provider/account handoff semantics.
   - Rework Tauri visuals toward the Swift compact native monitoring surface before spending effort on Windows/Linux polish.
   - Use Windows/Linux screenshots only after the macOS Tauri baseline is close enough to Swift to make cross-platform QA meaningful.
 - [ ] Centralize localization keys and avoid hardcoded business copy inside views or parsers.
@@ -374,7 +374,7 @@ Keep this separate from Claude / Codex subscription quota. Subscription quota tr
 
 ## Next Starting Plan
 
-The first P6 history/trend/alert pass and the v0.3.9 white-label / reauthentication pass are complete. The next work should reduce provider drift risk and make release validation more repeatable.
+The first P6 history/trend/alert pass and the v0.4.0 Codex reset-expiry and account-action polish are complete. The next work should reduce provider drift risk and make release validation more repeatable.
 
 1. [x] Add a lightweight live-acceptance matrix for saved web-login providers, covering saved authorization presence, plan name, quota, reset time, plan end, reset-credit count, and live refresh result without printing secrets.
 2. [x] Turn the dashboard reauthentication first-save fix into broader regression coverage across Claude, Codex, Volcengine, XFYun Spark, Kimi, OpenCode Go, and Querit.

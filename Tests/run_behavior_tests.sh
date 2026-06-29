@@ -59,9 +59,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.3\.9' \
+assert_match '0\.4\.0' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.3.9 should be recorded in Info.plist"
+  "Quota Radar 0.4.0 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -1130,6 +1130,9 @@ assert_match 'rate_limit_reset_credits' \
 assert_match 'available_count' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Codex reset-credit parsing should read the available_count field"
+assert_match 'https://chatgpt\.com/backend-api/wham/rate-limit-reset-credits' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "Codex subscription refresh should query reset-credit detail metadata without consuming a credit"
 assert_match 'https://chatgpt\.com/backend-api/wham/rate-limit-reset-credits/consume' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Codex quota reset should call the wham reset-credit consume endpoint"
@@ -1157,9 +1160,12 @@ assert_match 'codexResetCreditsRemaining' \
 assert_match 'codexResetCreditsRemaining' \
   "QuotaRadar/Services/APIKeyStore.swift" \
   "APIKeyStore metadata should persist Codex reset-credit availability"
-assert_no_match 'codexResetCredit.*Expir' \
+assert_match 'codexResetCreditsEarliestExpiresAt' \
   "QuotaRadar/Models/APIKey.swift" \
-  "Codex reset-credit UI should not invent an expiry field unless the provider returns one"
+  "Codex reset-credit UI should persist the provider-returned earliest reset-credit expiry"
+assert_match 'codexResetCreditsEarliestExpiresAt' \
+  "QuotaRadar/Services/APIKeyStore.swift" \
+  "APIKeyStore metadata should persist provider-returned Codex reset-credit expiry"
 assert_no_match 'diagnosticMessage: "Querit account endpoint returned monthly request quota\."' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Querit refresh should not overwrite the parser's usage-only unknown-limit diagnostic"
@@ -1409,6 +1415,12 @@ assert_match 'scenario_screenshots' \
 assert_match 'capture_window_png "\$\{menu_window_id\}" "\$\{menu_screenshot\}"' \
   "Tests/run_visual_qa.sh" \
   "Visual QA should capture the menu popover through CoreGraphics window id before falling back to fragile multi-display rectangles"
+assert_match 'terminate_visual_qa_app_process' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should terminate per-scenario app processes explicitly instead of relying on stale direct-launch cleanup"
+assert_match 'wait_for_visual_qa_app_window' \
+  "Tests/run_visual_qa.sh" \
+  "Visual QA should wait for each launched app process to expose windows before capturing scenario screenshots"
 assert_match 'visualQAFixtureKeys' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "QuotaMonitor should expose deterministic visual QA fixture data behind an automation environment flag"
@@ -3036,6 +3048,19 @@ codex_reset_row = source.split("struct CodexResetCreditRow: View", 1)[1].split("
 if "codexResetCreditsRemaining" not in codex_reset_row or "codexResetQuotaAction" not in codex_reset_row:
     print("FAIL: Codex reset-credit row should show available credits and a localized reset action", file=sys.stderr)
     sys.exit(1)
+if "codexResetCreditExpiryText" not in codex_reset_row:
+    print("FAIL: Codex reset-credit row should show provider-returned earliest expiry when available", file=sys.stderr)
+    sys.exit(1)
+if "struct CodexResetCreditActionGroup: View" not in source:
+    print("FAIL: Codex reset-credit expiry and manual action should be grouped into a compact trailing action group", file=sys.stderr)
+    sys.exit(1)
+codex_reset_action_group = source.split("struct CodexResetCreditActionGroup: View", 1)[1].split("struct ProviderQuotaAccountSingleQuotaRow", 1)[0]
+if "codexResetCreditExpiryText" not in codex_reset_action_group or "Button(action: onResetCodexQuota)" not in codex_reset_action_group:
+    print("FAIL: Codex reset-credit expiry should live with the reset action instead of a separate middle column", file=sys.stderr)
+    sys.exit(1)
+if "VStack(alignment: .leading" not in codex_reset_action_group:
+    print("FAIL: Codex reset-credit action group should stack expiry context with the action for a quieter account row", file=sys.stderr)
+    sys.exit(1)
 if "let resetText: String?" in codex_reset_row or "if let resetText" in codex_reset_row:
     print("FAIL: Codex reset-credit row should not group reset dates with the manual reset action; keep both aligned by column rules", file=sys.stderr)
     sys.exit(1)
@@ -3045,19 +3070,19 @@ if "HStack(alignment: .firstTextBaseline, spacing: 12)" not in codex_reset_row:
 if ".frame(width: 62, alignment: .leading)" not in codex_reset_row or ".frame(width: 72, alignment: .leading)" not in codex_reset_row:
     print("FAIL: Codex reset-credit count should use the same period and value column widths as reset-date rows", file=sys.stderr)
     sys.exit(1)
-if "Button(" not in codex_reset_row or ".disabled(" not in codex_reset_row:
+if "Button(" not in codex_reset_action_group or ".disabled(" not in codex_reset_action_group:
     print("FAIL: Codex reset-credit row should render a disabled-safe button", file=sys.stderr)
     sys.exit(1)
-if ".buttonStyle(.bordered)" in codex_reset_row:
+if ".buttonStyle(.bordered)" in codex_reset_action_group:
     print("FAIL: Codex reset-credit action should not use a bordered button in the compact monitor row", file=sys.stderr)
     sys.exit(1)
-if "Text(L10n.t(.codexResetQuotaAction))" not in codex_reset_row:
+if "Text(L10n.t(.codexResetQuotaAction))" not in codex_reset_action_group:
     print("FAIL: Codex reset-credit action should keep visible localized text so users understand the reset function", file=sys.stderr)
     sys.exit(1)
-if "Image(systemName: \"arrow.counterclockwise\")" not in codex_reset_row:
+if "Image(systemName: \"arrow.counterclockwise\")" not in codex_reset_action_group:
     print("FAIL: Codex reset-credit action should keep a compact reset icon next to the explanatory text", file=sys.stderr)
     sys.exit(1)
-if ".buttonStyle(.plain)" not in codex_reset_row or ".frame(height: 22)" not in codex_reset_row:
+if ".buttonStyle(.plain)" not in codex_reset_action_group or ".frame(height: 22)" not in codex_reset_action_group:
     print("FAIL: Codex reset-credit action should match compact monitoring controls with a fixed-height inline action", file=sys.stderr)
     sys.exit(1)
 if ".frame(maxWidth: .infinity, alignment: .leading)" not in codex_reset_row:
@@ -3066,10 +3091,10 @@ if ".frame(maxWidth: .infinity, alignment: .leading)" not in codex_reset_row:
 if "resetText: nextResetText" in account_table or "private var nextResetText: String?" in account_table:
     print("FAIL: Expanded Codex reset-credit rows should not duplicate reset timing inside the manual action row", file=sys.stderr)
     sys.exit(1)
-if "Capsule(style: .continuous)" not in codex_reset_row:
+if "Capsule(style: .continuous)" not in codex_reset_action_group:
     print("FAIL: Codex reset-credit action should use a low-noise capsule treatment instead of a standard button bezel", file=sys.stderr)
     sys.exit(1)
-if ".accessibilityLabel(L10n.t(.codexResetQuotaAction))" not in codex_reset_row:
+if ".accessibilityLabel(L10n.t(.codexResetQuotaAction))" not in codex_reset_action_group:
     print("FAIL: Codex reset-credit action should keep an accessible localized action label", file=sys.stderr)
     sys.exit(1)
 if "codexResetQuotaConfirmTitle" not in source or "confirmationDialog" not in source:
@@ -5336,7 +5361,7 @@ let customNoteKey = APIKey(name: "TAVILY_API_KEY", key: "abcd1234wxyz", provider
 require(customNoteKey.displayNote == "keep this custom note", "Custom credential notes should not be rewritten by localization")
 let businessInvocationNoteKey = APIKey(name: "ALIYUN_CODING_PLAN_API_KEY", key: "sk-sp-redacted", provider: .aliyunCodingPlan, note: "Business invocation key is not used for quota monitoring Add a dashboard Cookie credential instead")
 require(businessInvocationNoteKey.displayNote == nil, "Credential rows should suppress duplicated persisted business-invocation notes")
-let localizedResetDate = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 6, day: 28, hour: 17, minute: 48, second: 58))!
+let localizedResetDate = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2027, month: 6, day: 28, hour: 17, minute: 48, second: 58))!
 let localizedResetKey = APIKey(
     name: "XFYUN_CODING_PLAN_COOKIE",
     key: "cookie",
@@ -7310,6 +7335,7 @@ let codexResetCreditKey = APIKey(
     limit: 10000,
     planDisplayName: "Pro",
     codexResetCreditsRemaining: 2,
+    codexResetCreditsEarliestExpiresAt: Date(timeIntervalSince1970: 1784335094.297461),
     quotaText: .quotaWindows([
         QuotaWindowText(name: "5h", percentText: "100%", resetAt: Date(timeIntervalSince1970: 1780924878)),
         QuotaWindowText(name: "week", percentText: "30%", resetAt: Date(timeIntervalSince1970: 1781140147))
@@ -7319,11 +7345,13 @@ let codexResetCreditKey = APIKey(
 store.save([codexResetCreditKey])
 let codexResetCreditMetadata = store.load()
 require(codexResetCreditMetadata[0].codexResetCreditsRemaining == 2, "APIKeyStore should persist Codex reset-credit availability")
+require(codexResetCreditMetadata[0].codexResetCreditsEarliestExpiresAt == Date(timeIntervalSince1970: 1784335094.297461), "APIKeyStore should persist Codex reset-credit earliest expiry")
 require(codexResetCreditMetadata[0].canResetCodexQuota == false, "Metadata-only Codex keys should not expose reset while the secret is not hydrated")
 let codexHydratedResetCreditMetadata = store.loadSecrets(for: codexResetCreditMetadata)
 require(codexHydratedResetCreditMetadata[0].canResetCodexQuota, "Hydrated Codex keys with available credits should expose the reset action")
 let exportedCodexMetadata = String(data: try! store.exportMetadata([codexResetCreditKey]), encoding: .utf8)!
 require(exportedCodexMetadata.contains("\"codexResetCreditsRemaining\":2"), "Credential metadata export should include non-secret Codex reset-credit availability")
+require(exportedCodexMetadata.contains("\"codexResetCreditsEarliestExpiresAt\""), "Credential metadata export should include non-secret Codex reset-credit earliest expiry")
 require(!exportedCodexMetadata.contains("__Secure-next-auth.session-token"), "Credential metadata export should not include dashboard cookies")
 
 let legacyDashboardNoteID = UUID()
@@ -7960,6 +7988,15 @@ require(codexUsage.resetAt != nil, "Codex subscription usage should expose the t
 require(codexUsage.planEndsAt == nil, "Codex wham usage does not expose subscription end date")
 require(codexUsage.planDisplayName == "Pro", "Codex wham usage should expose plan_type as a concrete plan name")
 require(codexUsage.codexResetCreditsRemaining == 3, "Codex wham usage should expose available reset credits")
+let codexResetCreditDetails = try! QuotaParsers.parseCodexResetCreditDetails(Data("""
+{"credits":[{"id":"reset-redacted-1","reset_type":"codex_rate_limits","status":"available","granted_at":"2026-06-18T00:38:14.297461Z","expires_at":"2026-07-18T00:38:14.297461Z","redeem_started_at":null,"redeemed_at":null},{"id":"reset-redacted-2","reset_type":"codex_rate_limits","status":"available","granted_at":"2026-06-26T23:56:41.527892Z","expires_at":"2026-07-26T23:56:41.527892Z","redeem_started_at":null,"redeemed_at":null}],"available_count":2,"total_earned_count":0}
+""".utf8))
+require(codexResetCreditDetails.availableCount == 2, "Codex reset-credit details should expose available_count")
+require(abs((codexResetCreditDetails.earliestExpiresAt?.timeIntervalSince1970 ?? 0) - 1784335094.297461) < 1, "Codex reset-credit details should expose the earliest provider-returned expiry")
+let codexRedeemedResetCreditDetails = try! QuotaParsers.parseCodexResetCreditDetails(Data("""
+{"credits":[{"id":"reset-redacted-1","reset_type":"codex_rate_limits","status":"redeemed","expires_at":"2026-07-01T00:00:00Z","redeemed_at":"2026-06-20T00:00:00Z"},{"id":"reset-redacted-2","reset_type":"codex_rate_limits","status":"available","expires_at":"2026-07-26T23:56:41.527892Z","redeemed_at":null}],"available_count":1}
+""".utf8))
+require(abs((codexRedeemedResetCreditDetails.earliestExpiresAt?.timeIntervalSince1970 ?? 0) - 1785110201.527892) < 1, "Codex reset-credit details should ignore redeemed credits when picking earliest expiry")
 let codexNegativeResetCredits = try! QuotaParsers.parseCodexWhamUsage(Data("""
 {"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":70,"limit_window_seconds":604800,"reset_at":1781140147}},"rate_limit_reset_credits":{"available_count":-1}}
 """.utf8))

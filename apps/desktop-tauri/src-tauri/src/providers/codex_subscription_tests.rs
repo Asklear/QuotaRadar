@@ -7,7 +7,7 @@ use super::{
 fn codex_credential() -> ProviderCredential {
     ProviderCredential::fake_api_key(
         "codex",
-        "__Secure-next-auth.session-token=chatgpt-session-placeholder; __search-next-auth=search-session-placeholder",
+        "__Secure-next-auth.session-token=ctx; __search-next-auth=s",
     )
 }
 
@@ -111,7 +111,7 @@ fn codex_live_quota_resolves_session_then_fetches_usage_and_subscription() {
     assert_eq!(requests[0].url, "https://chatgpt.com/api/auth/session");
     assert!(requests[0].headers.contains(&(
         "Cookie".to_string(),
-        "__Secure-next-auth.session-token=chatgpt-session-placeholder; __search-next-auth=search-session-placeholder".to_string()
+        "__Secure-next-auth.session-token=ctx; __search-next-auth=s".to_string()
     )));
     assert_eq!(requests[1].method, "GET");
     assert_eq!(

@@ -1640,6 +1640,7 @@ struct APIKey: Identifiable, Codable, Equatable {
     var planEndsAt: Date?
     var planDisplayName: String?
     var codexResetCreditsRemaining: Int?
+    var codexResetCreditsEarliestExpiresAt: Date?
     var lastUpdated: Date?
     var lastHTTPStatus: Int?
     var lastDiagnosticMessage: String?
@@ -1694,6 +1695,19 @@ struct APIKey: Identifiable, Codable, Equatable {
         guard provider == .codexSubscription else { return nil }
         guard let codexResetCreditsRemaining, codexResetCreditsRemaining >= 0 else { return nil }
         return codexResetCreditsRemaining
+    }
+
+    var codexResetCreditExpiryText: String? {
+        guard provider == .codexSubscription,
+              let codexResetCreditCount,
+              codexResetCreditCount > 0,
+              let codexResetCreditsEarliestExpiresAt else {
+            return nil
+        }
+        return L10n.format(
+            .codexResetCreditsEarliestExpiry,
+            L10n.shortDateTime(codexResetCreditsEarliestExpiresAt, includesYear: true)
+        )
     }
 
     var canResetCodexQuota: Bool {

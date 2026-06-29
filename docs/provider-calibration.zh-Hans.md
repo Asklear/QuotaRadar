@@ -50,7 +50,7 @@ live acceptance 快照：2026-06-23 13:06 CST。
 | Querit | 通过 | 仍是可用、额度未知状态；账号接口只观察到 usage-only evidence，未观察到 limit/reset 字段。 |
 | Claude Subscription | 通过 | 观察到套餐、两个额度窗口、reset 字段和套餐到期 metadata。 |
 | Anthropic Credits | 通过 | 已基于观察到的 `prepaid/credits` 形态接入 parser fixture 和 provider capability；通过保存的 Claude 网页登录授权脱敏复放返回 HTTP 200 并解析余额。直接 Anthropic Credits live acceptance 已通过，确认有 quota 证据且没有 reset / plan-end / window 字段。 |
-| Codex Subscription | 通过 | 观察到套餐、两个额度窗口、reset 字段、套餐到期 metadata 和重置次数。 |
+| Codex Subscription | 通过 | 观察到套餐、两个额度窗口、reset 字段、套餐到期 metadata、重置次数和单次重置有效期 metadata。 |
 | Kimi Subscription | 通过 | 观察到套餐到期 metadata 和可用额度状态；本次保存账号未暴露 reset window。 |
 | 讯飞星火 Coding Plan | 通过 | 观察到三个额度窗口、reset 字段、套餐 metadata 和套餐到期 metadata。 |
 | 火山引擎 Coding Plan | 通过 | 观察到三个额度窗口、reset 字段、套餐 metadata 和套餐到期 metadata。 |

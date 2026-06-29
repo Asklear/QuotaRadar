@@ -245,15 +245,48 @@ fail() {
     exit 1
 }
 
+terminate_visual_qa_app_process() {
+    local pid="${1:-}"
+    if [ -z "${pid}" ]; then
+        return 0
+    fi
+
+    if kill -0 "${pid}" 2>/dev/null; then
+        kill "${pid}" 2>/dev/null || true
+        local attempt=1
+        while [ "${attempt}" -le 20 ]; do
+            if ! kill -0 "${pid}" 2>/dev/null; then
+                wait "${pid}" 2>/dev/null || true
+                return 0
+            fi
+            sleep 0.1
+            attempt=$((attempt + 1))
+        done
+        kill -9 "${pid}" 2>/dev/null || true
+    fi
+
+    wait "${pid}" 2>/dev/null || true
+}
+
+terminate_visual_qa_app_instances() {
+    pkill -x QuotaRadar 2>/dev/null || true
+
+    local attempt=1
+    while [ "${attempt}" -le 20 ]; do
+        if ! pgrep -x QuotaRadar >/dev/null 2>&1; then
+            return 0
+        fi
+        sleep 0.1
+        attempt=$((attempt + 1))
+    done
+
+    pkill -9 -x QuotaRadar 2>/dev/null || true
+    sleep 0.2
+}
+
 cleanup() {
-    if [ -n "${APP_PID}" ]; then
-        kill "${APP_PID}" 2>/dev/null || true
-        wait "${APP_PID}" 2>/dev/null || true
-    fi
-    if [ -n "${FOCUS_APP_PID}" ]; then
-        kill "${FOCUS_APP_PID}" 2>/dev/null || true
-        wait "${FOCUS_APP_PID}" 2>/dev/null || true
-    fi
+    terminate_visual_qa_app_process "${APP_PID}"
+    terminate_visual_qa_app_process "${FOCUS_APP_PID}"
 }
 trap cleanup EXIT
 
@@ -736,16 +769,20 @@ try (mainWindowID.map { "\($0)\n" } ?? "").write(to: mainWindowIDURL, atomically
 SWIFT
 }
 
-capture_status_panel_bounds_with_retry() {
+wait_for_visual_qa_app_window() {
     local windows_file="$1"
     local panel_bounds_file="$2"
     local main_window_id_file="$3"
+    local app_pid="$4"
     local attempt=1
-    local max_attempts=8
+    local max_attempts=16
 
     while [ "${attempt}" -le "${max_attempts}" ]; do
+        if ! kill -0 "${app_pid}" 2>/dev/null; then
+            return 1
+        fi
         capture_windows_for_scenario "${windows_file}" "${panel_bounds_file}" "${main_window_id_file}"
-        if [ -s "${panel_bounds_file}" ]; then
+        if [ -s "${panel_bounds_file}" ] && [ -s "${main_window_id_file}" ]; then
             return 0
         fi
         sleep 0.5
@@ -753,6 +790,10 @@ capture_status_panel_bounds_with_retry() {
     done
 
     return 1
+}
+
+capture_status_panel_bounds_with_retry() {
+    wait_for_visual_qa_app_window "$@"
 }
 
 run_scenario() {
@@ -770,8 +811,9 @@ run_scenario() {
 
     rm -f "${windows_file}" "${panel_bounds_file}" "${main_window_id_file}" "${menu_screenshot}" "${main_screenshot}" "${desktop_screenshot}"
 
-    pkill -x QuotaRadar 2>/dev/null || true
-    sleep 1
+    terminate_visual_qa_app_process "${APP_PID}"
+    APP_PID=""
+    terminate_visual_qa_app_instances
 
     QUOTARADAR_VISUAL_QA_FIXTURES=1 \
     QUOTARADAR_VISUAL_QA_LANGUAGE="${language}" \
@@ -781,10 +823,9 @@ run_scenario() {
     QUOTARADAR_SHOW_STATUS_PANEL_FOR_AUTOMATION=1 \
     "${APP_EXECUTABLE}" >"${OUTPUT_DIR}/app-${scenario}.log" 2>&1 &
     APP_PID=$!
+    disown "${APP_PID}" 2>/dev/null || true
 
-    sleep 4
-
-    capture_status_panel_bounds_with_retry "${windows_file}" "${panel_bounds_file}" "${main_window_id_file}" || true
+    wait_for_visual_qa_app_window "${windows_file}" "${panel_bounds_file}" "${main_window_id_file}" "${APP_PID}" || true
 
     assert_file_nonempty "${panel_bounds_file}" "Visual QA could not find the status-panel window bounds for ${scenario}"
     IFS=, read -r x y width height <"${panel_bounds_file}" || true
@@ -831,8 +872,7 @@ run_scenario() {
         cp "${main_window_id_file}" "${OUTPUT_DIR}/main-window-id.txt"
     fi
 
-    kill "${APP_PID}" 2>/dev/null || true
-    wait "${APP_PID}" 2>/dev/null || true
+    terminate_visual_qa_app_process "${APP_PID}"
     APP_PID=""
     sleep 1
 }
@@ -845,8 +885,9 @@ capture_focused_signal() {
 
     rm -f "${focused_windows_file}" "${focused_window_id_file}" "${focused_screenshot}" "${focused_screenshot%.png}-highlight-report.txt"
 
-    pkill -x QuotaRadar 2>/dev/null || true
-    sleep 1
+    terminate_visual_qa_app_process "${FOCUS_APP_PID}"
+    FOCUS_APP_PID=""
+    terminate_visual_qa_app_instances
 
     QUOTARADAR_VISUAL_QA_FIXTURES=1 \
     QUOTARADAR_VISUAL_QA_LANGUAGE="zh-Hans" \
@@ -856,6 +897,7 @@ capture_focused_signal() {
     QUOTARADAR_OPEN_MENU_SIGNAL_FOR_AUTOMATION="${signal}" \
     "${APP_EXECUTABLE}" >"${OUTPUT_DIR}/focus-${signal}-app.log" 2>&1 &
     FOCUS_APP_PID=$!
+    disown "${FOCUS_APP_PID}" 2>/dev/null || true
 
     sleep 4
 
@@ -913,8 +955,7 @@ SWIFT
         cp "${focused_screenshot%.png}-highlight-report.txt" "${OUTPUT_DIR}/focused-highlight-report.txt"
     fi
 
-    kill "${FOCUS_APP_PID}" 2>/dev/null || true
-    wait "${FOCUS_APP_PID}" 2>/dev/null || true
+    terminate_visual_qa_app_process "${FOCUS_APP_PID}"
     FOCUS_APP_PID=""
     sleep 1
 }

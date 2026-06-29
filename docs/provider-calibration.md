@@ -50,7 +50,7 @@ Live acceptance snapshot: 2026-06-23 13:06 CST.
 | Querit | Passed | Usable quota-unknown state still reflects usage-only account evidence; no limit/reset fields observed. |
 | Claude Subscription | Passed | Plan, two quota windows, reset fields, and plan-end metadata observed. |
 | Anthropic Credits | Passed | Parser fixture and provider capability are wired from the observed `prepaid/credits` shape. A sanitized replay through saved Claude web-login authorization returned HTTP 200 and parsed a balance; direct Anthropic Credits live acceptance passed with quota evidence and no reset/plan-end/window fields. |
-| Codex Subscription | Passed | Plan, two quota windows, reset fields, plan-end metadata, and reset-credit count observed. |
+| Codex Subscription | Passed | Plan, two quota windows, reset fields, plan-end metadata, reset-credit count, and per-credit expiry metadata observed. |
 | Kimi Subscription | Passed | Plan-end metadata and usable quota state observed; no reset window exposed by the saved account in this run. |
 | XFYun Spark Coding Plan | Passed | Three quota windows, reset fields, plan metadata, and package-end metadata observed. |
 | Volcengine Coding Plan | Passed | Three quota windows, reset fields, plan metadata, and package-end metadata observed. |

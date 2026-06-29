@@ -3279,6 +3279,7 @@ struct ProviderQuotaAccountQuotaWindows: View {
 
                 CodexResetCreditRow(
                     resetCreditCount: resetCreditCount,
+                    codexResetCreditExpiryText: key.codexResetCreditExpiryText,
                     canReset: key.canResetCodexQuota,
                     isResettingCodexQuota: isResettingCodexQuota,
                     onResetCodexQuota: onResetCodexQuota
@@ -3291,6 +3292,7 @@ struct ProviderQuotaAccountQuotaWindows: View {
 
 struct CodexResetCreditRow: View {
     let resetCreditCount: Int
+    let codexResetCreditExpiryText: String?
     let canReset: Bool
     let isResettingCodexQuota: Bool
     let onResetCodexQuota: () -> Void
@@ -3305,48 +3307,80 @@ struct CodexResetCreditRow: View {
             )
             .frame(width: 62, alignment: .leading)
 
-            ProviderQuotaAccountValueText(
-                value: L10n.format(.codexResetCreditsRemaining, resetCreditCount),
-                tint: resetCreditCount > 0 ? .accentColor : .secondary,
-                weight: .semibold,
-                design: .rounded,
-                minimumScaleFactor: 0.66
+            CodexResetCreditActionGroup(
+                resetCreditCount: resetCreditCount,
+                codexResetCreditExpiryText: codexResetCreditExpiryText,
+                canReset: canReset,
+                isResettingCodexQuota: isResettingCodexQuota,
+                onResetCodexQuota: onResetCodexQuota
             )
-            .frame(width: 72, alignment: .leading)
-
-            Button(action: onResetCodexQuota) {
-                HStack(spacing: 4) {
-                    if isResettingCodexQuota {
-                        ProgressView()
-                            .controlSize(.small)
-                            .scaleEffect(0.62)
-                    } else {
-                        Image(systemName: "arrow.counterclockwise")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(canReset ? Color.accentColor : Color.secondary)
-                    }
-
-                    Text(L10n.t(.codexResetQuotaAction))
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(canReset ? Color.accentColor : Color.secondary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                }
-                .padding(.horizontal, 7)
-                .frame(height: 22)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(Color.primary.opacity(canReset ? 0.065 : 0.035))
-                )
-            }
-            .buttonStyle(.plain)
-            .disabled(isResettingCodexQuota || !canReset)
-            .opacity(canReset || isResettingCodexQuota ? 1 : 0.45)
-            .help(L10n.t(.codexResetQuotaAction))
-            .accessibilityLabel(L10n.t(.codexResetQuotaAction))
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(minHeight: 24, alignment: .leading)
+        .frame(minHeight: codexResetCreditExpiryText == nil ? 24 : 40, alignment: .leading)
+    }
+}
+
+struct CodexResetCreditActionGroup: View {
+    let resetCreditCount: Int
+    let codexResetCreditExpiryText: String?
+    let canReset: Bool
+    let isResettingCodexQuota: Bool
+    let onResetCodexQuota: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 8) {
+                ProviderQuotaAccountValueText(
+                    value: L10n.format(.codexResetCreditsRemaining, resetCreditCount),
+                    tint: resetCreditCount > 0 ? .accentColor : .secondary,
+                    weight: .semibold,
+                    design: .rounded,
+                    minimumScaleFactor: 0.66
+                )
+                .frame(width: 72, alignment: .leading)
+
+                Button(action: onResetCodexQuota) {
+                    HStack(spacing: 4) {
+                        if isResettingCodexQuota {
+                            ProgressView()
+                                .controlSize(.small)
+                                .scaleEffect(0.62)
+                        } else {
+                            Image(systemName: "arrow.counterclockwise")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(canReset ? Color.accentColor : Color.secondary)
+                        }
+
+                        Text(L10n.t(.codexResetQuotaAction))
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(canReset ? Color.accentColor : Color.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.72)
+                    }
+                    .fixedSize(horizontal: true, vertical: false)
+                    .padding(.horizontal, 7)
+                    .frame(height: 22)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color.primary.opacity(canReset ? 0.065 : 0.035))
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(isResettingCodexQuota || !canReset)
+                .opacity(canReset || isResettingCodexQuota ? 1 : 0.45)
+                .help(L10n.t(.codexResetQuotaAction))
+                .accessibilityLabel(L10n.t(.codexResetQuotaAction))
+            }
+
+            if let codexResetCreditExpiryText {
+                Text(codexResetCreditExpiryText)
+                    .font(.system(size: 10, weight: .regular))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
+        }
     }
 }
 
