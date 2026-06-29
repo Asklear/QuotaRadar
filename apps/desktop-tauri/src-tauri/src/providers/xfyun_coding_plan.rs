@@ -227,7 +227,7 @@ fn parse_xfyun_coding_plan(value: &str) -> Result<QuotaSnapshot, ProviderError> 
         .ok_or_else(|| ProviderError::QuotaUnavailable("XFYun quota is unavailable".to_string()))?;
 
     let mut windows = Vec::new();
-    if let Some(limit) = usage.rp5h_limit.filter(|limit| *limit > 0) {
+    if let Some(limit) = usage.rp5h_limit.filter(|limit| *limit > 0.0) {
         windows.push(count_window(
             "5h",
             limit - usage.rp5h_usage.unwrap_or_default(),
@@ -235,7 +235,7 @@ fn parse_xfyun_coding_plan(value: &str) -> Result<QuotaSnapshot, ProviderError> 
             None,
         ));
     }
-    if let Some(limit) = usage.rpw_limit.filter(|limit| *limit > 0) {
+    if let Some(limit) = usage.rpw_limit.filter(|limit| *limit > 0.0) {
         windows.push(count_window(
             "week",
             limit - usage.rpw_usage.unwrap_or_default(),
@@ -243,7 +243,7 @@ fn parse_xfyun_coding_plan(value: &str) -> Result<QuotaSnapshot, ProviderError> 
             None,
         ));
     }
-    if let Some(limit) = usage.package_limit.filter(|limit| *limit > 0) {
+    if let Some(limit) = usage.package_limit.filter(|limit| *limit > 0.0) {
         let left = usage
             .package_left
             .unwrap_or_else(|| limit - usage.package_usage.unwrap_or_default());
@@ -291,18 +291,18 @@ struct XfyunPlan {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct XfyunUsage {
-    package_left: Option<i64>,
-    package_limit: Option<i64>,
-    package_usage: Option<i64>,
-    rp5h_limit: Option<i64>,
-    rp5h_usage: Option<i64>,
-    rpw_limit: Option<i64>,
-    rpw_usage: Option<i64>,
+    package_left: Option<f64>,
+    package_limit: Option<f64>,
+    package_usage: Option<f64>,
+    rp5h_limit: Option<f64>,
+    rp5h_usage: Option<f64>,
+    rpw_limit: Option<f64>,
+    rpw_usage: Option<f64>,
 }
 
-fn count_window(name: &str, remaining: i64, limit: i64, reset_at: Option<String>) -> QuotaWindow {
-    let safe_limit = limit.max(0) as f64;
-    let safe_remaining = remaining.max(0).min(limit.max(0)) as f64;
+fn count_window(name: &str, remaining: f64, limit: f64, reset_at: Option<String>) -> QuotaWindow {
+    let safe_limit = limit.max(0.0);
+    let safe_remaining = remaining.max(0.0).min(limit.max(0.0));
     let percent = if safe_limit > 0.0 {
         round_percent(safe_remaining / safe_limit * 100.0)
     } else {

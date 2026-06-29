@@ -136,3 +136,33 @@ fn xfyun_live_quota_uses_coding_plan_list_transport() {
         "ssoSessionId=xfyun-session-placeholder; tenantToken=tenant-placeholder; atp-auth-token=auth-placeholder; account_id=account-placeholder".to_string()
     )));
 }
+
+#[test]
+fn xfyun_live_quota_accepts_decimal_numeric_counters() {
+    let client = XfyunCodingPlanProvider::default();
+    let transport = MockProviderTransport::responding(ProviderHttpResponse::new(
+        200,
+        r#"{"code":0,"data":{"rows":[{"expiresAt":"2026-06-28 17:48:58","status":1,"codingPlanUsageDTO":{"packageLeft":87297.0,"packageLimit":90000.0,"packageUsage":2703.0,"rp5hLimit":6000.0,"rp5hUsage":30.0,"rpwLimit":45000.0,"rpwUsage":2703.0}}]},"succeed":true}"#,
+    ));
+
+    let snapshot = client
+        .check_quota(xfyun_credential(), &transport)
+        .expect("XFYun decimal counters should parse");
+
+    assert_eq!(
+        snapshot.remaining_badge_text,
+        "5h 99.5% · week 94% · month 97%"
+    );
+    assert_eq!(
+        snapshot.quota_windows[0].remaining_text.as_deref(),
+        Some("5970 / 6000")
+    );
+    assert_eq!(
+        snapshot.quota_windows[1].remaining_text.as_deref(),
+        Some("42297 / 45000")
+    );
+    assert_eq!(
+        snapshot.quota_windows[2].remaining_text.as_deref(),
+        Some("87297 / 90000")
+    );
+}
