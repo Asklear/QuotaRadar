@@ -46,14 +46,22 @@ function tightestCredential(credentials: CredentialView[]) {
 
 function keyQuotaText(credentials: CredentialView[], locale: LocaleCode) {
   const t = translator(locale);
-  const tightest = tightestCredential(activeCredentials(credentials));
+  const active = activeCredentials(credentials);
+  const tightest = tightestCredential(active);
   if (tightest) {
     return formatPercent(tightest.percent);
   }
 
-  const usableUnknown = credentials.find((credential) => credential.status === "unknownQuotaUsable");
+  const usableUnknown = active.find((credential) => credential.status === "unknownQuotaUsable");
   if (usableUnknown) {
     return t("status.available");
+  }
+
+  const badgeFallback = active
+    .map((credential) => credential.remainingBadgeText.trim())
+    .find((text) => text.length > 0 && text !== t("common.notAvailable"));
+  if (badgeFallback) {
+    return badgeFallback;
   }
 
   return t("common.notAvailable");

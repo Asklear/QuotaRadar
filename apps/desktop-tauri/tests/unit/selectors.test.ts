@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildMenuSummary, buildProviderStats } from "../../src/shared/selectors";
 import { mockCredentials, providerRegistry } from "../../src/shared/mockData";
+import type { CredentialView } from "../../src/shared/types";
 
 describe("provider selectors", () => {
   it("hides unconfigured providers", () => {
@@ -25,6 +26,52 @@ describe("provider selectors", () => {
     const stats = buildProviderStats(providerRegistry, mockCredentials);
     const tavily = stats.find((stat) => stat.provider.id === "tavily");
     expect(tavily?.criticalTimeText).not.toContain("T");
+  });
+
+  it("uses the active credential badge when a saved web authorization has no quota yet", () => {
+    const credentials: CredentialView[] = [
+      {
+        id: "claude-saved-login",
+        providerId: "claude",
+        name: "Claude saved login",
+        kind: "dashboardCookie",
+        maskedValue: "Web login saved",
+        copyable: false,
+        active: true,
+        status: "notChecked",
+        remainingBadgeText: "Authorization saved",
+        quotaWindows: [],
+      },
+    ];
+
+    const stats = buildProviderStats(providerRegistry, credentials);
+    const claude = stats.find((stat) => stat.provider.id === "claude");
+
+    expect(claude?.keyQuotaText).toBe("Authorization saved");
+  });
+
+  it("uses the active credential badge when refresh failed before quota could be parsed", () => {
+    const credentials: CredentialView[] = [
+      {
+        id: "claude-failed-login",
+        providerId: "claude",
+        name: "Claude failed login",
+        kind: "dashboardCookie",
+        maskedValue: "Web login saved",
+        copyable: false,
+        active: true,
+        status: "failed",
+        remainingBadgeText: "Check failed",
+        quotaWindows: [],
+        diagnosticMessage: "Provider fixture parse failed",
+      },
+    ];
+
+    const stats = buildProviderStats(providerRegistry, credentials);
+    const claude = stats.find((stat) => stat.provider.id === "claude");
+
+    expect(claude?.keyQuotaText).toBe("Check failed");
+    expect(claude?.needsAttention).toBe(true);
   });
 
   it("includes Anthropic Credits as a separate Claude-backed provider", () => {
