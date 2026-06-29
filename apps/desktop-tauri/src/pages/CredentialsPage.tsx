@@ -6,6 +6,7 @@ import { useTranslate } from "../i18n";
 import {
   copyCredentialValue,
   createCredential,
+  deleteCredential,
   importClaudeSettings,
   isTauriRuntime,
   listCredentials,
@@ -123,6 +124,17 @@ export function CredentialsPage({
     await navigator.clipboard?.writeText(secret);
   }
 
+  async function handleDeleteCredential(credential: CredentialView) {
+    if (isTauriRuntime()) {
+      setVisibleCredentials(await deleteCredential(credential.id));
+      return;
+    }
+
+    setVisibleCredentials((currentCredentials) =>
+      currentCredentials.filter((currentCredential) => currentCredential.id !== credential.id),
+    );
+  }
+
   async function handleImportClaudeSettings() {
     setImporting(true);
     setImportStatus(undefined);
@@ -188,6 +200,7 @@ export function CredentialsPage({
         open={editorOpen}
         onClose={closeEditor}
         credential={editingCredential}
+        onDelete={handleDeleteCredential}
         onSave={handleSaveCredential}
         onStartWebAuthorization={onStartWebAuthorization}
         providers={providers}

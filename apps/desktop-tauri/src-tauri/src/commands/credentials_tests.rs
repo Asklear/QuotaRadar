@@ -79,3 +79,40 @@ fn update_credential_preserves_existing_secret_when_secret_is_omitted() {
         .expect("credential secret should still be readable");
     assert_eq!(secret, "tvly-original-secret");
 }
+
+#[test]
+fn update_credential_rejects_provider_change_without_replacement_secret() {
+    let app = test_app();
+    let app_handle = app.handle().clone();
+
+    create_credential(
+        app_handle.clone(),
+        CredentialSecretInput::new_api_key(
+            "provider-change-without-secret",
+            "tavily",
+            "Tavily Edit Check",
+            "tvly-original-secret",
+        ),
+    )
+    .expect("credential should save through Tauri store");
+
+    let error = update_credential(
+        app_handle,
+        CredentialUpdateInput {
+            id: "provider-change-without-secret".to_string(),
+            provider_id: "brave".to_string(),
+            name: "Brave Edited Check".to_string(),
+            kind: crate::domain::CredentialKind::ApiKey,
+            secret: None,
+            active: Some(true),
+            linked_authorization_id: None,
+            note: None,
+        },
+    )
+    .expect_err("provider changes must include replacement secret material");
+
+    assert_eq!(
+        error,
+        "Changing provider or credential type requires a replacement secret"
+    );
+}

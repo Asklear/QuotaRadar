@@ -17,6 +17,7 @@ interface CredentialEditorDialogProps {
   providers?: ProviderDefinition[];
   credential?: CredentialView;
   onSave?: (input: CredentialInput | CredentialUpdateInput) => Promise<void> | void;
+  onDelete?: (credential: CredentialView) => Promise<void> | void;
   onStartWebAuthorization?: StartWebAuthorizationHandler;
 }
 
@@ -26,6 +27,7 @@ export function CredentialEditorDialog({
   providers = providerRegistry,
   credential,
   onSave,
+  onDelete,
   onStartWebAuthorization,
 }: CredentialEditorDialogProps) {
   const t = useTranslate();
@@ -37,6 +39,7 @@ export function CredentialEditorDialog({
   const [active, setActive] = useState(true);
   const [revealed, setRevealed] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [saveError, setSaveError] = useState<string>();
   const [authenticating, setAuthenticating] = useState(false);
   const [authorizationStatus, setAuthorizationStatus] = useState<{
@@ -62,6 +65,7 @@ export function CredentialEditorDialog({
     setActive(credential?.active ?? true);
     setRevealed(false);
     setSaving(false);
+    setDeleting(false);
     setSaveError(undefined);
     setAuthenticating(false);
     setAuthorizationStatus(undefined);
@@ -136,6 +140,23 @@ export function CredentialEditorDialog({
     }
   }
 
+  async function handleDelete() {
+    if (!credential || !onDelete || saving || deleting) {
+      return;
+    }
+
+    setDeleting(true);
+    setSaveError(undefined);
+    try {
+      await onDelete(credential);
+      onClose();
+    } catch (error) {
+      setSaveError(`${t("credentialEditor.deleteFailed")} ${errorMessage(error)}`);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="dialog-backdrop">
       <section
@@ -158,6 +179,7 @@ export function CredentialEditorDialog({
               <button
                 key={provider.id}
                 data-selected={provider.id === selectedProvider?.id}
+                disabled={editing}
                 onClick={() => setProviderId(provider.id)}
                 type="button"
               >
@@ -245,6 +267,11 @@ export function CredentialEditorDialog({
           </div>
         ) : null}
         <footer className="credential-dialog-footer">
+          {editing && onDelete ? (
+            <button className="danger-button" disabled={saving || deleting} onClick={handleDelete} type="button">
+              {deleting ? t("credentialEditor.deleting") : t("credentialEditor.delete")}
+            </button>
+          ) : null}
           <button onClick={onClose}>{t("credentialEditor.cancel")}</button>
           <button className="primary-button" disabled={(!editing && !secret) || saving} form="credential-editor-form" type="submit">
             {saving

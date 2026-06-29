@@ -83,6 +83,25 @@ describe("CredentialsPage", () => {
       .toHaveAttribute("data-enabled", "false");
   });
 
+  it("locks provider selection when editing an existing credential", async () => {
+    render(<CredentialsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Tavily Key 1" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Edit Credential" });
+    expect(within(dialog).getByRole("button", { name: "Tavily" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Brave" })).toBeDisabled();
+  });
+
+  it("deletes an existing credential from the editor", async () => {
+    render(<CredentialsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Tavily Key 1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+
+    expect(screen.queryByText("Tavily Key 1")).not.toBeInTheDocument();
+  });
+
   it("keeps the editor open and shows save failures", async () => {
     render(
       <CredentialEditorDialog

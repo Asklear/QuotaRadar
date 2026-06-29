@@ -75,6 +75,11 @@ pub fn update_credential<R: Runtime>(
         .as_deref()
         .map(str::trim)
         .filter(|secret| !secret.is_empty());
+    if (provider_changed || kind_changed) && new_secret.is_none() {
+        return Err(
+            "Changing provider or credential type requires a replacement secret".to_string(),
+        );
+    }
 
     if let Some(secret) = new_secret {
         let metadata = build_credential_metadata(&CredentialSecretInput {
