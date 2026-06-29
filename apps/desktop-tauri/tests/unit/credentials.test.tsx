@@ -59,6 +59,30 @@ describe("CredentialsPage", () => {
     expect(screen.getByText("tvly••••alue")).toBeInTheDocument();
   });
 
+  it("opens existing credentials in edit mode and replaces the row on save", async () => {
+    render(<CredentialsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Tavily Key 1" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Edit Credential" });
+    expect(within(dialog).getByDisplayValue("Tavily Key 1")).toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByDisplayValue("Tavily Key 1"), {
+      target: { value: "Tavily Edited Key" },
+    });
+    fireEvent.change(within(dialog).getByLabelText("API key"), {
+      target: { value: "tvly-edited-secret-1234" },
+    });
+    fireEvent.click(within(dialog).getByLabelText("Active"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Tavily Edited Key")).toBeInTheDocument();
+    expect(screen.getByText("tvly••••1234")).toBeInTheDocument();
+    expect(screen.queryByText("Tavily Key 1")).not.toBeInTheDocument();
+    expect(screen.getByTestId("credential-row-tavily-primary").querySelector(".mock-switch"))
+      .toHaveAttribute("data-enabled", "false");
+  });
+
   it("keeps the editor open and shows save failures", async () => {
     render(
       <CredentialEditorDialog

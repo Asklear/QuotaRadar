@@ -7,6 +7,7 @@ import type {
   CapturedWebAuthorization,
   CredentialImportSummary,
   CredentialInput,
+  CredentialUpdateInput,
   CredentialView,
   RefreshMode,
   UpdateState,
@@ -103,9 +104,12 @@ export async function createCredential(input: CredentialInput): Promise<Credenti
   return invoke<CredentialView>("create_credential", { input });
 }
 
-export async function updateCredential(input: CredentialInput): Promise<CredentialView> {
+export async function updateCredential(input: CredentialUpdateInput): Promise<CredentialView> {
   if (!isTauriRuntime()) {
-    return buildMockCredential(input);
+    return buildMockCredential({
+      ...input,
+      secret: input.secret ?? input.name,
+    });
   }
 
   return invoke<CredentialView>("update_credential", { input });
@@ -268,7 +272,7 @@ export async function downloadAndInstallUpdate(): Promise<UpdateState> {
   return invoke<UpdateState>("download_and_install_update");
 }
 
-function buildMockCredential(input: CredentialInput): CredentialView {
+function buildMockCredential(input: CredentialInput & { active?: boolean }): CredentialView {
   const copyable = input.kind !== "dashboardCookie";
   const maskedValue = copyable ? maskSecret(input.secret) : "Web login authorization saved";
 
@@ -279,7 +283,7 @@ function buildMockCredential(input: CredentialInput): CredentialView {
     kind: input.kind,
     maskedValue,
     copyable,
-    active: true,
+    active: input.active ?? true,
     status: "notChecked",
     remainingBadgeText: input.kind === "dashboardCookie" ? "Authorization saved" : "Saved",
     quotaWindows: [],

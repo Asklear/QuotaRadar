@@ -11,9 +11,10 @@ import type { CredentialView } from "../shared/types";
 interface CredentialRowProps {
   credential: CredentialView;
   onCopy?: (credential: CredentialView) => void;
+  onEdit?: (credential: CredentialView) => void;
 }
 
-export function CredentialRow({ credential, onCopy }: CredentialRowProps) {
+export function CredentialRow({ credential, onCopy, onEdit }: CredentialRowProps) {
   const t = useTranslate();
   const statusTone = credentialNeedsAttention(credential) ? "attention" : "healthy";
 
@@ -46,7 +47,10 @@ export function CredentialRow({ credential, onCopy }: CredentialRowProps) {
         ) : null}
         <span className="credential-action-slot">
           <span data-testid="credential-action">{t("credential.action.edit")}</span>
-          <button aria-label={`${t("credential.action.edit")} ${credential.name}`}>
+          <button
+            aria-label={`${t("credential.action.edit")} ${credential.name}`}
+            onClick={() => onEdit?.(credential)}
+          >
             <Pencil size={14} />
           </button>
         </span>

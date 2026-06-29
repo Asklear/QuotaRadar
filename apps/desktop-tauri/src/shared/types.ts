@@ -72,6 +72,11 @@ export interface CredentialInput {
   note?: string;
 }
 
+export interface CredentialUpdateInput extends Omit<CredentialInput, "secret"> {
+  secret?: string;
+  active?: boolean;
+}
+
 export interface CredentialImportSummary {
   added: number;
   updated: number;

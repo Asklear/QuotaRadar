@@ -9,10 +9,12 @@ import {
   importClaudeSettings,
   isTauriRuntime,
   listCredentials,
+  updateCredential,
 } from "../lib/tauriClient";
 import { mockCredentials, providerRegistry } from "../shared/mockData";
 import type {
   CredentialInput,
+  CredentialUpdateInput,
   CredentialView,
   ProviderDefinition,
   StartWebAuthorizationHandler,
@@ -33,6 +35,7 @@ export function CredentialsPage({
 }: CredentialsPageProps) {
   const t = useTranslate();
   const [editorOpen, setEditorOpen] = useState(false);
+  const [editingCredential, setEditingCredential] = useState<CredentialView>();
   const [visibleCredentials, setVisibleCredentials] = useState(credentials);
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState<{ tone: "success" | "error"; text: string }>();
@@ -69,7 +72,7 @@ export function CredentialsPage({
       );
       return [...nextCredentials, lastWebAuthorizationSaved];
     });
-    setEditorOpen(false);
+    closeEditor();
   }, [lastWebAuthorizationSaved]);
 
   const configuredProviders = useMemo(
@@ -83,8 +86,25 @@ export function CredentialsPage({
     [providers, visibleCredentials],
   );
 
-  async function handleSaveCredential(input: CredentialInput) {
-    const saved = await createCredential(input);
+  function openAddCredentialEditor() {
+    setEditingCredential(undefined);
+    setEditorOpen(true);
+  }
+
+  function openEditCredentialEditor(credential: CredentialView) {
+    setEditingCredential(credential);
+    setEditorOpen(true);
+  }
+
+  function closeEditor() {
+    setEditorOpen(false);
+    setEditingCredential(undefined);
+  }
+
+  async function handleSaveCredential(input: CredentialInput | CredentialUpdateInput) {
+    const saved = editingCredential
+      ? await updateCredential(input)
+      : await createCredential(input as CredentialInput);
 
     if (isTauriRuntime()) {
       const storedCredentials = await listCredentials();
@@ -138,7 +158,7 @@ export function CredentialsPage({
           </div>
         </div>
         <div className="credential-action-buttons">
-          <button onClick={() => setEditorOpen(true)}>
+          <button onClick={openAddCredentialEditor}>
             <Plus size={15} />
             {t("credentials.add")}
           </button>
@@ -160,12 +180,14 @@ export function CredentialsPage({
             provider={group.provider}
             credentials={group.credentials}
             onCopyCredential={handleCopyCredential}
+            onEditCredential={openEditCredentialEditor}
           />
         ))}
       </div>
       <CredentialEditorDialog
         open={editorOpen}
-        onClose={() => setEditorOpen(false)}
+        onClose={closeEditor}
+        credential={editingCredential}
         onSave={handleSaveCredential}
         onStartWebAuthorization={onStartWebAuthorization}
         providers={providers}

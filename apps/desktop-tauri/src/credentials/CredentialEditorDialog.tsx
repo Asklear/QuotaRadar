@@ -1,10 +1,12 @@
 import { ExternalLink, Eye, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslate } from "../i18n";
 import { providerRegistry } from "../shared/mockData";
 import type {
   CredentialInput,
   CredentialKind,
+  CredentialUpdateInput,
+  CredentialView,
   ProviderDefinition,
   StartWebAuthorizationHandler,
 } from "../shared/types";
@@ -13,7 +15,8 @@ interface CredentialEditorDialogProps {
   open: boolean;
   onClose: () => void;
   providers?: ProviderDefinition[];
-  onSave?: (input: CredentialInput) => Promise<void> | void;
+  credential?: CredentialView;
+  onSave?: (input: CredentialInput | CredentialUpdateInput) => Promise<void> | void;
   onStartWebAuthorization?: StartWebAuthorizationHandler;
 }
 
@@ -21,6 +24,7 @@ export function CredentialEditorDialog({
   open,
   onClose,
   providers = providerRegistry,
+  credential,
   onSave,
   onStartWebAuthorization,
 }: CredentialEditorDialogProps) {
@@ -30,6 +34,7 @@ export function CredentialEditorDialog({
   const [apiKey, setApiKey] = useState("");
   const [authorization, setAuthorization] = useState("");
   const [note, setNote] = useState("");
+  const [active, setActive] = useState(true);
   const [revealed, setRevealed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string>();
@@ -42,12 +47,33 @@ export function CredentialEditorDialog({
     () => providers.find((provider) => provider.id === providerId) ?? providers[0],
     [providerId, providers],
   );
+  const editing = Boolean(credential);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    setProviderId(credential?.providerId ?? providers[0]?.id ?? "");
+    setName(credential?.name ?? "");
+    setApiKey("");
+    setAuthorization("");
+    setNote(credential?.note ?? "");
+    setActive(credential?.active ?? true);
+    setRevealed(false);
+    setSaving(false);
+    setSaveError(undefined);
+    setAuthenticating(false);
+    setAuthorizationStatus(undefined);
+  }, [credential, open, providers]);
 
   if (!open) {
     return null;
   }
 
-  const credentialKind: CredentialKind = authorization.trim() ? "dashboardCookie" : "apiKey";
+  const credentialKind: CredentialKind = authorization.trim()
+    ? "dashboardCookie"
+    : credential?.kind ?? "apiKey";
   const secret = authorization.trim() || apiKey.trim();
   const defaultName = selectedProvider
     ? t("credentialEditor.defaultName").replace("{provider}", selectedProvider.displayName)
@@ -55,7 +81,7 @@ export function CredentialEditorDialog({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedProvider || !secret || saving) {
+    if (!selectedProvider || saving || (!editing && !secret)) {
       return;
     }
 
@@ -64,11 +90,12 @@ export function CredentialEditorDialog({
     setSaveError(undefined);
     try {
       await onSave?.({
-        id: makeCredentialId(selectedProvider.id, credentialName),
+        id: credential?.id ?? makeCredentialId(selectedProvider.id, credentialName),
         providerId: selectedProvider.id,
         name: credentialName,
         kind: credentialKind,
-        secret,
+        ...(secret ? { secret } : {}),
+        active,
         note: note.trim() || undefined,
       });
       onClose();
@@ -88,9 +115,10 @@ export function CredentialEditorDialog({
     setAuthorizationStatus(undefined);
     try {
       const credentialName = name.trim() || defaultName;
+      const targetCredentialId = credential?.id ?? makeCredentialId(selectedProvider.id, credentialName);
       const session = await onStartWebAuthorization(
         selectedProvider.id,
-        makeCredentialId(selectedProvider.id, credentialName),
+        targetCredentialId,
         credentialName,
       );
       if (session?.message) {
@@ -110,10 +138,14 @@ export function CredentialEditorDialog({
 
   return (
     <div className="dialog-backdrop">
-      <section className="credential-dialog" role="dialog" aria-label={t("credentialEditor.title")}>
+      <section
+        className="credential-dialog"
+        role="dialog"
+        aria-label={editing ? t("credentialEditor.editTitle") : t("credentialEditor.title")}
+      >
         <header className="credential-dialog-header">
           <div>
-            <h2>{t("credentialEditor.title")}</h2>
+            <h2>{editing ? t("credentialEditor.editTitle") : t("credentialEditor.title")}</h2>
             <p>{t("credentialEditor.description")}</p>
           </div>
           <button aria-label={t("credentialEditor.close")} onClick={onClose}>
@@ -195,6 +227,16 @@ export function CredentialEditorDialog({
               {t("credentialEditor.note")}
               <input placeholder={t("credentialEditor.optional")} value={note} onChange={(event) => setNote(event.target.value)} />
             </label>
+            {editing ? (
+              <label className="credential-active-toggle">
+                <input
+                  checked={active}
+                  onChange={(event) => setActive(event.target.checked)}
+                  type="checkbox"
+                />
+                {t("credential.active")}
+              </label>
+            ) : null}
           </form>
         </div>
         {saveError ? (
@@ -204,8 +246,12 @@ export function CredentialEditorDialog({
         ) : null}
         <footer className="credential-dialog-footer">
           <button onClick={onClose}>{t("credentialEditor.cancel")}</button>
-          <button className="primary-button" disabled={!secret || saving} form="credential-editor-form" type="submit">
-            {saving ? t("credentialEditor.saving") : t("credentials.add")}
+          <button className="primary-button" disabled={(!editing && !secret) || saving} form="credential-editor-form" type="submit">
+            {saving
+              ? t("credentialEditor.saving")
+              : editing
+                ? t("credentialEditor.save")
+                : t("credentials.add")}
           </button>
         </footer>
       </section>
