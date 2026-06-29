@@ -149,6 +149,13 @@ export default function App() {
     setAppState(await refreshProvider(providerId, "manual"));
   }
 
+  function handleCredentialsChanged(credentials: CredentialView[]) {
+    setAppState((currentState) => ({
+      ...currentState,
+      credentials,
+    }));
+  }
+
   async function handleStartWebAuthorization(
     providerId: string,
     targetCredentialId?: string,
@@ -182,6 +189,7 @@ export default function App() {
         providers={providers}
         credentials={appState.credentials}
         lastWebAuthorizationSaved={lastWebAuthorizationSaved}
+        onCredentialsChanged={handleCredentialsChanged}
         onStartWebAuthorization={handleStartWebAuthorization}
       />
     ),

@@ -25,6 +25,7 @@ interface CredentialsPageProps {
   providers?: ProviderDefinition[];
   credentials?: CredentialView[];
   lastWebAuthorizationSaved?: CredentialView;
+  onCredentialsChanged?: (credentials: CredentialView[]) => void;
   onStartWebAuthorization?: StartWebAuthorizationHandler;
 }
 
@@ -32,6 +33,7 @@ export function CredentialsPage({
   providers = providerRegistry,
   credentials = mockCredentials,
   lastWebAuthorizationSaved,
+  onCredentialsChanged,
   onStartWebAuthorization,
 }: CredentialsPageProps) {
   const t = useTranslate();
@@ -109,14 +111,16 @@ export function CredentialsPage({
 
     if (isTauriRuntime()) {
       const storedCredentials = await listCredentials();
-      setVisibleCredentials(storedCredentials.length > 0 ? storedCredentials : [saved]);
+      const nextCredentials = storedCredentials.length > 0 ? storedCredentials : [saved];
+      setVisibleCredentials(nextCredentials);
+      onCredentialsChanged?.(nextCredentials);
       return;
     }
 
-    setVisibleCredentials((currentCredentials) => {
-      const nextCredentials = currentCredentials.filter((credential) => credential.id !== saved.id);
-      return [...nextCredentials, saved];
-    });
+    const nextCredentials = visibleCredentials.filter((credential) => credential.id !== saved.id);
+    const updatedCredentials = [...nextCredentials, saved];
+    setVisibleCredentials(updatedCredentials);
+    onCredentialsChanged?.(updatedCredentials);
   }
 
   async function handleCopyCredential(credential: CredentialView) {
@@ -126,13 +130,15 @@ export function CredentialsPage({
 
   async function handleDeleteCredential(credential: CredentialView) {
     if (isTauriRuntime()) {
-      setVisibleCredentials(await deleteCredential(credential.id));
+      const nextCredentials = await deleteCredential(credential.id);
+      setVisibleCredentials(nextCredentials);
+      onCredentialsChanged?.(nextCredentials);
       return;
     }
 
-    setVisibleCredentials((currentCredentials) =>
-      currentCredentials.filter((currentCredential) => currentCredential.id !== credential.id),
-    );
+    const nextCredentials = visibleCredentials.filter((currentCredential) => currentCredential.id !== credential.id);
+    setVisibleCredentials(nextCredentials);
+    onCredentialsChanged?.(nextCredentials);
   }
 
   async function handleImportClaudeSettings() {
@@ -140,9 +146,10 @@ export function CredentialsPage({
     setImportStatus(undefined);
     try {
       const summary = await importClaudeSettings();
-      setVisibleCredentials((currentCredentials) =>
-        summary.credentials.length > 0 ? summary.credentials : currentCredentials,
-      );
+      if (summary.credentials.length > 0) {
+        setVisibleCredentials(summary.credentials);
+        onCredentialsChanged?.(summary.credentials);
+      }
       setImportStatus({
         tone: "success",
         text: `${t("credentials.importSuccess")} ${t("credentials.importAdded")} ${summary.added}, ${t("credentials.importUpdated")} ${summary.updated}.`,
