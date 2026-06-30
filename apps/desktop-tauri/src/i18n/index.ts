@@ -53,6 +53,32 @@ const quotaWindowKeys: Record<string, MessageKey> = {
   month: "quotaWindow.month",
 };
 
+const providerPlanTypeKeys: Record<string, MessageKey> = {
+  Balance: "providerPlan.balance",
+  Pro: "providerPlan.pro",
+  Credits: "providerPlan.credits",
+  Membership: "providerPlan.membership",
+  Subscription: "providerPlan.subscription",
+  "Coding Plan": "providerPlan.codingPlan",
+};
+
+const systemDisplayTextKeys: Record<string, MessageKey> = {
+  Saved: "credentialDisplay.saved",
+  "Authorization saved": "credentialDisplay.authorizationSaved",
+  "Web login saved": "credentialDisplay.webLoginSaved",
+  "Web login expired": "credentialDisplay.webLoginExpired",
+  "Web login authorization saved": "credentialDisplay.webAuthorizationSaved",
+  "Web login authorization expired.": "credentialDisplay.webAuthorizationExpired",
+  "Login expired": "credentialDisplay.loginExpired",
+  "Check failed": "credentialDisplay.checkFailed",
+  OK: "credentialDisplay.ok",
+  Unlimited: "credentialDisplay.unlimited",
+  Unavailable: "credentialDisplay.unavailable",
+  "Choose an authorization target": "webAuth.chooseAuthorizationTarget",
+  "Tauri desktop signed update artifacts are not configured yet.":
+    "update.signedArtifactsNotConfigured",
+};
+
 export function normalizeLocale(locale: string | undefined): LocaleCode {
   return locale && locale in locales ? (locale as LocaleCode) : "en";
 }
@@ -103,6 +129,33 @@ export function formatQuotaWindowName(
 ) {
   const key = quotaWindowKeys[window.name];
   return key ? t(key) : window.name;
+}
+
+export function formatProviderPlanType(
+  planType: string | undefined,
+  t: (key: MessageKey) => string = (key) => translate(key),
+) {
+  if (!planType) {
+    return undefined;
+  }
+
+  const key = providerPlanTypeKeys[planType];
+  return key ? t(key) : planType;
+}
+
+export function formatSystemDisplayText(
+  text: string,
+  t: (key: MessageKey) => string = (key) => translate(key),
+) {
+  const exactKey = systemDisplayTextKeys[text];
+  if (exactKey) {
+    return t(exactKey);
+  }
+
+  return text
+    .replace(/\b5h\b/g, t("quotaWindow.5h"))
+    .replace(/\bweek\b/gi, t("quotaWindow.week"))
+    .replace(/\bmonth\b/gi, t("quotaWindow.month"));
 }
 
 export function useLocale() {

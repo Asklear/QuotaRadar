@@ -9,7 +9,7 @@ export function RiskSummaryCard({ summary }: RiskSummaryCardProps) {
   const t = useTranslate();
 
   return (
-    <section className="risk-card monitor-module" aria-label="Risk summary">
+    <section className="risk-card monitor-module" aria-label={t("tray.riskSummary")}>
       <h2>{t("tray.statistics")}</h2>
       <div className="risk-card-items">
         <div className="risk-card-item" data-tone="warning">

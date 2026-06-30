@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronUp, GripVertical, RotateCcw, X } from "lucide-react";
-import { useTranslate } from "../i18n";
+import { formatProviderPlanType, useTranslate } from "../i18n";
 import { providerRegistry } from "../shared/mockData";
 import type { ProviderCategory } from "../shared/types";
 
@@ -74,7 +74,7 @@ export function ProviderOrderDialog({
                   <div className="provider-order-item" key={provider.id}>
                     <GripVertical size={15} aria-hidden="true" />
                     <span>{provider.displayName}</span>
-                    {provider.planType ? <small>{provider.planType}</small> : null}
+                    {provider.planType ? <small>{formatProviderPlanType(provider.planType, t)}</small> : null}
                     <div className="provider-order-move-actions">
                       <button
                         aria-label={t("providerOrder.moveUp").replace("{provider}", provider.displayName)}

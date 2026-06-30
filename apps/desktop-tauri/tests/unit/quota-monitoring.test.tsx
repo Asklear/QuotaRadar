@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { LocaleContext } from "../../src/i18n";
 import { QuotaMonitoringPage } from "../../src/pages/QuotaMonitoringPage";
 import { providerRegistry } from "../../src/shared/providerRegistry";
 
@@ -90,5 +91,41 @@ describe("QuotaMonitoringPage", () => {
 
     expect(screen.getByText("2 credits")).toBeInTheDocument();
     expect(screen.getByText(/Earliest expires/)).toBeInTheDocument();
+  });
+
+  it("localizes fixed credential placeholders and provider plan types", () => {
+    const kimiProvider = providerRegistry.find((provider) => provider.id === "kimi");
+
+    render(
+      <LocaleContext.Provider value="zh-Hans">
+        <QuotaMonitoringPage
+          providers={kimiProvider ? [kimiProvider] : []}
+          credentials={[
+            {
+              id: "kimi-web-saved",
+              providerId: "kimi",
+              name: "Kimi web login",
+              kind: "dashboardCookie",
+              maskedValue: "Web login saved",
+              copyable: false,
+              active: true,
+              status: "notChecked",
+              remainingBadgeText: "Authorization saved",
+              quotaWindows: [],
+            },
+          ]}
+        />
+      </LocaleContext.Provider>,
+    );
+
+    expect(screen.getByText("Moonshot · 会员")).toBeInTheDocument();
+    expect(screen.getByText("授权已保存")).toBeInTheDocument();
+    expect(screen.queryByText("Authorization saved")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Kimi"));
+
+    expect(screen.getByText(/网页登录已保存/)).toBeInTheDocument();
+    expect(screen.getAllByText("授权已保存").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Web login saved")).not.toBeInTheDocument();
   });
 });

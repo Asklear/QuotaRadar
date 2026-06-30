@@ -1,5 +1,6 @@
 import {
   formatCompactDateTime,
+  formatSystemDisplayText,
   translate,
   type LocaleCode,
   type MessageKey,
@@ -61,7 +62,7 @@ function keyQuotaText(credentials: CredentialView[], locale: LocaleCode) {
     .map((credential) => credential.remainingBadgeText.trim())
     .find((text) => text.length > 0 && text !== t("common.notAvailable"));
   if (badgeFallback) {
-    return badgeFallback;
+    return formatSystemDisplayText(badgeFallback, t);
   }
 
   return t("common.notAvailable");

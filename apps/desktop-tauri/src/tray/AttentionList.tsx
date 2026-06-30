@@ -1,6 +1,7 @@
 import {
   formatCompactDateTime,
   formatCredentialStatus,
+  formatSystemDisplayText,
   useLocale,
   useTranslate,
 } from "../i18n";
@@ -24,13 +25,13 @@ function itemLabel(credential: CredentialView) {
   return `${credential.name}${suffix}`;
 }
 
-function remainingText(credential: CredentialView) {
+function remainingText(credential: CredentialView, t: ReturnType<typeof useTranslate>) {
   const percent = credentialPercentRemaining(credential);
   if (typeof percent === "number") {
     return `${Math.round(percent * 10) / 10}%`;
   }
 
-  return credential.remainingBadgeText;
+  return formatSystemDisplayText(credential.remainingBadgeText, t);
 }
 
 function sortByPlanEnd(left: CredentialView, right: CredentialView) {
@@ -83,12 +84,12 @@ export function AttentionList({ credentials }: AttentionListProps) {
                   <span className="tray-chip" data-tone="healthy">
                     {t("tray.favorites")}
                   </span>
-                  <span>{credential.maskedValue}</span>
+                  <span>{formatSystemDisplayText(credential.maskedValue, t)}</span>
                 </div>
-                <small>{credential.remainingBadgeText}</small>
+                <small>{formatSystemDisplayText(credential.remainingBadgeText, t)}</small>
               </div>
               <span className="tray-value-pill" data-tone="healthy">
-                {remainingText(credential)}
+                {remainingText(credential, t)}
               </span>
             </div>
           );
@@ -115,7 +116,7 @@ export function AttentionList({ credentials }: AttentionListProps) {
                 <small>{itemLabel(credential)}</small>
               </div>
               <span className="tray-value-pill" data-tone="warning">
-                {remainingText(credential)}
+                {remainingText(credential, t)}
               </span>
             </div>
           );
@@ -140,7 +141,7 @@ export function AttentionList({ credentials }: AttentionListProps) {
                 </small>
               </div>
               <span className="tray-value-pill" data-tone="warning">
-                {remainingText(credential)}
+                {remainingText(credential, t)}
               </span>
             </div>
           );
@@ -160,10 +161,12 @@ export function AttentionList({ credentials }: AttentionListProps) {
                   </span>
                   <span>{credential.name}</span>
                 </div>
-                <small>{credential.diagnosticMessage ?? credential.remainingBadgeText}</small>
+                <small>
+                  {formatSystemDisplayText(credential.diagnosticMessage ?? credential.remainingBadgeText, t)}
+                </small>
               </div>
               <span className="tray-value-pill" data-tone="attention">
-                {remainingText(credential)}
+                {remainingText(credential, t)}
               </span>
             </div>
           );

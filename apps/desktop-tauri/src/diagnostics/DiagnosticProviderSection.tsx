@@ -1,5 +1,5 @@
 import { ProviderIcon } from "../components/ProviderIcon";
-import { useTranslate } from "../i18n";
+import { formatProviderPlanType, useTranslate } from "../i18n";
 import type { CredentialView, ProviderDefinition } from "../shared/types";
 import { DiagnosticRow } from "./DiagnosticRow";
 
@@ -21,7 +21,7 @@ export function DiagnosticProviderSection({ provider, credentials }: DiagnosticP
             <h2>{provider.displayName}</h2>
             <p>
               {categoryLabel}
-              {provider.planType ? ` · ${provider.planType}` : ""}
+              {provider.planType ? ` · ${formatProviderPlanType(provider.planType, t)}` : ""}
             </p>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { ExternalLink, Eye, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useTranslate } from "../i18n";
+import { formatSystemDisplayText, useTranslate } from "../i18n";
 import { providerRegistry } from "../shared/mockData";
 import type {
   CredentialInput,
@@ -126,7 +126,7 @@ export function CredentialEditorDialog({
         credentialName,
       );
       if (session?.message) {
-        setAuthorizationStatus({ tone: "success", text: session.message });
+        setAuthorizationStatus({ tone: "success", text: formatSystemDisplayText(session.message, t) });
       }
     } catch (error) {
       setAuthorizationStatus({

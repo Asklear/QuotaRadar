@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { LocaleContext } from "../../src/i18n";
 import { AboutPage } from "../../src/pages/AboutPage";
 import { DiagnosticsPage } from "../../src/pages/DiagnosticsPage";
 import { SettingsPage } from "../../src/pages/SettingsPage";
@@ -64,5 +65,19 @@ describe("AboutPage", () => {
 
     expect(screen.getByRole("heading", { name: "Quota Radar" })).toBeInTheDocument();
     expect(screen.getByText("Tauri desktop preview")).toBeInTheDocument();
+  });
+
+  it("localizes the desktop app summary", () => {
+    render(
+      <LocaleContext.Provider value="zh-Hans">
+        <AboutPage />
+      </LocaleContext.Provider>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Quota Radar" })).toBeInTheDocument();
+    expect(screen.getByText("Tauri 桌面预览版")).toBeInTheDocument();
+    expect(screen.getByText("平台目标")).toBeInTheDocument();
+    expect(screen.queryByText("Tauri desktop preview")).not.toBeInTheDocument();
+    expect(screen.queryByText("Platform target")).not.toBeInTheDocument();
   });
 });

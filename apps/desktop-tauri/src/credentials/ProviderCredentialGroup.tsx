@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ProviderIcon } from "../components/ProviderIcon";
-import { useTranslate } from "../i18n";
+import { formatProviderPlanType, useTranslate } from "../i18n";
 import type { CredentialView, ProviderDefinition } from "../shared/types";
 import { CredentialRow } from "./CredentialRow";
 
@@ -34,7 +34,7 @@ export function ProviderCredentialGroup({
           <strong>{provider.displayName}</strong>
           <span>
             {categoryLabel}
-            {provider.planType ? ` · ${provider.planType}` : ""}
+            {provider.planType ? ` · ${formatProviderPlanType(provider.planType, t)}` : ""}
           </span>
         </div>
         <span className="credential-provider-pill">

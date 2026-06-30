@@ -1,6 +1,9 @@
 import { Radar } from "lucide-react";
+import { useTranslate } from "../i18n";
 
 export function AboutPage() {
+  const t = useTranslate();
+
   return (
     <div className="about-page">
       <section className="about-card">
@@ -8,21 +11,21 @@ export function AboutPage() {
           <Radar size={34} strokeWidth={2.1} />
         </div>
         <div>
-          <h1>Quota Radar</h1>
-          <p>Tauri desktop preview</p>
+          <h1>{t("app.name")}</h1>
+          <p>{t("about.subtitle")}</p>
         </div>
         <dl>
           <div>
-            <dt>Platform target</dt>
-            <dd>macOS, Windows, Linux</dd>
+            <dt>{t("about.platformTarget")}</dt>
+            <dd>{t("about.platformTargetValue")}</dd>
           </div>
           <div>
-            <dt>Implementation stage</dt>
-            <dd>Mock UI first, backend contracts next</dd>
+            <dt>{t("about.implementationStage")}</dt>
+            <dd>{t("about.implementationStageValue")}</dd>
           </div>
           <div>
-            <dt>Data policy</dt>
-            <dd>No real provider secrets in preview data</dd>
+            <dt>{t("about.dataPolicy")}</dt>
+            <dd>{t("about.dataPolicyValue")}</dd>
           </div>
         </dl>
       </section>

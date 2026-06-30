@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react";
-import { useTranslate } from "../i18n";
+import { formatSystemDisplayText, useTranslate } from "../i18n";
 import { mockUpdateState } from "../lib/tauriClient";
 import type { UpdateState } from "../shared/types";
 
@@ -41,7 +41,7 @@ function updateStatusLabel(updateState: UpdateState, t: ReturnType<typeof useTra
     case "checking":
       return t("update.checking");
     case "error":
-      return updateState.errorMessage ?? t("update.error");
+      return updateState.errorMessage ? formatSystemDisplayText(updateState.errorMessage, t) : t("update.error");
     case "notImplemented":
       return t("update.installerPending");
     case "idle":

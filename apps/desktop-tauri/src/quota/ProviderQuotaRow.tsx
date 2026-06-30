@@ -2,7 +2,7 @@ import type { KeyboardEvent } from "react";
 import { ExternalLink, RefreshCw, RotateCcw } from "lucide-react";
 import { ProviderIcon } from "../components/ProviderIcon";
 import { StatusPill } from "../components/StatusPill";
-import { useTranslate } from "../i18n";
+import { formatProviderPlanType, useTranslate } from "../i18n";
 import type { ProviderStats, StartWebAuthorizationHandler } from "../shared/types";
 import { CredentialDetailTable } from "./CredentialDetailTable";
 
@@ -33,7 +33,7 @@ export function ProviderQuotaRow({
   );
   const subtitle = [
     stat.provider.familyName !== stat.provider.displayName ? stat.provider.familyName : undefined,
-    stat.provider.planType,
+    formatProviderPlanType(stat.provider.planType, t),
   ]
     .filter(Boolean)
     .join(" · ");

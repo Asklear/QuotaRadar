@@ -54,7 +54,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav className="sidebar-nav" aria-label="Primary">
+      <nav className="sidebar-nav" aria-label={t("sidebar.primaryNavigation")}>
         {navItems.map((item) => (
           <SidebarNavItem
             key={item.id}

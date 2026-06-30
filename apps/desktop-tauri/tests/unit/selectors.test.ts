@@ -50,6 +50,28 @@ describe("provider selectors", () => {
     expect(claude?.keyQuotaText).toBe("Authorization saved");
   });
 
+  it("localizes fixed saved-authorization badges in provider stats", () => {
+    const credentials: CredentialView[] = [
+      {
+        id: "claude-saved-login",
+        providerId: "claude",
+        name: "Claude saved login",
+        kind: "dashboardCookie",
+        maskedValue: "Web login saved",
+        copyable: false,
+        active: true,
+        status: "notChecked",
+        remainingBadgeText: "Authorization saved",
+        quotaWindows: [],
+      },
+    ];
+
+    const stats = buildProviderStats(providerRegistry, credentials, "zh-Hans");
+    const claude = stats.find((stat) => stat.provider.id === "claude");
+
+    expect(claude?.keyQuotaText).toBe("授权已保存");
+  });
+
   it("uses the active credential badge when refresh failed before quota could be parsed", () => {
     const credentials: CredentialView[] = [
       {

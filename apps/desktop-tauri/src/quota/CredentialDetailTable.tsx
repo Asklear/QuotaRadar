@@ -2,6 +2,7 @@ import {
   formatCompactDateTime,
   formatCredentialKind,
   formatCredentialStatus,
+  formatSystemDisplayText,
   useLocale,
   useTranslate,
 } from "../i18n";
@@ -35,11 +36,11 @@ export function CredentialDetailTable({ credentials }: CredentialDetailTableProp
               <td>
                 <div className="credential-name">{credential.name}</div>
                 <div className="credential-subtitle">
-                  {credential.maskedValue} · {formatCredentialKind(credential.kind, t)}
+                  {formatSystemDisplayText(credential.maskedValue, t)} · {formatCredentialKind(credential.kind, t)}
                 </div>
                 <QuotaWindowDetails windows={credential.quotaWindows} />
               </td>
-              <td className="numeric-cell">{credential.remainingBadgeText}</td>
+              <td className="numeric-cell">{formatSystemDisplayText(credential.remainingBadgeText, t)}</td>
               <td>
                 <StatusPill
                   tone={credentialNeedsAttention(credential) ? "attention" : "healthy"}

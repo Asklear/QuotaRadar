@@ -3,6 +3,7 @@ import { StatusPill } from "../components/StatusPill";
 import {
   formatCredentialKind,
   formatCredentialStatus,
+  formatSystemDisplayText,
   useTranslate,
 } from "../i18n";
 import { credentialNeedsAttention } from "../shared/status";
@@ -24,7 +25,7 @@ export function CredentialRow({ credential, onCopy, onEdit }: CredentialRowProps
         <span className="credential-dot" data-tone={statusTone} aria-hidden="true" />
         <div className="credential-row-text">
           <strong>{credential.name}</strong>
-          <span>{credential.maskedValue}</span>
+          <span>{formatSystemDisplayText(credential.maskedValue, t)}</span>
         </div>
         <span className="credential-kind-badge">{formatCredentialKind(credential.kind, t)}</span>
       </div>
