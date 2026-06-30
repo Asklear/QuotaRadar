@@ -167,7 +167,7 @@ export const providerRegistry: ProviderDefinition[] = [
     category: "LLM",
     planType: "Subscription",
     icon: "codex",
-    dashboardUrl: "https://opencode.ai/docs/zh-cn/go",
+    dashboardUrl: "https://opencode.ai/workspace/wrk_01KSKR4K4WDJY0JZSCJTMRZ5CV/go",
     supportsReauth: true,
     supportsRefresh: true,
     quotaCheckConsumesSearchQuota: false,

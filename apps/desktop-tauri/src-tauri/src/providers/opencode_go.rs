@@ -14,6 +14,10 @@ const OPENCODE_GO_AUTH_REDIRECT_FIXTURE: &str =
     r#";0x00000000;location.href="/auth/authorize?redirect=%2Fworkspace%2Fwrk_placeholder""#;
 
 const OPENCODE_GO_MISSING_USAGE_FIXTURE: &str = r#";0x00000129;((self.$R=self.$R||{})["server-fn:11"]=[],($R=>$R[0]={mine:!0,useBalance:!1})($R["server-fn:11"]))"#;
+const DEFAULT_OPENCODE_GO_WORKSPACE_ID: &str = "wrk_01KSKR4K4WDJY0JZSCJTMRZ5CV";
+const DEFAULT_OPENCODE_GO_SERVER_ID: &str =
+    "c7389bd0e731f80f49593e5ee53835475f4e28594dd6bd83eb229bab753498cd";
+const DEFAULT_OPENCODE_GO_SERVER_INSTANCE: &str = "server-fn:11";
 
 #[derive(Debug, Default)]
 pub struct OpenCodeGoProvider;
@@ -160,15 +164,18 @@ impl OpenCodeGoCredential {
 fn opencode_server_request(
     credential: &OpenCodeGoCredential,
 ) -> Result<ProviderHttpRequest, ProviderError> {
-    let workspace_id = credential.workspace_id.as_deref().ok_or_else(|| {
-        ProviderError::Unsupported("OpenCode Go workspace id is required".to_string())
-    })?;
-    let server_id = credential.server_id.as_deref().ok_or_else(|| {
-        ProviderError::Unsupported("OpenCode Go server id is required".to_string())
-    })?;
-    let server_instance = credential.server_instance.as_deref().ok_or_else(|| {
-        ProviderError::Unsupported("OpenCode Go server instance is required".to_string())
-    })?;
+    let workspace_id = credential
+        .workspace_id
+        .as_deref()
+        .unwrap_or(DEFAULT_OPENCODE_GO_WORKSPACE_ID);
+    let server_id = credential
+        .server_id
+        .as_deref()
+        .unwrap_or(DEFAULT_OPENCODE_GO_SERVER_ID);
+    let server_instance = credential
+        .server_instance
+        .as_deref()
+        .unwrap_or(DEFAULT_OPENCODE_GO_SERVER_INSTANCE);
     let args = serde_json::json!({
         "t": {
             "t": 9,

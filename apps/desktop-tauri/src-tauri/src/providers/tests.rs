@@ -58,6 +58,20 @@ fn only_dashboard_cookie_providers_show_reauthorization() {
 }
 
 #[test]
+fn opencode_go_dashboard_url_matches_swift_workspace_entrypoint() {
+    let definitions = visible_provider_definitions();
+    let opencode = definitions
+        .iter()
+        .find(|provider| provider.id == "opencode_go")
+        .expect("OpenCode Go should be visible");
+
+    assert_eq!(
+        opencode.dashboard_url.as_deref(),
+        Some("https://opencode.ai/workspace/wrk_01KSKR4K4WDJY0JZSCJTMRZ5CV/go")
+    );
+}
+
+#[test]
 fn no_cost_api_key_providers_do_not_consume_quota_on_check() {
     for provider in visible_provider_definitions()
         .into_iter()

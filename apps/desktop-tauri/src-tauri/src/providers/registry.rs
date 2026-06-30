@@ -169,7 +169,7 @@ pub fn visible_provider_definitions() -> Vec<ProviderDefinition> {
             "OpenCode",
             "Subscription",
             "opencode",
-            "https://opencode.ai/docs/zh-cn/go",
+            "https://opencode.ai/workspace/wrk_01KSKR4K4WDJY0JZSCJTMRZ5CV/go",
         ),
         ProviderDefinition::new_llm(
             "xfyun_coding_plan",

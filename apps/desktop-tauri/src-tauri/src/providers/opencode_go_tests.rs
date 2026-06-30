@@ -133,3 +133,37 @@ fn opencode_live_quota_uses_server_function_transport() {
         .headers
         .contains(&("x-server-instance".to_string(), "server-fn:11".to_string())));
 }
+
+#[test]
+fn opencode_live_quota_uses_swift_defaults_for_web_auth_cookie_only() {
+    let client = OpenCodeGoProvider::default();
+    let transport = MockProviderTransport::responding(ProviderHttpResponse::new(
+        200,
+        r#";0x00000129;((self.$R=self.$R||{})["server-fn:11"]=[],($R=>$R[0]={mine:!0,useBalance:!1,rollingUsage:$R[1]={status:"ok",resetInSec:100,usagePercent:10},weeklyUsage:$R[2]={status:"ok",resetInSec:200,usagePercent:40},monthlyUsage:$R[3]={status:"ok",resetInSec:300,usagePercent:60}})($R["server-fn:11"]))"#,
+    ));
+
+    let snapshot = client
+        .check_quota(
+            ProviderCredential::fake_api_key(
+                "opencode_go",
+                r#"{"cookie":"auth=opencode-auth-placeholder; oc_locale=zh"}"#,
+            ),
+            &transport,
+        )
+        .expect("web auth cookie-only credential should use Swift defaults");
+
+    assert_eq!(snapshot.remaining, Some(4000.0));
+    let requests = transport.requests();
+    assert_eq!(requests.len(), 1);
+    assert!(requests[0].url.contains("wrk_01KSKR4K4WDJY0JZSCJTMRZ5CV"));
+    assert!(requests[0].url.starts_with(
+        "https://opencode.ai/_server?id=c7389bd0e731f80f49593e5ee53835475f4e28594dd6bd83eb229bab753498cd&args="
+    ));
+    assert!(requests[0].headers.contains(&(
+        "x-server-id".to_string(),
+        "c7389bd0e731f80f49593e5ee53835475f4e28594dd6bd83eb229bab753498cd".to_string()
+    )));
+    assert!(requests[0]
+        .headers
+        .contains(&("x-server-instance".to_string(), "server-fn:11".to_string())));
+}
