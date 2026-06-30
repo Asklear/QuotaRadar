@@ -30,6 +30,8 @@
   "quota.overviewSummary": "{configured} configured · {supported} supported",
   "time.nextReset": "Next Reset",
   "time.planEnds": "Plan Ends",
+  "codexResetCredits.remaining": "{count} credits",
+  "codexResetCredits.earliestExpiry": "Earliest expires {time}",
   "quota.categorySummary": "{providers} providers · {credentials} keys",
   "quota.categoryActiveSummary": "{active} active",
   "quota.refreshConsumesSearchQuota": "Refresh uses one search request",

@@ -30,6 +30,8 @@
   "quota.overviewSummary": "{configured} 設定済み · {supported} 対応",
   "time.nextReset": "次回リセット",
   "time.planEnds": "プラン終了",
+  "codexResetCredits.remaining": "リセット {count} 回利用可能",
+  "codexResetCredits.earliestExpiry": "最短期限 {time}",
   "quota.categorySummary": "{providers} プロバイダー · {credentials} キー",
   "quota.categoryActiveSummary": "{active} 有効",
   "quota.refreshConsumesSearchQuota": "更新には検索リクエストを 1 回使います",

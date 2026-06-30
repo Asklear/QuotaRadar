@@ -118,6 +118,8 @@ fn parse_deepseek_balance(value: &str) -> Result<QuotaSnapshot, ProviderError> {
         )],
         reset_at: Some(usage.balance.reset_at),
         plan_ends_at: None,
+        codex_reset_credits_remaining: None,
+        codex_reset_credits_earliest_expires_at: None,
     })
 }
 
@@ -132,6 +134,8 @@ fn parse_deepseek_live_balance(value: &Value) -> Result<QuotaSnapshot, ProviderE
             quota_windows: Vec::new(),
             reset_at: None,
             plan_ends_at: None,
+            codex_reset_credits_remaining: None,
+            codex_reset_credits_earliest_expires_at: None,
         });
     }
 
@@ -168,5 +172,7 @@ fn parse_deepseek_live_balance(value: &Value) -> Result<QuotaSnapshot, ProviderE
         quota_windows: Vec::new(),
         reset_at: None,
         plan_ends_at: None,
+        codex_reset_credits_remaining: None,
+        codex_reset_credits_earliest_expires_at: None,
     })
 }

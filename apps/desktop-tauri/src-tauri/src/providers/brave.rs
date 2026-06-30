@@ -184,6 +184,8 @@ fn brave_snapshot(remaining: f64, limit: f64, reset_at: String) -> QuotaSnapshot
         quota_windows: vec![QuotaWindow::percent("month", percent, &reset_at)],
         reset_at: Some(reset_at),
         plan_ends_at: None,
+        codex_reset_credits_remaining: None,
+        codex_reset_credits_earliest_expires_at: None,
     }
 }
 
@@ -197,6 +199,8 @@ fn brave_unknown_quota_snapshot(reset_at: String) -> QuotaSnapshot {
         quota_windows: vec![],
         reset_at: Some(reset_at),
         plan_ends_at: None,
+        codex_reset_credits_remaining: None,
+        codex_reset_credits_earliest_expires_at: None,
     }
 }
 

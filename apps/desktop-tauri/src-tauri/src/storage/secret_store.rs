@@ -162,6 +162,8 @@ pub fn build_credential_metadata(input: &CredentialSecretInput) -> CredentialVie
         quota_windows: Vec::new(),
         reset_at: None,
         plan_ends_at: None,
+        codex_reset_credits_remaining: None,
+        codex_reset_credits_earliest_expires_at: None,
         last_updated: None,
         last_http_status: None,
         diagnostic_message: None,

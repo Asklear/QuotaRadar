@@ -91,6 +91,10 @@ fn codex_live_quota_resolves_session_then_fetches_usage_and_subscription() {
             200,
             r#"{"active_until":"2026-07-08T16:42:25Z","plan_type":"pro"}"#,
         ),
+        ProviderHttpResponse::new(
+            200,
+            r#"{"credits":[{"id":"reset-1","reset_type":"codex_rate_limits","status":"available","expires_at":"2026-07-18T00:38:14Z","redeemed_at":null},{"id":"reset-2","reset_type":"codex_rate_limits","status":"redeemed","expires_at":"2026-07-01T00:00:00Z","redeemed_at":"2026-06-20T00:00:00Z"},{"id":"reset-3","reset_type":"codex_rate_limits","status":"available","expires_at":"2026-07-26T23:56:41Z","redeemed_at":null}],"available_count":2}"#,
+        ),
     ]);
 
     let snapshot = client
@@ -104,9 +108,14 @@ fn codex_live_quota_resolves_session_then_fetches_usage_and_subscription() {
         snapshot.plan_ends_at.as_deref(),
         Some("2026-07-08T16:42:25Z")
     );
+    assert_eq!(snapshot.codex_reset_credits_remaining, Some(2));
+    assert_eq!(
+        snapshot.codex_reset_credits_earliest_expires_at.as_deref(),
+        Some("2026-07-18T00:38:14Z")
+    );
 
     let requests = transport.requests();
-    assert_eq!(requests.len(), 3);
+    assert_eq!(requests.len(), 4);
     assert_eq!(requests[0].method, "GET");
     assert_eq!(requests[0].url, "https://chatgpt.com/api/auth/session");
     assert!(requests[0].headers.contains(&(
@@ -129,4 +138,15 @@ fn codex_live_quota_resolves_session_then_fetches_usage_and_subscription() {
     assert!(requests[2]
         .headers
         .contains(&("Authorization".to_string(), "Bearer at1".to_string())));
+    assert_eq!(requests[3].method, "GET");
+    assert_eq!(
+        requests[3].url,
+        "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits"
+    );
+    assert!(requests[3]
+        .headers
+        .contains(&("Authorization".to_string(), "Bearer at1".to_string())));
+    assert!(requests[3]
+        .headers
+        .contains(&("chatgpt-account-id".to_string(), "acct1".to_string())));
 }

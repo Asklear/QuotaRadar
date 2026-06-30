@@ -30,6 +30,8 @@
   "quota.overviewSummary": "{configured} 個已配置 · {supported} 個支援",
   "time.nextReset": "下次重置",
   "time.planEnds": "套餐到期",
+  "codexResetCredits.remaining": "可用 {count} 次重置",
+  "codexResetCredits.earliestExpiry": "最早 {time} 過期",
   "quota.categorySummary": "{providers} 個服務商 · {credentials} 個金鑰",
   "quota.categoryActiveSummary": "{active} 個啟用",
   "quota.refreshConsumesSearchQuota": "重新整理會消耗 1 次搜尋請求",

@@ -30,6 +30,8 @@
   "quota.overviewSummary": "{configured}개 구성됨 · {supported}개 지원됨",
   "time.nextReset": "다음 재설정",
   "time.planEnds": "플랜 종료",
+  "codexResetCredits.remaining": "재설정 {count}회 사용 가능",
+  "codexResetCredits.earliestExpiry": "가장 빠른 만료 {time}",
   "quota.categorySummary": "{providers}개 제공자 · {credentials}개 키",
   "quota.categoryActiveSummary": "{active}개 사용 중",
   "quota.refreshConsumesSearchQuota": "새로 고침은 검색 요청 1회를 소모합니다",

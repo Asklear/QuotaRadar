@@ -201,5 +201,7 @@ fn parse_exa_usage(http_status: u16, value: &str) -> Result<QuotaSnapshot, Provi
         quota_windows: vec![],
         reset_at: None,
         plan_ends_at: None,
+        codex_reset_credits_remaining: None,
+        codex_reset_credits_earliest_expires_at: None,
     })
 }

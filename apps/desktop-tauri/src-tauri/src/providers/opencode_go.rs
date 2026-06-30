@@ -268,6 +268,8 @@ fn parse_opencode_go_usage(value: &str) -> Result<QuotaSnapshot, ProviderError> 
         quota_windows: windows,
         reset_at,
         plan_ends_at: None,
+        codex_reset_credits_remaining: None,
+        codex_reset_credits_earliest_expires_at: None,
     })
 }
 

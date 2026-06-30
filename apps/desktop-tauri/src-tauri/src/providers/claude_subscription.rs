@@ -313,6 +313,8 @@ fn parse_claude_subscription_usage(
         quota_windows: windows,
         reset_at,
         plan_ends_at: details_value.and_then(parse_claude_subscription_details),
+        codex_reset_credits_remaining: None,
+        codex_reset_credits_earliest_expires_at: None,
     })
 }
 

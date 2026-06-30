@@ -363,6 +363,8 @@ fn parse_kimi_subscription_usage(
             quota_windows: windows,
             reset_at: None,
             plan_ends_at,
+            codex_reset_credits_remaining: None,
+            codex_reset_credits_earliest_expires_at: None,
         });
     }
 

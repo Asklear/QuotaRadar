@@ -88,6 +88,8 @@ pub struct QuotaSnapshot {
     pub quota_windows: Vec<QuotaWindow>,
     pub reset_at: Option<String>,
     pub plan_ends_at: Option<String>,
+    pub codex_reset_credits_remaining: Option<u32>,
+    pub codex_reset_credits_earliest_expires_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

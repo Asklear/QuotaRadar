@@ -192,6 +192,8 @@ fn parse_anthropic_credits(value: &str) -> Result<QuotaSnapshot, ProviderError> 
         quota_windows: Vec::new(),
         reset_at: None,
         plan_ends_at: None,
+        codex_reset_credits_remaining: None,
+        codex_reset_credits_earliest_expires_at: None,
     })
 }
 

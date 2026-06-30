@@ -30,6 +30,7 @@ function setTauriRuntime(enabled: boolean) {
 describe("update and refresh settings commands", () => {
   afterEach(() => {
     vi.mocked(invoke).mockReset();
+    vi.unstubAllEnvs();
     setTauriRuntime(false);
   });
 
@@ -49,6 +50,14 @@ describe("update and refresh settings commands", () => {
     expect(invoke).toHaveBeenCalledWith("get_update_state");
     expect(screen.getByText("v0.0.0 preview")).toBeInTheDocument();
     expect(screen.getByText("Update 0.1.0 available")).toBeInTheDocument();
+  });
+
+  it("renders the desktop build label when provided", () => {
+    vi.stubEnv("VITE_QUOTARADAR_BUILD_LABEL", "local-win-qa-20260627");
+
+    render(<SidebarUpdateFooter updateState={{ currentVersion: "0.0.0", status: "upToDate" }} />);
+
+    expect(screen.getByText("local-win-qa-20260627")).toBeInTheDocument();
   });
 
   it("checks for updates and keeps install as an explicit command", async () => {

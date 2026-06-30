@@ -62,6 +62,25 @@ export function CredentialDetailTable({ credentials }: CredentialDetailTableProp
                     {t("time.planEnds")} {formatCompactDateTime(credential.planEndsAt, locale)}
                   </small>
                 ) : null}
+                {typeof credential.codexResetCreditsRemaining === "number" ? (
+                  <small>
+                    {t("codexResetCredits.remaining").replace(
+                      "{count}",
+                      String(credential.codexResetCreditsRemaining),
+                    )}
+                  </small>
+                ) : null}
+                {credential.codexResetCreditsEarliestExpiresAt ? (
+                  <small>
+                    {t("codexResetCredits.earliestExpiry").replace(
+                      "{time}",
+                      formatCompactDateTime(
+                        credential.codexResetCreditsEarliestExpiresAt,
+                        locale,
+                      ),
+                    )}
+                  </small>
+                ) : null}
               </td>
             </tr>
           ))}

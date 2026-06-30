@@ -235,6 +235,8 @@ struct SwiftStoredApiKey {
     limit: Option<f64>,
     reset_at: Option<Value>,
     plan_ends_at: Option<Value>,
+    codex_reset_credits_remaining: Option<u32>,
+    codex_reset_credits_earliest_expires_at: Option<String>,
     last_updated: Option<Value>,
     #[serde(rename = "lastHTTPStatus", alias = "lastHttpStatus")]
     last_http_status: Option<u16>,
@@ -327,6 +329,10 @@ fn swift_item_to_credential(
         quota_windows,
         reset_at,
         plan_ends_at,
+        codex_reset_credits_remaining: item.codex_reset_credits_remaining,
+        codex_reset_credits_earliest_expires_at: item
+            .codex_reset_credits_earliest_expires_at
+            .clone(),
         last_updated,
         last_http_status: item.last_http_status,
         diagnostic_message: item.last_diagnostic_message.clone(),

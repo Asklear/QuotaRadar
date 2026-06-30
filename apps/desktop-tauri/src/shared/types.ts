@@ -55,6 +55,8 @@ export interface CredentialView {
   quotaWindows: QuotaWindow[];
   resetAt?: string;
   planEndsAt?: string;
+  codexResetCreditsRemaining?: number;
+  codexResetCreditsEarliestExpiresAt?: string;
   lastUpdated?: string;
   lastHttpStatus?: number;
   diagnosticMessage?: string;

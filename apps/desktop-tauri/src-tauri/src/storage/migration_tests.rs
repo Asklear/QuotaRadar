@@ -56,12 +56,30 @@ fn migrates_swift_metadata_and_secrets_preserving_snapshot_and_links() {
         "lastDiagnosticMessage": null,
         "quotaLabel": null,
         "usageCount": 0
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000004",
+        "name": "CODEX_SUBSCRIPTION_SESSION",
+        "provider": "Codex Subscription",
+        "isActive": true,
+        "remaining": 60,
+        "limit": 100,
+        "resetAt": 804556800,
+        "planEndsAt": 807235200,
+        "codexResetCreditsRemaining": 2,
+        "codexResetCreditsEarliestExpiresAt": "2026-07-18T00:38:14Z",
+        "lastUpdated": 802864800,
+        "lastHTTPStatus": 200,
+        "lastDiagnosticMessage": null,
+        "quotaLabel": "subscription",
+        "usageCount": 0
       }
     ]"#;
     let swift_secrets = r#"{
       "00000000-0000-0000-0000-000000000001": "tvly-real-secret",
       "00000000-0000-0000-0000-000000000002": "session=claude",
-      "00000000-0000-0000-0000-000000000003": "anthropic-copyable-placeholder"
+      "00000000-0000-0000-0000-000000000003": "anthropic-copyable-placeholder",
+      "00000000-0000-0000-0000-000000000004": "__Secure-next-auth.session-token=codex"
     }"#;
 
     let summary = migrate_swift_configuration(
@@ -75,12 +93,12 @@ fn migrates_swift_metadata_and_secrets_preserving_snapshot_and_links() {
     )
     .expect("Swift metadata should migrate");
 
-    assert_eq!(summary.added, 3);
+    assert_eq!(summary.added, 4);
     assert_eq!(summary.skipped, 0);
-    assert_eq!(summary.secrets_saved, 3);
+    assert_eq!(summary.secrets_saved, 4);
 
     let credentials = load_credentials(&metadata_store).expect("credentials should load");
-    assert_eq!(credentials.len(), 3);
+    assert_eq!(credentials.len(), 4);
 
     let tavily = credentials
         .iter()
@@ -123,6 +141,18 @@ fn migrates_swift_metadata_and_secrets_preserving_snapshot_and_links() {
         Some("00000000-0000-0000-0000-000000000002")
     );
 
+    let codex = credentials
+        .iter()
+        .find(|credential| credential.id == "00000000-0000-0000-0000-000000000004")
+        .expect("Codex authorization should migrate");
+    assert_eq!(codex.provider_id, "codex");
+    assert_eq!(codex.kind, CredentialKind::DashboardCookie);
+    assert_eq!(codex.codex_reset_credits_remaining, Some(2));
+    assert_eq!(
+        codex.codex_reset_credits_earliest_expires_at.as_deref(),
+        Some("2026-07-18T00:38:14Z")
+    );
+
     assert_eq!(
         secret_vault
             .read("00000000-0000-0000-0000-000000000001")
@@ -134,6 +164,12 @@ fn migrates_swift_metadata_and_secrets_preserving_snapshot_and_links() {
             .read("00000000-0000-0000-0000-000000000003")
             .expect("secret read"),
         Some("anthropic-copyable-placeholder".to_string())
+    );
+    assert_eq!(
+        secret_vault
+            .read("00000000-0000-0000-0000-000000000004")
+            .expect("secret read"),
+        Some("__Secure-next-auth.session-token=codex".to_string())
     );
 }
 

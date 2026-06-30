@@ -202,6 +202,8 @@ fn clear_quota_state(credential: &mut CredentialView) {
     credential.quota_windows.clear();
     credential.reset_at = None;
     credential.plan_ends_at = None;
+    credential.codex_reset_credits_remaining = None;
+    credential.codex_reset_credits_earliest_expires_at = None;
     credential.last_updated = None;
     credential.last_http_status = None;
     credential.diagnostic_message = None;

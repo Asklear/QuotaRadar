@@ -11,6 +11,8 @@ use super::{
 
 const CODEX_SESSION_URL: &str = "https://chatgpt.com/api/auth/session";
 const CODEX_WHAM_USAGE_URL: &str = "https://chatgpt.com/backend-api/wham/usage";
+const CODEX_RESET_CREDITS_URL: &str =
+    "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
 
 const CODEX_WHAM_USAGE_FIXTURE: &str = r#"{
   "plan_type": "pro",
@@ -84,7 +86,7 @@ impl CodexSubscriptionProvider {
         }
 
         CodexCredential::from_secret(&credential.secret)?;
-        parse_codex_subscription_usage(usage_value, lifecycle_value)
+        parse_codex_subscription_usage(usage_value, lifecycle_value, None)
     }
 }
 
@@ -136,7 +138,9 @@ impl ProviderClient for CodexSubscriptionProvider {
             )));
         }
 
-        let lifecycle_response = if let Some(account_id) = session.account_id.as_deref() {
+        let mut lifecycle_response = None;
+        let mut reset_credit_metadata = None;
+        if let Some(account_id) = session.account_id.as_deref() {
             let url =
                 format!("https://chatgpt.com/backend-api/subscriptions?account_id={account_id}");
             let response = transport.send(codex_authorized_request(&url, &session.access_token))?;
@@ -144,15 +148,25 @@ impl ProviderClient for CodexSubscriptionProvider {
                 return Err(codex_login_required());
             }
             if response.status == 200 {
-                Some(response.body)
-            } else {
-                None
+                lifecycle_response = Some(response.body);
             }
-        } else {
-            None
-        };
 
-        parse_codex_subscription_usage(&usage_response.body, lifecycle_response.as_deref())
+            if let Ok(response) = transport.send(codex_account_authorized_request(
+                CODEX_RESET_CREDITS_URL,
+                &session.access_token,
+                account_id,
+            )) {
+                if response.status == 200 {
+                    reset_credit_metadata = parse_codex_reset_credit_metadata(&response.body).ok();
+                }
+            }
+        }
+
+        parse_codex_subscription_usage(
+            &usage_response.body,
+            lifecycle_response.as_deref(),
+            reset_credit_metadata,
+        )
     }
 
     fn check_fixture_quota(
@@ -221,6 +235,14 @@ fn codex_authorized_request(url: &str, access_token: &str) -> ProviderHttpReques
         .header("Authorization", &format!("Bearer {access_token}"))
 }
 
+fn codex_account_authorized_request(
+    url: &str,
+    access_token: &str,
+    account_id: &str,
+) -> ProviderHttpRequest {
+    codex_authorized_request(url, access_token).header("chatgpt-account-id", account_id)
+}
+
 fn codex_login_required() -> ProviderError {
     ProviderError::Unauthorized("ChatGPT web login authorization is required".to_string())
 }
@@ -257,6 +279,7 @@ fn parse_codex_session(value: &str) -> Result<CodexSession, ProviderError> {
 fn parse_codex_subscription_usage(
     usage_value: &str,
     lifecycle_value: Option<&str>,
+    reset_credit_metadata: Option<CodexResetCreditMetadata>,
 ) -> Result<QuotaSnapshot, ProviderError> {
     let usage: CodexUsageResponse = serde_json::from_str(usage_value)
         .map_err(|error| ProviderError::Parse(error.to_string()))?;
@@ -322,7 +345,78 @@ fn parse_codex_subscription_usage(
         quota_windows: windows,
         reset_at,
         plan_ends_at: lifecycle_value.and_then(parse_codex_subscription_lifecycle),
+        codex_reset_credits_remaining: reset_credit_metadata
+            .as_ref()
+            .and_then(|metadata| metadata.available_count),
+        codex_reset_credits_earliest_expires_at: reset_credit_metadata
+            .and_then(|metadata| metadata.earliest_expires_at),
     })
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CodexResetCreditMetadata {
+    available_count: Option<u32>,
+    earliest_expires_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CodexResetCreditsResponse {
+    available_count: Option<i64>,
+    credits: Option<Vec<CodexResetCredit>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CodexResetCredit {
+    status: Option<String>,
+    expires_at: Option<String>,
+    redeemed_at: Option<Value>,
+}
+
+fn parse_codex_reset_credit_metadata(
+    value: &str,
+) -> Result<CodexResetCreditMetadata, ProviderError> {
+    let parsed: CodexResetCreditsResponse =
+        serde_json::from_str(value).map_err(|error| ProviderError::Parse(error.to_string()))?;
+    let available_count = parsed
+        .available_count
+        .filter(|count| *count >= 0)
+        .and_then(|count| u32::try_from(count).ok());
+    let earliest_expires_at = parsed
+        .credits
+        .unwrap_or_default()
+        .into_iter()
+        .filter(available_reset_credit)
+        .filter_map(|credit| {
+            let expires_at = credit.expires_at?;
+            let parsed = DateTime::parse_from_rfc3339(&expires_at).ok()?;
+            Some((parsed, expires_at))
+        })
+        .min_by(|left, right| left.0.cmp(&right.0))
+        .map(|(_, expires_at)| expires_at);
+
+    Ok(CodexResetCreditMetadata {
+        available_count,
+        earliest_expires_at,
+    })
+}
+
+fn available_reset_credit(credit: &CodexResetCredit) -> bool {
+    if credit
+        .redeemed_at
+        .as_ref()
+        .is_some_and(|redeemed_at| !redeemed_at.is_null())
+    {
+        return false;
+    }
+
+    !matches!(
+        credit
+            .status
+            .as_deref()
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("redeemed" | "consumed" | "expired" | "used")
+    )
 }
 
 #[derive(Debug, Deserialize)]

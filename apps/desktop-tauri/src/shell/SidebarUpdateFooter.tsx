@@ -13,11 +13,13 @@ export function SidebarUpdateFooter({
   onCheckForUpdates,
 }: SidebarUpdateFooterProps) {
   const t = useTranslate();
+  const buildLabel = import.meta.env.VITE_QUOTARADAR_BUILD_LABEL?.trim();
 
   return (
     <footer className="sidebar-footer">
       <div>
         <div className="sidebar-version">{t("update.versionPreview").replace("{version}", updateState.currentVersion)}</div>
+        {buildLabel ? <div className="sidebar-build-label">{buildLabel}</div> : null}
         <div className="sidebar-update-status">{updateStatusLabel(updateState, t)}</div>
       </div>
       <button
