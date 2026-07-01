@@ -5,6 +5,7 @@ import { PreferenceRow } from "../settings/PreferenceRow";
 import { SettingsSection } from "../settings/SettingsSection";
 import type { AppSettings } from "../shared/types";
 import { useTranslate } from "../i18n";
+import type { MessageKey } from "../i18n";
 
 function MockSwitch({
   enabled,
@@ -35,6 +36,14 @@ interface SettingsPageProps {
   onMoveProvider?: (providerId: string, toIndex: number) => void | Promise<void>;
   onResetProviderOrder?: () => void | Promise<void>;
 }
+
+const languageOptions: Array<{ value: string; labelKey: MessageKey }> = [
+  { value: "en", labelKey: "language.en" },
+  { value: "zh-Hans", labelKey: "language.zhHans" },
+  { value: "zh-Hant", labelKey: "language.zhHant" },
+  { value: "ja", labelKey: "language.ja" },
+  { value: "ko", labelKey: "language.ko" },
+];
 
 export function SettingsPage({
   settings: controlledSettings,
@@ -72,11 +81,11 @@ export function SettingsPage({
               aria-label={t("settings.language")}
               onChange={(event) => applySettings({ ...settings, language: event.target.value })}
             >
-              <option value="en">English</option>
-              <option value="zh-Hans">简体中文</option>
-              <option value="zh-Hant">繁體中文</option>
-              <option value="ja">日本語</option>
-              <option value="ko">한국어</option>
+              {languageOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {t(option.labelKey)}
+                </option>
+              ))}
             </select>
           }
         />

@@ -54,6 +54,21 @@ describe("SettingsPage", () => {
     });
   });
 
+  it("localizes language picker option labels", () => {
+    render(
+      <LocaleContext.Provider value="zh-Hans">
+        <SettingsPage />
+      </LocaleContext.Provider>,
+    );
+
+    const languagePicker = screen.getByRole("combobox", { name: "语言" });
+    expect(
+      within(languagePicker)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["英语", "简体中文", "繁体中文", "日语", "韩语"]);
+  });
+
   it("opens a provider order dialog separated by category", () => {
     render(<SettingsPage />);
 
