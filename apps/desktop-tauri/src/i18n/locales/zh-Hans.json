@@ -158,6 +158,7 @@
   "app.previewReady": "内部预发布一致性验证进行中。",
   "app.webAuthorizationFailed": "网页登录授权失败：",
   "app.webAuthorizationRefreshFailed": "授权已保存，但额度刷新失败：{message}",
+  "app.providerRefreshFailed": "{provider} 额度刷新失败：{message}",
   "providerError.fixtureParseFailed": "服务商 fixture 解析失败：{message}",
   "providerError.unsupported": "服务商暂不支持：{message}",
   "providerError.authorizationFailed": "服务商授权失败：{message}",

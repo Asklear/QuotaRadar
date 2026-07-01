@@ -23,7 +23,7 @@ import { QuotaMonitoringPage } from "./pages/QuotaMonitoringPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AboutPage } from "./pages/AboutPage";
 import { TrayPopover } from "./tray/TrayPopover";
-import type { AppSettings, CredentialView, ProviderDefinition, WebAuthorizationSession } from "./shared/types";
+import type { AppSettings, AppState, CredentialView, ProviderDefinition, WebAuthorizationSession } from "./shared/types";
 import { formatSystemDisplayText, LocaleContext, normalizeLocale, translate } from "./i18n";
 
 function orderProviders(providers: ProviderDefinition[], providerOrder: string[]) {
@@ -42,6 +42,7 @@ export default function App() {
   const [settings, setSettings] = useState(mockSettings);
   const [updateState, setUpdateState] = useState(mockUpdateState);
   const [webAuthorizationError, setWebAuthorizationError] = useState<string | undefined>();
+  const [manualRefreshFailure, setManualRefreshFailure] = useState<ProviderRefreshFailure>();
   const [lastWebAuthorizationSaved, setLastWebAuthorizationSaved] = useState<CredentialView>();
   const isTrayView = new URLSearchParams(window.location.search).get("view") === "tray";
 
@@ -72,12 +73,16 @@ export default function App() {
         state = isTrayView
           ? await getAppState()
           : await refreshProvider(credential.providerId, "manual");
+        if (!isTrayView) {
+          refreshError = webAuthorizationRefreshFailureMessage(state, credential.providerId);
+        }
       } catch (error) {
         state = await getAppState();
         refreshError = `Saved authorization, but quota refresh failed: ${errorMessage(error)}`;
       }
       if (!cancelled) {
         setWebAuthorizationError(refreshError);
+        setManualRefreshFailure(undefined);
         setAppState(state);
         setLastWebAuthorizationSaved(credential);
       }
@@ -147,7 +152,11 @@ export default function App() {
   }
 
   async function handleRefreshProvider(providerId: string) {
-    setAppState(await refreshProvider(providerId, "manual"));
+    setManualRefreshFailure(undefined);
+    setWebAuthorizationError(undefined);
+    const state = await refreshProvider(providerId, "manual");
+    setAppState(state);
+    setManualRefreshFailure(providerRefreshFailure(state, providerId));
   }
 
   function handleCredentialsChanged(credentials: CredentialView[]) {
@@ -163,6 +172,7 @@ export default function App() {
     targetName?: string,
   ): Promise<WebAuthorizationSession> {
     setWebAuthorizationError(undefined);
+    setManualRefreshFailure(undefined);
     return startWebAuthorization(providerId, targetCredentialId, targetName);
   }
 
@@ -211,6 +221,15 @@ export default function App() {
         (key) => translate(key, locale),
       )}`
     : undefined;
+  const manualRefreshAlert = manualRefreshFailure
+    ? translate("app.providerRefreshFailed", locale)
+        .replace("{provider}", manualRefreshFailure.providerName)
+        .replace(
+          "{message}",
+          formatSystemDisplayText(manualRefreshFailure.message, (key) => translate(key, locale)),
+        )
+    : undefined;
+  const appAlert = webAuthorizationAlert ?? manualRefreshAlert;
 
   return (
     <LocaleContext.Provider value={locale}>
@@ -222,15 +241,49 @@ export default function App() {
         providers={providers}
         updateState={updateState}
       >
-        {webAuthorizationAlert ? (
+        {appAlert ? (
           <div className="app-alert" data-tone="error" role="alert">
-            {webAuthorizationAlert}
+            {appAlert}
           </div>
         ) : null}
         {page}
       </AppShell>
     </LocaleContext.Provider>
   );
+}
+
+interface ProviderRefreshFailure {
+  providerName: string;
+  message: string;
+}
+
+function providerRefreshFailure(state: AppState, providerId: string): ProviderRefreshFailure | undefined {
+  const failedCredential = state.credentials.find(
+    (credential) =>
+      credential.providerId === providerId &&
+      credential.active &&
+      credential.status === "failed" &&
+      credential.diagnosticMessage,
+  );
+  if (!failedCredential?.diagnosticMessage) {
+    return undefined;
+  }
+
+  const providerName =
+    state.providers.find((provider) => provider.id === providerId)?.displayName ?? providerId;
+  return {
+    providerName,
+    message: failedCredential.diagnosticMessage,
+  };
+}
+
+function providerRefreshFailureMessage(state: AppState, providerId: string) {
+  return providerRefreshFailure(state, providerId)?.message;
+}
+
+function webAuthorizationRefreshFailureMessage(state: AppState, providerId: string) {
+  const message = providerRefreshFailureMessage(state, providerId);
+  return message ? `Saved authorization, but quota refresh failed: ${message}` : undefined;
 }
 
 function errorMessage(error: unknown) {

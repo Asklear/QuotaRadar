@@ -158,6 +158,7 @@
   "app.previewReady": "內部預發布一致性驗證進行中。",
   "app.webAuthorizationFailed": "網頁登入授權失敗：",
   "app.webAuthorizationRefreshFailed": "授權已儲存，但額度重新整理失敗：{message}",
+  "app.providerRefreshFailed": "{provider} 額度重新整理失敗：{message}",
   "providerError.fixtureParseFailed": "服務商 fixture 解析失敗：{message}",
   "providerError.unsupported": "服務商暫不支援：{message}",
   "providerError.authorizationFailed": "服務商授權失敗：{message}",

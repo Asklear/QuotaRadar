@@ -60,6 +60,20 @@ fn claude_missing_session_key_maps_to_unauthorized() {
 }
 
 #[test]
+fn claude_accepts_session_key_lc_cookie_from_web_capture() {
+    let client = ClaudeSubscriptionProvider::default();
+    let snapshot = client
+        .check_fixture_quota(ProviderCredential::fake_api_key(
+            "claude",
+            r#"{"cookie":"sessionKeyLC=claude-session-placeholder; theme=dark"}"#,
+        ))
+        .expect("sessionKeyLC captured from web auth should be accepted");
+
+    assert_eq!(snapshot.provider_id, "claude");
+    assert_eq!(snapshot.remaining_badge_text, "5h 75.5% · week 30%");
+}
+
+#[test]
 fn claude_missing_usage_windows_maps_to_quota_unavailable() {
     let client = ClaudeSubscriptionProvider::default();
     let error = client

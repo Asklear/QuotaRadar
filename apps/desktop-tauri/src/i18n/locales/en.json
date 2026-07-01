@@ -158,6 +158,7 @@
   "app.previewReady": "Internal prerelease parity QA in progress.",
   "app.webAuthorizationFailed": "Web login authorization failed:",
   "app.webAuthorizationRefreshFailed": "Authorization saved, but quota refresh failed: {message}",
+  "app.providerRefreshFailed": "Refresh failed for {provider}: {message}",
   "providerError.fixtureParseFailed": "Provider fixture parse failed: {message}",
   "providerError.unsupported": "Provider unsupported: {message}",
   "providerError.authorizationFailed": "Provider authorization failed: {message}",

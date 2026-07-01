@@ -206,6 +206,13 @@ impl ClaudeCredential {
                     });
                 }
             }
+            if let Some(session_key_lc) = first_string(&value, &["sessionKeyLC", "session_key_lc"]) {
+                if !session_key_lc.trim().is_empty() {
+                    return Ok(Self {
+                        cookie_header: normalized_claude_session_lc_cookie(session_key_lc),
+                    });
+                }
+            }
 
             if let Some(cookie_header) = first_string(
                 &value,
@@ -217,7 +224,7 @@ impl ClaudeCredential {
                     "authorizationCookie",
                 ],
             ) {
-                if cookie_header.contains("sessionKey=") {
+                if contains_claude_session_cookie(&cookie_header) {
                     return Ok(Self { cookie_header });
                 }
             }
@@ -225,7 +232,7 @@ impl ClaudeCredential {
             return Err(claude_login_required());
         }
 
-        if trimmed.contains("sessionKey=") {
+        if contains_claude_session_cookie(trimmed) {
             Ok(Self {
                 cookie_header: trimmed.to_string(),
             })
@@ -241,6 +248,18 @@ fn normalized_claude_session_cookie(value: String) -> String {
     } else {
         format!("{}={value}", "sessionKey")
     }
+}
+
+fn normalized_claude_session_lc_cookie(value: String) -> String {
+    if value.contains('=') {
+        value
+    } else {
+        format!("{}={value}", "sessionKeyLC")
+    }
+}
+
+fn contains_claude_session_cookie(value: &str) -> bool {
+    value.contains("sessionKey=") || value.contains("sessionKeyLC=")
 }
 
 fn claude_request(url: &str, credential: &ClaudeCredential) -> ProviderHttpRequest {

@@ -134,4 +134,25 @@ describe("refresh provider flow", () => {
     expect(screen.getByText("HTTP 500")).toBeInTheDocument();
     expect(screen.getByText("Failed")).toBeInTheDocument();
   });
+
+  it("shows a persistent alert when manual refresh returns failed diagnostics", async () => {
+    setTauriRuntime(true);
+    const failedCredential: CredentialView = {
+      ...initialCredential,
+      status: "failed",
+      remainingBadgeText: "Check failed",
+      lastUpdated: "2026-06-11T12:35:00+08:00",
+      diagnosticMessage: "Tavily quota endpoint returned HTTP 401",
+    };
+    mockDesktopCommands(appStateWith(initialCredential), appStateWith(failedCredential));
+
+    render(<App />);
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("get_app_state"));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Tavily Refresh" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Refresh failed for Tavily");
+    expect(alert).toHaveTextContent("Tavily quota endpoint returned HTTP 401");
+  });
 });

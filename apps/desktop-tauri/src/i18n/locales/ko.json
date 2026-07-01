@@ -158,6 +158,7 @@
   "app.previewReady": "내부 사전 릴리스 일관성 검증 진행 중.",
   "app.webAuthorizationFailed": "웹 로그인 인증 실패:",
   "app.webAuthorizationRefreshFailed": "인증은 저장되었지만 할당량 새로 고침 실패: {message}",
+  "app.providerRefreshFailed": "{provider} 할당량 새로 고침 실패: {message}",
   "providerError.fixtureParseFailed": "제공자 fixture 구문 분석 실패: {message}",
   "providerError.unsupported": "제공자가 지원되지 않습니다: {message}",
   "providerError.authorizationFailed": "제공자 인증 실패: {message}",

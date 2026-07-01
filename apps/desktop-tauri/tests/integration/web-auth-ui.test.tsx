@@ -329,6 +329,59 @@ describe("web authorization UI shell", () => {
     expect(alert).not.toHaveTextContent("quota refresh failed");
   });
 
+  it("shows saved-authorization refresh diagnostics when refresh returns failed state", async () => {
+    setTauriRuntime(true);
+    const eventHandlers = new Map<string, (event: { payload: unknown }) => void>();
+    vi.mocked(listen).mockImplementation((event, handler) => {
+      eventHandlers.set(event, handler as (event: { payload: unknown }) => void);
+      return Promise.resolve(() => undefined);
+    });
+    const failedState = {
+      providers: [claudeProvider],
+      credentials: [
+        {
+          ...claudeAuthorization,
+          status: "failed" as const,
+          remainingBadgeText: "Check failed",
+          diagnosticMessage: "Claude web login authorization is required",
+        },
+      ],
+    };
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "get_app_state") {
+        return Promise.resolve({
+          providers: [claudeProvider],
+          credentials: [claudeAuthorization],
+        });
+      }
+      if (command === "get_settings") {
+        return Promise.resolve({
+          ...mockSettings,
+          providerOrder: ["claude"],
+        });
+      }
+      if (command === "get_update_state") {
+        return Promise.resolve(mockUpdateState);
+      }
+      if (command === "refresh_provider") {
+        return Promise.resolve(failedState);
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(listen).toHaveBeenCalledWith("web_authorization_saved", expect.any(Function)),
+    );
+    eventHandlers.get("web_authorization_saved")?.({ payload: claudeAuthorization });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Web login authorization failed:");
+    expect(alert).toHaveTextContent("Authorization saved, but quota refresh failed:");
+    expect(alert).toHaveTextContent("Claude web login authorization is required");
+  });
+
   it("shows a recoverable error when desktop web authorization capture fails", async () => {
     setTauriRuntime(true);
     const eventHandlers = new Map<string, (event: { payload: unknown }) => void>();

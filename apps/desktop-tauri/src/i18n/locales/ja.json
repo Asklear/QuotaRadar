@@ -158,6 +158,7 @@
   "app.previewReady": "内部プレリリースの整合性検証を進行中。",
   "app.webAuthorizationFailed": "Web ログイン認証に失敗しました:",
   "app.webAuthorizationRefreshFailed": "認証は保存されましたが、クォータ更新に失敗しました: {message}",
+  "app.providerRefreshFailed": "{provider} のクォータ更新に失敗しました: {message}",
   "providerError.fixtureParseFailed": "プロバイダー fixture の解析に失敗しました: {message}",
   "providerError.unsupported": "プロバイダーは未対応です: {message}",
   "providerError.authorizationFailed": "プロバイダー認証に失敗しました: {message}",
