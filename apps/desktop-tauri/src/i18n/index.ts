@@ -74,10 +74,26 @@ const systemDisplayTextKeys: Record<string, MessageKey> = {
   OK: "credentialDisplay.ok",
   Unlimited: "credentialDisplay.unlimited",
   Unavailable: "credentialDisplay.unavailable",
+  "API key saved": "credentialDisplay.apiKeySaved",
+  "Credential saved": "credentialDisplay.credentialSaved",
+  "Credential was not found": "credentialError.notFound",
+  "Credential value was not found": "credentialError.valueNotFound",
+  "Credential value is not copyable": "credentialError.valueNotCopyable",
+  "Changing provider or credential type requires a replacement secret":
+    "credentialError.replacementSecretRequired",
   "Choose an authorization target": "webAuth.chooseAuthorizationTarget",
   "Tauri desktop signed update artifacts are not configured yet.":
     "update.signedArtifactsNotConfigured",
 };
+
+const providerErrorPrefixKeys: Array<[prefix: string, key: MessageKey]> = [
+  ["Provider fixture parse failed: ", "providerError.fixtureParseFailed"],
+  ["Provider unsupported: ", "providerError.unsupported"],
+  ["Provider authorization failed: ", "providerError.authorizationFailed"],
+  ["Provider quota unavailable: ", "providerError.quotaUnavailable"],
+  ["Provider has no subscribed plan: ", "providerError.noSubscribedPlan"],
+  ["Provider network failed: ", "providerError.networkFailed"],
+];
 
 export function normalizeLocale(locale: string | undefined): LocaleCode {
   return locale && locale in locales ? (locale as LocaleCode) : "en";
@@ -146,10 +162,19 @@ export function formatProviderPlanType(
 export function formatSystemDisplayText(
   text: string,
   t: (key: MessageKey) => string = (key) => translate(key),
-) {
+): string {
   const exactKey = systemDisplayTextKeys[text];
   if (exactKey) {
     return t(exactKey);
+  }
+
+  for (const [prefix, key] of providerErrorPrefixKeys) {
+    if (text.startsWith(prefix)) {
+      return t(key).replace(
+        "{message}",
+        formatSystemDisplayText(text.slice(prefix.length), t),
+      );
+    }
   }
 
   const prefixedWebLoginSavedMatch = text.match(/^(.+) web login saved$/i);
@@ -187,6 +212,11 @@ export function formatSystemDisplayText(
 
   if (text === "Waiting for dashboard login; Quota Radar will save the authorization after login") {
     return t("webAuth.waitingForDashboardLogin");
+  }
+
+  const webLoginRequiredMatch = text.match(/^(.+) web login authorization is required$/);
+  if (webLoginRequiredMatch?.[1]) {
+    return t("webAuth.loginRequired").replace("{provider}", webLoginRequiredMatch[1]);
   }
 
   return text

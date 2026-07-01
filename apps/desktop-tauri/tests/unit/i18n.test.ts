@@ -53,4 +53,23 @@ describe("i18n", () => {
       "Claude 网页登录已保存",
     );
   });
+
+  it("localizes common credential and provider error messages", () => {
+    const t = (key: keyof typeof en) => translate(key, "zh-Hans");
+
+    expect(formatSystemDisplayText("Credential was not found", t)).toBe("未找到凭据");
+    expect(formatSystemDisplayText("Credential value was not found", t)).toBe(
+      "未找到凭据值",
+    );
+    expect(formatSystemDisplayText("Credential value is not copyable", t)).toBe(
+      "凭据值不可复制",
+    );
+    expect(formatSystemDisplayText("API key saved", t)).toBe("API Key 已保存");
+    expect(
+      formatSystemDisplayText(
+        "Provider authorization failed: Claude web login authorization is required",
+        t,
+      ),
+    ).toBe("服务商授权失败：Claude 需要网页登录授权");
+  });
 });
