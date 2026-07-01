@@ -85,13 +85,19 @@ describe("i18n", () => {
     expect(formatSystemDisplayText("Credential value is not copyable", t)).toBe(
       "凭据值不可复制",
     );
-    expect(formatSystemDisplayText("API key saved", t)).toBe("API Key 已保存");
+    expect(formatSystemDisplayText("API key saved", t)).toBe("API 密钥已保存");
     expect(
       formatSystemDisplayText(
         "Provider authorization failed: Claude web login authorization is required",
         t,
       ),
     ).toBe("服务商授权失败：Claude 需要网页登录授权");
+    expect(
+      formatSystemDisplayText(
+        "Saved authorization, but quota refresh failed: Provider network failed: timeout",
+        t,
+      ),
+    ).toBe("授权已保存，但额度刷新失败：服务商网络请求失败：timeout");
   });
 
   it("localizes desktop command errors with dynamic details", () => {

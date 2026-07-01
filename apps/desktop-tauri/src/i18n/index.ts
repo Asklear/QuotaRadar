@@ -262,7 +262,10 @@ export function formatSystemDisplayText(
 
   const refreshFailureMatch = text.match(/^Saved authorization, but quota refresh failed: (.+)$/);
   if (refreshFailureMatch?.[1]) {
-    return t("app.webAuthorizationRefreshFailed").replace("{message}", refreshFailureMatch[1]);
+    return t("app.webAuthorizationRefreshFailed").replace(
+      "{message}",
+      formatSystemDisplayText(refreshFailureMatch[1], t),
+    );
   }
 
   if (text === "Ready to update selected authorization") {

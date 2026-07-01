@@ -80,7 +80,7 @@
   "credentialDisplay.ok": "正常",
   "credentialDisplay.unlimited": "不限量",
   "credentialDisplay.unavailable": "不可用",
-  "credentialDisplay.apiKeySaved": "API Key 已保存",
+  "credentialDisplay.apiKeySaved": "API 密钥已保存",
   "credentialDisplay.credentialSaved": "凭据已保存",
   "credentialError.notFound": "未找到凭据",
   "credentialError.valueNotFound": "未找到凭据值",
