@@ -76,6 +76,24 @@ fn kimi_missing_access_token_maps_to_unauthorized() {
 }
 
 #[test]
+fn kimi_missing_session_metadata_maps_to_unauthorized() {
+    let client = KimiSubscriptionProvider::default();
+    let secret = serde_json::json!({
+        "accessToken": "token-placeholder",
+        "cookie": format!("{}={}", "kimi-auth", "session-cookie-placeholder"),
+    })
+    .to_string();
+    let error = client
+        .check_fixture_quota(ProviderCredential::fake_api_key("kimi", &secret))
+        .expect_err("missing session metadata should fail");
+
+    assert!(matches!(
+        error,
+        ProviderError::Unauthorized(message) if message.contains("session metadata")
+    ));
+}
+
+#[test]
 fn kimi_no_subscription_fixture_maps_to_no_subscribed_plan() {
     let client = KimiSubscriptionProvider::default();
     let error = client

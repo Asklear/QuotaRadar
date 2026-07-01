@@ -273,7 +273,7 @@ pub fn dashboard_reauth_provider_config(
             cookie_domains: &["kimi.com", "www.kimi.com"],
             required_names: &[
                 "kimi-auth|accessToken|access_token",
-                "kimi-auth|deviceID|sessionID|trafficID",
+                "deviceID|sessionID|trafficID",
             ],
             default_name: "KIMI_SUBSCRIPTION_SESSION",
         },
@@ -1197,6 +1197,21 @@ mod tests {
         let material = CapturedCredentialMaterial {
             cookie_header: "locale=zh".to_string(),
             fields: normalized_web_storage_fields("kimi", "locale=zh", fields),
+        };
+        let config =
+            dashboard_reauth_provider_config("kimi").expect("kimi should support web auth capture");
+
+        assert!(!captured_material_is_ready(
+            &material,
+            config.required_names
+        ));
+    }
+
+    #[test]
+    fn kimi_auth_cookie_without_session_metadata_is_not_ready() {
+        let material = CapturedCredentialMaterial {
+            cookie_header: format!("{}={}", "kimi-auth", "cookie-token"),
+            fields: BTreeMap::from([("accessToken".to_string(), "cookie-token".to_string())]),
         };
         let config =
             dashboard_reauth_provider_config("kimi").expect("kimi should support web auth capture");

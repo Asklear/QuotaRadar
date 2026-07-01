@@ -230,51 +230,56 @@ impl KimiCredential {
                 ));
             }
 
+            let device_id = first_string(
+                &value,
+                &[
+                    "deviceID",
+                    "device_id",
+                    "xMshDeviceId",
+                    "x_msh_device_id",
+                    "x-msh-device-id",
+                ],
+            );
+            let session_id = first_string(
+                &value,
+                &[
+                    "sessionID",
+                    "session_id",
+                    "xMshSessionId",
+                    "x_msh_session_id",
+                    "x-msh-session-id",
+                ],
+            );
+            let traffic_id = first_string(
+                &value,
+                &[
+                    "trafficID",
+                    "traffic_id",
+                    "xTrafficId",
+                    "x_traffic_id",
+                    "x-traffic-id",
+                ],
+            );
+            if device_id.is_none() && session_id.is_none() && traffic_id.is_none() {
+                return Err(ProviderError::Unauthorized(
+                    "Kimi session metadata is required".to_string(),
+                ));
+            }
+
             return Ok(Self {
                 access_token: token.expect("token was checked above"),
                 cookie: first_string(&value, &["cookie", "Cookie", "cookies"])
                     .or_else(|| first_string(&value, &["kimiAuth", "kimi_auth", "kimi-auth"]))
                     .map(normalized_kimi_cookie),
-                device_id: first_string(
-                    &value,
-                    &[
-                        "deviceID",
-                        "device_id",
-                        "xMshDeviceId",
-                        "x_msh_device_id",
-                        "x-msh-device-id",
-                    ],
-                ),
-                session_id: first_string(
-                    &value,
-                    &[
-                        "sessionID",
-                        "session_id",
-                        "xMshSessionId",
-                        "x_msh_session_id",
-                        "x-msh-session-id",
-                    ],
-                ),
-                traffic_id: first_string(
-                    &value,
-                    &[
-                        "trafficID",
-                        "traffic_id",
-                        "xTrafficId",
-                        "x_traffic_id",
-                        "x-traffic-id",
-                    ],
-                ),
+                device_id,
+                session_id,
+                traffic_id,
             });
         }
 
-        Ok(Self {
-            access_token: trimmed.to_string(),
-            cookie: None,
-            device_id: None,
-            session_id: None,
-            traffic_id: None,
-        })
+        Err(ProviderError::Unauthorized(
+            "Kimi session metadata is required".to_string(),
+        ))
     }
 }
 
