@@ -1,14 +1,10 @@
-use std::fs;
-
 use serde::Deserialize;
 use tauri::{AppHandle, Manager, Runtime};
 
 use crate::{
     domain::{CredentialKind, CredentialStatus, CredentialView},
     storage::{
-        credential_importer::{
-            import_claude_settings_content, import_credentials_into_store, CredentialImportSummary,
-        },
+        credential_importer::{import_claude_settings_file, CredentialImportSummary},
         metadata_store::{load_credentials, save_credentials, TauriMetadataStore},
         secret_store::{
             build_credential_metadata, copy_secret_value as copy_secret_value_from_vault,
@@ -183,15 +179,7 @@ pub fn import_claude_settings<R: Runtime>(
         .map_err(|error| error.to_string())?
         .join(".claude")
         .join("settings.json");
-    let content = fs::read_to_string(&settings_path).map_err(|error| {
-        format!(
-            "Could not read Claude settings file {}: {error}",
-            settings_path.display()
-        )
-    })?;
-    let imported = import_claude_settings_content(&content)?;
-
-    import_credentials_into_store(&metadata_store, &secret_vault, imported)
+    import_claude_settings_file(&metadata_store, &secret_vault, &settings_path)
 }
 
 fn clear_quota_state(credential: &mut CredentialView) {

@@ -1,9 +1,11 @@
+use std::{fs, path::PathBuf};
+
 use crate::domain::CredentialKind;
 
 use super::{
     credential_importer::{
-        import_claude_settings_content, import_credentials_into_store, parse_env_content,
-        ImportedCredential, ImportedCredentialSource,
+        import_claude_settings_content, import_claude_settings_file, import_credentials_into_store,
+        parse_env_content, ImportedCredential, ImportedCredentialSource,
     },
     metadata_store::{load_credentials, MemoryMetadataStore, MetadataStore},
     secret_store::{MemorySecretVault, SecretVault},
@@ -68,6 +70,41 @@ fn parses_env_content_with_quotes_exports_and_dashboard_authorizations() {
     assert_eq!(imported[1].kind, CredentialKind::DashboardCookie);
     assert_eq!(imported[2].provider_id, "volcengine_coding_plan");
     assert_eq!(imported[2].kind, CredentialKind::DashboardCookie);
+}
+
+#[test]
+fn missing_claude_settings_file_is_skipped_without_clearing_existing_credentials() {
+    let metadata_store = MemoryMetadataStore::default();
+    let secret_vault = MemorySecretVault::default();
+    let first_summary = import_credentials_into_store(
+        &metadata_store,
+        &secret_vault,
+        vec![ImportedCredential {
+            provider_id: "brave".to_string(),
+            name: "BRAVE_API_KEY".to_string(),
+            kind: CredentialKind::ApiKey,
+            secret: "brave-existing-secret".to_string(),
+            note: Some("Imported from .env".to_string()),
+        }],
+    )
+    .expect("initial import should save");
+
+    let missing_settings_path = temp_root("missing-claude-settings")
+        .join(".claude")
+        .join("settings.json");
+    let summary =
+        import_claude_settings_file(&metadata_store, &secret_vault, &missing_settings_path)
+            .expect("missing Claude settings should be skipped");
+
+    assert_eq!(summary.added, 0);
+    assert_eq!(summary.updated, 0);
+    assert_eq!(summary.credentials, first_summary.credentials);
+    assert_eq!(
+        secret_vault
+            .read("imported-brave-brave-api-key")
+            .expect("secret read"),
+        Some("brave-existing-secret".to_string())
+    );
 }
 
 #[test]
@@ -137,4 +174,16 @@ fn imports_credentials_by_updating_provider_name_matches_without_leaking_secrets
         .to_string();
     assert!(!metadata_payload.contains("new-tavily-secret-value"));
     assert!(!metadata_payload.contains("new-brave-secret-value"));
+}
+
+fn temp_root(name: &str) -> PathBuf {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("test clock")
+        .as_nanos();
+    let root =
+        std::env::temp_dir().join(format!("quotaradar-{name}-{}-{unique}", std::process::id()));
+    fs::remove_dir_all(&root).ok();
+    fs::create_dir_all(&root).expect("temp root");
+    root
 }

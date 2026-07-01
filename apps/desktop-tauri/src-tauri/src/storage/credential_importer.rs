@@ -1,3 +1,5 @@
+use std::{fs, io::ErrorKind, path::Path};
+
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -58,6 +60,28 @@ pub fn import_claude_settings_content(content: &str) -> Result<Vec<ImportedCrede
         env,
         ImportedCredentialSource::ClaudeSettings,
     ))
+}
+
+pub fn import_claude_settings_file(
+    metadata_store: &impl MetadataStore,
+    secret_vault: &impl SecretVault,
+    settings_path: &Path,
+) -> Result<CredentialImportSummary, String> {
+    let content = match fs::read_to_string(settings_path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == ErrorKind::NotFound => {
+            return import_credentials_into_store(metadata_store, secret_vault, Vec::new());
+        }
+        Err(error) => {
+            return Err(format!(
+                "Could not read Claude settings file {}: {error}",
+                settings_path.display()
+            ));
+        }
+    };
+    let imported = import_claude_settings_content(&content)?;
+
+    import_credentials_into_store(metadata_store, secret_vault, imported)
 }
 
 pub fn parse_env_content(
