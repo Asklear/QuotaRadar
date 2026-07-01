@@ -31,6 +31,27 @@ describe("i18n", () => {
     }
   });
 
+  it("keeps non-English release status copy fully localized", () => {
+    const disallowedFragments = [
+      "parity QA",
+      "Provider login QA",
+      "provider login QA",
+      "cross-platform packaging",
+    ];
+
+    for (const [locale, messages] of Object.entries(locales)) {
+      const statusCopy = [
+        messages["about.implementationStageValue"],
+        messages["about.dataPolicyValue"],
+        messages["app.previewReady"],
+      ].join("\n");
+
+      for (const fragment of disallowedFragments) {
+        expect(statusCopy, `${locale} should not contain ${fragment}`).not.toContain(fragment);
+      }
+    }
+  });
+
   it("localizes desktop web authorization status messages", () => {
     const t = (key: keyof typeof en) => translate(key, "zh-Hans");
 
