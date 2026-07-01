@@ -16,6 +16,21 @@ describe("i18n", () => {
     }
   });
 
+  it("does not expose early mock-stage About copy in any locale", () => {
+    const disallowedCopy = [
+      "Mock UI first, backend contracts next",
+      "Mock desktop shell ready for quota pages.",
+      "No real provider secrets in preview data",
+    ];
+
+    for (const [locale, messages] of Object.entries({ en, ...locales })) {
+      const values = Object.values(messages);
+      for (const copy of disallowedCopy) {
+        expect(values, `${locale} should not contain stale About copy`).not.toContain(copy);
+      }
+    }
+  });
+
   it("localizes desktop web authorization status messages", () => {
     const t = (key: keyof typeof en) => translate(key, "zh-Hans");
 

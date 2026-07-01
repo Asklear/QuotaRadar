@@ -7,6 +7,8 @@ describe("AppShell", () => {
     render(<AppShell />);
     const labels = screen.getAllByRole("button").map((button) => button.textContent);
     expect(labels.join("|")).toContain("Quota Overview|Credentials|Diagnostics|Settings");
+    expect(screen.getByText("Internal prerelease parity QA in progress.")).toBeInTheDocument();
+    expect(screen.queryByText("Mock desktop shell ready for quota pages.")).not.toBeInTheDocument();
   });
 
   it("renders sidebar statistics as the Swift-style vertical list", () => {

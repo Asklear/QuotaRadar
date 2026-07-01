@@ -76,6 +76,10 @@ describe("AboutPage", () => {
 
     expect(screen.getByRole("heading", { name: "Quota Radar" })).toBeInTheDocument();
     expect(screen.getByText("Tauri desktop preview")).toBeInTheDocument();
+    expect(screen.getByText("Internal prerelease parity QA")).toBeInTheDocument();
+    expect(screen.getByText("Swift parity, provider login QA, and cross-platform packaging in progress")).toBeInTheDocument();
+    expect(screen.queryByText("Mock UI first, backend contracts next")).not.toBeInTheDocument();
+    expect(screen.queryByText("No real provider secrets in preview data")).not.toBeInTheDocument();
   });
 
   it("localizes the desktop app summary", () => {
