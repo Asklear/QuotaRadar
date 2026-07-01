@@ -97,4 +97,22 @@ describe("i18n", () => {
       "无法读取 Claude 设置文件 C:\\Users\\qrtest\\.claude\\settings.json：os error 2",
     );
   });
+
+  it("localizes structured quota labels returned by providers", () => {
+    const t = (key: keyof typeof en) => translate(key, "zh-Hans");
+
+    expect(formatSystemDisplayText("42.5 credits", t)).toBe("42.5 点数");
+    expect(formatSystemDisplayText("42 credits left", t)).toBe("剩余 42 点数");
+    expect(formatSystemDisplayText("100 / 200 monthly credits", t)).toBe(
+      "100 / 200 月度点数",
+    );
+    expect(formatSystemDisplayText("88 / 100 monthly requests", t)).toBe(
+      "88 / 100 月度请求",
+    );
+    expect(formatSystemDisplayText("81 monthly requests used", t)).toBe(
+      "已用 81 次月度请求",
+    );
+    expect(formatSystemDisplayText("3 searches left", t)).toBe("剩余 3 次搜索");
+    expect(formatSystemDisplayText("200 / 1000 tokens", t)).toBe("200 / 1000 个 token");
+  });
 });

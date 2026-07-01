@@ -152,7 +152,9 @@ export function CredentialsPage({
       }
       setImportStatus({
         tone: "success",
-        text: `${t("credentials.importSuccess")} ${t("credentials.importAdded")} ${summary.added}, ${t("credentials.importUpdated")} ${summary.updated}.`,
+        text: t("credentials.importSummary")
+          .replace("{added}", String(summary.added))
+          .replace("{updated}", String(summary.updated)),
       });
     } catch (error) {
       setImportStatus({

@@ -98,6 +98,50 @@ const providerErrorPrefixKeys: Array<[prefix: string, key: MessageKey]> = [
   ["Provider network failed: ", "providerError.networkFailed"],
 ];
 
+const decimalNumberPattern = String.raw`([0-9]+(?:\.[0-9]+)?)`;
+
+const structuredQuotaLabelPatterns: Array<{
+  pattern: RegExp;
+  key: MessageKey;
+  fields: string[];
+}> = [
+  {
+    pattern: new RegExp(`^${decimalNumberPattern} credits$`),
+    key: "quotaLabel.credits",
+    fields: ["count"],
+  },
+  {
+    pattern: new RegExp(`^${decimalNumberPattern} credits left$`),
+    key: "quotaLabel.creditsLeft",
+    fields: ["count"],
+  },
+  {
+    pattern: new RegExp(`^${decimalNumberPattern} / ${decimalNumberPattern} monthly credits$`),
+    key: "quotaLabel.monthlyCredits",
+    fields: ["remaining", "limit"],
+  },
+  {
+    pattern: new RegExp(`^${decimalNumberPattern} / ${decimalNumberPattern} monthly requests$`),
+    key: "quotaLabel.monthlyRequests",
+    fields: ["remaining", "limit"],
+  },
+  {
+    pattern: new RegExp(`^${decimalNumberPattern} monthly requests used$`),
+    key: "quotaLabel.monthlyRequestsUsed",
+    fields: ["used"],
+  },
+  {
+    pattern: new RegExp(`^${decimalNumberPattern} searches left$`),
+    key: "quotaLabel.searchesLeft",
+    fields: ["count"],
+  },
+  {
+    pattern: new RegExp(`^${decimalNumberPattern} / ${decimalNumberPattern} tokens$`),
+    key: "quotaLabel.tokenQuota",
+    fields: ["used", "limit"],
+  },
+];
+
 export function normalizeLocale(locale: string | undefined): LocaleCode {
   return locale && locale in locales ? (locale as LocaleCode) : "en";
 }
@@ -160,6 +204,32 @@ export function formatProviderPlanType(
 
   const key = providerPlanTypeKeys[planType];
   return key ? t(key) : planType;
+}
+
+function interpolateTemplate(template: string, values: Record<string, string>) {
+  return Object.entries(values).reduce(
+    (formatted, [field, value]) => formatted.split(`{${field}}`).join(value),
+    template,
+  );
+}
+
+function formatStructuredQuotaLabel(
+  text: string,
+  t: (key: MessageKey) => string,
+): string | undefined {
+  for (const { pattern, key, fields } of structuredQuotaLabelPatterns) {
+    const match = text.match(pattern);
+    if (!match) {
+      continue;
+    }
+
+    const values = Object.fromEntries(
+      fields.map((field, index) => [field, match[index + 1] ?? ""]),
+    );
+    return interpolateTemplate(t(key), values);
+  }
+
+  return undefined;
 }
 
 export function formatSystemDisplayText(
@@ -235,6 +305,11 @@ export function formatSystemDisplayText(
   const webLoginRequiredMatch = text.match(/^(.+) web login authorization is required$/);
   if (webLoginRequiredMatch?.[1]) {
     return t("webAuth.loginRequired").replace("{provider}", webLoginRequiredMatch[1]);
+  }
+
+  const structuredQuotaLabel = formatStructuredQuotaLabel(text, t);
+  if (structuredQuotaLabel) {
+    return structuredQuotaLabel;
   }
 
   return text

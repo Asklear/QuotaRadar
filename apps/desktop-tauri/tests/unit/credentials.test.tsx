@@ -251,4 +251,18 @@ describe("CredentialsPage", () => {
     expect(screen.getByRole("status")).toHaveTextContent("added 0");
     expect(screen.getByRole("status")).toHaveTextContent("updated 0");
   });
+
+  it("localizes Claude settings import success feedback as one sentence", async () => {
+    render(
+      <LocaleContext.Provider value="zh-Hans">
+        <CredentialsPage />
+      </LocaleContext.Provider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "导入 Claude 设置" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "导入完成：新增 0，更新 0。",
+    );
+  });
 });
