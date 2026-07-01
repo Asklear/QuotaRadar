@@ -83,6 +83,26 @@ jobs:
             file
         working-directory: .
 
+      - name: Preload Windows libsodium archives
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $dist = Join-Path $env:RUNNER_TEMP "libsodium-dist"
+          New-Item -ItemType Directory -Force -Path $dist | Out-Null
+          $base = "https://download.libsodium.org/libsodium/releases"
+          $files = @(
+            "LATEST.tar.gz",
+            "LATEST.tar.gz.minisig",
+            "libsodium-1.0.22-stable-msvc.zip",
+            "libsodium-1.0.22-stable-msvc.zip.minisig"
+          )
+          foreach ($file in $files) {
+            Invoke-WebRequest -UseBasicParsing -Uri "$base/$file" -OutFile (Join-Path $dist $file)
+          }
+          "SODIUM_DIST_DIR=$dist" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        working-directory: .
+
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
