@@ -34,6 +34,45 @@ describe("DiagnosticsPage", () => {
     expect(screen.getByRole("region", { name: "Tavily 诊断" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Tavily diagnostics" })).not.toBeInTheDocument();
   });
+
+  it("localizes provider diagnostic messages without dynamic details", () => {
+    render(
+      <LocaleContext.Provider value="zh-Hans">
+        <DiagnosticsPage
+          providers={[
+            {
+              id: "tavily",
+              displayName: "Tavily",
+              familyName: "Tavily",
+              category: "AI Search",
+              icon: "tavily",
+              supportsReauth: false,
+              supportsRefresh: true,
+              quotaCheckConsumesSearchQuota: false,
+            },
+          ]}
+          credentials={[
+            {
+              id: "tavily-primary",
+              providerId: "tavily",
+              name: "Tavily Key",
+              kind: "apiKey",
+              maskedValue: "tvly••••9Q2a",
+              copyable: true,
+              active: true,
+              status: "failed",
+              remainingBadgeText: "Check failed",
+              quotaWindows: [],
+              diagnosticMessage: "Provider fixture parse failed",
+            },
+          ]}
+        />
+      </LocaleContext.Provider>,
+    );
+
+    expect(screen.getByText("服务商 fixture 解析失败")).toBeInTheDocument();
+    expect(screen.queryByText("Provider fixture parse failed")).not.toBeInTheDocument();
+  });
 });
 
 describe("SettingsPage", () => {

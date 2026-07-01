@@ -112,6 +112,9 @@ describe("i18n", () => {
     expect(formatSystemDisplayText("Provider client is not registered: kimi", t)).toBe(
       "服务商暂不支持：kimi",
     );
+    expect(formatSystemDisplayText("Provider fixture parse failed", t)).toBe(
+      "服务商 fixture 解析失败",
+    );
     expect(formatSystemDisplayText("Could not parse Claude settings: invalid JSON", t)).toBe(
       "无法解析 Claude 设置：invalid JSON",
     );

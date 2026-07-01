@@ -98,6 +98,10 @@ const providerErrorPrefixKeys: Array<[prefix: string, key: MessageKey]> = [
   ["Provider network failed: ", "providerError.networkFailed"],
 ];
 
+const providerErrorExactKeys: Record<string, MessageKey> = Object.fromEntries(
+  providerErrorPrefixKeys.map(([prefix, key]) => [prefix.trimEnd().replace(/:$/, ""), key]),
+) as Record<string, MessageKey>;
+
 const decimalNumberPattern = String.raw`([0-9]+(?:\.[0-9]+)?)`;
 
 const structuredQuotaLabelPatterns: Array<{
@@ -239,6 +243,11 @@ export function formatSystemDisplayText(
   const exactKey = systemDisplayTextKeys[text];
   if (exactKey) {
     return t(exactKey);
+  }
+
+  const providerExactKey = providerErrorExactKeys[text];
+  if (providerExactKey) {
+    return t(providerExactKey).replace(/[:：]\s*\{message\}/, "");
   }
 
   for (const [prefix, key] of providerErrorPrefixKeys) {
