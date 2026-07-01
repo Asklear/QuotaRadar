@@ -12,6 +12,7 @@
   "nav.credentials": "Credentials",
   "nav.diagnostics": "Diagnostics",
   "nav.settings": "Settings",
+  "nav.about": "About",
   "status.available": "Available",
   "status.low": "Low",
   "status.failed": "Failed",

@@ -12,6 +12,7 @@
   "nav.credentials": "認証情報",
   "nav.diagnostics": "診断",
   "nav.settings": "設定",
+  "nav.about": "情報",
   "status.available": "利用可能",
   "status.low": "残量少",
   "status.failed": "失敗",

@@ -22,6 +22,11 @@ test("main window renders sidebar and switches between mock pages", async ({ pag
   await expect(page.getByText("Network proxy")).toBeVisible();
   await expect(page.getByRole("button", { name: "Customize provider order" })).toBeVisible();
 
+  await nav.getByRole("button", { name: "About", exact: true }).click();
+  await expect(nav.getByRole("button", { name: "About", exact: true })).toHaveAttribute("data-active", "true");
+  await expect(page.getByText("Tauri desktop preview")).toBeVisible();
+  await expect(page.getByText("Internal prerelease parity QA")).toBeVisible();
+
   await nav.getByRole("button", { name: "Quota Overview", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Quota Overview" })).toBeVisible();
   await expect(nav.getByRole("button", { name: "Quota Overview", exact: true })).toHaveAttribute("data-active", "true");

@@ -1,4 +1,4 @@
-import { Activity, Gauge, KeyRound, SlidersHorizontal, Stethoscope } from "lucide-react";
+import { Activity, Gauge, Info, KeyRound, SlidersHorizontal, Stethoscope } from "lucide-react";
 import type { ReactNode } from "react";
 import { AppMark } from "../components/AppMark";
 import { useLocale, useTranslate } from "../i18n";
@@ -9,7 +9,7 @@ import type { UpdateState } from "../shared/types";
 import { SidebarNavItem } from "./SidebarNavItem";
 import { SidebarUpdateFooter } from "./SidebarUpdateFooter";
 
-export type AppPage = "quota" | "credentials" | "diagnostics" | "settings";
+export type AppPage = "quota" | "credentials" | "diagnostics" | "settings" | "about";
 
 interface SidebarProps {
   activePage?: AppPage;
@@ -37,6 +37,7 @@ export function Sidebar({
     { id: "credentials", label: t("nav.credentials"), icon: <KeyRound size={17} /> },
     { id: "diagnostics", label: t("nav.diagnostics"), icon: <Stethoscope size={17} /> },
     { id: "settings", label: t("nav.settings"), icon: <SlidersHorizontal size={17} /> },
+    { id: "about", label: t("nav.about"), icon: <Info size={17} /> },
   ] satisfies Array<{ id: AppPage; label: string; icon: ReactNode }>;
   const statistics = [
     { label: t("sidebar.creds"), value: credentials.length },

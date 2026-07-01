@@ -12,6 +12,7 @@
   "nav.credentials": "자격 증명",
   "nav.diagnostics": "진단",
   "nav.settings": "설정",
+  "nav.about": "정보",
   "status.available": "사용 가능",
   "status.low": "부족",
   "status.failed": "실패",

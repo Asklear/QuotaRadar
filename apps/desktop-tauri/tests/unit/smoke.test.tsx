@@ -8,6 +8,16 @@ describe("App", () => {
     expect(screen.getByText("Quota Radar")).toBeInTheDocument();
   });
 
+  it("opens the About page from the primary sidebar", () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "About" }));
+
+    expect(screen.getByRole("button", { name: "About" })).toHaveAttribute("data-active", "true");
+    expect(screen.getByText("Tauri desktop preview")).toBeInTheDocument();
+    expect(screen.getByText("Internal prerelease parity QA")).toBeInTheDocument();
+  });
+
   it("applies language changes to the shell immediately", () => {
     render(<App />);
 

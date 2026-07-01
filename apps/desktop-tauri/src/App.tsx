@@ -21,6 +21,7 @@ import { CredentialsPage } from "./pages/CredentialsPage";
 import { DiagnosticsPage } from "./pages/DiagnosticsPage";
 import { QuotaMonitoringPage } from "./pages/QuotaMonitoringPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { AboutPage } from "./pages/AboutPage";
 import { TrayPopover } from "./tray/TrayPopover";
 import type { AppSettings, CredentialView, ProviderDefinition, WebAuthorizationSession } from "./shared/types";
 import { formatSystemDisplayText, LocaleContext, normalizeLocale, translate } from "./i18n";
@@ -202,6 +203,7 @@ export default function App() {
         onSettingsChange={handleSettingsChange}
       />
     ),
+    about: <AboutPage />,
   }[activePage];
   const webAuthorizationAlert = webAuthorizationError
     ? `${translate("app.webAuthorizationFailed", locale)} ${formatSystemDisplayText(

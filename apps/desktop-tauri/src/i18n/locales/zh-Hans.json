@@ -12,6 +12,7 @@
   "nav.credentials": "配置凭据",
   "nav.diagnostics": "诊断",
   "nav.settings": "设置",
+  "nav.about": "关于",
   "status.available": "可用",
   "status.low": "紧张",
   "status.failed": "失败",
