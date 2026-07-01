@@ -82,11 +82,14 @@ const systemDisplayTextKeys: Record<string, MessageKey> = {
   "Changing provider or credential type requires a replacement secret":
     "credentialError.replacementSecretRequired",
   "Choose an authorization target": "webAuth.chooseAuthorizationTarget",
+  "Provider does not have a web authorization URL": "webAuth.providerUrlMissing",
+  "Web authorization URL must be http or https": "webAuth.invalidUrlScheme",
   "Tauri desktop signed update artifacts are not configured yet.":
     "update.signedArtifactsNotConfigured",
 };
 
 const providerErrorPrefixKeys: Array<[prefix: string, key: MessageKey]> = [
+  ["Provider client is not registered: ", "providerError.unsupported"],
   ["Provider fixture parse failed: ", "providerError.fixtureParseFailed"],
   ["Provider unsupported: ", "providerError.unsupported"],
   ["Provider authorization failed: ", "providerError.authorizationFailed"],
@@ -214,6 +217,21 @@ export function formatSystemDisplayText(
     return t("webAuth.waitingForDashboardLogin");
   }
 
+  const claudeSettingsReadMatch = text.match(/^Could not read Claude settings file (.+): (.+)$/);
+  if (claudeSettingsReadMatch?.[1] && claudeSettingsReadMatch[2]) {
+    return t("credentialImport.claudeSettingsReadFailed")
+      .replace("{path}", claudeSettingsReadMatch[1])
+      .replace("{message}", claudeSettingsReadMatch[2]);
+  }
+
+  const claudeSettingsParseMatch = text.match(/^Could not parse Claude settings: (.+)$/);
+  if (claudeSettingsParseMatch?.[1]) {
+    return t("credentialImport.claudeSettingsParseFailed").replace(
+      "{message}",
+      claudeSettingsParseMatch[1],
+    );
+  }
+
   const webLoginRequiredMatch = text.match(/^(.+) web login authorization is required$/);
   if (webLoginRequiredMatch?.[1]) {
     return t("webAuth.loginRequired").replace("{provider}", webLoginRequiredMatch[1]);
@@ -223,6 +241,15 @@ export function formatSystemDisplayText(
     .replace(/\b5h\b/g, t("quotaWindow.5h"))
     .replace(/\bweek\b/gi, t("quotaWindow.week"))
     .replace(/\bmonth\b/gi, t("quotaWindow.month"));
+}
+
+export function formatSystemErrorMessage(
+  prefix: string,
+  error: unknown,
+  t: (key: MessageKey) => string = (key) => translate(key),
+): string {
+  const detail = formatSystemDisplayText(error instanceof Error ? error.message : String(error), t);
+  return `${prefix}${prefix.endsWith("：") ? "" : " "}${detail}`;
 }
 
 export function useLocale() {

@@ -1,10 +1,46 @@
+import { invoke } from "@tauri-apps/api/core";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { CredentialEditorDialog } from "../../src/credentials/CredentialEditorDialog";
 import { LocaleContext } from "../../src/i18n";
 import { CredentialsPage } from "../../src/pages/CredentialsPage";
+import type { ProviderDefinition } from "../../src/shared/types";
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(),
+}));
+
+const claudeProvider: ProviderDefinition = {
+  id: "claude",
+  displayName: "Claude",
+  familyName: "Anthropic",
+  category: "LLM",
+  planType: "Pro",
+  icon: "claude",
+  dashboardUrl: "https://claude.ai/settings/usage",
+  supportsReauth: true,
+  supportsRefresh: true,
+  quotaCheckConsumesSearchQuota: false,
+};
+
+function setTauriRuntime(enabled: boolean) {
+  if (enabled) {
+    Object.defineProperty(window, "__TAURI_INTERNALS__", {
+      value: {},
+      configurable: true,
+    });
+    return;
+  }
+
+  Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
+}
 
 describe("CredentialsPage", () => {
+  afterEach(() => {
+    vi.mocked(invoke).mockReset();
+    setTauriRuntime(false);
+  });
+
   it("hides providers with no configured credentials", () => {
     render(<CredentialsPage />);
     expect(screen.queryByText("Exa")).not.toBeInTheDocument();
@@ -134,6 +170,76 @@ describe("CredentialsPage", () => {
       "Could not save credential: Windows store save failed",
     );
     expect(screen.getByRole("dialog", { name: "Add Credential" })).toBeInTheDocument();
+  });
+
+  it("localizes known system errors in editor save failures", async () => {
+    render(
+      <LocaleContext.Provider value="zh-Hans">
+        <CredentialEditorDialog
+          open
+          onClose={vi.fn()}
+          onSave={async () => {
+            throw new Error("Credential was not found");
+          }}
+        />
+      </LocaleContext.Provider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("API 密钥"), {
+      target: { value: "tvly-local-test-value" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "添加凭据" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("无法保存凭据：未找到凭据");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("Credential was not found");
+  });
+
+  it("localizes known system errors in editor web authorization failures", async () => {
+    render(
+      <LocaleContext.Provider value="zh-Hans">
+        <CredentialEditorDialog
+          open
+          onClose={vi.fn()}
+          providers={[claudeProvider]}
+          onStartWebAuthorization={async () => {
+            throw new Error("Provider does not have a web authorization URL");
+          }}
+        />
+      </LocaleContext.Provider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "打开网页登录 Claude" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "网页登录失败：服务商没有网页登录 URL",
+    );
+    expect(screen.getByRole("status")).not.toHaveTextContent(
+      "Provider does not have a web authorization URL",
+    );
+  });
+
+  it("localizes known system errors in Claude settings import failures", async () => {
+    setTauriRuntime(true);
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "list_credentials") {
+        return Promise.resolve([]);
+      }
+      if (command === "import_claude_settings") {
+        return Promise.reject(new Error("Credential value was not found"));
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+
+    render(
+      <LocaleContext.Provider value="zh-Hans">
+        <CredentialsPage />
+      </LocaleContext.Provider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "导入 Claude 设置" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent("导入失败：未找到凭据值");
+    expect(screen.getByRole("status")).not.toHaveTextContent("Credential value was not found");
   });
 
   it("shows import feedback when importing Claude settings", async () => {

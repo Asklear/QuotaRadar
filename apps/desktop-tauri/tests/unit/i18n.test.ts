@@ -72,4 +72,29 @@ describe("i18n", () => {
       ),
     ).toBe("服务商授权失败：Claude 需要网页登录授权");
   });
+
+  it("localizes desktop command errors with dynamic details", () => {
+    const t = (key: keyof typeof en) => translate(key, "zh-Hans");
+
+    expect(formatSystemDisplayText("Provider does not have a web authorization URL", t)).toBe(
+      "服务商没有网页登录 URL",
+    );
+    expect(formatSystemDisplayText("Web authorization URL must be http or https", t)).toBe(
+      "网页登录 URL 必须使用 http 或 https",
+    );
+    expect(formatSystemDisplayText("Provider client is not registered: kimi", t)).toBe(
+      "服务商暂不支持：kimi",
+    );
+    expect(formatSystemDisplayText("Could not parse Claude settings: invalid JSON", t)).toBe(
+      "无法解析 Claude 设置：invalid JSON",
+    );
+    expect(
+      formatSystemDisplayText(
+        "Could not read Claude settings file C:\\Users\\qrtest\\.claude\\settings.json: os error 2",
+        t,
+      ),
+    ).toBe(
+      "无法读取 Claude 设置文件 C:\\Users\\qrtest\\.claude\\settings.json：os error 2",
+    );
+  });
 });

@@ -1,6 +1,6 @@
 import { ExternalLink, Eye, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { formatSystemDisplayText, useTranslate } from "../i18n";
+import { formatSystemDisplayText, formatSystemErrorMessage, useTranslate } from "../i18n";
 import { providerRegistry } from "../shared/mockData";
 import type {
   CredentialInput,
@@ -104,7 +104,7 @@ export function CredentialEditorDialog({
       });
       onClose();
     } catch (error) {
-      setSaveError(`${t("credentialEditor.saveFailed")} ${errorMessage(error)}`);
+      setSaveError(formatSystemErrorMessage(t("credentialEditor.saveFailed"), error, t));
     } finally {
       setSaving(false);
     }
@@ -131,9 +131,7 @@ export function CredentialEditorDialog({
     } catch (error) {
       setAuthorizationStatus({
         tone: "error",
-        text: `${t("credentialEditor.webAuthorizationFailed")} ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        text: formatSystemErrorMessage(t("credentialEditor.webAuthorizationFailed"), error, t),
       });
     } finally {
       setAuthenticating(false);
@@ -151,7 +149,7 @@ export function CredentialEditorDialog({
       await onDelete(credential);
       onClose();
     } catch (error) {
-      setSaveError(`${t("credentialEditor.deleteFailed")} ${errorMessage(error)}`);
+      setSaveError(formatSystemErrorMessage(t("credentialEditor.deleteFailed"), error, t));
     } finally {
       setDeleting(false);
     }
@@ -293,8 +291,4 @@ function makeCredentialId(providerId: string, name: string) {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
   return `${providerId}-${slug || "credential"}`;
-}
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
 }

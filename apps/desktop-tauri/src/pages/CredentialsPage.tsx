@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Plus } from "lucide-react";
 import { CredentialEditorDialog } from "../credentials/CredentialEditorDialog";
 import { ProviderCredentialGroup } from "../credentials/ProviderCredentialGroup";
-import { useTranslate } from "../i18n";
+import { formatSystemErrorMessage, useTranslate } from "../i18n";
 import {
   copyCredentialValue,
   createCredential,
@@ -157,7 +157,7 @@ export function CredentialsPage({
     } catch (error) {
       setImportStatus({
         tone: "error",
-        text: `${t("credentials.importFailed")} ${error instanceof Error ? error.message : String(error)}`,
+        text: formatSystemErrorMessage(t("credentials.importFailed"), error, t),
       });
     } finally {
       setImporting(false);
