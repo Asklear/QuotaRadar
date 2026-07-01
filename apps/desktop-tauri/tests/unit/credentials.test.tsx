@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CredentialEditorDialog } from "../../src/credentials/CredentialEditorDialog";
+import { LocaleContext } from "../../src/i18n";
 import { CredentialsPage } from "../../src/pages/CredentialsPage";
 
 describe("CredentialsPage", () => {
@@ -21,6 +22,17 @@ describe("CredentialsPage", () => {
     const tavilyRow = screen.getByTestId("credential-row-tavily-primary");
     const actions = within(tavilyRow).getAllByTestId("credential-action").map((node) => node.textContent);
     expect(actions).toEqual(["Status", "Enabled", "Copy", "Edit"]);
+  });
+
+  it("localizes credential action group labels", () => {
+    render(
+      <LocaleContext.Provider value="zh-Hans">
+        <CredentialsPage />
+      </LocaleContext.Provider>,
+    );
+
+    expect(screen.getByRole("group", { name: "Tavily Key 1 操作" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Tavily Key 1 actions" })).not.toBeInTheDocument();
   });
 
   it("does not show copy for web login authorization", () => {

@@ -152,6 +152,43 @@ export function formatSystemDisplayText(
     return t(exactKey);
   }
 
+  const prefixedWebLoginSavedMatch = text.match(/^(.+) web login saved$/i);
+  if (prefixedWebLoginSavedMatch?.[1]) {
+    return `${prefixedWebLoginSavedMatch[1]} ${t("credentialDisplay.webLoginSaved")}`;
+  }
+
+  const prefixedWebLoginExpiredMatch = text.match(/^(.+) web login expired$/i);
+  if (prefixedWebLoginExpiredMatch?.[1]) {
+    return `${prefixedWebLoginExpiredMatch[1]} ${t("credentialDisplay.webLoginExpired")}`;
+  }
+
+  const refreshFailureMatch = text.match(/^Saved authorization, but quota refresh failed: (.+)$/);
+  if (refreshFailureMatch?.[1]) {
+    return t("app.webAuthorizationRefreshFailed").replace("{message}", refreshFailureMatch[1]);
+  }
+
+  if (text === "Ready to update selected authorization") {
+    return t("webAuth.readyToUpdateSelected");
+  }
+
+  if (text === "Ready to update selected authorization; waiting for dashboard login") {
+    return t("webAuth.readyToUpdateSelectedWaiting");
+  }
+
+  const readyToUpdateWaitingMatch = text.match(/^Ready to update (.+); waiting for dashboard login$/);
+  if (readyToUpdateWaitingMatch?.[1]) {
+    return t("webAuth.readyToUpdateWaiting").replace("{target}", readyToUpdateWaitingMatch[1]);
+  }
+
+  const readyToUpdateMatch = text.match(/^Ready to update (.+)$/);
+  if (readyToUpdateMatch?.[1]) {
+    return t("webAuth.readyToUpdate").replace("{target}", readyToUpdateMatch[1]);
+  }
+
+  if (text === "Waiting for dashboard login; Quota Radar will save the authorization after login") {
+    return t("webAuth.waitingForDashboardLogin");
+  }
+
   return text
     .replace(/\b5h\b/g, t("quotaWindow.5h"))
     .replace(/\bweek\b/gi, t("quotaWindow.week"))

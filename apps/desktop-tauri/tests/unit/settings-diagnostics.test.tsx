@@ -23,6 +23,17 @@ describe("DiagnosticsPage", () => {
     expect(screen.queryByText("Week 40%")).not.toBeInTheDocument();
     expect(screen.queryByText("Month 8.4%")).not.toBeInTheDocument();
   });
+
+  it("localizes provider diagnostics region labels", () => {
+    render(
+      <LocaleContext.Provider value="zh-Hans">
+        <DiagnosticsPage />
+      </LocaleContext.Provider>,
+    );
+
+    expect(screen.getByRole("region", { name: "Tavily 诊断" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Tavily diagnostics" })).not.toBeInTheDocument();
+  });
 });
 
 describe("SettingsPage", () => {

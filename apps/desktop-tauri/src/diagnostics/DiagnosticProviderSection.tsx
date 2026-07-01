@@ -13,7 +13,10 @@ export function DiagnosticProviderSection({ provider, credentials }: DiagnosticP
   const categoryLabel = provider.category === "AI Search" ? t("category.aiSearch") : t("category.llm");
 
   return (
-    <section className="diagnostic-provider-section" aria-label={`${provider.displayName} diagnostics`}>
+    <section
+      className="diagnostic-provider-section"
+      aria-label={t("diagnostics.providerRegion").replace("{provider}", provider.displayName)}
+    >
       <header className="diagnostic-provider-header">
         <div className="provider-cell">
           <ProviderIcon provider={provider} />

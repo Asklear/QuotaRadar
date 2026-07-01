@@ -284,6 +284,51 @@ describe("web authorization UI shell", () => {
     expect(await screen.findByText("42%")).toBeInTheDocument();
   });
 
+  it("localizes refresh failure after a saved web authorization", async () => {
+    setTauriRuntime(true);
+    const eventHandlers = new Map<string, (event: { payload: unknown }) => void>();
+    vi.mocked(listen).mockImplementation((event, handler) => {
+      eventHandlers.set(event, handler as (event: { payload: unknown }) => void);
+      return Promise.resolve(() => undefined);
+    });
+    const savedState = {
+      providers: [claudeProvider],
+      credentials: [claudeAuthorization],
+    };
+    vi.mocked(invoke).mockImplementation((command) => {
+      if (command === "get_app_state") {
+        return Promise.resolve(savedState);
+      }
+      if (command === "get_settings") {
+        return Promise.resolve({
+          ...mockSettings,
+          language: "zh-Hans",
+          providerOrder: ["claude"],
+        });
+      }
+      if (command === "get_update_state") {
+        return Promise.resolve(mockUpdateState);
+      }
+      if (command === "refresh_provider") {
+        return Promise.reject(new Error("provider unavailable"));
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
+
+    render(<App />);
+
+    await waitFor(() =>
+      expect(listen).toHaveBeenCalledWith("web_authorization_saved", expect.any(Function)),
+    );
+    eventHandlers.get("web_authorization_saved")?.({ payload: claudeAuthorization });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("网页登录授权失败");
+    expect(alert).toHaveTextContent("授权已保存，但额度刷新失败：provider unavailable");
+    expect(alert).not.toHaveTextContent("Saved authorization");
+    expect(alert).not.toHaveTextContent("quota refresh failed");
+  });
+
   it("shows a recoverable error when desktop web authorization capture fails", async () => {
     setTauriRuntime(true);
     const eventHandlers = new Map<string, (event: { payload: unknown }) => void>();

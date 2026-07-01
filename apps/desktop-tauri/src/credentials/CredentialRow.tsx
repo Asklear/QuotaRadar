@@ -29,7 +29,11 @@ export function CredentialRow({ credential, onCopy, onEdit }: CredentialRowProps
         </div>
         <span className="credential-kind-badge">{formatCredentialKind(credential.kind, t)}</span>
       </div>
-      <div className="credential-row-actions" aria-label={`${credential.name} actions`}>
+      <div
+        className="credential-row-actions"
+        role="group"
+        aria-label={t("credential.actionsRegion").replace("{credential}", credential.name)}
+      >
         <span className="credential-action-slot">
           <span data-testid="credential-action">{t("credential.action.status")}</span>
           <StatusPill tone={statusTone} label={formatCredentialStatus(credential.status, t)} />

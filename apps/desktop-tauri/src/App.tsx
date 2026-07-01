@@ -23,7 +23,7 @@ import { QuotaMonitoringPage } from "./pages/QuotaMonitoringPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { TrayPopover } from "./tray/TrayPopover";
 import type { AppSettings, CredentialView, ProviderDefinition, WebAuthorizationSession } from "./shared/types";
-import { LocaleContext, normalizeLocale, translate } from "./i18n";
+import { formatSystemDisplayText, LocaleContext, normalizeLocale, translate } from "./i18n";
 
 function orderProviders(providers: ProviderDefinition[], providerOrder: string[]) {
   const order = new Map(providerOrder.map((providerId, index) => [providerId, index]));
@@ -204,7 +204,10 @@ export default function App() {
     ),
   }[activePage];
   const webAuthorizationAlert = webAuthorizationError
-    ? `${translate("app.webAuthorizationFailed", locale)} ${webAuthorizationError}`
+    ? `${translate("app.webAuthorizationFailed", locale)} ${formatSystemDisplayText(
+        webAuthorizationError,
+        (key) => translate(key, locale),
+      )}`
     : undefined;
 
   return (
