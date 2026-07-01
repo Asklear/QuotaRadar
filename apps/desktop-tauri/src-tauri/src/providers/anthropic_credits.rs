@@ -294,6 +294,9 @@ fn format_amount(value: f64) -> String {
         format!("{}", value as i64)
     } else {
         let formatted = format!("{value:.2}");
-        formatted.trim_end_matches('0').trim_end_matches('.').to_string()
+        formatted
+            .trim_end_matches('0')
+            .trim_end_matches('.')
+            .to_string()
     }
 }

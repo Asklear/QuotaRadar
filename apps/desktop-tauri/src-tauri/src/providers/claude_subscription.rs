@@ -206,7 +206,8 @@ impl ClaudeCredential {
                     });
                 }
             }
-            if let Some(session_key_lc) = first_string(&value, &["sessionKeyLC", "session_key_lc"]) {
+            if let Some(session_key_lc) = first_string(&value, &["sessionKeyLC", "session_key_lc"])
+            {
                 if !session_key_lc.trim().is_empty() {
                     return Ok(Self {
                         cookie_header: normalized_claude_session_lc_cookie(session_key_lc),

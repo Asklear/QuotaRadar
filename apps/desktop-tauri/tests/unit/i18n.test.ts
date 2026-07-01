@@ -128,6 +128,33 @@ describe("i18n", () => {
     );
   });
 
+  it("localizes web authorization timeout capture errors", () => {
+    const t = (key: keyof typeof en) => translate(key, "zh-Hans");
+
+    expect(
+      formatSystemDisplayText(
+        "Could not capture a usable web login authorization before the auth window timed out. Please finish login and try again.",
+        t,
+      ),
+    ).toBe("网页登录授权超时前未捕获到可用授权。请完成登录后重试。");
+    expect(
+      formatSystemDisplayText(
+        "Could not capture required login data (login_aliyunid_ticket, aliyun_lang) before the auth window timed out. Please finish login and try again.",
+        t,
+      ),
+    ).toBe(
+      "网页登录授权超时前未捕获到必需登录数据（login_aliyunid_ticket, aliyun_lang）。请完成登录后重试。",
+    );
+    expect(
+      formatSystemDisplayText(
+        "Could not inspect the auth window before the web login timed out (webview unavailable). Please finish login and try again.",
+        t,
+      ),
+    ).toBe(
+      "网页登录超时前无法检查授权窗口（webview unavailable）。请完成登录后重试。",
+    );
+  });
+
   it("localizes structured quota labels returned by providers", () => {
     const t = (key: keyof typeof en) => translate(key, "zh-Hans");
 

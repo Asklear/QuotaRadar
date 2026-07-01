@@ -84,6 +84,8 @@ const systemDisplayTextKeys: Record<string, MessageKey> = {
   "Choose an authorization target": "webAuth.chooseAuthorizationTarget",
   "Provider does not have a web authorization URL": "webAuth.providerUrlMissing",
   "Web authorization URL must be http or https": "webAuth.invalidUrlScheme",
+  "Could not capture a usable web login authorization before the auth window timed out. Please finish login and try again.":
+    "webAuth.captureUsableTimedOut",
   "Tauri desktop signed update artifacts are not configured yet.":
     "update.signedArtifactsNotConfigured",
 };
@@ -297,6 +299,23 @@ export function formatSystemDisplayText(
 
   if (text === "Waiting for dashboard login; Quota Radar will save the authorization after login") {
     return t("webAuth.waitingForDashboardLogin");
+  }
+
+  const captureRequiredTimedOutMatch = text.match(
+    /^Could not capture required login data \((.+)\) before the auth window timed out\. Please finish login and try again\.$/,
+  );
+  if (captureRequiredTimedOutMatch?.[1]) {
+    return t("webAuth.captureRequiredTimedOut").replace(
+      "{fields}",
+      captureRequiredTimedOutMatch[1],
+    );
+  }
+
+  const inspectTimedOutMatch = text.match(
+    /^Could not inspect the auth window before the web login timed out \((.+)\)\. Please finish login and try again\.$/,
+  );
+  if (inspectTimedOutMatch?.[1]) {
+    return t("webAuth.inspectTimedOut").replace("{message}", inspectTimedOutMatch[1]);
   }
 
   const claudeSettingsReadMatch = text.match(/^Could not read Claude settings file (.+): (.+)$/);

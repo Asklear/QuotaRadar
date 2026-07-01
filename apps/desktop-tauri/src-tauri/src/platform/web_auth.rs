@@ -271,7 +271,10 @@ pub fn dashboard_reauth_provider_config(
         "kimi" => DashboardReauthProviderConfig {
             provider_id: "kimi",
             cookie_domains: &["kimi.com", "www.kimi.com"],
-            required_names: &["kimi-auth|accessToken|access_token"],
+            required_names: &[
+                "kimi-auth|accessToken|access_token",
+                "kimi-auth|deviceID|sessionID|trafficID",
+            ],
             default_name: "KIMI_SUBSCRIPTION_SESSION",
         },
         "opencode_go" => DashboardReauthProviderConfig {
@@ -295,13 +298,13 @@ pub fn dashboard_reauth_provider_config(
         "aliyun_coding_plan" => DashboardReauthProviderConfig {
             provider_id: "aliyun_coding_plan",
             cookie_domains: &["aliyun.com", "bailian.console.aliyun.com"],
-            required_names: &["login_aliyunid_ticket", "aliyun_lang", "cna"],
+            required_names: &["login_aliyunid_ticket", "cna"],
             default_name: "ALIYUN_CODING_PLAN_COOKIE",
         },
         "tencent_cloud_coding_plan" => DashboardReauthProviderConfig {
             provider_id: "tencent_cloud_coding_plan",
             cookie_domains: &["cloud.tencent.com", "console.cloud.tencent.com"],
-            required_names: &["uin", "skey"],
+            required_names: &["uin", "skey|p_skey"],
             default_name: "TENCENT_CLOUD_CODING_PLAN_COOKIE",
         },
         _ => return None,
@@ -960,9 +963,34 @@ mod tests {
             dashboard_reauth_provider_config("tencent_cloud_coding_plan")
                 .expect("tencent should support web auth")
                 .required_names,
-            &["uin", "skey"]
+            &["uin", "skey|p_skey"]
         );
         assert!(dashboard_reauth_provider_config("deepseek").is_none());
+    }
+
+    #[test]
+    fn aliyun_reauth_required_names_match_provider_cookie_contract() {
+        let config = dashboard_reauth_provider_config("aliyun_coding_plan")
+            .expect("aliyun should support web auth capture");
+        let material = CapturedCredentialMaterial {
+            cookie_header: "cna=device-id; login_aliyunid_ticket=session".to_string(),
+            fields: BTreeMap::new(),
+        };
+
+        assert_eq!(config.required_names, &["login_aliyunid_ticket", "cna"]);
+        assert!(captured_material_is_ready(&material, config.required_names));
+    }
+
+    #[test]
+    fn tencent_reauth_accepts_p_skey_when_skey_is_not_exposed() {
+        let config = dashboard_reauth_provider_config("tencent_cloud_coding_plan")
+            .expect("tencent should support web auth capture");
+        let material = CapturedCredentialMaterial {
+            cookie_header: "uin=o123456; p_skey=session".to_string(),
+            fields: BTreeMap::new(),
+        };
+
+        assert!(captured_material_is_ready(&material, config.required_names));
     }
 
     #[test]
@@ -1150,14 +1178,32 @@ mod tests {
             cookie_header: "locale=zh".to_string(),
             fields: normalized_web_storage_fields("kimi", "locale=zh", fields),
         };
+        let config =
+            dashboard_reauth_provider_config("kimi").expect("kimi should support web auth capture");
 
         assert_eq!(
             material.fields.get("accessToken").map(String::as_str),
             Some("kimi-token")
         );
-        assert!(captured_material_is_ready(
+        assert!(captured_material_is_ready(&material, config.required_names));
+    }
+
+    #[test]
+    fn kimi_storage_token_without_session_metadata_is_not_ready() {
+        let fields = BTreeMap::from([(
+            "access_token".to_string(),
+            "Bearer anonymous-token".to_string(),
+        )]);
+        let material = CapturedCredentialMaterial {
+            cookie_header: "locale=zh".to_string(),
+            fields: normalized_web_storage_fields("kimi", "locale=zh", fields),
+        };
+        let config =
+            dashboard_reauth_provider_config("kimi").expect("kimi should support web auth capture");
+
+        assert!(!captured_material_is_ready(
             &material,
-            &["kimi-auth|accessToken|access_token"]
+            config.required_names
         ));
     }
 }
