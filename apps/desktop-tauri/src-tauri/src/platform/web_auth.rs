@@ -33,6 +33,7 @@ const WEB_STORAGE_CAPTURE_SCRIPT: &str = r#"
 (() => {
   const keys = [
     'kimi-auth', 'accessToken', 'access_token', 'authorization', 'bearerToken', 'bearer_token', 'token',
+    'volcano-token-info',
     'deviceID', 'deviceId', 'x-msh-device-id',
     'sessionID', 'sessionId', 'x-msh-session-id',
     'trafficID', 'trafficId', 'x-traffic-id'
@@ -380,22 +381,31 @@ pub fn normalized_web_storage_fields(
     {
         fields.insert("accessToken".to_string(), strip_bearer_prefix(&token));
     }
+    let volcano_token_info = web_storage_fields
+        .get("volcano-token-info")
+        .and_then(|raw| serde_json::from_str::<Value>(raw).ok());
     if let Some(device_id) = first_non_empty_value(
         &web_storage_fields,
         &["deviceID", "deviceId", "x-msh-device-id"],
-    ) {
+    )
+    .or_else(|| first_json_string(volcano_token_info.as_ref(), &["webId"]))
+    {
         fields.insert("deviceID".to_string(), device_id);
     }
     if let Some(session_id) = first_non_empty_value(
         &web_storage_fields,
         &["sessionID", "sessionId", "x-msh-session-id"],
-    ) {
+    )
+    .or_else(|| first_json_string(volcano_token_info.as_ref(), &["ssid"]))
+    {
         fields.insert("sessionID".to_string(), session_id);
     }
     if let Some(traffic_id) = first_non_empty_value(
         &web_storage_fields,
         &["trafficID", "trafficId", "x-traffic-id"],
-    ) {
+    )
+    .or_else(|| first_json_string(volcano_token_info.as_ref(), &["tobid"]))
+    {
         fields.insert("trafficID".to_string(), traffic_id);
     }
 
@@ -883,6 +893,18 @@ fn first_non_empty_value(fields: &BTreeMap<String, String>, keys: &[&str]) -> Op
     })
 }
 
+fn first_json_string(value: Option<&Value>, keys: &[&str]) -> Option<String> {
+    let object = value?.as_object()?;
+    keys.iter().find_map(|key| {
+        object
+            .get(*key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string)
+    })
+}
+
 fn cookie_value(cookie_header: &str, name: &str) -> Option<String> {
     cookie_header.split(';').find_map(|part| {
         let (cookie_name, value) = part.split_once('=')?;
@@ -1184,6 +1206,41 @@ mod tests {
         assert_eq!(
             material.fields.get("accessToken").map(String::as_str),
             Some("kimi-token")
+        );
+        assert!(captured_material_is_ready(&material, config.required_names));
+    }
+
+    #[test]
+    fn kimi_volcano_token_info_counts_as_session_metadata() {
+        let fields = BTreeMap::from([
+            ("access_token".to_string(), "Bearer kimi-token".to_string()),
+            (
+                "volcano-token-info".to_string(),
+                r#"{"webId":"web-1","ssid":"session-1","tobid":"traffic-1"}"#.to_string(),
+            ),
+        ]);
+        let material = CapturedCredentialMaterial {
+            cookie_header: "locale=zh".to_string(),
+            fields: normalized_web_storage_fields("kimi", "locale=zh", fields),
+        };
+        let config =
+            dashboard_reauth_provider_config("kimi").expect("kimi should support web auth capture");
+
+        assert_eq!(
+            material.fields.get("accessToken").map(String::as_str),
+            Some("kimi-token")
+        );
+        assert_eq!(
+            material.fields.get("deviceID").map(String::as_str),
+            Some("web-1")
+        );
+        assert_eq!(
+            material.fields.get("sessionID").map(String::as_str),
+            Some("session-1")
+        );
+        assert_eq!(
+            material.fields.get("trafficID").map(String::as_str),
+            Some("traffic-1")
         );
         assert!(captured_material_is_ready(&material, config.required_names));
     }
