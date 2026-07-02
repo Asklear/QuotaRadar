@@ -122,10 +122,13 @@ fn aliyun_missing_quota_info_maps_to_quota_unavailable() {
 #[test]
 fn aliyun_live_quota_uses_bailian_gateway_transport() {
     let client = AliyunCodingPlanProvider::default();
-    let transport = MockProviderTransport::responding(ProviderHttpResponse::new(
-        200,
-        r#"{"code":"200","data":{"DataV2":{"ret":["SUCCESS::ok"],"data":{"data":{"codingPlanInstanceInfos":[{"status":"VALID","instanceEndTime":1782489600000,"codingPlanQuotaInfo":{"per5HourUsedQuota":20,"per5HourTotalQuota":100,"per5HourQuotaNextRefreshTime":1780980997000,"perWeekUsedQuota":50,"perWeekTotalQuota":100,"perWeekQuotaNextRefreshTime":1781452800000,"perBillMonthUsedQuota":70,"perBillMonthTotalQuota":100,"perBillMonthQuotaNextRefreshTime":1782489600000}}]},"success":true,"failed":false}}},"successResponse":true}"#,
-    ));
+    let transport = MockProviderTransport::responding_many(vec![
+        ProviderHttpResponse::new(200, r#"{"data":{"secToken":"sec-token-placeholder"}}"#),
+        ProviderHttpResponse::new(
+            200,
+            r#"{"code":"200","data":{"DataV2":{"ret":["SUCCESS::ok"],"data":{"data":{"codingPlanInstanceInfos":[{"status":"VALID","instanceEndTime":1782489600000,"codingPlanQuotaInfo":{"per5HourUsedQuota":20,"per5HourTotalQuota":100,"per5HourQuotaNextRefreshTime":1780980997000,"perWeekUsedQuota":50,"perWeekTotalQuota":100,"perWeekQuotaNextRefreshTime":1781452800000,"perBillMonthUsedQuota":70,"perBillMonthTotalQuota":100,"perBillMonthQuotaNextRefreshTime":1782489600000}}]},"success":true,"failed":false}}},"successResponse":true}"#,
+        ),
+    ]);
 
     let snapshot = client
         .check_quota(aliyun_credential(), &transport)
@@ -143,14 +146,34 @@ fn aliyun_live_quota_uses_bailian_gateway_transport() {
     );
 
     let requests = transport.requests();
-    assert_eq!(requests.len(), 1);
+    assert_eq!(requests.len(), 2);
     assert_eq!(requests[0].method, "GET");
     assert_eq!(
         requests[0].url,
-        "https://bailian-cs.console.aliyun.com/data/api.json?action=BroadScopeAspnGateway&product=sfm_bailian&api=zeldaEasy.broadscope-bailian.codingPlan.queryCodingPlanInstanceInfoV2&_v=undefined"
+        "https://bailian.console.aliyun.com/tool/user/info.json"
     );
     assert!(requests[0].headers.contains(&(
         "Cookie".to_string(),
         "login_aliyunid_ticket=login-placeholder; cna=cna-placeholder; aliyun_lang=zh".to_string()
     )));
+    assert_eq!(requests[1].method, "POST");
+    assert_eq!(
+        requests[1].url,
+        "https://bailian-cs.console.aliyun.com/data/api.json?action=BroadScopeAspnGateway&product=sfm_bailian&api=zeldaEasy.broadscope-bailian.codingPlan.queryCodingPlanInstanceInfoV2&_v=undefined"
+    );
+    assert!(requests[1].headers.contains(&(
+        "Cookie".to_string(),
+        "login_aliyunid_ticket=login-placeholder; cna=cna-placeholder; aliyun_lang=zh".to_string()
+    )));
+    assert!(requests[1].headers.contains(&(
+        "Content-Type".to_string(),
+        "application/x-www-form-urlencoded".to_string()
+    )));
+    let body = requests[1]
+        .body
+        .as_deref()
+        .expect("POST body should be set");
+    assert!(body.contains("sec_token=sec-token-placeholder"));
+    assert!(body.contains("region=cn-beijing"));
+    assert!(body.contains("queryCodingPlanInstanceInfoRequest"));
 }

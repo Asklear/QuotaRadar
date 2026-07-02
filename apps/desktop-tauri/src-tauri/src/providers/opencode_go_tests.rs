@@ -125,6 +125,22 @@ fn opencode_live_quota_uses_server_function_transport() {
         "Cookie".to_string(),
         "auth=opencode-auth-placeholder; oc_locale=zh".to_string()
     )));
+    assert!(requests[0]
+        .headers
+        .contains(&("Accept-Language".to_string(), "zh-CN,zh;q=0.9".to_string())));
+    assert!(requests[0]
+        .headers
+        .contains(&("Cache-Control".to_string(), "no-cache".to_string())));
+    assert!(requests[0]
+        .headers
+        .contains(&("sec-fetch-mode".to_string(), "cors".to_string())));
+    assert!(requests[0]
+        .headers
+        .contains(&("sec-fetch-site".to_string(), "same-origin".to_string())));
+    assert!(requests[0]
+        .headers
+        .iter()
+        .any(|(name, value)| { name == "User-Agent" && value.contains("Mozilla/5.0") }));
     assert!(requests[0].headers.contains(&(
         "x-server-id".to_string(),
         "server-id-placeholder".to_string()

@@ -197,11 +197,25 @@ fn opencode_server_request(
 
     Ok(ProviderHttpRequest::get(&url)
         .header("Accept", "*/*")
+        .header("Accept-Language", "zh-CN,zh;q=0.9")
+        .header("Cache-Control", "no-cache")
+        .header("Pragma", "no-cache")
+        .header("Priority", "u=1, i")
         .header("Cookie", &credential.cookie_header)
         .header(
             "Referer",
             &format!("https://opencode.ai/workspace/{workspace_id}"),
         )
+        .header(
+            "sec-ch-ua",
+            "\"Chromium\";v=\"148\", \"Google Chrome\";v=\"148\", \"Not/A)Brand\";v=\"99\"",
+        )
+        .header("sec-ch-ua-mobile", "?0")
+        .header("sec-ch-ua-platform", "\"macOS\"")
+        .header("sec-fetch-dest", "empty")
+        .header("sec-fetch-mode", "cors")
+        .header("sec-fetch-site", "same-origin")
+        .header("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36")
         .header("x-server-id", server_id)
         .header("x-server-instance", server_instance))
 }

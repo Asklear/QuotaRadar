@@ -1,5 +1,5 @@
 use chrono::{DateTime, SecondsFormat, Utc};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::domain::QuotaWindow;
 
@@ -9,6 +9,12 @@ use super::{
 };
 
 const ALIYUN_CODING_PLAN_GATEWAY_URL: &str = "https://bailian-cs.console.aliyun.com/data/api.json?action=BroadScopeAspnGateway&product=sfm_bailian&api=zeldaEasy.broadscope-bailian.codingPlan.queryCodingPlanInstanceInfoV2&_v=undefined";
+const ALIYUN_CODING_PLAN_API: &str =
+    "zeldaEasy.broadscope-bailian.codingPlan.queryCodingPlanInstanceInfoV2";
+const ALIYUN_CONSOLE_USER_INFO_URL: &str = "https://bailian.console.aliyun.com/tool/user/info.json";
+const ALIYUN_CODING_PLAN_REFERER: &str =
+    "https://bailian.console.aliyun.com/cn-beijing?tab=model#/efm/coding_plan";
+const ALIYUN_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36";
 
 const ALIYUN_INSTANCE_INFO_FIXTURE: &str = r#"{
   "code": "200",
@@ -212,11 +218,19 @@ impl ProviderClient for AliyunCodingPlanProvider {
         }
 
         let aliyun_credential = AliyunCredential::from_secret(&credential.secret)?;
+        let sec_token = fetch_aliyun_console_sec_token(&aliyun_credential, transport)?;
         let response = transport.send(
-            ProviderHttpRequest::get(ALIYUN_CODING_PLAN_GATEWAY_URL)
+            ProviderHttpRequest::post(ALIYUN_CODING_PLAN_GATEWAY_URL)
                 .header("Accept", "application/json, text/plain, */*")
+                .header("Content-Type", "application/x-www-form-urlencoded")
                 .header("Cookie", &aliyun_credential.cookie_header)
-                .header("Referer", "https://bailian.console.aliyun.com/"),
+                .header("Origin", "https://bailian.console.aliyun.com")
+                .header("Referer", ALIYUN_CODING_PLAN_REFERER)
+                .header("User-Agent", ALIYUN_USER_AGENT)
+                .body(&aliyun_coding_plan_form_body(
+                    &sec_token,
+                    &aliyun_credential.region,
+                )),
         )?;
         if response.status == 401 || response.status == 403 {
             return Err(aliyun_login_required());
@@ -241,6 +255,7 @@ impl ProviderClient for AliyunCodingPlanProvider {
 
 struct AliyunCredential {
     cookie_header: String,
+    region: String,
 }
 
 impl AliyunCredential {
@@ -250,11 +265,12 @@ impl AliyunCredential {
             return Err(aliyun_login_required());
         }
 
-        let cookie = serde_json::from_str::<Value>(trimmed)
-            .ok()
+        let parsed = serde_json::from_str::<Value>(trimmed).ok();
+        let cookie = parsed
+            .as_ref()
             .and_then(|value| {
                 first_string(
-                    &value,
+                    value,
                     &[
                         "cookie",
                         "cookieHeader",
@@ -267,8 +283,13 @@ impl AliyunCredential {
             .unwrap_or_else(|| trimmed.to_string());
 
         if cookie.contains("login_aliyunid_ticket=") && cookie.contains("cna=") {
+            let region = parsed
+                .as_ref()
+                .and_then(|value| first_string(value, &["region", "aliyunRegion"]))
+                .unwrap_or_else(|| "cn-beijing".to_string());
             Ok(Self {
                 cookie_header: cookie,
+                region,
             })
         } else {
             Err(aliyun_login_required())
@@ -276,8 +297,75 @@ impl AliyunCredential {
     }
 }
 
+fn fetch_aliyun_console_sec_token(
+    credential: &AliyunCredential,
+    transport: &dyn ProviderTransport,
+) -> Result<String, ProviderError> {
+    let response = transport.send(
+        ProviderHttpRequest::get(ALIYUN_CONSOLE_USER_INFO_URL)
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Cookie", &credential.cookie_header)
+            .header(
+                "Referer",
+                "https://bailian.console.aliyun.com/?tab=plan#/efm/subscription/coding-plan",
+            )
+            .header("User-Agent", ALIYUN_USER_AGENT),
+    )?;
+    if response.status == 401 || response.status == 403 {
+        return Err(aliyun_login_required());
+    }
+    if response.status != 200 {
+        return Err(ProviderError::QuotaUnavailable(format!(
+            "Aliyun user-info endpoint returned HTTP {}",
+            response.status
+        )));
+    }
+
+    let value: Value = serde_json::from_str(&response.body)
+        .map_err(|error| ProviderError::Parse(error.to_string()))?;
+    value
+        .get("data")
+        .and_then(|data| first_string(data, &["secToken"]))
+        .filter(|token| !token.trim().is_empty())
+        .ok_or_else(aliyun_login_required)
+}
+
+fn aliyun_coding_plan_form_body(sec_token: &str, region: &str) -> String {
+    let params = json!({
+        "Api": ALIYUN_CODING_PLAN_API,
+        "V": "1.0",
+        "Data": {
+            "cornerstoneParam": {},
+            "queryCodingPlanInstanceInfoRequest": {
+                "commodityCode": "sfm_codingplan_public",
+                "onlyLatestOne": true
+            }
+        }
+    })
+    .to_string();
+
+    format!(
+        "params={}&sec_token={}&region={}",
+        percent_encode_component(&params),
+        percent_encode_component(sec_token),
+        percent_encode_component(region)
+    )
+}
+
 fn aliyun_login_required() -> ProviderError {
     ProviderError::Unauthorized("Aliyun web login authorization is required".to_string())
+}
+
+fn percent_encode_component(value: &str) -> String {
+    value
+        .bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (byte as char).to_string()
+            }
+            _ => format!("%{byte:02X}"),
+        })
+        .collect()
 }
 
 fn parse_aliyun_coding_plan(value: &str) -> Result<QuotaSnapshot, ProviderError> {
