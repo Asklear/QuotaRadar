@@ -107,16 +107,18 @@ fn kimi_no_subscription_fixture_maps_to_no_subscribed_plan() {
 }
 
 #[test]
-fn kimi_quota_unknown_fixture_maps_to_quota_unavailable() {
+fn kimi_quota_unknown_fixture_maps_to_usable_unknown_quota() {
     let client = KimiSubscriptionProvider::default();
-    let error = client
+    let snapshot = client
         .check_quota_unavailable_fixture(kimi_credential())
-        .expect_err("unknown quota fixture should fail");
+        .expect("unknown quota fixture should remain usable");
 
-    assert!(matches!(
-        error,
-        ProviderError::QuotaUnavailable(message) if message.contains("Kimi quota")
-    ));
+    assert_eq!(snapshot.provider_id, "kimi");
+    assert_eq!(snapshot.remaining, None);
+    assert_eq!(snapshot.limit, None);
+    assert_eq!(snapshot.remaining_badge_text, "Usable · quota unknown");
+    assert_eq!(snapshot.quota_label.as_deref(), Some("subscription"));
+    assert!(snapshot.quota_windows.is_empty());
 }
 
 #[test]

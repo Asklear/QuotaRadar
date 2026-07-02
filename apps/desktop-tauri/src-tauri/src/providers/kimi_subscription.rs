@@ -379,9 +379,18 @@ fn parse_kimi_subscription_usage(
         ));
     }
 
-    Err(ProviderError::QuotaUnavailable(
-        "Kimi quota is unavailable".to_string(),
-    ))
+    Ok(QuotaSnapshot {
+        provider_id: "kimi".to_string(),
+        remaining: None,
+        limit: None,
+        remaining_badge_text: "Usable · quota unknown".to_string(),
+        quota_label: Some("subscription".to_string()),
+        quota_windows: Vec::new(),
+        reset_at: None,
+        plan_ends_at,
+        codex_reset_credits_remaining: None,
+        codex_reset_credits_earliest_expires_at: None,
+    })
 }
 
 fn kimi_usage_windows(value: &Value) -> Vec<QuotaWindow> {
