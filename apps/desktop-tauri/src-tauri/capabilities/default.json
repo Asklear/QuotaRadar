@@ -4,7 +4,8 @@
   "description": "Default permissions for Quota Radar desktop windows.",
   "windows": [
     "main",
-    "tray"
+    "tray",
+    "web-auth-*"
   ],
   "permissions": [
     "core:default",

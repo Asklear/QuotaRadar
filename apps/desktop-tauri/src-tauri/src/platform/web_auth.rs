@@ -1080,6 +1080,23 @@ mod tests {
     }
 
     #[test]
+    fn default_capability_covers_dynamic_web_auth_windows() {
+        let capability = include_str!("../../capabilities/default.json");
+        let value: Value = serde_json::from_str(capability).expect("capability should be JSON");
+        let windows = value["windows"]
+            .as_array()
+            .expect("capability should list windows")
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>();
+
+        assert!(
+            windows.contains(&"web-auth-*"),
+            "default capability windows must include web-auth-* for dynamic auth windows"
+        );
+    }
+
+    #[test]
     fn capture_starts_after_allowed_started_or_finished_page_load() {
         let config = dashboard_reauth_provider_config("xfyun_coding_plan")
             .expect("xfyun should support web auth capture");
