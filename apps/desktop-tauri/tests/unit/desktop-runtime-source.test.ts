@@ -27,9 +27,10 @@ describe("desktop runtime source guards", () => {
     expect(webAuthRs).toContain("save_web_authorization_with_stores");
   });
 
-  it("starts web authorization without blocking the command on auth window creation", () => {
-    expect(authRs).toContain("spawn_web_authorization_window");
-    expect(authRs).not.toContain("open_web_authorization_window(");
+  it("returns web authorization window opening errors to the command caller", () => {
+    expect(authRs).toContain("start_web_authorization_from_credentials");
+    expect(authRs).toContain("open_web_authorization_window(&app, request)");
+    expect(authRs).not.toContain("spawn_web_authorization_window");
     expect(webAuthRs).not.toContain("app.run_on_main_thread(move ||");
   });
 });
