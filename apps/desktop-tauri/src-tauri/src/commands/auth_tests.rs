@@ -35,7 +35,7 @@ fn start_web_authorization_session_identifies_provider_and_target() {
 }
 
 #[test]
-fn start_web_authorization_returns_window_opening_errors_to_caller() {
+fn start_web_authorization_returns_window_scheduling_errors_to_caller() {
     let credentials = vec![];
     let result = start_web_authorization_from_credentials(
         "opencode_go".to_string(),

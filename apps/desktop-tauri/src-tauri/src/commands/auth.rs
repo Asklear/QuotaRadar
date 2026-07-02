@@ -5,7 +5,7 @@ use tauri::{AppHandle, Runtime};
 use crate::{
     domain::{CredentialKind, CredentialView},
     platform::web_auth::{
-        open_web_authorization_window, web_authorization_started_message,
+        schedule_web_authorization_window, web_authorization_started_message,
         WebAuthorizationWindowRequest,
     },
     providers::registry::visible_provider_definitions,
@@ -37,7 +37,7 @@ pub struct CapturedWebAuthorization {
 }
 
 #[tauri::command]
-pub fn start_web_authorization<R: Runtime>(
+pub fn start_web_authorization<R: Runtime + 'static>(
     app: AppHandle<R>,
     provider_id: String,
     target_credential_id: Option<String>,
@@ -50,7 +50,7 @@ pub fn start_web_authorization<R: Runtime>(
         target_credential_id,
         target_name,
         &credentials,
-        |request| open_web_authorization_window(&app, request),
+        |request| schedule_web_authorization_window(&app, request),
     )
 }
 
@@ -59,7 +59,7 @@ pub fn start_web_authorization_from_credentials(
     target_credential_id: Option<String>,
     target_name: Option<String>,
     credentials: &[CredentialView],
-    open_window: impl FnOnce(WebAuthorizationWindowRequest) -> Result<(), String>,
+    schedule_window: impl FnOnce(WebAuthorizationWindowRequest) -> Result<(), String>,
 ) -> Result<WebAuthorizationSession, String> {
     let existing_target_name = target_credential_id.as_ref().and_then(|target_id| {
         credentials
@@ -83,7 +83,7 @@ pub fn start_web_authorization_from_credentials(
         .login_url
         .clone()
         .ok_or_else(|| "Provider does not have a web authorization URL".to_string())?;
-    open_window(WebAuthorizationWindowRequest {
+    schedule_window(WebAuthorizationWindowRequest {
         provider_id,
         target_credential_id,
         target_name: resolved_target_name.map(ToString::to_string),

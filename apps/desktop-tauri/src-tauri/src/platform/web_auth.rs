@@ -192,15 +192,15 @@ pub fn open_web_authorization_window<R: Runtime>(
     Ok(())
 }
 
-pub fn spawn_web_authorization_window<R: Runtime>(
+pub fn schedule_web_authorization_window<R: Runtime + 'static>(
     app: &AppHandle<R>,
     request: WebAuthorizationWindowRequest,
 ) -> Result<(), String> {
     validate_web_authorization_window_request(&request)?;
 
     let app_for_window = app.clone();
-    thread::spawn(move || {
-        let failure_request = request.clone();
+    let failure_request = request.clone();
+    app.run_on_main_thread(move || {
         if let Err(error) = open_web_authorization_window(&app_for_window, request) {
             emit_web_authorization_failure(
                 &app_for_window,
@@ -210,8 +210,8 @@ pub fn spawn_web_authorization_window<R: Runtime>(
             );
             let _ = reopen_main_window(&app_for_window);
         }
-    });
-    Ok(())
+    })
+    .map_err(|error| error.to_string())
 }
 
 fn validate_web_authorization_window_request(
