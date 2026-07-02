@@ -27,12 +27,13 @@ describe("desktop runtime source guards", () => {
     expect(webAuthRs).toContain("save_web_authorization_with_stores");
   });
 
-  it("schedules web authorization windows on the Tauri main thread", () => {
+  it("schedules web authorization windows after the command returns", () => {
     expect(authRs).toContain("start_web_authorization_from_credentials");
     expect(authRs).toContain("schedule_web_authorization_window(&app, request)");
     expect(authRs).not.toContain("open_web_authorization_window(&app, request)");
     expect(authRs).not.toContain("spawn_web_authorization_window");
     expect(webAuthRs).not.toContain("spawn_web_authorization_window");
-    expect(webAuthRs).toContain("app.run_on_main_thread(move ||");
+    expect(webAuthRs).toContain("thread::spawn(move ||");
+    expect(webAuthRs).not.toContain("app.run_on_main_thread(move ||");
   });
 });
