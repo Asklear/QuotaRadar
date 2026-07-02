@@ -880,7 +880,6 @@ fn host_matches_allowed_domains(url: &Url, domains: &[&str]) -> bool {
     domains.iter().any(|domain| {
         let allowed_domain = normalize_domain(domain);
         normalized_host == allowed_domain
-            || normalized_host.ends_with(&format!(".{allowed_domain}"))
     })
 }
 
@@ -1140,6 +1139,27 @@ mod tests {
         assert!(should_start_capture_after_page_load(
             PageLoadEvent::Started,
             &redirected_url,
+            config.cookie_domains
+        ));
+    }
+
+    #[test]
+    fn opencode_web_auth_does_not_capture_auth_subdomain_intermediate_cookie() {
+        let config = dashboard_reauth_provider_config("opencode_go")
+            .expect("opencode should support web auth capture");
+        let auth_url = Url::parse("https://auth.opencode.ai/authorize?client_id=app")
+            .expect("url should parse");
+        let workspace_url =
+            Url::parse("https://opencode.ai/workspace/wrk_01/go").expect("url should parse");
+
+        assert!(!should_start_capture_after_page_load(
+            PageLoadEvent::Started,
+            &auth_url,
+            config.cookie_domains
+        ));
+        assert!(should_start_capture_after_page_load(
+            PageLoadEvent::Started,
+            &workspace_url,
             config.cookie_domains
         ));
     }
