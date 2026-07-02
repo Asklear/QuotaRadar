@@ -9,7 +9,8 @@ use crate::{
 };
 
 use super::auth::{
-    save_web_authorization_with_stores, start_web_authorization_session, CapturedWebAuthorization,
+    save_web_authorization_with_stores, start_web_authorization_from_credentials,
+    start_web_authorization_session, CapturedWebAuthorization,
 };
 
 #[test]
@@ -31,6 +32,20 @@ fn start_web_authorization_session_identifies_provider_and_target() {
         Some("https://claude.ai/settings/usage")
     );
     assert!(session.message.contains("Claude Pro Login"));
+}
+
+#[test]
+fn start_web_authorization_returns_window_opening_errors_to_caller() {
+    let credentials = vec![];
+    let result = start_web_authorization_from_credentials(
+        "opencode_go".to_string(),
+        None,
+        None,
+        &credentials,
+        |_request| Err("window builder failed".to_string()),
+    );
+
+    assert_eq!(result, Err("window builder failed".to_string()));
 }
 
 #[test]

@@ -5,7 +5,7 @@ use tauri::{AppHandle, Runtime};
 use crate::{
     domain::{CredentialKind, CredentialView},
     platform::web_auth::{
-        spawn_web_authorization_window, web_authorization_started_message,
+        open_web_authorization_window, web_authorization_started_message,
         WebAuthorizationWindowRequest,
     },
     providers::registry::visible_provider_definitions,
@@ -45,6 +45,22 @@ pub fn start_web_authorization<R: Runtime>(
 ) -> Result<WebAuthorizationSession, String> {
     let metadata_store = TauriMetadataStore::open(&app)?;
     let credentials = load_credentials(&metadata_store)?;
+    start_web_authorization_from_credentials(
+        provider_id,
+        target_credential_id,
+        target_name,
+        &credentials,
+        |request| open_web_authorization_window(&app, request),
+    )
+}
+
+pub fn start_web_authorization_from_credentials(
+    provider_id: String,
+    target_credential_id: Option<String>,
+    target_name: Option<String>,
+    credentials: &[CredentialView],
+    open_window: impl FnOnce(WebAuthorizationWindowRequest) -> Result<(), String>,
+) -> Result<WebAuthorizationSession, String> {
     let existing_target_name = target_credential_id.as_ref().and_then(|target_id| {
         credentials
             .iter()
@@ -67,15 +83,12 @@ pub fn start_web_authorization<R: Runtime>(
         .login_url
         .clone()
         .ok_or_else(|| "Provider does not have a web authorization URL".to_string())?;
-    spawn_web_authorization_window(
-        &app,
-        WebAuthorizationWindowRequest {
-            provider_id,
-            target_credential_id,
-            target_name: resolved_target_name.map(ToString::to_string),
-            login_url,
-        },
-    )?;
+    open_window(WebAuthorizationWindowRequest {
+        provider_id,
+        target_credential_id,
+        target_name: resolved_target_name.map(ToString::to_string),
+        login_url,
+    })?;
 
     Ok(WebAuthorizationSession {
         message: web_authorization_started_message(&session),
