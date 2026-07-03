@@ -75,4 +75,30 @@ describe("TrayPopover", () => {
 
     expect(onRequestClose).toHaveBeenCalledOnce();
   });
+
+  it("opens the settings page from the tray settings button", () => {
+    const onOpenMainWindow = vi.fn();
+    const onRequestClose = vi.fn();
+
+    render(<TrayPopover onOpenMainWindow={onOpenMainWindow} onRequestClose={onRequestClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    expect(onOpenMainWindow).toHaveBeenCalledWith({ page: "settings" });
+    expect(onRequestClose).toHaveBeenCalledOnce();
+  });
+
+  it("opens the quota page for clicked tray credentials", () => {
+    const onOpenMainWindow = vi.fn();
+    const onRequestClose = vi.fn();
+
+    render(<TrayPopover onOpenMainWindow={onOpenMainWindow} onRequestClose={onRequestClose} />);
+    fireEvent.click(screen.getAllByTestId("favorite-item")[0]);
+
+    expect(onOpenMainWindow).toHaveBeenCalledWith({
+      page: "quota",
+      providerId: expect.any(String),
+      credentialId: expect.any(String),
+    });
+    expect(onRequestClose).toHaveBeenCalledOnce();
+  });
 });

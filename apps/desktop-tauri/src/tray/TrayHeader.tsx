@@ -2,7 +2,11 @@ import { SlidersHorizontal } from "lucide-react";
 import { AppMark } from "../components/AppMark";
 import { useTranslate } from "../i18n";
 
-export function TrayHeader() {
+interface TrayHeaderProps {
+  onOpenSettings?: () => void;
+}
+
+export function TrayHeader({ onOpenSettings }: TrayHeaderProps) {
   const t = useTranslate();
 
   return (
@@ -12,7 +16,7 @@ export function TrayHeader() {
         <h1>{t("app.name")}</h1>
         <p>{t("tray.quote")}</p>
       </div>
-      <button className="tray-settings-button" aria-label={t("nav.settings")}>
+      <button className="tray-settings-button" aria-label={t("nav.settings")} onClick={onOpenSettings}>
         <SlidersHorizontal size={16} strokeWidth={2.2} />
       </button>
     </header>

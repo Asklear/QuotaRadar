@@ -10,6 +10,7 @@ import {
   importClaudeSettings,
   isTauriRuntime,
   listCredentials,
+  setCredentialActive,
   updateCredential,
 } from "../lib/tauriClient";
 import { mockCredentials, providerRegistry } from "../shared/mockData";
@@ -141,6 +142,15 @@ export function CredentialsPage({
     onCredentialsChanged?.(nextCredentials);
   }
 
+  async function handleToggleCredentialActive(credential: CredentialView, active: boolean) {
+    const updated = await setCredentialActive(credential.id, active);
+    const nextCredentials = visibleCredentials.map((currentCredential) =>
+      currentCredential.id === updated.id ? updated : currentCredential,
+    );
+    setVisibleCredentials(nextCredentials);
+    onCredentialsChanged?.(nextCredentials);
+  }
+
   async function handleImportClaudeSettings() {
     setImporting(true);
     setImportStatus(undefined);
@@ -202,6 +212,7 @@ export function CredentialsPage({
             credentials={group.credentials}
             onCopyCredential={handleCopyCredential}
             onEditCredential={openEditCredentialEditor}
+            onToggleCredentialActive={handleToggleCredentialActive}
           />
         ))}
       </div>

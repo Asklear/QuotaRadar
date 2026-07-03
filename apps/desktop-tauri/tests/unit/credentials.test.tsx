@@ -60,6 +60,16 @@ describe("CredentialsPage", () => {
     expect(actions).toEqual(["Status", "Enabled", "Copy", "Edit"]);
   });
 
+  it("toggles credential active state directly from the row", async () => {
+    render(<CredentialsPage />);
+
+    const tavilyRow = screen.getByTestId("credential-row-tavily-primary");
+    fireEvent.click(within(tavilyRow).getByRole("switch", { name: "Disable Tavily Key 1" }));
+
+    const updatedRow = await screen.findByTestId("credential-row-tavily-primary");
+    expect(updatedRow.querySelector(".mock-switch")).toHaveAttribute("data-enabled", "false");
+  });
+
   it("localizes credential action group labels", () => {
     render(
       <LocaleContext.Provider value="zh-Hans">

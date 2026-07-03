@@ -212,8 +212,18 @@
   grid-template-columns: 30px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
+  width: 100%;
   min-height: 35px;
   padding: 3px 0;
+  color: inherit;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+}
+
+.tray-provider-row:hover {
+  background: rgba(255, 255, 255, 0.34);
 }
 
 .tray-provider-row .provider-icon {

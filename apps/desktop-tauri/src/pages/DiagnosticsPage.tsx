@@ -1,16 +1,27 @@
 import { DiagnosticProviderSection } from "../diagnostics/DiagnosticProviderSection";
 import { useTranslate } from "../i18n";
+import { mockSettings } from "../lib/tauriClient";
 import { mockCredentials, providerRegistry } from "../shared/mockData";
-import type { CredentialView, ProviderCategory, ProviderDefinition } from "../shared/types";
+import type {
+  AppSettings,
+  CredentialView,
+  ProviderCategory,
+  ProviderDefinition,
+} from "../shared/types";
 
 const categoryOrder: ProviderCategory[] = ["AI Search", "LLM"];
 
 interface DiagnosticsPageProps {
   providers?: ProviderDefinition[];
   credentials?: CredentialView[];
+  settings?: AppSettings;
 }
 
-export function DiagnosticsPage({ providers = providerRegistry, credentials = mockCredentials }: DiagnosticsPageProps) {
+export function DiagnosticsPage({
+  providers = providerRegistry,
+  credentials = mockCredentials,
+  settings = mockSettings,
+}: DiagnosticsPageProps) {
   const t = useTranslate();
   const groups = providers
     .map((provider) => ({
@@ -38,6 +49,7 @@ export function DiagnosticsPage({ providers = providerRegistry, credentials = mo
                 key={group.provider.id}
                 provider={group.provider}
                 credentials={group.credentials}
+                settings={settings}
               />
             ))}
           </section>

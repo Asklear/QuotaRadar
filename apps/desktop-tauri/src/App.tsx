@@ -3,13 +3,16 @@ import {
   getAppState,
   getSettings,
   getUpdateState,
+  listenForMainWindowNavigation,
   listenForWebAuthorizationFailed,
   listenForWebAuthorizationSaved,
   mockAppState,
   mockSettings,
   mockUpdateState,
   moveProvider,
+  openMainWindow,
   refreshProvider,
+  resetCodexQuota,
   resetProviderOrder,
   checkForUpdates,
   startWebAuthorization,
@@ -23,7 +26,14 @@ import { QuotaMonitoringPage } from "./pages/QuotaMonitoringPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { AboutPage } from "./pages/AboutPage";
 import { TrayPopover } from "./tray/TrayPopover";
-import type { AppSettings, AppState, CredentialView, ProviderDefinition, WebAuthorizationSession } from "./shared/types";
+import type {
+  AppSettings,
+  AppState,
+  CredentialView,
+  MainWindowTarget,
+  ProviderDefinition,
+  WebAuthorizationSession,
+} from "./shared/types";
 import { formatSystemDisplayText, LocaleContext, normalizeLocale, translate } from "./i18n";
 
 function orderProviders(providers: ProviderDefinition[], providerOrder: string[]) {
@@ -103,6 +113,27 @@ export default function App() {
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;
 
+    void listenForMainWindowNavigation((target) => {
+      if (!cancelled && target.page && isAppPage(target.page)) {
+        setActivePage(target.page);
+      }
+    }).then((listener) => {
+      unsubscribe = listener;
+      if (cancelled) {
+        unsubscribe();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
+
     void listenForWebAuthorizationFailed((failure) => {
       if (!cancelled) {
         setWebAuthorizationError(failure.message);
@@ -159,6 +190,21 @@ export default function App() {
     setManualRefreshFailure(providerRefreshFailure(state, providerId));
   }
 
+  async function handleResetCodexQuota(credentialId: string) {
+    setManualRefreshFailure(undefined);
+    setWebAuthorizationError(undefined);
+    try {
+      const state = await resetCodexQuota(credentialId);
+      setAppState(state);
+      setManualRefreshFailure(providerRefreshFailure(state, "codex"));
+    } catch (error) {
+      setManualRefreshFailure({
+        providerName: "Codex",
+        message: errorMessage(error),
+      });
+    }
+  }
+
   function handleCredentialsChanged(credentials: CredentialView[]) {
     setAppState((currentState) => ({
       ...currentState,
@@ -180,7 +226,12 @@ export default function App() {
     return (
       <LocaleContext.Provider value={locale}>
         <main className="tray-preview">
-          <TrayPopover credentials={appState.credentials} />
+          <TrayPopover
+            credentials={appState.credentials}
+            onOpenMainWindow={(target) => {
+              void openMainWindow(target);
+            }}
+          />
         </main>
       </LocaleContext.Provider>
     );
@@ -192,6 +243,7 @@ export default function App() {
         providers={providers}
         credentials={appState.credentials}
         onRefreshProvider={handleRefreshProvider}
+        onResetCodexQuota={handleResetCodexQuota}
         onStartWebAuthorization={handleStartWebAuthorization}
       />
     ),
@@ -204,7 +256,9 @@ export default function App() {
         onStartWebAuthorization={handleStartWebAuthorization}
       />
     ),
-    diagnostics: <DiagnosticsPage providers={providers} credentials={appState.credentials} />,
+    diagnostics: (
+      <DiagnosticsPage providers={providers} credentials={appState.credentials} settings={settings} />
+    ),
     settings: (
       <SettingsPage
         settings={settings}
@@ -288,4 +342,8 @@ function webAuthorizationRefreshFailureMessage(state: AppState, providerId: stri
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isAppPage(value: MainWindowTarget["page"]): value is NonNullable<MainWindowTarget["page"]> {
+  return ["quota", "credentials", "diagnostics", "settings", "about"].includes(String(value));
 }

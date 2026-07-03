@@ -28,6 +28,8 @@ use super::window::reopen_main_window;
 const WEB_AUTH_SAVED_EVENT: &str = "web_authorization_saved";
 const WEB_AUTH_FAILED_EVENT: &str = "web_authorization_failed";
 const WEB_AUTH_WINDOW_PREFIX: &str = "web-auth";
+const WEB_AUTH_CONTROL_SAVE_SIGNAL: &str = "__QUOTARADAR_WEB_AUTH_SAVE__:";
+const WEB_AUTH_CONTROL_CANCEL_SIGNAL: &str = "__QUOTARADAR_WEB_AUTH_CANCEL__:";
 static WEB_AUTH_WINDOW_SEQUENCE: AtomicU64 = AtomicU64::new(1);
 const WEB_STORAGE_CAPTURE_SCRIPT: &str = r#"
 (() => {
@@ -76,7 +78,14 @@ struct CaptureSession {
     cookie_domains: &'static [&'static str],
     required_names: &'static [&'static str],
     capture_started: Arc<AtomicBool>,
+    failure_emitted: Arc<AtomicBool>,
     saved: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WebAuthControlAction {
+    Save,
+    Cancel,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -148,10 +157,13 @@ pub fn open_web_authorization_window<R: Runtime>(
         cookie_domains: provider_config.cookie_domains,
         required_names: provider_config.required_names,
         capture_started: Arc::new(AtomicBool::new(false)),
+        failure_emitted: Arc::new(AtomicBool::new(false)),
         saved: Arc::new(AtomicBool::new(false)),
     });
     let app_for_page_load = app.clone();
     let capture_session_for_page_load = capture_session.clone();
+    let app_for_title = app.clone();
+    let capture_session_for_title = capture_session.clone();
 
     let window =
         WebviewWindowBuilder::new(app, &label, WebviewUrl::App(load_plan.initial_route.into()))
@@ -160,6 +172,24 @@ pub fn open_web_authorization_window<R: Runtime>(
             .min_inner_size(520.0, 600.0)
             .center()
             .focused(true)
+            .initialization_script(web_auth_control_initialization_script())
+            .on_document_title_changed(move |window, title| match web_auth_control_signal(&title) {
+                Some(WebAuthControlAction::Save) => {
+                    schedule_manual_capture_attempt(
+                        app_for_title.clone(),
+                        window,
+                        capture_session_for_title.clone(),
+                    );
+                }
+                Some(WebAuthControlAction::Cancel) => {
+                    capture_session_for_title
+                        .saved
+                        .store(true, Ordering::SeqCst);
+                    let _ = window.close();
+                    let _ = reopen_main_window(&app_for_title);
+                }
+                None => {}
+            })
             .on_page_load(move |window, payload| {
                 if !should_start_capture_after_page_load(
                     payload.event(),
@@ -190,6 +220,94 @@ pub fn open_web_authorization_window<R: Runtime>(
     }
 
     Ok(())
+}
+
+fn web_auth_control_initialization_script() -> &'static str {
+    r#"
+(() => {
+  const saveSignal = '__QUOTARADAR_WEB_AUTH_SAVE__:';
+  const cancelSignal = '__QUOTARADAR_WEB_AUTH_CANCEL__:';
+  const installControls = () => {
+    if (document.getElementById('quotaradar-web-auth-controls')) return;
+    const host = document.createElement('div');
+    host.id = 'quotaradar-web-auth-controls';
+    host.style.position = 'fixed';
+    host.style.right = '16px';
+    host.style.bottom = '16px';
+    host.style.zIndex = '2147483647';
+    host.style.pointerEvents = 'auto';
+    const root = host.attachShadow ? host.attachShadow({ mode: 'closed' }) : host;
+    const style = document.createElement('style');
+    style.textContent = `
+      .qr-auth-controls {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        padding: 8px;
+        border: 1px solid rgba(60, 60, 67, 0.20);
+        border-radius: 10px;
+        background: rgba(250, 250, 252, 0.96);
+        color: #1d1d1f;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.20);
+        font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      button {
+        height: 30px;
+        padding: 0 12px;
+        border: 1px solid rgba(60, 60, 67, 0.22);
+        border-radius: 7px;
+        background: white;
+        color: #1d1d1f;
+        font: inherit;
+        cursor: pointer;
+      }
+      button[data-primary="true"] {
+        border-color: #1d1d1f;
+        background: #1d1d1f;
+        color: white;
+      }
+    `;
+    const controls = document.createElement('div');
+    controls.className = 'qr-auth-controls';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.textContent = 'Cancel / 取消';
+    cancel.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      document.title = `${cancelSignal}${Date.now()}`;
+    });
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.dataset.primary = 'true';
+    save.textContent = 'Save / 保存';
+    save.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      document.title = `${saveSignal}${Date.now()}`;
+    });
+    controls.append(cancel, save);
+    root.append(style, controls);
+    (document.body || document.documentElement).appendChild(host);
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installControls, { once: true });
+  } else {
+    installControls();
+  }
+  setTimeout(installControls, 500);
+})();
+"#
+}
+
+fn web_auth_control_signal(title: &str) -> Option<WebAuthControlAction> {
+    if title.starts_with(WEB_AUTH_CONTROL_SAVE_SIGNAL) {
+        return Some(WebAuthControlAction::Save);
+    }
+    if title.starts_with(WEB_AUTH_CONTROL_CANCEL_SIGNAL) {
+        return Some(WebAuthControlAction::Cancel);
+    }
+    None
 }
 
 pub fn schedule_web_authorization_window<R: Runtime + 'static>(
@@ -433,6 +551,20 @@ fn schedule_capture_attempt<R: Runtime>(
     });
 }
 
+fn schedule_manual_capture_attempt<R: Runtime>(
+    app: AppHandle<R>,
+    window: WebviewWindow<R>,
+    capture_session: Arc<CaptureSession>,
+) {
+    if capture_session.saved.load(Ordering::SeqCst) {
+        return;
+    }
+
+    thread::spawn(move || {
+        capture_and_save(app, window, capture_session, 0);
+    });
+}
+
 fn capture_and_save<R: Runtime>(
     app: AppHandle<R>,
     window: WebviewWindow<R>,
@@ -507,6 +639,12 @@ fn capture_and_save<R: Runtime>(
     if let Err(error) = save_captured_material(&app, &capture_session, material) {
         capture_session.saved.store(false, Ordering::SeqCst);
         eprintln!("Quota Radar failed to save web authorization: {error}");
+        fail_web_authorization(
+            &app,
+            &window,
+            &capture_session,
+            format!("Could not save web login authorization: {error}"),
+        );
         return;
     }
 
@@ -552,12 +690,12 @@ fn try_begin_initial_capture(capture_started: &AtomicBool) -> bool {
 
 fn fail_web_authorization<R: Runtime>(
     app: &AppHandle<R>,
-    window: &WebviewWindow<R>,
+    _window: &WebviewWindow<R>,
     capture_session: &CaptureSession,
     message: String,
 ) {
     if capture_session
-        .saved
+        .failure_emitted
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
     {
@@ -570,8 +708,6 @@ fn fail_web_authorization<R: Runtime>(
         capture_session.target_credential_id.clone(),
         message,
     );
-    let _ = window.close();
-    let _ = reopen_main_window(app);
 }
 
 fn emit_web_authorization_failure<R: Runtime>(
@@ -1173,6 +1309,29 @@ mod tests {
 
         assert_eq!(load_plan.initial_route, "/?view=auth");
         assert_eq!(load_plan.navigation_url, login_url);
+    }
+
+    #[test]
+    fn web_auth_control_script_exposes_manual_save_and_cancel_controls() {
+        let script = web_auth_control_initialization_script();
+
+        assert!(script.contains(WEB_AUTH_CONTROL_SAVE_SIGNAL));
+        assert!(script.contains(WEB_AUTH_CONTROL_CANCEL_SIGNAL));
+        assert!(script.contains("Save / 保存"));
+        assert!(script.contains("Cancel / 取消"));
+    }
+
+    #[test]
+    fn web_auth_control_signal_parses_unique_save_and_cancel_titles() {
+        assert_eq!(
+            web_auth_control_signal("__QUOTARADAR_WEB_AUTH_SAVE__:123"),
+            Some(WebAuthControlAction::Save)
+        );
+        assert_eq!(
+            web_auth_control_signal("__QUOTARADAR_WEB_AUTH_CANCEL__:456"),
+            Some(WebAuthControlAction::Cancel)
+        );
+        assert_eq!(web_auth_control_signal("Claude"), None);
     }
 
     #[test]

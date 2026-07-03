@@ -8,6 +8,7 @@ interface ProviderCategorySectionProps {
   category: ProviderCategory;
   stats: ProviderStats[];
   onRefreshProvider?: (providerId: string) => void | Promise<void>;
+  onResetCodexQuota?: (credentialId: string) => void | Promise<void>;
   onStartWebAuthorization?: StartWebAuthorizationHandler;
 }
 
@@ -15,6 +16,7 @@ export function ProviderCategorySection({
   category,
   stats,
   onRefreshProvider,
+  onResetCodexQuota,
   onStartWebAuthorization,
 }: ProviderCategorySectionProps) {
   const t = useTranslate();
@@ -49,6 +51,7 @@ export function ProviderCategorySection({
         <ProviderQuotaTable
           stats={stats}
           onRefreshProvider={onRefreshProvider}
+          onResetCodexQuota={onResetCodexQuota}
           onStartWebAuthorization={onStartWebAuthorization}
         />
       ) : null}

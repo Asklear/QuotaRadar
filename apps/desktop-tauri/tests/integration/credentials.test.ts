@@ -5,6 +5,7 @@ import {
   createCredential,
   importClaudeSettings,
   listCredentials,
+  resetCodexQuota,
 } from "../../src/lib/tauriClient";
 import type { CredentialInput } from "../../src/shared/types";
 
@@ -119,6 +120,35 @@ describe("credential commands", () => {
     expect(invoke).toHaveBeenCalledWith("import_claude_settings");
     expect(summary.added).toBe(1);
     expect(JSON.stringify(summary)).not.toContain("anthropic-example-value");
+  });
+
+  it("resets Codex quota through Tauri in desktop runtime", async () => {
+    setTauriRuntime(true);
+    vi.mocked(invoke).mockResolvedValue({
+      providers: [],
+      credentials: [
+        {
+          id: "codex-web-pro",
+          providerId: "codex",
+          name: "Codex Pro Login",
+          kind: "dashboardCookie",
+          maskedValue: "Web login saved",
+          copyable: false,
+          active: true,
+          status: "healthy",
+          remainingBadgeText: "5h 96% · week 80%",
+          quotaWindows: [],
+          codexResetCreditsRemaining: 1,
+        },
+      ],
+    });
+
+    const state = await resetCodexQuota("codex-web-pro");
+
+    expect(invoke).toHaveBeenCalledWith("reset_codex_quota", {
+      credentialId: "codex-web-pro",
+    });
+    expect(state.credentials[0].codexResetCreditsRemaining).toBe(1);
   });
 
   it("does not expose mock web login authorization secrets outside Tauri runtime", async () => {

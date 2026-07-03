@@ -1,14 +1,19 @@
 import { ProviderIcon } from "../components/ProviderIcon";
 import { formatProviderPlanType, useTranslate } from "../i18n";
-import type { CredentialView, ProviderDefinition } from "../shared/types";
+import type { AppSettings, CredentialView, ProviderDefinition } from "../shared/types";
 import { DiagnosticRow } from "./DiagnosticRow";
 
 interface DiagnosticProviderSectionProps {
   provider: ProviderDefinition;
   credentials: CredentialView[];
+  settings: AppSettings;
 }
 
-export function DiagnosticProviderSection({ provider, credentials }: DiagnosticProviderSectionProps) {
+export function DiagnosticProviderSection({
+  provider,
+  credentials,
+  settings,
+}: DiagnosticProviderSectionProps) {
   const t = useTranslate();
   const categoryLabel = provider.category === "AI Search" ? t("category.aiSearch") : t("category.llm");
 
@@ -44,7 +49,12 @@ export function DiagnosticProviderSection({ provider, credentials }: DiagnosticP
         </thead>
         <tbody>
           {credentials.map((credential) => (
-            <DiagnosticRow key={credential.id} credential={credential} />
+            <DiagnosticRow
+              key={credential.id}
+              credential={credential}
+              provider={provider}
+              settings={settings}
+            />
           ))}
         </tbody>
       </table>

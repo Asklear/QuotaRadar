@@ -5,6 +5,7 @@ pub mod external;
 pub mod providers;
 pub mod settings;
 pub mod updates;
+pub mod window;
 
 #[cfg(test)]
 mod auth_tests;

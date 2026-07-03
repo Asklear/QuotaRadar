@@ -1,10 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { LocaleContext } from "../../src/i18n";
 import { QuotaMonitoringPage } from "../../src/pages/QuotaMonitoringPage";
 import { providerRegistry } from "../../src/shared/providerRegistry";
 
 describe("QuotaMonitoringPage", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("renders the Swift-style quota overview title and summary", () => {
     render(<QuotaMonitoringPage />);
 
@@ -54,6 +58,20 @@ describe("QuotaMonitoringPage", () => {
     expect(screen.getByText("920 / 1000")).toBeInTheDocument();
   });
 
+  it("opens provider dashboards from quota row actions", () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+
+    render(<QuotaMonitoringPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Tavily Dashboard" }));
+
+    expect(open).toHaveBeenCalledWith(
+      "https://app.tavily.com/home",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
   it("shows Codex reset credits and earliest expiry in credential details", () => {
     const codexProvider = providerRegistry.find((provider) => provider.id === "codex");
 
@@ -91,6 +109,39 @@ describe("QuotaMonitoringPage", () => {
 
     expect(screen.getByText("2 credits")).toBeInTheDocument();
     expect(screen.getByText(/Earliest expires/)).toBeInTheDocument();
+  });
+
+  it("calls reset credit action from Codex credential details", () => {
+    const onResetCodexQuota = vi.fn();
+    const codexProvider = providerRegistry.find((provider) => provider.id === "codex");
+
+    render(
+      <QuotaMonitoringPage
+        providers={codexProvider ? [codexProvider] : []}
+        onResetCodexQuota={onResetCodexQuota}
+        credentials={[
+          {
+            id: "codex-web-pro",
+            providerId: "codex",
+            name: "Codex Pro Login",
+            kind: "dashboardCookie",
+            maskedValue: "Web login saved",
+            copyable: false,
+            active: true,
+            status: "healthy",
+            remainingBadgeText: "5h 80% · week 60%",
+            quotaWindows: [],
+            codexResetCreditsRemaining: 2,
+            codexResetCreditsEarliestExpiresAt: "2026-07-18T00:38:14Z",
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Codex"));
+    fireEvent.click(screen.getByRole("button", { name: "Codex Pro Login Use reset credit" }));
+
+    expect(onResetCodexQuota).toHaveBeenCalledWith("codex-web-pro");
   });
 
   it("localizes fixed credential placeholders and provider plan types", () => {

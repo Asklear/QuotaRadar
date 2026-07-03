@@ -6,6 +6,7 @@ import {
   useLocale,
   useTranslate,
 } from "../i18n";
+import { RotateCcw } from "lucide-react";
 import { credentialNeedsAttention } from "../shared/status";
 import type { CredentialView } from "../shared/types";
 import { QuotaWindowDetails } from "../components/QuotaWindowDetails";
@@ -13,9 +14,13 @@ import { StatusPill } from "../components/StatusPill";
 
 interface CredentialDetailTableProps {
   credentials: CredentialView[];
+  onResetCodexQuota?: (credentialId: string) => void | Promise<void>;
 }
 
-export function CredentialDetailTable({ credentials }: CredentialDetailTableProps) {
+export function CredentialDetailTable({
+  credentials,
+  onResetCodexQuota,
+}: CredentialDetailTableProps) {
   const locale = useLocale();
   const t = useTranslate();
 
@@ -64,11 +69,24 @@ export function CredentialDetailTable({ credentials }: CredentialDetailTableProp
                   </small>
                 ) : null}
                 {typeof credential.codexResetCreditsRemaining === "number" ? (
-                  <small>
-                    {t("codexResetCredits.remaining").replace(
-                      "{count}",
-                      String(credential.codexResetCreditsRemaining),
-                    )}
+                  <small className="codex-reset-credit-row">
+                    <span>
+                      {t("codexResetCredits.remaining").replace(
+                        "{count}",
+                        String(credential.codexResetCreditsRemaining),
+                      )}
+                    </span>
+                    <button
+                      className="codex-reset-credit-button"
+                      disabled={credential.codexResetCreditsRemaining <= 0}
+                      aria-label={`${credential.name} ${t("codexResetCredits.resetAction")}`}
+                      onClick={() => {
+                        void onResetCodexQuota?.(credential.id);
+                      }}
+                    >
+                      <RotateCcw size={12} />
+                      {t("codexResetCredits.resetAction")}
+                    </button>
                   </small>
                 ) : null}
                 {credential.codexResetCreditsEarliestExpiresAt ? (

@@ -15,6 +15,7 @@ interface QuotaMonitoringPageProps {
   providers?: ProviderDefinition[];
   credentials?: CredentialView[];
   onRefreshProvider?: (providerId: string) => void | Promise<void>;
+  onResetCodexQuota?: (credentialId: string) => void | Promise<void>;
   onStartWebAuthorization?: StartWebAuthorizationHandler;
 }
 
@@ -22,6 +23,7 @@ export function QuotaMonitoringPage({
   providers = providerRegistry,
   credentials = mockCredentials,
   onRefreshProvider,
+  onResetCodexQuota,
   onStartWebAuthorization,
 }: QuotaMonitoringPageProps) {
   const locale = useLocale();
@@ -50,6 +52,7 @@ export function QuotaMonitoringPage({
             category={category}
             stats={categoryStats}
             onRefreshProvider={onRefreshProvider}
+            onResetCodexQuota={onResetCodexQuota}
             onStartWebAuthorization={onStartWebAuthorization}
           />
         );

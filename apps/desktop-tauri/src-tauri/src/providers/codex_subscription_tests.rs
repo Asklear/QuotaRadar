@@ -150,3 +150,57 @@ fn codex_live_quota_resolves_session_then_fetches_usage_and_subscription() {
         .headers
         .contains(&("chatgpt-account-id".to_string(), "acct1".to_string())));
 }
+
+#[test]
+fn codex_reset_credit_consume_posts_then_refreshes_quota() {
+    let client = CodexSubscriptionProvider::default();
+    let transport = MockProviderTransport::responding_many(vec![
+        ProviderHttpResponse::new(200, r#"{"accessToken":"at1","account":{"id":"acct1"}}"#),
+        ProviderHttpResponse::new(200, r#"{"ok":true}"#),
+        ProviderHttpResponse::new(
+            200,
+            r#"{"plan_type":"pro","rate_limit":{"primary_window":{"used_percent":4,"limit_window_seconds":18000,"reset_at":1782864000},"secondary_window":{"used_percent":20,"limit_window_seconds":604800,"reset_at":1783468800}}}"#,
+        ),
+        ProviderHttpResponse::new(
+            200,
+            r#"{"active_until":"2026-07-08T16:42:25Z","plan_type":"pro"}"#,
+        ),
+        ProviderHttpResponse::new(
+            200,
+            r#"{"credits":[{"id":"reset-3","reset_type":"codex_rate_limits","status":"available","expires_at":"2026-07-26T23:56:41Z","redeemed_at":null}],"available_count":1}"#,
+        ),
+    ]);
+
+    let snapshot = client
+        .consume_reset_credit(codex_credential(), &transport)
+        .expect("reset credit consume should refresh Codex quota");
+
+    assert_eq!(snapshot.remaining, Some(8000.0));
+    assert_eq!(snapshot.remaining_badge_text, "5h 96% · week 80%");
+    assert_eq!(snapshot.codex_reset_credits_remaining, Some(1));
+    assert_eq!(
+        snapshot.codex_reset_credits_earliest_expires_at.as_deref(),
+        Some("2026-07-26T23:56:41Z")
+    );
+
+    let requests = transport.requests();
+    assert_eq!(requests.len(), 5);
+    assert_eq!(requests[1].method, "POST");
+    assert_eq!(
+        requests[1].url,
+        "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume"
+    );
+    assert!(requests[1]
+        .headers
+        .contains(&("Authorization".to_string(), "Bearer at1".to_string())));
+    assert!(requests[1]
+        .headers
+        .contains(&("chatgpt-account-id".to_string(), "acct1".to_string())));
+    assert!(requests[1]
+        .headers
+        .contains(&("Content-Type".to_string(), "application/json".to_string())));
+    assert!(requests[1]
+        .body
+        .as_deref()
+        .is_some_and(|body| body.contains("redeem_request_id")));
+}

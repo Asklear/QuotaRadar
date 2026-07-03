@@ -42,6 +42,7 @@ pub fn run() {
             commands::external::open_external_url,
             commands::providers::list_provider_definitions,
             commands::providers::refresh_provider,
+            commands::providers::reset_codex_quota,
             commands::credentials::set_credential_active,
             commands::credentials::update_credential,
             commands::settings::get_settings,
@@ -50,7 +51,8 @@ pub fn run() {
             commands::settings::move_provider,
             commands::updates::check_for_updates,
             commands::updates::download_and_install_update,
-            commands::updates::get_update_state
+            commands::updates::get_update_state,
+            commands::window::open_main_window
         ])
         .build(tauri::generate_context!())
         .expect("error while building Quota Radar Tauri application")

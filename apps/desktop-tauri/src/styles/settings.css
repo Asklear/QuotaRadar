@@ -57,7 +57,8 @@
 }
 
 .preference-control button,
-.preference-control select {
+.preference-control select,
+.preference-control input[type="text"] {
   height: 30px;
   border: 1px solid var(--qr-color-border);
   border-radius: 8px;
@@ -73,6 +74,10 @@
 .preference-control input[type="range"] {
   width: 170px;
   accent-color: var(--qr-color-text);
+}
+
+.preference-control input[type="text"] {
+  width: 240px;
 }
 
 .settings-switch {

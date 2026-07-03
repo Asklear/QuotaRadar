@@ -9,6 +9,7 @@ import type {
   CredentialInput,
   CredentialUpdateInput,
   CredentialView,
+  MainWindowTarget,
   RefreshMode,
   UpdateState,
   WebAuthorizationFailure,
@@ -170,6 +171,22 @@ export async function refreshProvider(providerId: string, mode: RefreshMode = "m
   return invoke<AppState>("refresh_provider", { providerId, mode });
 }
 
+export async function resetCodexQuota(credentialId: string): Promise<AppState> {
+  if (!isTauriRuntime()) {
+    return mockAppState;
+  }
+
+  return invoke<AppState>("reset_codex_quota", { credentialId });
+}
+
+export async function openMainWindow(target?: MainWindowTarget): Promise<void> {
+  if (!isTauriRuntime()) {
+    return;
+  }
+
+  return invoke<void>("open_main_window", { target });
+}
+
 export async function startWebAuthorization(
   providerId: string,
   targetCredentialId?: string,
@@ -241,6 +258,18 @@ export async function listenForWebAuthorizationFailed(
 
   return listen<WebAuthorizationFailure>("web_authorization_failed", (event) => {
     void onFailed(event.payload);
+  });
+}
+
+export async function listenForMainWindowNavigation(
+  onNavigation: (target: MainWindowTarget) => void | Promise<void>,
+): Promise<() => void> {
+  if (!isTauriRuntime()) {
+    return () => {};
+  }
+
+  return listen<MainWindowTarget>("main_window_navigation_requested", (event) => {
+    void onNavigation(event.payload);
   });
 }
 

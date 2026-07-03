@@ -3,6 +3,7 @@ import { ExternalLink, RefreshCw, RotateCcw } from "lucide-react";
 import { ProviderIcon } from "../components/ProviderIcon";
 import { StatusPill } from "../components/StatusPill";
 import { formatProviderPlanType, useTranslate } from "../i18n";
+import { openExternalUrl } from "../lib/tauriClient";
 import type { ProviderStats, StartWebAuthorizationHandler } from "../shared/types";
 import { CredentialDetailTable } from "./CredentialDetailTable";
 
@@ -11,6 +12,7 @@ interface ProviderQuotaRowProps {
   expanded: boolean;
   onToggle: () => void;
   onRefreshProvider?: (providerId: string) => void | Promise<void>;
+  onResetCodexQuota?: (credentialId: string) => void | Promise<void>;
   onStartWebAuthorization?: StartWebAuthorizationHandler;
 }
 
@@ -19,6 +21,7 @@ export function ProviderQuotaRow({
   expanded,
   onToggle,
   onRefreshProvider,
+  onResetCodexQuota,
   onStartWebAuthorization,
 }: ProviderQuotaRowProps) {
   const t = useTranslate();
@@ -92,7 +95,12 @@ export function ProviderQuotaRow({
         </div>
         <div className="quota-actions" onClick={(event) => event.stopPropagation()}>
           {stat.provider.dashboardUrl ? (
-            <button aria-label={`${stat.provider.displayName} ${t("action.openDashboard")}`}>
+            <button
+              aria-label={`${stat.provider.displayName} ${t("action.openDashboard")}`}
+              onClick={() => {
+                void openExternalUrl(stat.provider.dashboardUrl);
+              }}
+            >
               <ExternalLink size={14} />
             </button>
           ) : null}
@@ -124,7 +132,10 @@ export function ProviderQuotaRow({
       </div>
       {expanded ? (
         <div className="provider-detail-panel" data-testid={`provider-detail-${stat.provider.id}`}>
-          <CredentialDetailTable credentials={stat.credentials} />
+          <CredentialDetailTable
+            credentials={stat.credentials}
+            onResetCodexQuota={onResetCodexQuota}
+          />
         </div>
       ) : null}
     </div>

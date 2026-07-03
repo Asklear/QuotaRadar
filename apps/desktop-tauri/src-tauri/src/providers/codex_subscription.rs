@@ -13,6 +13,8 @@ const CODEX_SESSION_URL: &str = "https://chatgpt.com/api/auth/session";
 const CODEX_WHAM_USAGE_URL: &str = "https://chatgpt.com/backend-api/wham/usage";
 const CODEX_RESET_CREDITS_URL: &str =
     "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
+const CODEX_RESET_CREDITS_CONSUME_URL: &str =
+    "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits/consume";
 
 const CODEX_WHAM_USAGE_FIXTURE: &str = r#"{
   "plan_type": "pro",
@@ -61,6 +63,45 @@ const CODEX_MISSING_RATE_LIMIT_FIXTURE: &str = r#"{
 pub struct CodexSubscriptionProvider;
 
 impl CodexSubscriptionProvider {
+    pub fn consume_reset_credit(
+        &self,
+        credential: ProviderCredential,
+        transport: &dyn ProviderTransport,
+    ) -> Result<QuotaSnapshot, ProviderError> {
+        if credential.provider_id != self.provider_id() {
+            return Err(ProviderError::Unsupported(format!(
+                "credential belongs to {}",
+                credential.provider_id
+            )));
+        }
+
+        let codex_credential = CodexCredential::from_secret(&credential.secret)?;
+        let session = fetch_codex_session(&codex_credential, transport)?;
+        let account_id = session
+            .account_id
+            .as_deref()
+            .filter(|account_id| !account_id.is_empty())
+            .ok_or_else(|| {
+                ProviderError::QuotaUnavailable("Codex account id is unavailable".to_string())
+            })?;
+        let consume_response = transport.send(codex_reset_credit_consume_request(
+            &codex_credential,
+            &session.access_token,
+            account_id,
+        ))?;
+        if consume_response.status == 401 || consume_response.status == 403 {
+            return Err(codex_login_required());
+        }
+        if !(200..300).contains(&consume_response.status) {
+            return Err(ProviderError::QuotaUnavailable(format!(
+                "Codex reset credits endpoint returned HTTP {}",
+                consume_response.status
+            )));
+        }
+
+        check_codex_quota_for_session(&session, transport)
+    }
+
     pub fn check_missing_rate_limit_fixture(
         &self,
         credential: ProviderCredential,
@@ -112,61 +153,8 @@ impl ProviderClient for CodexSubscriptionProvider {
         }
 
         let codex_credential = CodexCredential::from_secret(&credential.secret)?;
-        let session_response = transport.send(codex_session_request(&codex_credential))?;
-        if session_response.status == 401 || session_response.status == 403 {
-            return Err(codex_login_required());
-        }
-        if session_response.status != 200 {
-            return Err(ProviderError::Unauthorized(format!(
-                "ChatGPT session endpoint returned HTTP {}",
-                session_response.status
-            )));
-        }
-
-        let session = parse_codex_session(&session_response.body)?;
-        let usage_response = transport.send(codex_authorized_request(
-            CODEX_WHAM_USAGE_URL,
-            &session.access_token,
-        ))?;
-        if usage_response.status == 401 || usage_response.status == 403 {
-            return Err(codex_login_required());
-        }
-        if usage_response.status != 200 {
-            return Err(ProviderError::QuotaUnavailable(format!(
-                "Codex usage endpoint returned HTTP {}",
-                usage_response.status
-            )));
-        }
-
-        let mut lifecycle_response = None;
-        let mut reset_credit_metadata = None;
-        if let Some(account_id) = session.account_id.as_deref() {
-            let url =
-                format!("https://chatgpt.com/backend-api/subscriptions?account_id={account_id}");
-            let response = transport.send(codex_authorized_request(&url, &session.access_token))?;
-            if response.status == 401 || response.status == 403 {
-                return Err(codex_login_required());
-            }
-            if response.status == 200 {
-                lifecycle_response = Some(response.body);
-            }
-
-            if let Ok(response) = transport.send(codex_account_authorized_request(
-                CODEX_RESET_CREDITS_URL,
-                &session.access_token,
-                account_id,
-            )) {
-                if response.status == 200 {
-                    reset_credit_metadata = parse_codex_reset_credit_metadata(&response.body).ok();
-                }
-            }
-        }
-
-        parse_codex_subscription_usage(
-            &usage_response.body,
-            lifecycle_response.as_deref(),
-            reset_credit_metadata,
-        )
+        let session = fetch_codex_session(&codex_credential, transport)?;
+        check_codex_quota_for_session(&session, transport)
     }
 
     fn check_fixture_quota(
@@ -229,6 +217,72 @@ fn codex_session_request(credential: &CodexCredential) -> ProviderHttpRequest {
         .header("Cookie", &credential.cookie_header)
 }
 
+fn fetch_codex_session(
+    credential: &CodexCredential,
+    transport: &dyn ProviderTransport,
+) -> Result<CodexSession, ProviderError> {
+    let session_response = transport.send(codex_session_request(credential))?;
+    if session_response.status == 401 || session_response.status == 403 {
+        return Err(codex_login_required());
+    }
+    if session_response.status != 200 {
+        return Err(ProviderError::Unauthorized(format!(
+            "ChatGPT session endpoint returned HTTP {}",
+            session_response.status
+        )));
+    }
+
+    parse_codex_session(&session_response.body)
+}
+
+fn check_codex_quota_for_session(
+    session: &CodexSession,
+    transport: &dyn ProviderTransport,
+) -> Result<QuotaSnapshot, ProviderError> {
+    let usage_response = transport.send(codex_authorized_request(
+        CODEX_WHAM_USAGE_URL,
+        &session.access_token,
+    ))?;
+    if usage_response.status == 401 || usage_response.status == 403 {
+        return Err(codex_login_required());
+    }
+    if usage_response.status != 200 {
+        return Err(ProviderError::QuotaUnavailable(format!(
+            "Codex usage endpoint returned HTTP {}",
+            usage_response.status
+        )));
+    }
+
+    let mut lifecycle_response = None;
+    let mut reset_credit_metadata = None;
+    if let Some(account_id) = session.account_id.as_deref() {
+        let url = format!("https://chatgpt.com/backend-api/subscriptions?account_id={account_id}");
+        let response = transport.send(codex_authorized_request(&url, &session.access_token))?;
+        if response.status == 401 || response.status == 403 {
+            return Err(codex_login_required());
+        }
+        if response.status == 200 {
+            lifecycle_response = Some(response.body);
+        }
+
+        if let Ok(response) = transport.send(codex_account_authorized_request(
+            CODEX_RESET_CREDITS_URL,
+            &session.access_token,
+            account_id,
+        )) {
+            if response.status == 200 {
+                reset_credit_metadata = parse_codex_reset_credit_metadata(&response.body).ok();
+            }
+        }
+    }
+
+    parse_codex_subscription_usage(
+        &usage_response.body,
+        lifecycle_response.as_deref(),
+        reset_credit_metadata,
+    )
+}
+
 fn codex_authorized_request(url: &str, access_token: &str) -> ProviderHttpRequest {
     ProviderHttpRequest::get(url)
         .header("Accept", "application/json")
@@ -241,6 +295,26 @@ fn codex_account_authorized_request(
     account_id: &str,
 ) -> ProviderHttpRequest {
     codex_authorized_request(url, access_token).header("chatgpt-account-id", account_id)
+}
+
+fn codex_reset_credit_consume_request(
+    credential: &CodexCredential,
+    access_token: &str,
+    account_id: &str,
+) -> ProviderHttpRequest {
+    let body = serde_json::json!({
+        "redeem_request_id": uuid::Uuid::new_v4().to_string()
+    })
+    .to_string();
+
+    ProviderHttpRequest::post(CODEX_RESET_CREDITS_CONSUME_URL)
+        .header("Accept", "application/json")
+        .header("Content-Type", "application/json")
+        .header("Authorization", &format!("Bearer {access_token}"))
+        .header("Cookie", &credential.cookie_header)
+        .header("chatgpt-account-id", account_id)
+        .header("originator", "codex_cli_rs")
+        .body(&body)
 }
 
 fn codex_login_required() -> ProviderError {

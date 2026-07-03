@@ -9,6 +9,7 @@ interface ProviderCredentialGroupProps {
   credentials: CredentialView[];
   onCopyCredential?: (credential: CredentialView) => void;
   onEditCredential?: (credential: CredentialView) => void;
+  onToggleCredentialActive?: (credential: CredentialView, active: boolean) => void;
 }
 
 export function ProviderCredentialGroup({
@@ -16,6 +17,7 @@ export function ProviderCredentialGroup({
   credentials,
   onCopyCredential,
   onEditCredential,
+  onToggleCredentialActive,
 }: ProviderCredentialGroupProps) {
   const t = useTranslate();
   const [expanded, setExpanded] = useState(true);
@@ -52,6 +54,7 @@ export function ProviderCredentialGroup({
               credential={credential}
               onCopy={onCopyCredential}
               onEdit={onEditCredential}
+              onToggleActive={onToggleCredentialActive}
             />
           ))}
         </div>

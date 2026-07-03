@@ -193,6 +193,26 @@ export function SettingsPage({
             </select>
           }
         />
+        {settings.proxy.mode === "custom" ? (
+          <PreferenceRow
+            label={t("settings.customProxyUrl")}
+            description={t("settings.customProxyUrlDescription")}
+            control={
+              <input
+                aria-label={t("settings.customProxyUrl")}
+                type="text"
+                value={settings.proxy.customUrl ?? ""}
+                placeholder="http://127.0.0.1:8080"
+                onChange={(event) =>
+                  applySettings({
+                    ...settings,
+                    proxy: { ...settings.proxy, customUrl: event.target.value },
+                  })
+                }
+              />
+            }
+          />
+        ) : null}
         <PreferenceRow
           label={t("settings.trayTransparency")}
           description={t("settings.trayTransparencyDescription")}

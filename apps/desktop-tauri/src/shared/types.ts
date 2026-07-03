@@ -133,6 +133,12 @@ export interface AppState {
   credentials: CredentialView[];
 }
 
+export interface MainWindowTarget {
+  page?: "quota" | "credentials" | "diagnostics" | "settings" | "about";
+  providerId?: string;
+  credentialId?: string;
+}
+
 export type RefreshMode = "manual" | "automatic" | "costlyAutomatic";
 
 export type RefreshInterval = "off" | "30m" | "1h" | "6h";

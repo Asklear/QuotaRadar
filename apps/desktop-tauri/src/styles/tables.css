@@ -372,6 +372,34 @@
   font-variant-numeric: tabular-nums;
 }
 
+.codex-reset-credit-row {
+  display: inline-flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 7px;
+}
+
+.codex-reset-credit-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 2px 7px;
+  color: var(--qr-color-accent);
+  border: 1px solid rgba(0, 122, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(0, 122, 255, 0.08);
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.codex-reset-credit-button:disabled {
+  color: var(--qr-color-tertiary);
+  border-color: var(--qr-color-hairline);
+  background: rgba(60, 60, 67, 0.055);
+}
+
 @media (max-width: 1040px) {
   .provider-list-header {
     display: none;

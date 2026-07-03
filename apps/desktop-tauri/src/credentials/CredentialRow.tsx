@@ -13,11 +13,13 @@ interface CredentialRowProps {
   credential: CredentialView;
   onCopy?: (credential: CredentialView) => void;
   onEdit?: (credential: CredentialView) => void;
+  onToggleActive?: (credential: CredentialView, active: boolean) => void;
 }
 
-export function CredentialRow({ credential, onCopy, onEdit }: CredentialRowProps) {
+export function CredentialRow({ credential, onCopy, onEdit, onToggleActive }: CredentialRowProps) {
   const t = useTranslate();
   const statusTone = credentialNeedsAttention(credential) ? "attention" : "healthy";
+  const toggleLabel = `${credential.active ? t("credential.action.disable") : t("credential.action.enable")} ${credential.name}`;
 
   return (
     <div className="credential-row" data-testid={`credential-row-${credential.id}`}>
@@ -40,7 +42,14 @@ export function CredentialRow({ credential, onCopy, onEdit }: CredentialRowProps
         </span>
         <span className="credential-action-slot">
           <span data-testid="credential-action">{t("credential.action.enabled")}</span>
-          <span className="mock-switch" data-enabled={credential.active} aria-hidden="true" />
+          <button
+            aria-label={toggleLabel}
+            aria-checked={credential.active}
+            role="switch"
+            onClick={() => onToggleActive?.(credential, !credential.active)}
+          >
+            <span className="mock-switch" data-enabled={credential.active} aria-hidden="true" />
+          </button>
         </span>
         {credential.copyable ? (
           <span className="credential-action-slot">

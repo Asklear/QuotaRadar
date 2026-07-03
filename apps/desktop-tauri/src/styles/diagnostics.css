@@ -105,3 +105,49 @@
 .diagnostic-table th:nth-child(4) {
   width: 14%;
 }
+
+.diagnostic-detail-row td {
+  padding-top: 0;
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.diagnostic-detail-disclosure {
+  color: var(--qr-color-muted);
+  font-size: 11px;
+}
+
+.diagnostic-detail-disclosure summary {
+  width: max-content;
+  cursor: default;
+  font-weight: 700;
+}
+
+.diagnostic-detail-disclosure dl {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0 2px;
+}
+
+.diagnostic-detail-disclosure dl > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.diagnostic-detail-disclosure dt {
+  overflow: hidden;
+  color: var(--qr-color-tertiary);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diagnostic-detail-disclosure dd {
+  overflow: hidden;
+  margin: 0;
+  color: var(--qr-color-text);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

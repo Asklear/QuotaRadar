@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { LocaleContext } from "../../src/i18n";
 import { AboutPage } from "../../src/pages/AboutPage";
 import { DiagnosticsPage } from "../../src/pages/DiagnosticsPage";
 import { SettingsPage } from "../../src/pages/SettingsPage";
+import { mockSettings } from "../../src/lib/tauriClient";
 
 describe("DiagnosticsPage", () => {
   it("shows credential health and HTTP status without duplicating quota values", () => {
@@ -73,6 +74,58 @@ describe("DiagnosticsPage", () => {
     expect(screen.getByText("服务商 fixture 解析失败")).toBeInTheDocument();
     expect(screen.queryByText("Provider fixture parse failed")).not.toBeInTheDocument();
   });
+
+  it("shows Swift-style diagnostic details for request context and refresh policy", () => {
+    render(
+      <DiagnosticsPage
+        settings={{
+          ...mockSettings,
+          autoRefreshInterval: "1h",
+          costlyRefreshInterval: "off",
+          proxy: { mode: "custom", customUrl: "socks5://127.0.0.1:7890" },
+        }}
+        providers={[
+          {
+            id: "brave",
+            displayName: "Brave",
+            familyName: "Brave",
+            category: "AI Search",
+            icon: "brave",
+            dashboardUrl: "https://api.search.brave.com/app/dashboard",
+            supportsReauth: false,
+            supportsRefresh: true,
+            quotaCheckConsumesSearchQuota: true,
+          },
+        ]}
+        credentials={[
+          {
+            id: "brave-low",
+            providerId: "brave",
+            name: "Brave Key",
+            kind: "apiKey",
+            maskedValue: "BSA••••82y2",
+            copyable: true,
+            active: true,
+            status: "failed",
+            remainingBadgeText: "Check failed",
+            quotaWindows: [],
+            resetAt: "2026-07-01T00:00:00+08:00",
+            lastUpdated: "2026-06-11T10:02:00+08:00",
+            lastHttpStatus: 429,
+            diagnosticMessage: "Brave quota endpoint returned HTTP 429",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Diagnostic details")).toBeInTheDocument();
+    expect(screen.getByText("Last HTTP status")).toBeInTheDocument();
+    expect(screen.getByText("Request proxy mode")).toBeInTheDocument();
+    expect(screen.getByText("Custom · socks5://127.0.0.1:7890")).toBeInTheDocument();
+    expect(screen.getByText("Reset")).toBeInTheDocument();
+    expect(screen.getByText("Automatic refresh")).toBeInTheDocument();
+    expect(screen.getByText("Skipped unless costly refresh is enabled")).toBeInTheDocument();
+  });
 });
 
 describe("SettingsPage", () => {
@@ -121,6 +174,30 @@ describe("SettingsPage", () => {
     expect(within(aiSearch).getByText("Brave")).toBeInTheDocument();
     expect(within(llm).getByText("Claude")).toBeInTheDocument();
     expect(within(llm).getByText("Kimi")).toBeInTheDocument();
+  });
+
+  it("edits custom proxy URLs when custom proxy mode is selected", () => {
+    const onSettingsChange = vi.fn();
+    render(
+      <SettingsPage
+        settings={{
+          ...mockSettings,
+          proxy: { mode: "custom", customUrl: "socks5://127.0.0.1:7890" },
+        }}
+        onSettingsChange={onSettingsChange}
+      />,
+    );
+
+    const input = screen.getByRole("textbox", { name: "Custom proxy URL" });
+    expect(input).toHaveValue("socks5://127.0.0.1:7890");
+
+    fireEvent.change(input, { target: { value: "http://127.0.0.1:8080" } });
+
+    expect(onSettingsChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        proxy: { mode: "custom", customUrl: "http://127.0.0.1:8080" },
+      }),
+    );
   });
 });
 

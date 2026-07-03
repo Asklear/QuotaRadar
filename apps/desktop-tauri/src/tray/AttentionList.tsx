@@ -17,6 +17,7 @@ import type { CredentialView } from "../shared/types";
 
 interface AttentionListProps {
   credentials: CredentialView[];
+  onOpenCredential?: (credential: CredentialView) => void | Promise<void>;
 }
 
 function itemLabel(credential: CredentialView) {
@@ -50,7 +51,7 @@ function attentionReason(credential: CredentialView, t: ReturnType<typeof useTra
   return formatCredentialStatus(credential.status, t);
 }
 
-export function AttentionList({ credentials }: AttentionListProps) {
+export function AttentionList({ credentials, onOpenCredential }: AttentionListProps) {
   const locale = useLocale();
   const t = useTranslate();
   const active = credentials.filter((credential) => credential.active);
@@ -76,7 +77,15 @@ export function AttentionList({ credentials }: AttentionListProps) {
         {favorites.map((credential) => {
           const provider = providerFor(credential);
           return (
-            <div key={credential.id} className="tray-provider-row" data-testid="favorite-item">
+            <button
+              key={credential.id}
+              type="button"
+              className="tray-provider-row"
+              data-testid="favorite-item"
+              onClick={() => {
+                void onOpenCredential?.(credential);
+              }}
+            >
               {provider ? <ProviderIcon provider={provider} /> : null}
               <div className="tray-provider-copy">
                 <div>
@@ -91,7 +100,7 @@ export function AttentionList({ credentials }: AttentionListProps) {
               <span className="tray-value-pill" data-tone="healthy">
                 {remainingText(credential, t)}
               </span>
-            </div>
+            </button>
           );
         })}
       </section>
@@ -103,7 +112,15 @@ export function AttentionList({ credentials }: AttentionListProps) {
         {lowCredentials.map((credential) => {
           const provider = providerFor(credential);
           return (
-            <div key={credential.id} className="tray-provider-row" data-testid="low-quota-item">
+            <button
+              key={credential.id}
+              type="button"
+              className="tray-provider-row"
+              data-testid="low-quota-item"
+              onClick={() => {
+                void onOpenCredential?.(credential);
+              }}
+            >
               {provider ? <ProviderIcon provider={provider} /> : null}
               <div className="tray-provider-copy">
                 <div>
@@ -118,7 +135,7 @@ export function AttentionList({ credentials }: AttentionListProps) {
               <span className="tray-value-pill" data-tone="warning">
                 {remainingText(credential, t)}
               </span>
-            </div>
+            </button>
           );
         })}
 
@@ -126,7 +143,15 @@ export function AttentionList({ credentials }: AttentionListProps) {
         {expiringCredentials.map((credential) => {
           const provider = providerFor(credential);
           return (
-            <div key={credential.id} className="tray-provider-row" data-testid="expiring-item">
+            <button
+              key={credential.id}
+              type="button"
+              className="tray-provider-row"
+              data-testid="expiring-item"
+              onClick={() => {
+                void onOpenCredential?.(credential);
+              }}
+            >
               {provider ? <ProviderIcon provider={provider} /> : null}
               <div className="tray-provider-copy">
                 <div>
@@ -143,7 +168,7 @@ export function AttentionList({ credentials }: AttentionListProps) {
               <span className="tray-value-pill" data-tone="warning">
                 {remainingText(credential, t)}
               </span>
-            </div>
+            </button>
           );
         })}
 
@@ -151,7 +176,15 @@ export function AttentionList({ credentials }: AttentionListProps) {
         {needsAttention.map((credential) => {
           const provider = providerFor(credential);
           return (
-            <div key={credential.id} className="tray-provider-row" data-testid="needs-attention-item">
+            <button
+              key={credential.id}
+              type="button"
+              className="tray-provider-row"
+              data-testid="needs-attention-item"
+              onClick={() => {
+                void onOpenCredential?.(credential);
+              }}
+            >
               {provider ? <ProviderIcon provider={provider} /> : null}
               <div className="tray-provider-copy">
                 <div>
@@ -168,7 +201,7 @@ export function AttentionList({ credentials }: AttentionListProps) {
               <span className="tray-value-pill" data-tone="attention">
                 {remainingText(credential, t)}
               </span>
-            </div>
+            </button>
           );
         })}
       </section>
