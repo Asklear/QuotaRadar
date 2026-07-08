@@ -34,7 +34,7 @@ export function SidebarUpdateFooter({
   );
 }
 
-function updateStatusLabel(updateState: UpdateState, t: ReturnType<typeof useTranslate>) {
+export function updateStatusLabel(updateState: UpdateState, t: ReturnType<typeof useTranslate>) {
   switch (updateState.status) {
     case "available":
       return t("update.available").replace("{version}", updateState.latestVersion ?? "").trim();

@@ -267,7 +267,7 @@ export default function App() {
         onSettingsChange={handleSettingsChange}
       />
     ),
-    about: <AboutPage />,
+    about: <AboutPage updateState={updateState} onCheckForUpdates={handleCheckForUpdates} />,
   }[activePage];
   const webAuthorizationAlert = webAuthorizationError
     ? `${translate("app.webAuthorizationFailed", locale)} ${formatSystemDisplayText(

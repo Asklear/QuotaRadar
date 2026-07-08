@@ -4,7 +4,8 @@
 }
 
 .settings-section,
-.about-card {
+.about-card,
+.about-update-panel {
   overflow: hidden;
   border: 1px solid var(--qr-color-border);
   border-radius: var(--qr-radius-panel);
@@ -242,8 +243,10 @@
 
 .about-page {
   display: grid;
+  gap: 12px;
   min-height: 100%;
-  place-items: start center;
+  justify-items: center;
+  align-content: start;
 }
 
 .about-card {
@@ -299,4 +302,55 @@
 .about-card dd {
   margin: 0;
   font-size: 12px;
+}
+
+.about-update-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(170px, auto) auto;
+  gap: 16px;
+  align-items: center;
+  width: min(520px, 100%);
+  padding: 14px 16px;
+}
+
+.about-update-panel h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.about-update-panel p {
+  margin: 3px 0 0;
+  color: var(--qr-color-muted);
+  font-size: 11px;
+}
+
+.about-update-panel dl {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+
+.about-update-panel dt {
+  color: var(--qr-color-muted);
+  font-size: 11px;
+}
+
+.about-update-panel dd {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.about-update-panel button {
+  display: inline-flex;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--qr-color-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--qr-color-text);
+  padding: 0 10px;
+  white-space: nowrap;
 }

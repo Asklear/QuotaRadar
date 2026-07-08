@@ -226,4 +226,27 @@ describe("AboutPage", () => {
     expect(screen.queryByText("Tauri desktop preview")).not.toBeInTheDocument();
     expect(screen.queryByText("Platform target")).not.toBeInTheDocument();
   });
+
+  it("shows version and update status with an explicit update check action", () => {
+    const onCheckForUpdates = vi.fn();
+
+    render(
+      <AboutPage
+        updateState={{
+          currentVersion: "0.4.0",
+          latestVersion: "0.4.1",
+          status: "available",
+          releaseNotes: "Provider login fixes",
+        }}
+        onCheckForUpdates={onCheckForUpdates}
+      />,
+    );
+
+    expect(screen.getByText("v0.4.0 preview")).toBeInTheDocument();
+    expect(screen.getByText("Update 0.4.1 available")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Check for updates" }));
+
+    expect(onCheckForUpdates).toHaveBeenCalledTimes(1);
+  });
 });

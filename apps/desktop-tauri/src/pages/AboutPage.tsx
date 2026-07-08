@@ -1,7 +1,18 @@
-import { Radar } from "lucide-react";
+import { Radar, RefreshCw } from "lucide-react";
 import { useTranslate } from "../i18n";
+import { mockUpdateState } from "../lib/tauriClient";
+import type { UpdateState } from "../shared/types";
+import { updateStatusLabel } from "../shell/SidebarUpdateFooter";
 
-export function AboutPage() {
+interface AboutPageProps {
+  updateState?: UpdateState;
+  onCheckForUpdates?: () => void;
+}
+
+export function AboutPage({
+  updateState = mockUpdateState,
+  onCheckForUpdates,
+}: AboutPageProps) {
   const t = useTranslate();
 
   return (
@@ -28,6 +39,22 @@ export function AboutPage() {
             <dd>{t("about.dataPolicyValue")}</dd>
           </div>
         </dl>
+      </section>
+      <section className="about-update-panel">
+        <div>
+          <h2>{t("settings.checkForUpdates")}</h2>
+          <p>{t("settings.checkForUpdatesDescription")}</p>
+        </div>
+        <dl>
+          <div>
+            <dt>{t("update.versionPreview").replace("{version}", updateState.currentVersion)}</dt>
+            <dd>{updateStatusLabel(updateState, t)}</dd>
+          </div>
+        </dl>
+        <button type="button" onClick={onCheckForUpdates}>
+          <RefreshCw size={15} />
+          {t("update.check")}
+        </button>
       </section>
     </div>
   );
