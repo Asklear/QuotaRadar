@@ -34,7 +34,13 @@ import type {
   ProviderDefinition,
   WebAuthorizationSession,
 } from "./shared/types";
-import { formatSystemDisplayText, LocaleContext, normalizeLocale, translate } from "./i18n";
+import {
+  formatSystemDisplayText,
+  LocaleContext,
+  normalizeLocale,
+  translate,
+  type LocaleCode,
+} from "./i18n";
 
 function orderProviders(providers: ProviderDefinition[], providerOrder: string[]) {
   const order = new Map(providerOrder.map((providerId, index) => [providerId, index]));
@@ -51,7 +57,8 @@ export default function App() {
   const [appState, setAppState] = useState(mockAppState);
   const [settings, setSettings] = useState(mockSettings);
   const [updateState, setUpdateState] = useState(mockUpdateState);
-  const [webAuthorizationError, setWebAuthorizationError] = useState<string | undefined>();
+  const [webAuthorizationAlertState, setWebAuthorizationAlertState] =
+    useState<WebAuthorizationAlertState>();
   const [manualRefreshFailure, setManualRefreshFailure] = useState<ProviderRefreshFailure>();
   const [lastWebAuthorizationSaved, setLastWebAuthorizationSaved] = useState<CredentialView>();
   const isTrayView = new URLSearchParams(window.location.search).get("view") === "tray";
@@ -91,7 +98,9 @@ export default function App() {
         refreshError = `Saved authorization, but quota refresh failed: ${errorMessage(error)}`;
       }
       if (!cancelled) {
-        setWebAuthorizationError(refreshError);
+        setWebAuthorizationAlertState(
+          refreshError ? { kind: "savedRefreshFailure", message: refreshError } : undefined,
+        );
         setManualRefreshFailure(undefined);
         setAppState(state);
         setLastWebAuthorizationSaved(credential);
@@ -136,7 +145,10 @@ export default function App() {
 
     void listenForWebAuthorizationFailed((failure) => {
       if (!cancelled) {
-        setWebAuthorizationError(failure.message);
+        setWebAuthorizationAlertState({
+          kind: "authorizationFailure",
+          message: failure.message,
+        });
       }
     }).then((listener) => {
       unsubscribe = listener;
@@ -184,7 +196,7 @@ export default function App() {
 
   async function handleRefreshProvider(providerId: string) {
     setManualRefreshFailure(undefined);
-    setWebAuthorizationError(undefined);
+    setWebAuthorizationAlertState(undefined);
     const state = await refreshProvider(providerId, "manual");
     setAppState(state);
     setManualRefreshFailure(providerRefreshFailure(state, providerId));
@@ -192,7 +204,7 @@ export default function App() {
 
   async function handleResetCodexQuota(credentialId: string) {
     setManualRefreshFailure(undefined);
-    setWebAuthorizationError(undefined);
+    setWebAuthorizationAlertState(undefined);
     try {
       const state = await resetCodexQuota(credentialId);
       setAppState(state);
@@ -217,7 +229,7 @@ export default function App() {
     targetCredentialId?: string,
     targetName?: string,
   ): Promise<WebAuthorizationSession> {
-    setWebAuthorizationError(undefined);
+    setWebAuthorizationAlertState(undefined);
     setManualRefreshFailure(undefined);
     return startWebAuthorization(providerId, targetCredentialId, targetName);
   }
@@ -269,11 +281,8 @@ export default function App() {
     ),
     about: <AboutPage updateState={updateState} onCheckForUpdates={handleCheckForUpdates} />,
   }[activePage];
-  const webAuthorizationAlert = webAuthorizationError
-    ? `${translate("app.webAuthorizationFailed", locale)} ${formatSystemDisplayText(
-        webAuthorizationError,
-        (key) => translate(key, locale),
-      )}`
+  const webAuthorizationAlert = webAuthorizationAlertState
+    ? formatWebAuthorizationAlert(webAuthorizationAlertState, locale)
     : undefined;
   const manualRefreshAlert = manualRefreshFailure
     ? translate("app.providerRefreshFailed", locale)
@@ -309,6 +318,18 @@ export default function App() {
 interface ProviderRefreshFailure {
   providerName: string;
   message: string;
+}
+
+interface WebAuthorizationAlertState {
+  kind: "authorizationFailure" | "savedRefreshFailure";
+  message: string;
+}
+
+function formatWebAuthorizationAlert(state: WebAuthorizationAlertState, locale: LocaleCode) {
+  const message = formatSystemDisplayText(state.message, (key) => translate(key, locale));
+  return state.kind === "savedRefreshFailure"
+    ? message
+    : `${translate("app.webAuthorizationFailed", locale)} ${message}`;
 }
 
 function providerRefreshFailure(state: AppState, providerId: string): ProviderRefreshFailure | undefined {

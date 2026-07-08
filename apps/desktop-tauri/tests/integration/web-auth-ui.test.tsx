@@ -323,8 +323,8 @@ describe("web authorization UI shell", () => {
     eventHandlers.get("web_authorization_saved")?.({ payload: claudeAuthorization });
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("网页登录授权失败");
     expect(alert).toHaveTextContent("授权已保存，但额度刷新失败：provider unavailable");
+    expect(alert).not.toHaveTextContent("网页登录授权失败");
     expect(alert).not.toHaveTextContent("Saved authorization");
     expect(alert).not.toHaveTextContent("quota refresh failed");
   });
@@ -377,9 +377,9 @@ describe("web authorization UI shell", () => {
     eventHandlers.get("web_authorization_saved")?.({ payload: claudeAuthorization });
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Web login authorization failed:");
     expect(alert).toHaveTextContent("Authorization saved, but quota refresh failed:");
     expect(alert).toHaveTextContent("Claude web login authorization is required");
+    expect(alert).not.toHaveTextContent("Web login authorization failed:");
   });
 
   it("shows a recoverable error when desktop web authorization capture fails", async () => {
