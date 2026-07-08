@@ -67,6 +67,7 @@ pub struct WebAuthorizationWindowRequest {
     pub target_credential_id: Option<String>,
     pub target_name: Option<String>,
     pub login_url: String,
+    pub locale: String,
 }
 
 #[derive(Debug, Clone)]
@@ -165,6 +166,7 @@ pub fn open_web_authorization_window<R: Runtime>(
     let app_for_title = app.clone();
     let capture_session_for_title = capture_session.clone();
 
+    let initialization_script = web_auth_control_initialization_script(&request.locale);
     let window =
         WebviewWindowBuilder::new(app, &label, WebviewUrl::App(load_plan.initial_route.into()))
             .title(format!("Quota Radar - {}", request.provider_id))
@@ -172,7 +174,7 @@ pub fn open_web_authorization_window<R: Runtime>(
             .min_inner_size(520.0, 600.0)
             .center()
             .focused(true)
-            .initialization_script(web_auth_control_initialization_script())
+            .initialization_script(&initialization_script)
             .on_document_title_changed(move |window, title| match web_auth_control_signal(&title) {
                 Some(WebAuthControlAction::Save) => {
                     schedule_manual_capture_attempt(
@@ -222,7 +224,8 @@ pub fn open_web_authorization_window<R: Runtime>(
     Ok(())
 }
 
-fn web_auth_control_initialization_script() -> &'static str {
+fn web_auth_control_initialization_script(locale: &str) -> String {
+    let labels = web_auth_control_labels(locale);
     r#"
 (() => {
   const saveSignal = '__QUOTARADAR_WEB_AUTH_SAVE__:';
@@ -271,7 +274,7 @@ fn web_auth_control_initialization_script() -> &'static str {
     controls.className = 'qr-auth-controls';
     const cancel = document.createElement('button');
     cancel.type = 'button';
-    cancel.textContent = 'Cancel / 取消';
+    cancel.textContent = '__QUOTARADAR_CANCEL_LABEL__';
     cancel.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -280,7 +283,7 @@ fn web_auth_control_initialization_script() -> &'static str {
     const save = document.createElement('button');
     save.type = 'button';
     save.dataset.primary = 'true';
-    save.textContent = 'Save / 保存';
+    save.textContent = '__QUOTARADAR_SAVE_LABEL__';
     save.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -298,6 +301,39 @@ fn web_auth_control_initialization_script() -> &'static str {
   setTimeout(installControls, 500);
 })();
 "#
+    .replace("__QUOTARADAR_CANCEL_LABEL__", labels.cancel)
+    .replace("__QUOTARADAR_SAVE_LABEL__", labels.save)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct WebAuthControlLabels {
+    save: &'static str,
+    cancel: &'static str,
+}
+
+fn web_auth_control_labels(locale: &str) -> WebAuthControlLabels {
+    match locale {
+        "zh-Hans" => WebAuthControlLabels {
+            save: "保存",
+            cancel: "取消",
+        },
+        "zh-Hant" => WebAuthControlLabels {
+            save: "儲存",
+            cancel: "取消",
+        },
+        "ja" => WebAuthControlLabels {
+            save: "保存",
+            cancel: "キャンセル",
+        },
+        "ko" => WebAuthControlLabels {
+            save: "저장",
+            cancel: "취소",
+        },
+        _ => WebAuthControlLabels {
+            save: "Save",
+            cancel: "Cancel",
+        },
+    }
 }
 
 fn web_auth_control_signal(title: &str) -> Option<WebAuthControlAction> {
@@ -1190,6 +1226,16 @@ mod tests {
     }
 
     #[test]
+    fn web_auth_controls_follow_requested_locale_labels() {
+        let script = web_auth_control_initialization_script("zh-Hans");
+
+        assert!(script.contains("cancel.textContent = '取消';"));
+        assert!(script.contains("save.textContent = '保存';"));
+        assert!(!script.contains("Cancel / 取消"));
+        assert!(!script.contains("Save / 保存"));
+    }
+
+    #[test]
     fn capture_errors_use_the_same_exhausting_retry_policy() {
         let retry_count = automatic_retry_delays("xfyun_coding_plan").len();
 
@@ -1313,12 +1359,12 @@ mod tests {
 
     #[test]
     fn web_auth_control_script_exposes_manual_save_and_cancel_controls() {
-        let script = web_auth_control_initialization_script();
+        let script = web_auth_control_initialization_script("en");
 
         assert!(script.contains(WEB_AUTH_CONTROL_SAVE_SIGNAL));
         assert!(script.contains(WEB_AUTH_CONTROL_CANCEL_SIGNAL));
-        assert!(script.contains("Save / 保存"));
-        assert!(script.contains("Cancel / 取消"));
+        assert!(script.contains("save.textContent = 'Save';"));
+        assert!(script.contains("cancel.textContent = 'Cancel';"));
     }
 
     #[test]

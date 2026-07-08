@@ -1,4 +1,5 @@
 use serde_json::json;
+use std::cell::RefCell;
 
 use crate::{
     domain::CredentialKind,
@@ -41,11 +42,33 @@ fn start_web_authorization_returns_window_scheduling_errors_to_caller() {
         "opencode_go".to_string(),
         None,
         None,
+        "en",
         &credentials,
         |_request| Err("window builder failed".to_string()),
     );
 
     assert_eq!(result, Err("window builder failed".to_string()));
+}
+
+#[test]
+fn start_web_authorization_passes_locale_to_window_request() {
+    let scheduled_locale = RefCell::new(None);
+    let credentials = vec![];
+
+    start_web_authorization_from_credentials(
+        "claude".to_string(),
+        None,
+        Some("Claude Web Login".to_string()),
+        "ko",
+        &credentials,
+        |request| {
+            scheduled_locale.replace(Some(request.locale));
+            Ok(())
+        },
+    )
+    .expect("web authorization should start");
+
+    assert_eq!(scheduled_locale.into_inner().as_deref(), Some("ko"));
 }
 
 #[test]

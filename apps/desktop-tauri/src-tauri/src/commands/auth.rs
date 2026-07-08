@@ -10,7 +10,9 @@ use crate::{
     },
     providers::registry::visible_provider_definitions,
     storage::{
-        metadata_store::{load_credentials, save_credentials, MetadataStore, TauriMetadataStore},
+        metadata_store::{
+            load_credentials, load_settings, save_credentials, MetadataStore, TauriMetadataStore,
+        },
         secret_store::{
             build_credential_metadata, save_secret, CredentialSecretInput, SecretVault,
             TauriSecretVault,
@@ -45,10 +47,12 @@ pub fn start_web_authorization<R: Runtime + 'static>(
 ) -> Result<WebAuthorizationSession, String> {
     let metadata_store = TauriMetadataStore::open(&app)?;
     let credentials = load_credentials(&metadata_store)?;
+    let settings = load_settings(&metadata_store)?;
     start_web_authorization_from_credentials(
         provider_id,
         target_credential_id,
         target_name,
+        &settings.language,
         &credentials,
         |request| schedule_web_authorization_window(&app, request),
     )
@@ -58,6 +62,7 @@ pub fn start_web_authorization_from_credentials(
     provider_id: String,
     target_credential_id: Option<String>,
     target_name: Option<String>,
+    locale: &str,
     credentials: &[CredentialView],
     schedule_window: impl FnOnce(WebAuthorizationWindowRequest) -> Result<(), String>,
 ) -> Result<WebAuthorizationSession, String> {
@@ -88,6 +93,7 @@ pub fn start_web_authorization_from_credentials(
         target_credential_id,
         target_name: resolved_target_name.map(ToString::to_string),
         login_url,
+        locale: locale.to_string(),
     })?;
 
     Ok(WebAuthorizationSession {
