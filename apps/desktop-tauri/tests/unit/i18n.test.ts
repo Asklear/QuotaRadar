@@ -5,14 +5,35 @@ import zhHans from "../../src/i18n/locales/zh-Hans.json";
 import zhHant from "../../src/i18n/locales/zh-Hant.json";
 import ja from "../../src/i18n/locales/ja.json";
 import ko from "../../src/i18n/locales/ko.json";
+import enSource from "../../src/i18n/locales/en.json?raw";
+import zhHansSource from "../../src/i18n/locales/zh-Hans.json?raw";
+import zhHantSource from "../../src/i18n/locales/zh-Hant.json?raw";
+import jaSource from "../../src/i18n/locales/ja.json?raw";
+import koSource from "../../src/i18n/locales/ko.json?raw";
 
 const locales = { zhHans, zhHant, ja, ko };
+const localeSources = {
+  en: enSource,
+  "zh-Hans": zhHansSource,
+  "zh-Hant": zhHantSource,
+  ja: jaSource,
+  ko: koSource,
+};
 
 describe("i18n", () => {
   it("keeps all non-English locales structurally complete", () => {
     const englishKeys = Object.keys(en).sort();
     for (const [locale, messages] of Object.entries(locales)) {
       expect(Object.keys(messages).sort(), locale).toEqual(englishKeys);
+    }
+  });
+
+  it("does not hide duplicate locale keys in JSON files", () => {
+    for (const [locale, source] of Object.entries(localeSources)) {
+      const keys = [...source.matchAll(/^\s+"([^"]+)":/gm)].map((match) => match[1]);
+      const duplicates = keys.filter((key, index) => keys.indexOf(key) !== index);
+
+      expect([...new Set(duplicates)], locale).toEqual([]);
     }
   });
 
@@ -126,6 +147,38 @@ describe("i18n", () => {
     ).toBe(
       "无法读取 Claude 设置文件 C:\\Users\\qrtest\\.claude\\settings.json：os error 2",
     );
+  });
+
+  it("localizes backend command errors that can surface in alerts", () => {
+    const t = (key: keyof typeof en) => translate(key, "zh-Hans");
+
+    expect(
+      formatSystemDisplayText("Codex reset credits are only supported for Codex credentials", t),
+    ).toBe("Codex 重置次数仅支持 Codex 凭据");
+    expect(
+      formatSystemDisplayText("Codex reset credits require web login authorization", t),
+    ).toBe("Codex 重置次数需要网页登录授权");
+    expect(formatSystemDisplayText("external URL must use http or https", t)).toBe(
+      "外部链接必须使用 http 或 https",
+    );
+    expect(
+      formatSystemDisplayText(
+        "failed to open external URL: 系统找不到指定的文件。 (os error 2)",
+        t,
+      ),
+    ).toBe("无法打开外部链接：系统找不到指定的文件。 (os error 2)");
+    expect(
+      formatSystemDisplayText(
+        "Could not open the web login window: 系统找不到指定的文件。 (os error 2)",
+        t,
+      ),
+    ).toBe("无法打开网页登录窗口：系统找不到指定的文件。 (os error 2)");
+    expect(
+      formatSystemDisplayText("kimi does not support automatic web authorization capture", t),
+    ).toBe("kimi 不支持自动网页登录授权捕获");
+    expect(
+      formatSystemDisplayText("Could not save web login authorization: keyring unavailable", t),
+    ).toBe("无法保存网页登录授权：keyring unavailable");
   });
 
   it("localizes web authorization timeout capture errors", () => {

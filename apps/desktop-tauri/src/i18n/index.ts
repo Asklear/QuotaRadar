@@ -81,6 +81,13 @@ const systemDisplayTextKeys: Record<string, MessageKey> = {
   "Credential value is not copyable": "credentialError.valueNotCopyable",
   "Changing provider or credential type requires a replacement secret":
     "credentialError.replacementSecretRequired",
+  "Codex reset credits are only supported for Codex credentials":
+    "credentialError.codexResetProviderOnly",
+  "Codex reset credits require web login authorization":
+    "credentialError.codexResetRequiresWebLogin",
+  "external URL is empty": "externalUrl.empty",
+  "external URL contains whitespace": "externalUrl.containsWhitespace",
+  "external URL must use http or https": "externalUrl.invalidScheme",
   "Choose an authorization target": "webAuth.chooseAuthorizationTarget",
   "Provider does not have a web authorization URL": "webAuth.providerUrlMissing",
   "Web authorization URL must be http or https": "webAuth.invalidUrlScheme",
@@ -336,6 +343,31 @@ export function formatSystemDisplayText(
   const webLoginRequiredMatch = text.match(/^(.+) web login authorization is required$/);
   if (webLoginRequiredMatch?.[1]) {
     return t("webAuth.loginRequired").replace("{provider}", webLoginRequiredMatch[1]);
+  }
+
+  const externalUrlOpenFailedMatch = text.match(/^failed to open external URL: (.+)$/);
+  if (externalUrlOpenFailedMatch?.[1]) {
+    return t("externalUrl.openFailed").replace("{message}", externalUrlOpenFailedMatch[1]);
+  }
+
+  const webAuthUnsupportedCaptureMatch = text.match(
+    /^(.+) does not support automatic web authorization capture$/,
+  );
+  if (webAuthUnsupportedCaptureMatch?.[1]) {
+    return t("webAuth.unsupportedCapture").replace(
+      "{provider}",
+      webAuthUnsupportedCaptureMatch[1],
+    );
+  }
+
+  const webAuthOpenWindowFailedMatch = text.match(/^Could not open the web login window: (.+)$/);
+  if (webAuthOpenWindowFailedMatch?.[1]) {
+    return t("webAuth.openWindowFailed").replace("{message}", webAuthOpenWindowFailedMatch[1]);
+  }
+
+  const webAuthSaveFailedMatch = text.match(/^Could not save web login authorization: (.+)$/);
+  if (webAuthSaveFailedMatch?.[1]) {
+    return t("webAuth.saveFailed").replace("{message}", webAuthSaveFailedMatch[1]);
   }
 
   const structuredQuotaLabel = formatStructuredQuotaLabel(text, t);
