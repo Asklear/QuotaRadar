@@ -1,7 +1,9 @@
 use super::metadata_store::{
     default_settings, load_settings, move_provider_in_settings, save_settings, MemoryMetadataStore,
+    MetadataStore,
 };
 use crate::domain::{ProxyMode, RefreshInterval};
+use serde_json::json;
 
 #[test]
 fn default_settings_include_stable_provider_order_and_refresh_policy() {
@@ -52,7 +54,68 @@ fn settings_round_trip_through_metadata_store() {
     save_settings(&store, &settings).expect("settings should save");
     let loaded = load_settings(&store).expect("settings should load");
 
-    assert_eq!(loaded, settings);
+    assert_eq!(loaded.language, settings.language);
+    assert_eq!(loaded.proxy, settings.proxy);
+    assert_eq!(loaded.auto_refresh_interval, settings.auto_refresh_interval);
+    assert_eq!(
+        loaded.costly_refresh_interval,
+        settings.costly_refresh_interval
+    );
+    assert_eq!(&loaded.provider_order[..3], ["kimi", "tavily", "brave"]);
+    assert_eq!(
+        loaded.provider_order.len(),
+        default_settings().provider_order.len()
+    );
+}
+
+#[test]
+fn load_settings_sanitizes_stale_provider_order_from_older_builds() {
+    let store = MemoryMetadataStore::default();
+    store.set_value(
+        "settings",
+        json!({
+            "language": "en",
+            "launchAtLogin": false,
+            "updateCheck": true,
+            "autoRefreshInterval": "off",
+            "costlyRefreshInterval": "off",
+            "proxy": {
+                "mode": "system",
+                "customUrl": null
+            },
+            "trayTransparency": 82,
+            "providerOrder": [
+                "kimi",
+                "unknown_provider",
+                "tavily",
+                "kimi"
+            ]
+        }),
+    );
+
+    let loaded = load_settings(&store).expect("settings should load");
+
+    assert_eq!(&loaded.provider_order[..2], ["kimi", "tavily"]);
+    assert!(!loaded
+        .provider_order
+        .iter()
+        .any(|provider| provider == "unknown_provider"));
+    assert_eq!(
+        loaded
+            .provider_order
+            .iter()
+            .filter(|provider| provider.as_str() == "kimi")
+            .count(),
+        1
+    );
+    assert_eq!(
+        loaded.provider_order.len(),
+        default_settings().provider_order.len()
+    );
+    assert_eq!(
+        loaded.provider_order.last().map(String::as_str),
+        Some("tencent_cloud_coding_plan")
+    );
 }
 
 #[test]

@@ -13,8 +13,28 @@ interface ProviderOrderDialogProps {
 
 const categories: ProviderCategory[] = ["AI Search", "LLM"];
 
-function orderIndex(providerOrder: string[] | undefined, providerId: string) {
-  const index = providerOrder?.indexOf(providerId) ?? -1;
+function buildEffectiveProviderOrder(providerOrder: string[] | undefined) {
+  const providerIds = providerRegistry.map((provider) => provider.id);
+  const providerIdSet = new Set(providerIds);
+  const effectiveProviderOrder: string[] = [];
+
+  for (const providerId of providerOrder ?? []) {
+    if (providerIdSet.has(providerId) && !effectiveProviderOrder.includes(providerId)) {
+      effectiveProviderOrder.push(providerId);
+    }
+  }
+
+  for (const providerId of providerIds) {
+    if (!effectiveProviderOrder.includes(providerId)) {
+      effectiveProviderOrder.push(providerId);
+    }
+  }
+
+  return effectiveProviderOrder;
+}
+
+function orderIndex(effectiveProviderOrder: string[], providerId: string) {
+  const index = effectiveProviderOrder.indexOf(providerId);
   return index === -1 ? Number.MAX_SAFE_INTEGER : index;
 }
 
@@ -31,8 +51,9 @@ export function ProviderOrderDialog({
     return null;
   }
 
+  const effectiveProviderOrder = buildEffectiveProviderOrder(providerOrder);
   const orderedProviders = [...providerRegistry].sort((left, right) => {
-    return orderIndex(providerOrder, left.id) - orderIndex(providerOrder, right.id);
+    return orderIndex(effectiveProviderOrder, left.id) - orderIndex(effectiveProviderOrder, right.id);
   });
 
   function moveInsideCategory(providerId: string, category: ProviderCategory, direction: -1 | 1) {
@@ -40,11 +61,11 @@ export function ProviderOrderDialog({
     const categoryIndex = categoryProviders.findIndex((provider) => provider.id === providerId);
     const target = categoryProviders[categoryIndex + direction];
 
-    if (!target || !providerOrder) {
+    if (!target) {
       return;
     }
 
-    void onMoveProvider?.(providerId, providerOrder.indexOf(target.id));
+    void onMoveProvider?.(providerId, effectiveProviderOrder.indexOf(target.id));
   }
 
   return (

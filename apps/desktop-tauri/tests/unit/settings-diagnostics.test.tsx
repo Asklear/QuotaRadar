@@ -176,6 +176,22 @@ describe("SettingsPage", () => {
     expect(within(llm).getByText("Kimi")).toBeInTheDocument();
   });
 
+  it("moves providers against a completed order when saved provider order is stale", () => {
+    const onMoveProvider = vi.fn();
+    render(
+      <SettingsPage
+        settings={{ ...mockSettings, providerOrder: ["tavily"] }}
+        onMoveProvider={onMoveProvider}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Customize provider order" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move Exa up" }));
+
+    expect(onMoveProvider).toHaveBeenCalledWith("exa", 3);
+    expect(onMoveProvider).not.toHaveBeenCalledWith("exa", -1);
+  });
+
   it("edits custom proxy URLs when custom proxy mode is selected", () => {
     const onSettingsChange = vi.fn();
     render(

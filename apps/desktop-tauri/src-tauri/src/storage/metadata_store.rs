@@ -73,13 +73,41 @@ pub fn load_settings(store: &impl MetadataStore) -> Result<AppSettings, String> 
         return Ok(default_settings());
     };
 
-    serde_json::from_value(value).map_err(|error| error.to_string())
+    let mut settings: AppSettings =
+        serde_json::from_value(value).map_err(|error| error.to_string())?;
+    sanitize_settings(&mut settings);
+    Ok(settings)
 }
 
 pub fn save_settings(store: &impl MetadataStore, settings: &AppSettings) -> Result<(), String> {
+    let mut settings = settings.clone();
+    sanitize_settings(&mut settings);
     let value = serde_json::to_value(settings).map_err(|error| error.to_string())?;
     store.set_value(SETTINGS_KEY, value);
     store.save()
+}
+
+fn sanitize_settings(settings: &mut AppSettings) {
+    settings.provider_order = sanitized_provider_order(&settings.provider_order);
+}
+
+fn sanitized_provider_order(provider_order: &[String]) -> Vec<String> {
+    let defaults = default_provider_order();
+    let mut sanitized = Vec::new();
+
+    for provider in provider_order {
+        if defaults.contains(provider) && !sanitized.contains(provider) {
+            sanitized.push(provider.clone());
+        }
+    }
+
+    for provider in defaults {
+        if !sanitized.contains(&provider) {
+            sanitized.push(provider);
+        }
+    }
+
+    sanitized
 }
 
 pub fn load_credentials(store: &impl MetadataStore) -> Result<Vec<CredentialView>, String> {
