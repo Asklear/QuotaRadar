@@ -179,4 +179,42 @@ describe("QuotaMonitoringPage", () => {
     expect(screen.getAllByText("授权已保存").length).toBeGreaterThan(0);
     expect(screen.queryByText("Web login saved")).not.toBeInTheDocument();
   });
+
+  it("shows localized quota window remaining text in credential details", () => {
+    const kimiProvider = providerRegistry.find((provider) => provider.id === "kimi");
+
+    render(
+      <LocaleContext.Provider value="zh-Hans">
+        <QuotaMonitoringPage
+          providers={kimiProvider ? [kimiProvider] : []}
+          credentials={[
+            {
+              id: "kimi-coding-quota",
+              providerId: "kimi",
+              name: "Kimi Coding",
+              kind: "dashboardCookie",
+              maskedValue: "Web login saved",
+              copyable: false,
+              active: true,
+              status: "healthy",
+              remainingBadgeText: "88 / 100 monthly requests",
+              quotaWindows: [
+                {
+                  name: "month",
+                  percentRemaining: 88,
+                  remainingText: "88 / 100 monthly requests",
+                  resetAt: "2026-07-01T00:00:00+08:00",
+                },
+              ],
+            },
+          ]}
+        />
+      </LocaleContext.Provider>,
+    );
+
+    fireEvent.click(screen.getByText("Kimi"));
+
+    expect(screen.getByText("月 · 88 / 100 月度请求 · 88%")).toBeInTheDocument();
+    expect(screen.queryByText("88 / 100 monthly requests")).not.toBeInTheDocument();
+  });
 });

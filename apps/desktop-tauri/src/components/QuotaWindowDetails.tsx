@@ -1,4 +1,4 @@
-import { formatQuotaWindowName, useTranslate } from "../i18n";
+import { formatQuotaWindowName, formatSystemDisplayText, useTranslate } from "../i18n";
 import type { QuotaWindow } from "../shared/types";
 
 interface QuotaWindowDetailsProps {
@@ -16,8 +16,13 @@ export function QuotaWindowDetails({ windows }: QuotaWindowDetailsProps) {
     <div className="quota-window-list">
       {windows.map((window) => (
         <span key={`${window.name}-${window.resetAt ?? "none"}`} className="quota-window-chip">
-          {formatQuotaWindowName(window, t)}
-          {typeof window.percentRemaining === "number" ? ` ${window.percentRemaining}%` : ""}
+          {[
+            formatQuotaWindowName(window, t),
+            window.remainingText ? formatSystemDisplayText(window.remainingText, t) : undefined,
+            typeof window.percentRemaining === "number" ? `${window.percentRemaining}%` : undefined,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
       ))}
     </div>
