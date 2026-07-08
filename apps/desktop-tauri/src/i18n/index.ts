@@ -111,6 +111,27 @@ const providerErrorExactKeys: Record<string, MessageKey> = Object.fromEntries(
   providerErrorPrefixKeys.map(([prefix, key]) => [prefix.trimEnd().replace(/:$/, ""), key]),
 ) as Record<string, MessageKey>;
 
+const providerDiagnosticServiceKeys: Record<string, MessageKey> = {
+  account: "providerDiagnostic.service.account",
+  "account id": "providerDiagnostic.service.accountId",
+  "account quota": "providerDiagnostic.service.accountQuota",
+  balance: "providerDiagnostic.service.balance",
+  "billing usage": "providerDiagnostic.service.billingUsage",
+  "coding plan": "providerDiagnostic.service.codingPlan",
+  "management usage": "providerDiagnostic.service.managementUsage",
+  organization: "providerDiagnostic.service.organization",
+  organizations: "providerDiagnostic.service.organizations",
+  quota: "providerDiagnostic.service.quota",
+  "reset credits": "providerDiagnostic.service.resetCredits",
+  Search: "providerDiagnostic.service.search",
+  "server function": "providerDiagnostic.service.serverFunction",
+  session: "providerDiagnostic.service.session",
+  subscription: "providerDiagnostic.service.subscription",
+  usage: "providerDiagnostic.service.usage",
+  "usage quota": "providerDiagnostic.service.usageQuota",
+  "user-info": "providerDiagnostic.service.userInfo",
+};
+
 const decimalNumberPattern = String.raw`([0-9]+(?:\.[0-9]+)?)`;
 
 const structuredQuotaLabelPatterns: Array<{
@@ -245,6 +266,36 @@ function formatStructuredQuotaLabel(
   return undefined;
 }
 
+function escapeRegExp(text: string) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function providerDiagnosticServiceLabel(
+  service: string,
+  t: (key: MessageKey) => string,
+) {
+  const key = providerDiagnosticServiceKeys[service];
+  return key ? t(key) : service;
+}
+
+function formatProviderServiceDiagnostic(
+  text: string,
+  patternForService: (service: string) => RegExp,
+  formatter: (provider: string, service: string, match: RegExpMatchArray) => string,
+) {
+  const services = Object.keys(providerDiagnosticServiceKeys).sort(
+    (left, right) => right.length - left.length,
+  );
+  for (const service of services) {
+    const match = text.match(patternForService(service));
+    if (match?.[1]) {
+      return formatter(match[1], service, match);
+    }
+  }
+
+  return undefined;
+}
+
 export function formatSystemDisplayText(
   text: string,
   t: (key: MessageKey) => string = (key) => translate(key),
@@ -343,6 +394,74 @@ export function formatSystemDisplayText(
   const webLoginRequiredMatch = text.match(/^(.+) web login authorization is required$/);
   if (webLoginRequiredMatch?.[1]) {
     return t("webAuth.loginRequired").replace("{provider}", webLoginRequiredMatch[1]);
+  }
+
+  const endpointHttpDiagnostic = formatProviderServiceDiagnostic(
+    text,
+    (service) => new RegExp(`^(.+) ${escapeRegExp(service)} endpoint returned HTTP ([0-9]+)$`),
+    (provider, service, match) =>
+      t("providerDiagnostic.endpointHttp")
+        .replace("{provider}", provider)
+        .replace("{service}", providerDiagnosticServiceLabel(service, t))
+        .replace("{status}", match[2] ?? ""),
+  );
+  if (endpointHttpDiagnostic) {
+    return endpointHttpDiagnostic;
+  }
+
+  const unavailableDiagnostic = formatProviderServiceDiagnostic(
+    text,
+    (service) => new RegExp(`^(.+) ${escapeRegExp(service)} is unavailable$`),
+    (provider, service) =>
+      t("providerDiagnostic.unavailable")
+        .replace("{provider}", provider)
+        .replace("{service}", providerDiagnosticServiceLabel(service, t)),
+  );
+  if (unavailableDiagnostic) {
+    return unavailableDiagnostic;
+  }
+
+  const notFoundDiagnostic = formatProviderServiceDiagnostic(
+    text,
+    (service) => new RegExp(`^(.+) ${escapeRegExp(service)} was not found$`),
+    (provider, service) =>
+      t("providerDiagnostic.notFound")
+        .replace("{provider}", provider)
+        .replace("{service}", providerDiagnosticServiceLabel(service, t)),
+  );
+  if (notFoundDiagnostic) {
+    return notFoundDiagnostic;
+  }
+
+  const apiKeyUnauthorizedMatch = text.match(/^(.+) API key is unauthorized$/);
+  if (apiKeyUnauthorizedMatch?.[1]) {
+    return t("providerDiagnostic.apiKeyUnauthorized").replace(
+      "{provider}",
+      apiKeyUnauthorizedMatch[1],
+    );
+  }
+
+  const apiKeyInvalidMatch = text.match(/^(.+) API key is invalid$/);
+  if (apiKeyInvalidMatch?.[1]) {
+    return t("providerDiagnostic.apiKeyInvalid").replace("{provider}", apiKeyInvalidMatch[1]);
+  }
+
+  const serviceKeyUnauthorizedMatch = text.match(/^(.+) service key is unauthorized$/);
+  if (serviceKeyUnauthorizedMatch?.[1]) {
+    return t("providerDiagnostic.serviceKeyUnauthorized").replace(
+      "{provider}",
+      serviceKeyUnauthorizedMatch[1],
+    );
+  }
+
+  const loginAuthorizationUnauthorizedMatch = text.match(
+    /^(.+) login authorization is unauthorized$/,
+  );
+  if (loginAuthorizationUnauthorizedMatch?.[1]) {
+    return t("providerDiagnostic.loginAuthorizationUnauthorized").replace(
+      "{provider}",
+      loginAuthorizationUnauthorizedMatch[1],
+    );
   }
 
   const externalUrlOpenFailedMatch = text.match(/^failed to open external URL: (.+)$/);

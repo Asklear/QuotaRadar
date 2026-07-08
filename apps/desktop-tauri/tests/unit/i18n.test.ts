@@ -181,6 +181,32 @@ describe("i18n", () => {
     ).toBe("无法保存网页登录授权：keyring unavailable");
   });
 
+  it("localizes provider-specific refresh diagnostics that surface in alerts", () => {
+    const t = (key: keyof typeof en) => translate(key, "zh-Hans");
+
+    expect(formatSystemDisplayText("Tavily usage endpoint returned HTTP 401", t)).toBe(
+      "Tavily 用量接口返回 HTTP 401",
+    );
+    expect(formatSystemDisplayText("Brave API key is unauthorized", t)).toBe(
+      "Brave API 密钥未授权",
+    );
+    expect(formatSystemDisplayText("Kimi subscription was not found", t)).toBe(
+      "未找到 Kimi 订阅",
+    );
+    expect(formatSystemDisplayText("Aliyun quota is unavailable", t)).toBe(
+      "Aliyun 额度不可用",
+    );
+    expect(formatSystemDisplayText("Tencent Cloud coding plan was not found", t)).toBe(
+      "未找到 Tencent Cloud 编程套餐",
+    );
+    expect(formatSystemDisplayText("Volcengine web login authorization is required", t)).toBe(
+      "Volcengine 需要网页登录授权",
+    );
+    expect(formatSystemDisplayText("OpenCode Go usage is unavailable", t)).toBe(
+      "OpenCode Go 用量不可用",
+    );
+  });
+
   it("localizes web authorization timeout capture errors", () => {
     const t = (key: keyof typeof en) => translate(key, "zh-Hans");
 
