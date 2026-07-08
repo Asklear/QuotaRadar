@@ -109,6 +109,25 @@ struct EnvImporter {
         } else if uppercased.contains("KIMI")
                     && (uppercased.contains("COOKIE") || uppercased.contains("SESSION") || uppercased.contains("AUTH") || uppercased.contains("ACCESS_TOKEN")) {
             return .kimiSubscription
+        } else if uppercased.contains("LONGCAT")
+                    && (uppercased.contains("PAYGO") || uppercased.contains("PAY_AS_YOU_GO") || uppercased.contains("PAY_AS_YOU") || uppercased.contains("PAYGO"))
+                    && (uppercased.contains("COOKIE") || uppercased.contains("SESSION") || uppercased.contains("AUTH")) {
+            return .longcat
+        } else if uppercased.contains("LONGCAT")
+                    && (uppercased.contains("TOKEN_PACK") || uppercased.contains("TOKEN") || uppercased.contains("PACK"))
+                    && (uppercased.contains("COOKIE") || uppercased.contains("SESSION") || uppercased.contains("AUTH")) {
+            return .longcat
+        } else if uppercased.contains("LONGCAT")
+                    && (uppercased.contains("PAYGO") || uppercased.contains("PAY_AS_YOU_GO") || uppercased.contains("PAY_AS_YOU"))
+                    && (uppercased.contains("API_KEY") || uppercased.contains("KEY")) {
+            return .longcat
+        } else if uppercased.contains("LONGCAT")
+                    && (uppercased.contains("TOKEN_PACK") || uppercased.contains("TOKEN") || uppercased.contains("PACK"))
+                    && (uppercased.contains("API_KEY") || uppercased.contains("KEY")) {
+            return .longcat
+        } else if uppercased.contains("LONGCAT")
+                    && (uppercased.contains("API_KEY") || uppercased.contains("KEY")) {
+            return .longcat
         } else if uppercased.contains("WX") && uppercased.contains("SEARCH") {
             return .wxmp
         } else if uppercased.contains("WECHAT") {

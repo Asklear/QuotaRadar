@@ -12,7 +12,7 @@ Quota Radar 是一个 macOS 状态栏应用，用来监控搜索 API 余额和 L
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-当前版本：`v0.4.0`。
+当前版本：`v0.4.1`。
 
 ## 界面预览
 
@@ -84,7 +84,7 @@ open build/QuotaRadar-WhiteLabel.dmg
 
 AI Search provider 包括 Tavily、Brave Search、SerpAPI、Serper、Exa、Bocha、AnySearch、Querit 和微信搜索。
 
-LLM / plan provider 包括 Claude Subscription、Anthropic Credits、Codex Subscription、Kimi、DeepSeek、讯飞星火 Coding Plan、火山引擎 Coding Plan、OpenCode Go、阿里云 Coding Plan 和腾讯云 Coding Plan。
+LLM / plan provider 包括 Claude Subscription、Anthropic Credits、Codex Subscription、Kimi、LongCat、DeepSeek、讯飞星火 Coding Plan、火山引擎 Coding Plan、OpenCode Go、阿里云 Coding Plan 和腾讯云 Coding Plan。
 
 | Provider | 用途 |
 | --- | --- |
@@ -92,6 +92,7 @@ LLM / plan provider 包括 Claude Subscription、Anthropic Credits、Codex Subsc
 | Anthropic Credits | Claude 网页登录授权下的 API / prepaid credits 余额监控 |
 | Codex | ChatGPT/Codex 订阅窗口额度监控；可额外保存 API Key 方便复制 |
 | Kimi | Kimi Code 额度与会员余额监控 |
+| LongCat | Token 资源包余量与 API 按量余额监控；API Key 仅用于复制 |
 | DeepSeek | API Key 人民币余额监控 |
 
 各 provider 的凭据类型、额度字段、重置窗口、套餐到期、parser 备注和隐藏扩展桩见 [Providers](./docs/providers.zh-Hans.md)。
@@ -118,9 +119,9 @@ open build/QuotaRadar.dmg
 手动发布到 GitHub Release：
 
 ```bash
-gh release create v0.4.0 build/QuotaRadar.dmg \
-  --title "Quota Radar v0.4.0" \
-  --notes "Codex 重置次数有效期、更协调的账号行重置操作组、provider 校准文档更新、网页登录凭据加固；未签名 DMG 仅供可信用户安装。"
+gh release create v0.4.1 build/QuotaRadar.dmg \
+  --title "Quota Radar v0.4.1" \
+  --notes "LongCat 额度监控、网页登录首次保存加固、额度明细多语言、人民币余额精简显示；未签名 Swift macOS DMG 仅供可信用户安装。"
 ```
 
 未签名 DMG 不需要 Apple Developer Program，但 macOS Gatekeeper 可能拦截下载后的 app。只在信任源码和 release 的情况下安装。如果 macOS 提示 app 已损坏或无法打开：

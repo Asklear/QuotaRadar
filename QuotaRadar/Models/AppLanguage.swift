@@ -272,7 +272,7 @@ struct QuotaWindowText: Codable, Equatable {
 
     var remainingParentheticalText: String? {
         guard let remainingText else { return nil }
-        return L10n.parenthesized(remainingText)
+        return L10n.parenthesized(L10n.localizedQuotaLabel(remainingText))
     }
 
     var detailValueText: String? {
@@ -283,7 +283,8 @@ struct QuotaWindowText: Codable, Equatable {
             }
             return resetText
         }
-        return remainingText
+        guard let remainingText else { return nil }
+        return L10n.localizedQuotaLabel(remainingText)
     }
 }
 
@@ -554,6 +555,11 @@ enum L10n {
         case cookieSaved
         case noCookiesFound
         case missingRequiredCookies
+        case capturedLoginFields
+        case longCatLoginState
+        case longCatLoginAuthorization
+        case longCatBrowserIdentity
+        case longCatAccountIdentity
         case reauthTitle
         case reauthDescription
         case reauthSavingTo
@@ -803,6 +809,10 @@ enum L10n {
             switch title {
             case "balance":
                 return "Balance"
+            case "tokenPack":
+                return "Token Pack"
+            case "paygoBalance":
+                return "API Balance"
             default:
                 return title
             }
@@ -816,6 +826,10 @@ enum L10n {
                 return "月"
             case "balance":
                 return "余额"
+            case "tokenPack":
+                return "Token 资源包"
+            case "paygoBalance":
+                return "API 按量余额"
             default:
                 return title
             }
@@ -829,6 +843,10 @@ enum L10n {
                 return "月"
             case "balance":
                 return "餘額"
+            case "tokenPack":
+                return "Token 資源包"
+            case "paygoBalance":
+                return "API 按量餘額"
             default:
                 return title
             }
@@ -842,6 +860,10 @@ enum L10n {
                 return "月"
             case "balance":
                 return "残高"
+            case "tokenPack":
+                return "Token Pack"
+            case "paygoBalance":
+                return "API Balance"
             default:
                 return title
             }
@@ -855,6 +877,10 @@ enum L10n {
                 return "월"
             case "balance":
                 return "잔액"
+            case "tokenPack":
+                return "Token Pack"
+            case "paygoBalance":
+                return "API Balance"
             default:
                 return title
             }
@@ -1224,10 +1250,8 @@ enum L10n {
         }
 
         switch language {
-        case .simplifiedChinese:
-            return "人民币 \(amount) 元"
-        case .traditionalChinese:
-            return "人民幣 \(amount) 元"
+        case .simplifiedChinese, .traditionalChinese:
+            return "¥\(amount)"
         case .english, .japanese, .korean:
             return "\(currency) \(amount)"
         }
@@ -1433,7 +1457,7 @@ enum L10n {
         .featureRealtime: "Provider-level quota refresh",
         .featureGlass: "Frosted glass menu bar UI",
         .featureMenuBar: "Menu bar quick access",
-        .version: "Version 0.4.0",
+        .version: "Version 0.4.1",
         .importNoKeys: "No supported API keys found in %@.",
         .importSummary: "Imported %d new and updated %d key(s).",
         .refreshAlreadyRunning: "Refresh already running",
@@ -1491,6 +1515,11 @@ enum L10n {
         .cookieSaved: "Login authorization saved",
         .noCookiesFound: "No matching login data found",
         .missingRequiredCookies: "Missing required login data: %@",
+        .capturedLoginFields: "Captured: %@",
+        .longCatLoginState: "LongCat login state",
+        .longCatLoginAuthorization: "LongCat login authorization",
+        .longCatBrowserIdentity: "LongCat browser identity",
+        .longCatAccountIdentity: "LongCat account identity",
         .reauthTitle: "Re-authenticate %@",
         .reauthDescription: "Log in to the provider dashboard. Quota Radar will save the required in-app login authorization automatically after login.",
         .reauthSavingTo: "Saving to %@",
@@ -1769,7 +1798,7 @@ enum L10n {
         .featureRealtime: "按服务商单独刷新额度",
         .featureGlass: "磨砂玻璃状态栏界面",
         .featureMenuBar: "状态栏快速访问",
-        .version: "版本 0.4.0",
+        .version: "版本 0.4.1",
         .importNoKeys: "在 %@ 中没有找到支持的 API 密钥。",
         .importSummary: "已导入 %d 个，新更新 %d 个密钥。",
         .refreshAlreadyRunning: "刷新正在进行",
@@ -1827,6 +1856,11 @@ enum L10n {
         .cookieSaved: "登录授权已保存",
         .noCookiesFound: "没有找到匹配的登录信息",
         .missingRequiredCookies: "缺少必要登录信息：%@",
+        .capturedLoginFields: "已捕获：%@",
+        .longCatLoginState: "LongCat 登录状态",
+        .longCatLoginAuthorization: "LongCat 登录授权",
+        .longCatBrowserIdentity: "LongCat 浏览器身份",
+        .longCatAccountIdentity: "LongCat 账号身份",
         .reauthTitle: "重新认证 %@",
         .reauthDescription: "登录服务商控制台后，Quota Radar 会自动保存应用内所需的登录授权。",
         .reauthSavingTo: "将更新 %@",
@@ -2091,7 +2125,7 @@ enum L10n {
         .moveProviderUp: "上移",
         .moveProviderDown: "下移",
         .remaining: "剩餘",
-        .version: "版本 0.4.0",
+        .version: "版本 0.4.1",
         .credentialExpired: "憑證已過期",
         .notificationLowQuotaTitle: "額度偏低",
         .notificationLowQuotaBody: "%@ 剩餘 %@。",
@@ -2147,6 +2181,11 @@ enum L10n {
         .tokenQuotaFormat: "%@ / %@ 個 token",
         .zeroRemainingBadge: "剩餘 0",
         .braveQuotaHeadersDiagnostic: "搜尋可用，Brave 返回了額度回應標頭。",
+        .capturedLoginFields: "已擷取：%@",
+        .longCatLoginState: "LongCat 登入狀態",
+        .longCatLoginAuthorization: "LongCat 登入授權",
+        .longCatBrowserIdentity: "LongCat 瀏覽器身分",
+        .longCatAccountIdentity: "LongCat 帳號身分",
     ]
 
     private static let japanese: [Key: String] = english.merging([
@@ -2333,7 +2372,7 @@ enum L10n {
         .featureRealtime: "プロバイダー単位のクォータ更新",
         .featureGlass: "フロストガラスのメニューバー UI",
         .featureMenuBar: "メニューバーから素早くアクセス",
-        .version: "バージョン 0.4.0",
+        .version: "バージョン 0.4.1",
         .importNoKeys: "%@ に対応する認証情報が見つかりません。",
         .importSummary: "%d 件を新規インポートし、%d 件を更新しました。",
         .refreshAlreadyRunning: "更新中です",
@@ -2390,6 +2429,11 @@ enum L10n {
         .cookieSaved: "ログイン認証を保存しました",
         .noCookiesFound: "一致するログイン情報が見つかりません",
         .missingRequiredCookies: "不足しているログイン情報: %@",
+        .capturedLoginFields: "取得済み: %@",
+        .longCatLoginState: "LongCat ログイン状態",
+        .longCatLoginAuthorization: "LongCat ログイン認証",
+        .longCatBrowserIdentity: "LongCat ブラウザ識別情報",
+        .longCatAccountIdentity: "LongCat アカウント識別情報",
         .reauthTitle: "%@ を再認証",
         .reauthDescription: "プロバイダーのダッシュボードにログインしてください。ログイン後、Quota Radar が必要なアプリ内ログイン認証を自動保存します。",
         .reauthSavingTo: "%@ に保存",
@@ -2668,7 +2712,7 @@ enum L10n {
         .featureRealtime: "공급자별 할당량 새로 고침",
         .featureGlass: "반투명 메뉴 막대 UI",
         .featureMenuBar: "메뉴 막대 빠른 접근",
-        .version: "버전 0.4.0",
+        .version: "버전 0.4.1",
         .importNoKeys: "%@에서 지원되는 자격 증명을 찾을 수 없습니다.",
         .importSummary: "새로 %d개 가져오고 %d개 키를 업데이트했습니다.",
         .refreshAlreadyRunning: "새로 고침 중입니다",
@@ -2725,6 +2769,11 @@ enum L10n {
         .cookieSaved: "로그인 인증 저장됨",
         .noCookiesFound: "일치하는 로그인 정보를 찾을 수 없음",
         .missingRequiredCookies: "누락된 필수 로그인 정보: %@",
+        .capturedLoginFields: "캡처됨: %@",
+        .longCatLoginState: "LongCat 로그인 상태",
+        .longCatLoginAuthorization: "LongCat 로그인 인증",
+        .longCatBrowserIdentity: "LongCat 브라우저 ID",
+        .longCatAccountIdentity: "LongCat 계정 ID",
         .reauthTitle: "%@ 다시 인증",
         .reauthDescription: "공급자 대시보드에 로그인하세요. 로그인 후 Quota Radar가 필요한 앱 내 로그인 인증을 자동 저장합니다.",
         .reauthSavingTo: "%@에 저장",

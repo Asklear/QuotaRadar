@@ -12,7 +12,7 @@ Quota Radar is a macOS menu bar app for monitoring search API balances and LLM c
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Current version: `v0.4.0`.
+Current version: `v0.4.1`.
 
 ## Screenshots
 
@@ -98,7 +98,7 @@ The white-label flag is compile-time, not a runtime preference. It hides update-
 
 AI Search providers include Tavily, Brave Search, SerpAPI, Serper, Exa, Bocha, AnySearch, Querit, and WeChat Search.
 
-LLM / plan providers include Claude Subscription, Anthropic Credits, Codex Subscription, Kimi, DeepSeek, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
+LLM / plan providers include Claude Subscription, Anthropic Credits, Codex Subscription, Kimi, LongCat, DeepSeek, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
 
 Provider credential types, quota fields, reset windows, plan expiry, parser notes, and hidden extension stubs are documented in [Providers](./docs/providers.md).
 
@@ -124,9 +124,9 @@ open build/QuotaRadar.dmg
 Manual GitHub Release upload:
 
 ```bash
-gh release create v0.4.0 build/QuotaRadar.dmg \
-  --title "Quota Radar v0.4.0" \
-  --notes "Codex reset-credit expiry support, a cleaner account-row reset action group, provider calibration updates, web-login credential hardening, and unsigned DMG for trusted users."
+gh release create v0.4.1 build/QuotaRadar.dmg \
+  --title "Quota Radar v0.4.1" \
+  --notes "LongCat quota monitoring, first-save web-login hardening, localized quota details, compact RMB balance labels, and unsigned Swift macOS DMG for trusted users."
 ```
 
 Unsigned DMGs do not require an Apple Developer Program account, but macOS Gatekeeper may block downloaded copies. Install only if you trust the source repository and release. If macOS says the app is damaged or cannot be opened:

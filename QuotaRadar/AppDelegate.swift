@@ -708,7 +708,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func showManagedSettingsWindowOnLaunch() {
         DispatchQueue.main.async { [weak self] in
-            self?.openPreferences()
+            let reauthProvider = Provider.automationProvider(
+                matching: ProcessInfo.processInfo.environment["QUOTARADAR_OPEN_REAUTH_PROVIDER_FOR_AUTOMATION"]
+            )
+            self?.openPreferences(destination: reauthProvider == nil ? .providers : .apiKeys)
         }
     }
 

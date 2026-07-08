@@ -32,6 +32,34 @@ final class SettingsNavigationStore: ObservableObject {
     }
 }
 
+extension Provider {
+    static func automationProvider(matching rawValue: String?) -> Provider? {
+        guard let rawValue,
+              !rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        let normalizedValue = normalizedAutomationProviderName(rawValue)
+        return allCases.first { provider in
+            [
+                provider.rawValue,
+                provider.displayName(language: .english),
+                provider.displayName(language: .simplifiedChinese),
+                provider.providerFamilyDisplayName(language: .english),
+                provider.providerFamilyDisplayName(language: .simplifiedChinese),
+                provider.defaultCredentialName
+            ].contains { normalizedAutomationProviderName($0) == normalizedValue }
+        }
+    }
+
+    private static func normalizedAutomationProviderName(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber }
+    }
+}
+
 struct SettingsView: View {
     private static let sidebarWidth: CGFloat = 220
     private static let dividerWidth: CGFloat = 1
@@ -486,6 +514,7 @@ struct KeysManagementView: View {
     @State private var editingKey: APIKey?
     @State private var importMessage: String?
     @State private var exportMessage: String?
+    @State private var didOpenReauthAutomation = false
 
     private var keyProviderCategories: [ProviderCategoryStats] {
         let stats: [ProviderStats] = monitor.orderedVisibleProviders.compactMap { provider in
@@ -542,10 +571,34 @@ struct KeysManagementView: View {
         }
         .navigationTitle(L10n.t(.apiKeysTab))
         .sheet(isPresented: $showingAddSheet) {
-            AddKeySheet(monitor: monitor)
+            AddKeySheet(
+                monitor: monitor,
+                initialProvider: reauthAutomationProvider ?? .tavily,
+                automaticallyOpenReauthentication: reauthAutomationProvider != nil
+            )
         }
         .sheet(item: $editingKey) { key in
             EditKeySheet(monitor: monitor, key: key)
+        }
+        .onAppear {
+            openReauthAutomationIfRequested()
+        }
+    }
+
+    private var reauthAutomationProvider: Provider? {
+        Provider.automationProvider(
+            matching: ProcessInfo.processInfo.environment["QUOTARADAR_OPEN_REAUTH_PROVIDER_FOR_AUTOMATION"]
+        )
+    }
+
+    private func openReauthAutomationIfRequested() {
+        guard !didOpenReauthAutomation,
+              reauthAutomationProvider != nil else {
+            return
+        }
+        didOpenReauthAutomation = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            showingAddSheet = true
         }
     }
 
@@ -975,7 +1028,7 @@ struct AddKeySheet: View {
     @State private var name = ""
     @State private var key = ""
     @State private var companionAPIKey = ""
-    @State private var provider: Provider = .tavily
+    @State private var provider: Provider
     @State private var note = ""
     @State private var curlText = ""
     @State private var importError: String?
@@ -983,6 +1036,20 @@ struct AddKeySheet: View {
     @State private var lastAutoFilledCredentialName = Provider.tavily.defaultCredentialName
     @State private var showCredentialValue = false
     @State private var showCompanionAPIKey = false
+    @State private var didAutomaticallyOpenReauthentication = false
+
+    let automaticallyOpenReauthentication: Bool
+
+    init(
+        monitor: QuotaMonitor,
+        initialProvider: Provider = .tavily,
+        automaticallyOpenReauthentication: Bool = false
+    ) {
+        self.monitor = monitor
+        self.automaticallyOpenReauthentication = automaticallyOpenReauthentication
+        _provider = State(initialValue: initialProvider)
+        _lastAutoFilledCredentialName = State(initialValue: initialProvider.defaultCredentialName)
+    }
 
     private var credentialLabel: String {
         let credentialKind: CredentialKind = provider.capability.credentialKind
@@ -1055,6 +1122,19 @@ struct AddKeySheet: View {
         }
         .onAppear {
             syncDefaultCredentialName(for: provider)
+            openReauthenticationForAutomationIfNeeded()
+        }
+    }
+
+    private func openReauthenticationForAutomationIfNeeded() {
+        guard automaticallyOpenReauthentication,
+              !didAutomaticallyOpenReauthentication,
+              provider.supportsDashboardReauthentication else {
+            return
+        }
+        didAutomaticallyOpenReauthentication = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            showingReauth = true
         }
     }
 

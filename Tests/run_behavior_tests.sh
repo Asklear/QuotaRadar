@@ -59,9 +59,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.4\.0' \
+assert_match '0\.4\.1' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.4.0 should be recorded in Info.plist"
+  "Quota Radar 0.4.1 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -279,6 +279,15 @@ assert_match 'case tencentCloudCodingPlan = "Tencent Cloud Coding Plan"' \
 assert_match 'case tencentCloudTokenPlan = "Tencent Cloud Token Plan"' \
   "QuotaRadar/Models/APIKey.swift" \
   "Tencent Cloud Token Plan provider should be modeled explicitly"
+assert_match 'case longcat = "LongCat"' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "LongCat should be modeled as one provider with multiple billing meters"
+assert_no_match 'case longcat = "LongCat Token Pack"' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "LongCat Token Pack should not be a separate top-level provider"
+assert_no_match 'case longcat = "LongCat Pay-as-you-go"' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "LongCat Pay-as-you-go should not be a separate top-level provider"
 assert_match 'case xfyunTokenPlan = "XFYun Spark Token Plan"' \
   "QuotaRadar/Models/APIKey.swift" \
   "XFYun Spark Token Plan provider should be modeled explicitly"
@@ -1301,6 +1310,48 @@ assert_match 'QUOTARADAR_SHOW_STATUS_PANEL_FOR_AUTOMATION' \
 assert_match 'QUOTARADAR_OPEN_MENU_SIGNAL_FOR_AUTOMATION' \
   "QuotaRadar/AppDelegate.swift" \
   "Menu-to-main focus should have a reliable automation hook that bypasses flaky transient-panel AX clicks"
+assert_match 'QUOTARADAR_OPEN_REAUTH_PROVIDER_FOR_AUTOMATION' \
+  "QuotaRadar/AppDelegate.swift" \
+  "Dashboard reauthentication QA should have a stable launch hook that bypasses flaky multi-window AX clicks"
+assert_match 'QUOTARADAR_OPEN_REAUTH_PROVIDER_FOR_AUTOMATION' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Keys settings should present the add-credential sheet for the requested reauthentication provider during QA"
+assert_match 'automaticallyOpenReauthentication' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "AddKeySheet should be able to open the dashboard-login authorization sheet after provider preselection"
+assert_match 'capturedLoginFields' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication failures should disclose only sanitized captured field names to aid provider recalibration"
+assert_match 'DashboardCookieBuilder\.credentialNames\(' \
+  "QuotaRadar/Services/DashboardReauth.swift" \
+  "Dashboard reauthentication diagnostics should derive captured names without printing credential values"
+assert_match '/api/v1/user-current' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "LongCat dashboard reauthentication should probe the same-origin user-current endpoint when cookies are not script-readable"
+assert_match 'longcatLoginStatus' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "LongCat dashboard reauthentication should carry sanitized page-login status metadata into save validation"
+assert_match 'longCatLoginState' \
+  "QuotaRadar/Services/DashboardReauth.swift" \
+  "LongCat dashboard reauthentication should localize missing-login-state copy instead of exposing raw token and UUID field names as the primary error"
+assert_match 'DashboardCredentialDisplayNames\.missingRequiredNames' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication missing-login copy should use localized display names instead of raw credential field names"
+assert_match 'DashboardCredentialDisplayNames\.capturedNames' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication captured-login diagnostics should use localized display names instead of raw credential field names"
+assert_no_match 'capturedNames\.joined\(separator: ", "\)' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should not directly join raw captured credential names into user-facing copy"
+assert_match 'longCatLoginAuthorization' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "LongCat login authorization display name should be localized for diagnostics"
+assert_match 'longCatBrowserIdentity' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "LongCat browser identity display name should be localized for diagnostics"
+assert_match 'longCatAccountIdentity' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "LongCat account identity display name should be localized for diagnostics"
 assert_match 'openMenuSignalForAutomationIfRequested' \
   "QuotaRadar/AppDelegate.swift" \
   "AppDelegate should evaluate the menu signal focus automation hook on launch"
@@ -3975,12 +4026,12 @@ assert_no_match 'webView\.load\(URLRequest\(url: popupURL\)\)' \
 assert_match 'WKHTTPCookieStoreObserver' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should observe cookie changes instead of only page navigation"
-assert_match 'clearProviderCookiesBeforeLoading' \
+assert_no_match 'clearProviderCookiesBeforeLoading' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
-  "Dashboard reauthentication should clear stale provider cookies before opening the login page"
-assert_match 'cookieStore\.delete' \
+  "Dashboard reauthentication should preserve provider cookies before opening the login page so first-save captures can reuse completed web-login state"
+assert_no_match 'cookieStore\.delete' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
-  "Dashboard reauthentication should delete stale WebView cookies for the provider domain"
+  "Dashboard reauthentication should not delete WebView cookies while the user is trying to save web-login authorization"
 assert_match 'cookiesDidChange' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should retry cookie capture when login cookies change"
@@ -4688,6 +4739,11 @@ ALIYUN_CODING_PLAN_API_KEY=aliyun-coding-business-key
 ALIYUN_TOKEN_PLAN_COOKIE=aliyun-token-cookie
 TENCENT_CLOUD_CODING_PLAN_API_KEY=tencent-coding-business-key
 TENCENT_CLOUD_TOKEN_PLAN_CREDENTIAL='{"secretId":"<secret-id>","secretKey":"<secret-key>","apiKeyId":"ak-tp-redacted","region":"ap-guangzhou"}'
+LONGCAT_TOKEN_PACK_SESSION='longcat_session=token-pack-session'
+LONGCAT_PAYGO_SESSION='longcat_session=paygo-session'
+LONGCAT_TOKEN_PACK_API_KEY=longcat-token-pack-api-key
+LONGCAT_PAYGO_API_KEY=longcat-paygo-api-key
+LONGCAT_API_KEY=longcat-generic-api-key
 """
 
 AppLanguageStore.shared.language = .english
@@ -4700,7 +4756,7 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) {
     }
 }
 
-require(keys.count == 12, "expected exactly twelve visible supported imported keys")
+require(keys.count == 17, "expected exactly seventeen visible supported imported keys")
 require(keys.contains { $0.name == "TAVILY_API_KEY" && $0.provider == .tavily && $0.key == "tvly-test-key" }, "missing Tavily key")
 require(keys.contains { $0.name == "DEEPSEEK_API_KEY" && $0.provider == .deepseek && $0.key == "deepseek-test-key" }, "missing DeepSeek key")
 require(keys.contains { $0.name == "XFYUN_CODING_PLAN_COOKIE" && $0.provider == .xfyunCodingPlan }, "missing XFYun Coding Plan cookie")
@@ -4719,9 +4775,20 @@ require(!keys.contains { $0.provider == .volcengineTokenPlan }, "Volcengine Toke
 require(!keys.contains { $0.provider == .aliyunTokenPlan }, "Aliyun Token Plan should stay hidden until a quota endpoint is implemented")
 require(keys.contains { $0.name == "ALIYUN_CODING_PLAN_API_KEY" && $0.provider == .aliyunCodingPlan && $0.key == "aliyun-coding-business-key" }, "Aliyun Coding Plan business API key should be importable for accounts that can verify dashboard quota access")
 require(keys.contains { $0.name == "TENCENT_CLOUD_CODING_PLAN_API_KEY" && $0.provider == .tencentCloudCodingPlan && $0.key == "tencent-coding-business-key" }, "Tencent Cloud Coding Plan business API key should be importable for accounts that can verify dashboard quota access")
+require(keys.contains { $0.name == "LONGCAT_TOKEN_PACK_SESSION" && $0.provider == .longcat && $0.key == "longcat_session=token-pack-session" }, "LongCat Token Pack dashboard session should be importable for quota monitoring")
+require(keys.contains { $0.name == "LONGCAT_PAYGO_SESSION" && $0.provider == .longcat && $0.key == "longcat_session=paygo-session" }, "LongCat Pay-as-you-go dashboard session should be importable for balance monitoring")
+require(keys.contains { $0.name == "LONGCAT_TOKEN_PACK_API_KEY" && $0.provider == .longcat && $0.key == "longcat-token-pack-api-key" }, "LongCat Token Pack companion API key should be importable as copy-only storage")
+require(keys.contains { $0.name == "LONGCAT_PAYGO_API_KEY" && $0.provider == .longcat && $0.key == "longcat-paygo-api-key" }, "LongCat Pay-as-you-go companion API key should be importable as copy-only storage")
+require(keys.contains { $0.name == "LONGCAT_API_KEY" && $0.provider == .longcat && $0.key == "longcat-generic-api-key" }, "Generic LongCat API keys should default to the API pay-as-you-go provider as copy-only storage")
 let importedQueritAPIKey = keys.first { $0.name == "QUERIT_API_KEY" }!
 require(importedQueritAPIKey.isStoredAPIKeyOnlyCredential, "Querit API keys should import as copy-only API-key records, not dashboard cookies")
 require(importedQueritAPIKey.copyableCredentialValue == "querit-api-key", "Querit optional API keys should be copyable")
+let importedLongCatPaygoAPIKey = keys.first { $0.name == "LONGCAT_PAYGO_API_KEY" }!
+require(importedLongCatPaygoAPIKey.isStoredAPIKeyOnlyCredential, "LongCat API keys should import as copy-only API-key records, not dashboard quota credentials")
+require(importedLongCatPaygoAPIKey.copyableCredentialValue == "longcat-paygo-api-key", "LongCat optional API keys should be copyable")
+let importedLongCatGenericAPIKey = keys.first { $0.name == "LONGCAT_API_KEY" }!
+require(importedLongCatGenericAPIKey.isStoredAPIKeyOnlyCredential, "Generic LongCat API keys should remain copy-only and should not be treated as dashboard authorization")
+require(importedLongCatGenericAPIKey.copyableCredentialValue == "longcat-generic-api-key", "Generic LongCat API keys should be copyable")
 require(!keys.contains { $0.name == "DEEPSEEK_WEB_SEARCH_PRO_API_KEY" }, "web-search-pro DeepSeek key must be ignored")
 require(!keys.contains { $0.name == "ANTHROPIC_AUTH_TOKEN" }, "Anthropic auth token must not be imported as an API key")
 require(!keys.contains { $0.name == "CODEX_SESSION_COOKIE" }, "Codex subscription cookies should be captured through web-login reauthentication instead of .env import")
@@ -4732,6 +4799,7 @@ require(Provider.visibleCases.contains(.anthropicCredits), "Anthropic Credits sh
 require(!Provider.visibleCases.contains(.codexAPIUsage), "Codex API usage should stay hidden until the user has admin usage monitoring configured")
 require(Provider.visibleCases.contains(.codexSubscription), "Codex subscription should appear in provider pickers and visible app sections")
 require(Provider.visibleCases.contains(.kimiSubscription), "Kimi subscription should appear in provider pickers and visible app sections")
+require(Provider.visibleCases.filter { $0 == .longcat }.count == 1, "LongCat should appear once in provider pickers and visible app sections")
 require(Provider.pendingQuotaIntegrationCases == [.xfyunTokenPlan, .volcengineTokenPlan, .aliyunTokenPlan, .tencentCloudTokenPlan], "Pending quota integration cases should include providers without confirmed user key evidence")
 require(!Provider.visibleCases.contains(.xfyunTokenPlan), "XFYun Token Plan should not appear in visible provider lists yet")
 require(!Provider.visibleCases.contains(.volcengineTokenPlan), "Volcengine Token Plan should not appear in visible provider lists yet")
@@ -4783,6 +4851,7 @@ require(Provider.aliyunCodingPlan.category == "LLM", "Aliyun Coding Plan should 
 require(Provider.aliyunTokenPlan.category == "LLM", "Aliyun Token Plan should be grouped as an LLM quota provider")
 require(Provider.tencentCloudCodingPlan.category == "LLM", "Tencent Cloud Coding Plan should be grouped as an LLM quota provider")
 require(Provider.tencentCloudTokenPlan.category == "LLM", "Tencent Cloud Token Plan should be grouped as an LLM quota provider")
+require(Provider.longcat.category == "LLM", "LongCat should be grouped as one LLM provider")
 require(Provider.claudeAPIUsage.category == "LLM", "Claude API usage should be grouped as an LLM quota provider")
 require(Provider.anthropicCredits.category == "LLM", "Anthropic Credits should be grouped as an LLM balance provider")
 require(Provider.codexSubscription.category == "LLM", "Codex subscription should be grouped as an LLM quota provider")
@@ -4804,6 +4873,10 @@ require(Provider.codexAPIUsage.providerFamilyDisplayName(language: .english) == 
 require(Provider.codexSubscription.planTypeDisplayName(language: .english) == "Subscription", "Codex subscription should expose Subscription as the provider-level product type")
 require(Provider.kimiSubscription.providerFamilyDisplayName(language: .english) == "Kimi", "Kimi subscription should expose Kimi as provider family")
 require(Provider.kimiSubscription.planTypeDisplayName(language: .simplifiedChinese) == "订阅", "Kimi subscription should expose a localized provider-level subscription product type")
+require(Provider.longcat.providerFamilyDisplayName(language: .simplifiedChinese) == "LongCat", "LongCat should expose LongCat as provider family")
+require(Provider.longcat.planTypeDisplayName(language: .simplifiedChinese) == "Token 资源包 / API 按量", "LongCat should expose both token package and API pay-as-you-go billing modes")
+require(Provider.longcat.providerFamilyDisplayName(language: .english) == "LongCat", "LongCat should expose LongCat as provider family")
+require(Provider.longcat.planTypeDisplayName(language: .english) == "Token Pack / Pay-as-you-go", "LongCat should expose both billing modes in English")
 require(Provider.opencodeGo.planTypeDisplayName(language: .english) == "Subscription", "OpenCode Go should expose Subscription as the provider-level product type")
 require(Provider.opencodeGo.planTypeDisplayName(language: .simplifiedChinese) == "订阅", "OpenCode Go should expose a localized provider-level subscription product type")
 require(Provider.tavily.planTypeDisplayName(language: .simplifiedChinese) == nil, "Plain AI Search providers should not expose a second-level plan name")
@@ -4827,6 +4900,7 @@ require(Provider.anthropicCredits.supportsQuotaQuery, "Anthropic Credits should 
 require(!Provider.codexAPIUsage.supportsQuotaQuery, "Codex API usage should not claim quota checks until OpenAI Admin usage credentials are modeled and verified")
 require(Provider.codexSubscription.supportsQuotaQuery, "Codex subscription should support quota checks through the verified ChatGPT wham endpoint")
 require(Provider.kimiSubscription.supportsQuotaQuery, "Kimi subscription should support quota checks through the Kimi membership endpoints")
+require(Provider.longcat.supportsQuotaQuery, "LongCat should support quota and balance checks through LongCat dashboard billing APIs")
 require(Provider.aliyunCodingPlan.capability.credentialKind == .dashboardCookie, "Aliyun Coding Plan quota monitoring should use dashboard cookies")
 require(Provider.aliyunCodingPlan.capability.usageSource == .dashboardAPI, "Aliyun Coding Plan should expose subscription status through the dashboard queryCodingPlanInstanceInfoV2 API")
 require(Provider.aliyunCodingPlan.capability.canTestConnection, "Aliyun Coding Plan should offer a non-consuming dashboard subscription check")
@@ -4894,6 +4968,14 @@ require(Provider.xfyunCodingPlan.capability.allowsAutomaticRefresh, "XFYun Codin
 require(Provider.kimiSubscription.capability.credentialKind == .dashboardCookie, "Kimi subscription should store web login authorization separately from API keys")
 require(Provider.kimiSubscription.capability.usageSource == .dashboardAPI, "Kimi subscription should expose quota status through Kimi membership dashboard APIs")
 require(Provider.kimiSubscription.capability.canTestConnection, "Kimi subscription should offer a non-consuming membership quota check")
+require(Provider.longcat.capability.credentialKind == .dashboardCookie, "LongCat should store web login authorization separately from API keys")
+require(Provider.longcat.capability.usageSource == .dashboardAPI, "LongCat should expose token package and API balance through LongCat dashboard APIs")
+require(Provider.longcat.capability.supportsQuota, "LongCat should expose token package remaining and total")
+require(Provider.longcat.capability.supportsBalance, "LongCat should expose API pay-as-you-go balance")
+require(Provider.longcat.capability.supportsPlan, "LongCat should expose package validity and billing mode metadata")
+require(!Provider.longcat.capability.supportsReset, "LongCat should expose package expiry as validity instead of inventing a reset cycle")
+require(Provider.longcat.capability.canTestConnection, "LongCat should offer a non-consuming dashboard billing check")
+require(Provider.longcat.capability.allowsAutomaticRefresh, "LongCat billing checks should be eligible for no-cost automatic refresh")
 require(Provider.querit.supportsQuotaQuery, "Querit should support dashboard-cookie quota checks through the user account endpoint")
 require(Provider.querit.capability.resetCycle == .notExposed, "Querit account endpoint exposes monthly usage but no reset/end date")
 require(Provider.querit.supportsCompanionAPIKeyStorage, "Querit should allow storing an optional API key separately from dashboard authorization")
@@ -4903,6 +4985,8 @@ require(Provider.codexSubscription.supportsCompanionAPIKeyStorage, "Codex subscr
 require(Provider.codexSubscription.copyableAPIKeyCredentialName == "OPENAI_API_KEY", "Codex subscription companion API key should use the familiar OpenAI API key name")
 require(Provider.kimiSubscription.supportsCompanionAPIKeyStorage, "Kimi subscription should allow saving an optional API key separately from web login authorization")
 require(Provider.kimiSubscription.copyableAPIKeyCredentialName == "KIMI_API_KEY", "Kimi subscription companion API key should use the familiar Kimi API key name")
+require(Provider.longcat.supportsCompanionAPIKeyStorage, "LongCat should allow saving an optional API key separately from web login authorization")
+require(Provider.longcat.copyableAPIKeyCredentialName == "LONGCAT_API_KEY", "LongCat companion API key should use one provider-level API key name")
 require(Provider.serper.capability.resetCycle == .notExposed, "Serper account endpoint exposes credit balance but no reset/end date")
 require(Provider.exa.supportsQuotaQuery, "Exa should support usage checks when a service API key and API key id are configured")
 require(Provider.exa.localizedUnsupportedQuotaLabel(language: .simplifiedChinese) == "需要 API 密钥", "Exa plain search keys should ask for an API key without confusing admin credential wording")
@@ -4928,6 +5012,8 @@ require(!Provider.xfyunTokenPlan.homeVisibleWithoutKeys, "XFYun Token Plan shoul
 require(!Provider.volcengineTokenPlan.homeVisibleWithoutKeys, "Volcengine Token Plan should stay off the home view until quota parsing is implemented")
 require(!Provider.aliyunTokenPlan.homeVisibleWithoutKeys, "Aliyun Token Plan should stay off the home view until quota parsing is implemented")
 require(!Provider.tencentCloudCodingPlan.homeVisibleWithoutKeys, "Tencent Cloud Coding Plan should stay off empty home placeholders but appear once a business key or dashboard cookie is configured")
+require(!Provider.longcat.homeVisibleWithoutKeys, "LongCat Token Pack should stay off empty home placeholders until configured")
+require(!Provider.longcat.homeVisibleWithoutKeys, "LongCat Pay-as-you-go should stay off empty home placeholders until configured")
 let categoryStats = ProviderCategoryStats(title: "LLM", stats: [
     ProviderStats(provider: .deepseek, keys: [APIKey(name: "DEEPSEEK_API_KEY", key: "deepseek", provider: .deepseek, remaining: 1200, limit: 1200)]),
     ProviderStats(provider: .xfyunCodingPlan, keys: [APIKey(name: "XFYUN_CODING_PLAN_COOKIE", key: "cookie", provider: .xfyunCodingPlan, remaining: 7934, limit: 10000)]),
@@ -4999,6 +5085,7 @@ let subscriptionPlanNameFallbacks: [(Provider, String)] = [
     (.claudeSubscription, "Claude Subscription"),
     (.codexSubscription, "Codex Subscription"),
     (.kimiSubscription, "Kimi Subscription"),
+    (.longcat, "LongCat"),
     (.opencodeGo, "OpenCode Go Subscription"),
     (.xfyunCodingPlan, "XFYun Spark Coding Plan"),
     (.volcengineCodingPlan, "Volcengine Coding Plan"),
@@ -5208,17 +5295,44 @@ let anthropicCreditsStats = ProviderStats(provider: .anthropicCredits, keys: [lo
 require(anthropicCreditsStats.totalRemainingDisplayText == "42", "Anthropic Credits provider overview should show the credit balance")
 require(anthropicCreditsStats.totalLimitDisplayText == "", "Anthropic Credits provider overview should leave reset-cycle columns blank")
 let localizedDeepSeekMoney = APIKey(name: "DEEPSEEK_API_KEY", key: "deepseek", provider: .deepseek, remaining: 1250, limit: 1250, quotaLabel: "CNY 12.50 available")
-require(localizedDeepSeekMoney.quotaDisplayText == "可用人民币 12.50 元", "DeepSeek money balance labels should be localized as RMB, not credits")
+require(localizedDeepSeekMoney.quotaDisplayText == "可用¥12.50", "DeepSeek money balance labels should use compact RMB symbols, not credits or verbose RMB copy")
 require(localizedDeepSeekMoney.remainingBadgeText == "¥12.50", "DeepSeek money balance badge should show currency amount, not 100%")
 require(localizedDeepSeekMoney.visibleQuotaResetSummary == "", "DeepSeek compact quota rows should not show no-reset-cycle placeholder copy")
+let localizedLongCatPackageEnd = Date().addingTimeInterval(30 * 24 * 60 * 60)
+let localizedLongCatTokenPack = APIKey(
+    name: "LONGCAT_SESSION",
+    key: "longcat-session",
+    provider: .longcat,
+    remaining: 1250000,
+    limit: 5000000,
+    planEndsAt: localizedLongCatPackageEnd,
+    quotaText: .quotaWindows([
+        QuotaWindowText(name: "tokenPack", percentText: "25%", remainingText: "1250000 / 5000000 tokens"),
+        QuotaWindowText(name: "paygoBalance", percentText: "¥128.50", remainingText: "CNY 128.50 balance")
+    ]),
+    quotaLabel: "Token Pack 25% · API Balance ¥128.50"
+)
+require(localizedLongCatTokenPack.quotaDisplayText == "Token 资源包 25% · API 按量余额 ¥128.50", "LongCat should render token package and API balance as two billing meters")
+require(localizedLongCatTokenPack.quotaWindowDetails.count == 2, "LongCat should keep token package and API balance under one account row")
+require(localizedLongCatTokenPack.quotaWindowDetails[0].remainingText == "1250000 / 5000000 tokens", "LongCat Token Pack row should preserve remaining over total tokens")
+require(localizedLongCatTokenPack.quotaWindowDetails[0].detailValueText == "1250000 / 5000000 个 token", "LongCat Token Pack detail row should localize token units in Simplified Chinese")
+require(localizedLongCatTokenPack.quotaWindowDetails[1].percentText == "¥128.50", "LongCat API pay-as-you-go row should show money instead of a fake percentage")
+require(localizedLongCatTokenPack.quotaWindowDetails[1].detailValueText == "余额¥128.50", "LongCat API pay-as-you-go detail row should use compact RMB symbols in Simplified Chinese")
+require(localizedLongCatTokenPack.remainingBadgeText == "25%", "LongCat badges should use the token package percentage when a token package exists")
+require(abs((localizedLongCatTokenPack.quotaPresentation.percentRemaining ?? 0) - 0.25) < 0.001, "LongCat should expose a real remaining percentage from the token package")
+require(localizedLongCatTokenPack.planEndSummary == L10n.format(.planEndsDate, L10n.shortDateTime(localizedLongCatPackageEnd, includesYear: true)), "LongCat should expose token package validity as plan expiry")
+let localizedLongCatTokenPackStats = ProviderStats(provider: .longcat, keys: [localizedLongCatTokenPack])
+require(localizedLongCatTokenPackStats.totalRemainingDisplayText == "Token 资源包 25%", "LongCat provider overview should use the token package percentage as the key quota")
+require(localizedLongCatTokenPackStats.totalLimitDisplayText == "Token 资源包 25%", "LongCat provider overview should not invent a monthly window for token package quota")
+require(localizedLongCatTokenPackStats.criticalTimeDisplayText == localizedLongCatTokenPack.planEndSummary, "LongCat provider overview should show the package expiry as the key time")
 let deepSeekMoneyStats = ProviderStats(provider: .deepseek, keys: [localizedDeepSeekMoney])
 require(deepSeekMoneyStats.totalLimitDisplayText == "", "DeepSeek balance provider overview should not show a no-reset-cycle placeholder")
 require(deepSeekMoneyStats.criticalTimeDisplayText == "", "DeepSeek balance provider critical time should stay blank when there is no reset or expiry")
 let localizedBochaBalance = APIKey(name: "BOCHA_API_KEY", key: "bocha", provider: .bocha, remaining: 1400, limit: 1400, quotaLabel: "CNY 14.00 balance")
-require(localizedBochaBalance.quotaDisplayText == "余额人民币 14.00 元", "Bocha money balance labels should be localized as RMB, not credits")
+require(localizedBochaBalance.quotaDisplayText == "余额¥14.00", "Bocha money balance labels should use compact RMB symbols, not credits or verbose RMB copy")
 require(localizedBochaBalance.remainingBadgeText == "¥14.00", "Bocha money balance badge should show currency amount, not 100%")
 let localizedWeChatMoney = APIKey(name: "WECHAT_API_KEY", key: "wechat", provider: .wxmp, remaining: 16180, limit: 16180, quotaLabel: "CNY 161.80 available")
-require(localizedWeChatMoney.quotaDisplayText == "可用人民币 161.80 元", "WeChat Search money balance labels should be localized as RMB, not credits")
+require(localizedWeChatMoney.quotaDisplayText == "可用¥161.80", "WeChat Search money balance labels should use compact RMB symbols, not credits or verbose RMB copy")
 require(localizedWeChatMoney.remainingBadgeText == "¥161.80", "WeChat Search money balance badge should show currency amount, not 100%")
 require(L10n.localizedQuotaLabel("Querit account endpoint returned monthly request quota.", language: .simplifiedChinese) == "Querit 账户接口返回了月度已用请求，但没有返回套餐上限。", "Persisted legacy Querit quota diagnostics should render as usage-only in Simplified Chinese")
 require(L10n.localizedQuotaLabel("Querit account endpoint returned monthly usage, but no plan quota limit.", language: .simplifiedChinese) == "Querit 账户接口返回了月度已用请求，但没有返回套餐上限。", "Querit usage-only diagnostics should localize centrally")
@@ -5336,6 +5450,14 @@ let generatedKimiSubscriptionAPIKey = APIKey(name: "KIMI_API_KEY", key: "sk-kimi
 require(generatedKimiSubscriptionAPIKey.isStoredAPIKeyOnlyCredential, "Kimi subscription API keys should be stored separately from web login authorization")
 require(generatedKimiSubscriptionAPIKey.managementDisplayName == "API 密钥", "Kimi subscription API-key-only records should show the API key label")
 require(generatedKimiSubscriptionAPIKey.copyableCredentialValue == "sk-kimi-redacted", "Kimi subscription API-key-only records should be copyable")
+let generatedLongCatTokenPackAPIKey = APIKey(name: "LONGCAT_TOKEN_PACK_API_KEY", key: "sk-longcat-token-pack-redacted", provider: .longcat)
+require(generatedLongCatTokenPackAPIKey.isStoredAPIKeyOnlyCredential, "LongCat Token Pack API keys should be stored separately from web login authorization")
+require(generatedLongCatTokenPackAPIKey.managementDisplayName == "API 密钥", "LongCat Token Pack API-key-only records should show the API key label")
+require(generatedLongCatTokenPackAPIKey.copyableCredentialValue == "sk-longcat-token-pack-redacted", "LongCat Token Pack API-key-only records should be copyable")
+let generatedLongCatPaygoAPIKey = APIKey(name: "LONGCAT_PAYGO_API_KEY", key: "sk-longcat-paygo-redacted", provider: .longcat)
+require(generatedLongCatPaygoAPIKey.isStoredAPIKeyOnlyCredential, "LongCat Pay-as-you-go API keys should be stored separately from web login authorization")
+require(generatedLongCatPaygoAPIKey.managementDisplayName == "API 密钥", "LongCat Pay-as-you-go API-key-only records should show the API key label")
+require(generatedLongCatPaygoAPIKey.copyableCredentialValue == "sk-longcat-paygo-redacted", "LongCat Pay-as-you-go API-key-only records should be copyable")
 let generatedOpenCodeCookie = APIKey(name: "OPENCODE_GO_COOKIE", key: #"{"cookie":"auth=redacted-cookie","workspaceID":"wrk_123"}"#, provider: .opencodeGo)
 require(generatedOpenCodeCookie.managementCredentialValueText == "登录授权已保存", "OpenCode Go dashboard-cookie rows should not show serialized credential values")
 require(generatedOpenCodeCookie.accountDisplayTitle == "OpenCode Go 订阅", "OpenCode Go account rows should use subscription fallback as the visible title")
@@ -6904,6 +7026,7 @@ require(Provider.anthropicCredits.supportsDashboardReauthentication, "Anthropic 
 require(!Provider.codexAPIUsage.supportsDashboardReauthentication, "Codex API usage should use API keys instead of web-login reauthentication")
 require(Provider.codexSubscription.supportsDashboardReauthentication, "Codex subscription should support web-login authorization capture")
 require(Provider.kimiSubscription.supportsDashboardReauthentication, "Kimi subscription should support web-login authorization capture")
+require(Provider.longcat.supportsDashboardReauthentication, "LongCat should support web-login authorization capture")
 require(!Provider.brave.supportsDashboardReauthentication, "Brave should not use dashboard-cookie reauthentication")
 let expectedDashboardReauthProviders: Set<Provider> = [
     .querit,
@@ -6915,7 +7038,8 @@ let expectedDashboardReauthProviders: Set<Provider> = [
     .claudeSubscription,
     .anthropicCredits,
     .codexSubscription,
-    .kimiSubscription
+    .kimiSubscription,
+    .longcat
 ]
 let actualDashboardReauthProviders = Set(Provider.allCases.filter(\.supportsDashboardReauthentication))
 require(actualDashboardReauthProviders == expectedDashboardReauthProviders, "Dashboard reauthentication provider coverage should stay explicit and complete")
@@ -6932,6 +7056,7 @@ require(DashboardReauthConfig(provider: .claudeSubscription)?.cookieDomains == [
 require(DashboardReauthConfig(provider: .anthropicCredits)?.cookieDomains == ["claude.ai"], "Anthropic Credits should capture the same claude.ai login authorization")
 require(DashboardReauthConfig(provider: .codexSubscription)?.cookieDomains == ["chatgpt.com"], "Codex subscription should capture ChatGPT web-login authorization")
 require(DashboardReauthConfig(provider: .kimiSubscription)?.cookieDomains == ["kimi.com", "www.kimi.com"], "Kimi subscription should capture kimi.com web-login authorization")
+require(DashboardReauthConfig(provider: .longcat)?.cookieDomains == ["longcat.chat", "passport.meituan.com", "i.meituan.com", "passport.mykeeta.com"], "LongCat should capture LongCat and Passport web-login authorization")
 require(DashboardReauthConfig(provider: .claudeAPIUsage) == nil, "Claude API usage should not expose dashboard reauthentication")
 require(DashboardReauthConfig(provider: .codexAPIUsage) == nil, "Codex API usage should not expose dashboard reauthentication")
 require(DashboardReauthConfig(provider: .claudeSubscription)?.requiredCookieNames == ["sessionKey|sessionKeyLC"], "Claude subscription should accept either current sessionKey or sessionKeyLC login cookies")
@@ -6974,6 +7099,121 @@ require(DashboardCookieBuilder.missingRequiredCredentialNames(
     requiredNames: Provider.kimiSubscription.dashboardAuthenticationCookieNames
 ).isEmpty, "Kimi reauthentication should accept accessToken captured from web storage when the auth cookie is not exposed")
 require(kimiCapturedFromStorage.reauthenticatedSecret(existingSecret: nil).contains("\"accessToken\""), "Kimi reauthentication should save storage-derived token metadata as JSON instead of a raw preference cookie")
+let longCatCapturedFromStorage = DashboardCapturedCredential(
+    provider: .longcat,
+    cookieHeader: "locale=zh",
+    webStorageFields: [
+        "token": "Bearer longcat-storage-token",
+        "userTicket": "ticket-redacted",
+        "uuid": "uuid-redacted",
+        "passport_uuid": "passport-redacted",
+        "lt": "lt-redacted"
+    ]
+)
+require(longCatCapturedFromStorage.fields["token"] == "longcat-storage-token", "LongCat reauthentication should normalize WebStorage token without the Bearer prefix")
+require(longCatCapturedFromStorage.fields["userTicket"] == "ticket-redacted", "LongCat reauthentication should preserve userTicket from WebStorage")
+require(longCatCapturedFromStorage.fields["uuid"] == "uuid-redacted", "LongCat reauthentication should preserve uuid from WebStorage")
+require(longCatCapturedFromStorage.fields["passport_uuid"] == "passport-redacted", "LongCat reauthentication should preserve passport_uuid from WebStorage")
+require(longCatCapturedFromStorage.fields["lt"] == "lt-redacted", "LongCat reauthentication should preserve lt from WebStorage")
+require(DashboardCredentialCapturePolicy.isCredentialReady(
+    longCatCapturedFromStorage,
+    requiredNames: Provider.longcat.dashboardAuthenticationCookieNames
+), "LongCat reauthentication should accept a complete WebStorage login material set when auth cookies are not exposed")
+let partialLongCatStorageCredential = DashboardCapturedCredential(
+    provider: .longcat,
+    cookieHeader: "locale=zh",
+    webStorageFields: [
+        "token": "longcat-storage-token"
+    ]
+)
+require(!DashboardCredentialCapturePolicy.isCredentialReady(
+    partialLongCatStorageCredential,
+    requiredNames: Provider.longcat.dashboardAuthenticationCookieNames
+), "LongCat reauthentication should reject token-only WebStorage login material")
+require(longCatCapturedFromStorage.reauthenticatedSecret(existingSecret: nil).contains("\"userTicket\""), "LongCat reauthentication should save storage-derived token metadata as JSON")
+require(longCatCapturedFromStorage.reauthenticatedSecret(existingSecret: nil).contains("\"passport_uuid\""), "LongCat reauthentication should save passport UUID metadata as JSON")
+let longCatCapturedFromFrontendLoginMaterial = DashboardCapturedCredential(
+    provider: .longcat,
+    cookieHeader: "locale=zh",
+    webStorageFields: [
+        "token": "longcat-storage-token",
+        "passport_uuid": "passport-redacted"
+    ]
+)
+require(DashboardCredentialCapturePolicy.isCredentialReady(
+    longCatCapturedFromFrontendLoginMaterial,
+    requiredNames: Provider.longcat.dashboardAuthenticationCookieNames
+), "LongCat first-save capture should accept the login material used by the public frontend without requiring non-persistent userTicket or lt fields")
+require(longCatCapturedFromFrontendLoginMaterial.reauthenticatedSecret(existingSecret: nil).contains("\"token\""), "LongCat frontend login material should save token metadata as JSON")
+require(longCatCapturedFromFrontendLoginMaterial.reauthenticatedSecret(existingSecret: nil).contains("\"passport_uuid\""), "LongCat frontend login material should save passport UUID metadata as JSON")
+let longCatCapturedFromUserCurrentProbe = DashboardCapturedCredential(
+    provider: .longcat,
+    cookieHeader: "locale=zh",
+    webStorageFields: [
+        "longcatUserCurrentToken": "longcat-user-current-token",
+        "longcatLoginStatus": "1",
+        "passport_uuid": "passport-redacted"
+    ]
+)
+require(longCatCapturedFromUserCurrentProbe.fields["token"] == "longcat-user-current-token", "LongCat reauthentication should normalize token returned by same-origin user-current")
+require(longCatCapturedFromUserCurrentProbe.fields["longcatLoginStatus"] == "1", "LongCat reauthentication should preserve sanitized same-origin login status")
+require(DashboardCredentialCapturePolicy.isCredentialReady(
+    longCatCapturedFromUserCurrentProbe,
+    requiredNames: Provider.longcat.dashboardAuthenticationCookieNames
+), "LongCat first-save capture should accept same-origin user-current login material")
+require(longCatCapturedFromUserCurrentProbe.reauthenticatedSecret(existingSecret: nil).contains("\"longcatLoginStatus\""), "LongCat same-origin login status should be persisted as sanitized metadata")
+let longCatLocalizedMissingNames = DashboardCredentialDisplayNames.missingRequiredNames(
+    ["longcat_session", "token", "uuid|passport_uuid"],
+    provider: .longcat,
+    language: .simplifiedChinese
+)
+require(longCatLocalizedMissingNames == ["LongCat 登录授权", "LongCat 浏览器身份"], "LongCat missing-login diagnostics should group raw token and UUID requirements into localized user-facing labels")
+let longCatLocalizedCapturedNames = DashboardCredentialDisplayNames.capturedNames(
+    for: longCatCapturedFromUserCurrentProbe,
+    language: .simplifiedChinese
+)
+require(longCatLocalizedCapturedNames == ["LongCat 登录状态", "LongCat 登录授权", "LongCat 浏览器身份"], "LongCat captured-login diagnostics should show localized grouped labels in a stable order")
+let longCatRawCapturedCopy = longCatLocalizedCapturedNames.joined(separator: ", ")
+require(!longCatRawCapturedCopy.contains("token"), "LongCat captured-login diagnostics should not expose raw token field names")
+require(!longCatRawCapturedCopy.contains("passport_uuid"), "LongCat captured-login diagnostics should not expose raw passport UUID field names")
+require(!longCatRawCapturedCopy.contains("longcatLoginStatus"), "LongCat captured-login diagnostics should not expose raw login status field names")
+for language in AppLanguage.allCases {
+    require(!L10n.t(.longCatLoginAuthorization, language: language).isEmpty, "LongCat login authorization display name should be localized for \(language.rawValue)")
+    require(!L10n.t(.longCatBrowserIdentity, language: language).isEmpty, "LongCat browser identity display name should be localized for \(language.rawValue)")
+    require(!L10n.t(.longCatAccountIdentity, language: language).isEmpty, "LongCat account identity display name should be localized for \(language.rawValue)")
+}
+let longCatCapturedFromVerifiedPageCookie = DashboardCapturedCredential(
+    provider: .longcat,
+    cookieHeader: "unknown_login_cookie=redacted",
+    webStorageFields: [
+        "longcatLoginStatus": "1"
+    ]
+)
+require(DashboardCredentialCapturePolicy.isCredentialReady(
+    longCatCapturedFromVerifiedPageCookie,
+    requiredNames: Provider.longcat.dashboardAuthenticationCookieNames
+), "LongCat first-save capture should trust same-origin loginStatus when the browser has a working login cookie with an unknown or HttpOnly-backed name")
+require(
+    DashboardCredentialDisplayNames.capturedNames(for: longCatCapturedFromVerifiedPageCookie, language: .simplifiedChinese)
+        == ["LongCat 登录状态", "LongCat 登录授权"],
+    "LongCat captured-login diagnostics should label unknown login cookies without exposing raw cookie names"
+)
+let longCatCapturedFromMisspelledPassportStorage = DashboardCapturedCredential(
+    provider: .longcat,
+    cookieHeader: "locale=zh",
+    webStorageFields: [
+        "token": "longcat-storage-token",
+        "userTicket": "ticket-redacted",
+        "uuid": "uuid-redacted",
+        "passpoart_uuid": "passport-redacted",
+        "lt": "lt-redacted"
+    ]
+)
+require(longCatCapturedFromMisspelledPassportStorage.fields["passport_uuid"] == "passport-redacted", "LongCat reauthentication should normalize the observed passpoart_uuid WebStorage typo")
+require(DashboardCredentialCapturePolicy.isCredentialReady(
+    longCatCapturedFromMisspelledPassportStorage,
+    requiredNames: Provider.longcat.dashboardAuthenticationCookieNames
+), "LongCat first-save capture should accept the observed passpoart_uuid WebStorage typo")
 
 struct FirstSaveDashboardProviderScenario {
     let provider: Provider
@@ -7060,6 +7300,26 @@ let firstSaveDashboardProviderScenarios: [FirstSaveDashboardProviderScenario] = 
         ],
         webStorageFields: [:],
         expectedSecretFragments: ["osduss=querit-session", "osfuid=querit-user", "passOsRefreshTk=querit-refresh"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .longcat,
+        cookies: [
+            firstSaveCookie("longcat_session", value: "longcat-session", domain: ".longcat.chat")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["longcat_session=longcat-session"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .longcat,
+        cookies: [],
+        webStorageFields: [
+            "token": "longcat-storage-token",
+            "userTicket": "ticket-redacted",
+            "uuid": "uuid-redacted",
+            "passport_uuid": "passport-redacted",
+            "lt": "lt-redacted"
+        ],
+        expectedSecretFragments: ["\"token\"", "\"userTicket\"", "\"uuid\"", "\"passport_uuid\"", "\"lt\""]
     )
 ]
 
@@ -7070,9 +7330,11 @@ let expectedFirstSaveProviders: [Provider] = [
     .xfyunCodingPlan,
     .kimiSubscription,
     .opencodeGo,
-    .querit
+    .querit,
+    .longcat,
+    .longcat
 ]
-require(firstSaveDashboardProviderScenarios.map(\.provider) == expectedFirstSaveProviders, "First-save regression matrix should explicitly cover Claude, Codex, Volcengine, XFYun, Kimi, OpenCode Go, and Querit")
+require(firstSaveDashboardProviderScenarios.map(\.provider) == expectedFirstSaveProviders, "First-save regression matrix should explicitly cover Claude, Codex, Volcengine, XFYun, Kimi, OpenCode Go, Querit, and LongCat cookie plus storage captures")
 
 for scenario in firstSaveDashboardProviderScenarios {
     guard let config = DashboardReauthConfig(provider: scenario.provider) else {
@@ -7735,6 +7997,87 @@ require(bocha.limit == 1400, "Bocha account balance should not invent a larger r
 require(bocha.quotaLabel == "CNY 14.00 balance", "Bocha should display remaining account balance")
 require(bocha.quotaText?.key == .moneyBalanceFormat, "Bocha balance should carry a structured money-balance descriptor")
 require(bocha.resetAt == nil, "Bocha account balance should not invent a reset cycle")
+
+let longCatTokenPackExpiry = ISO8601DateFormatter().date(from: "2026-08-07T10:00:00+08:00")!
+let longCatTokenPackData = Data("""
+{"code":0,"data":{"currentLot":{"remainingToken":1250000,"totalToken":5000000,"consumedToken":3750000,"consumedRatio":0.75,"expireTime":"2026-08-07T10:00:00+08:00","remainSeconds":2592000,"grantCategory":"PAID"},"estimate":{"exhaustedAfterDays":12},"otherLots":[{"remainingToken":300000,"expireTime":"2026-08-10T10:00:00+08:00","grantCategory":"GIFT"}]}}
+""".utf8)
+let longCatTokenPack = try! QuotaParsers.parseLongCatTokenPackSummary(longCatTokenPackData)
+require(longCatTokenPack.remaining == 1250000, "LongCat Token Pack should display token remaining")
+require(longCatTokenPack.limit == 5000000, "LongCat Token Pack should display token package total")
+require(longCatTokenPack.quotaLabel == "1250000 / 5000000 tokens", "LongCat Token Pack should display remaining over total tokens")
+require(longCatTokenPack.quotaText?.key == .tokenQuotaFormat, "LongCat Token Pack should carry a structured token quota descriptor")
+require(abs((longCatTokenPack.planEndsAt?.timeIntervalSince1970 ?? 0) - longCatTokenPackExpiry.timeIntervalSince1970) < 1, "LongCat Token Pack should expose current package expiry as plan validity")
+require(longCatTokenPack.resetAt == nil, "LongCat Token Pack should not invent a reset cycle")
+require(longCatTokenPack.planDisplayName == "Token Pack", "LongCat Token Pack should expose the token-package billing mode")
+do {
+    _ = try QuotaParsers.parseLongCatTokenPackSummary(Data("""
+{"code":401,"msg":"用户未登录，请先登录","data":null}
+""".utf8))
+    fail("LongCat Token Pack dashboard 401 bodies should throw unauthorized")
+} catch QuotaError.unauthorized {
+} catch {
+    fail("LongCat Token Pack dashboard 401 bodies should throw unauthorized, got \(error)")
+}
+
+let longCatPaygoData = Data("""
+{"code":0,"data":{"paygoBalance":{"primary":{"currency":"CNY","amount":"128.50"}},"paygoStatus":"NORMAL","rechargeEnabled":true,"statusTip":""}}
+""".utf8)
+let longCatPaygo = try! QuotaParsers.parseLongCatPayAsYouGoSummary(longCatPaygoData)
+require(longCatPaygo.remaining == 12850, "LongCat Pay-as-you-go balance should be represented in cents")
+require(longCatPaygo.limit == 12850, "LongCat Pay-as-you-go balance should not invent a fixed spending ceiling")
+require(longCatPaygo.quotaLabel == "CNY 128.50 balance", "LongCat Pay-as-you-go should display API balance")
+require(longCatPaygo.quotaText?.key == .moneyBalanceFormat, "LongCat Pay-as-you-go balance should carry a structured money-balance descriptor")
+require(longCatPaygo.resetAt == nil, "LongCat Pay-as-you-go balance should not invent a reset cycle")
+require(longCatPaygo.planEndsAt == nil, "LongCat Pay-as-you-go balance should not invent an expiry because dashboard copy says balance does not expire")
+require(longCatPaygo.planDisplayName == "API Pay-as-you-go", "LongCat Pay-as-you-go should expose the API billing mode")
+do {
+    _ = try QuotaParsers.parseLongCatPayAsYouGoSummary(Data("""
+{"code":401,"msg":"用户未登录，请先登录","data":null}
+""".utf8))
+    fail("LongCat Pay-as-you-go dashboard 401 bodies should throw unauthorized")
+} catch QuotaError.unauthorized {
+} catch {
+    fail("LongCat Pay-as-you-go dashboard 401 bodies should throw unauthorized, got \(error)")
+}
+
+let longCatCombined = try! QuotaParsers.parseLongCatBillingSummary(
+    tokenPackData: longCatTokenPackData,
+    payAsYouGoData: longCatPaygoData
+)
+require(longCatCombined.planDisplayName == "LongCat", "LongCat combined billing summary should stay under one provider plan name")
+require(longCatCombined.remaining == 1250000, "LongCat combined billing summary should use token package remaining as the key quota")
+require(longCatCombined.limit == 5000000, "LongCat combined billing summary should use token package total as the key quota")
+require(longCatCombined.quotaText?.kind == .quotaWindows, "LongCat combined billing summary should render multiple billing meters under one account")
+require(longCatCombined.quotaText?.quotaWindows.count == 2, "LongCat combined billing summary should include Token Pack and API pay-as-you-go rows")
+require(longCatCombined.quotaText?.quotaWindows.first?.name == "tokenPack", "LongCat combined billing summary should keep Token Pack as the first meter")
+require(longCatCombined.quotaText?.quotaWindows.first?.percentText == "25%", "LongCat Token Pack meter should expose the real remaining percentage")
+require(longCatCombined.quotaText?.quotaWindows.first?.remainingText == "1250000 / 5000000 tokens", "LongCat Token Pack meter should preserve remaining over total tokens")
+require(longCatCombined.quotaText?.quotaWindows.last?.name == "paygoBalance", "LongCat combined billing summary should keep API pay-as-you-go as the second meter")
+require(longCatCombined.quotaText?.quotaWindows.last?.percentText == "¥128.50", "LongCat pay-as-you-go meter should show balance money instead of a fake percentage")
+require(longCatCombined.quotaText?.quotaWindows.last?.remainingText == "CNY 128.50 balance", "LongCat pay-as-you-go meter should preserve the raw balance label")
+require(abs((longCatCombined.planEndsAt?.timeIntervalSince1970 ?? 0) - longCatTokenPackExpiry.timeIntervalSince1970) < 1, "LongCat combined billing summary should expose Token Pack expiry as account-level package validity")
+let longCatMixedJSONCredential = LongCatDashboardCredential("""
+{"cookie":"locale=zh; passport_uuid=passport-from-cookie","token":"token-from-json","passport_uuid":"passport-from-json"}
+""")!
+require(longCatMixedJSONCredential.cookieHeader.contains("locale=zh"), "LongCat mixed JSON credentials should preserve existing cookie header fields")
+require(longCatMixedJSONCredential.cookieHeader.contains("token=token-from-json"), "LongCat mixed JSON credentials should merge JSON token metadata into the Cookie header")
+require(longCatMixedJSONCredential.cookieHeader.contains("passport_uuid=passport-from-json"), "LongCat mixed JSON credentials should prefer JSON passport metadata over stale cookie-only values")
+try! QuotaParsers.validateLongCatUserCurrent(Data("""
+{"code":0,"data":{"userId":12345,"loginStatus":1,"name":"LongCat User"}}
+""".utf8))
+try! QuotaParsers.validateLongCatUserCurrent(Data("""
+{"code":0,"data":{"loginStatus":1}}
+""".utf8))
+do {
+    try QuotaParsers.validateLongCatUserCurrent(Data("""
+{"code":0,"data":{"loginStatus":0}}
+""".utf8))
+    fail("LongCat login validation should reject user-current responses that still indicate logged-out status")
+} catch QuotaError.unauthorized {
+} catch {
+    fail("LongCat logged-out user-current responses should throw unauthorized, got \(error)")
+}
 
 let querit = try! QuotaParsers.parseQueritAccount(Data("""
 {"ErrNo":200,"Msg":"success","Data":{"current_plan":{"plan_type":"free","free_usage_month":10,"coupon_quota":0,"coupon_used":0,"paid_usage_month":0,"enterprise_usage_month":0}}}

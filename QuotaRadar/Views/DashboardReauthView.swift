@@ -184,18 +184,38 @@ struct DashboardReauthSheet: View {
             return
         }
 
-        let missingCookieNames = DashboardCookieBuilder.missingRequiredCredentialNames(
-            cookieHeader: capturedCredential.cookieHeader,
-            fields: capturedCredential.fields,
+        let missingCookieNames = DashboardCredentialCapturePolicy.missingRequiredCredentialNames(
+            capturedCredential,
             requiredNames: config.requiredCookieNames
         )
         guard missingCookieNames.isEmpty else {
             isSaving = false
-            statusMessage = L10n.format(.missingRequiredCookies, missingCookieNames.joined(separator: ", "))
+            statusMessage = missingCredentialStatusMessage(
+                missingCookieNames: missingCookieNames,
+                capturedCredential: capturedCredential
+            )
             return
         }
 
         validateAndPersistCredential(capturedCredential, config: config, dismissAfterSave: dismissAfterSave)
+    }
+
+    private func missingCredentialStatusMessage(
+        missingCookieNames: [String],
+        capturedCredential: DashboardCapturedCredential
+    ) -> String {
+        let displayMissingNames = DashboardCredentialDisplayNames.missingRequiredNames(
+            missingCookieNames,
+            provider: provider
+        )
+        let missingMessage = L10n.format(.missingRequiredCookies, displayMissingNames.joined(separator: ", "))
+        let capturedDisplayNames = DashboardCredentialDisplayNames.capturedNames(for: capturedCredential)
+
+        guard !capturedDisplayNames.isEmpty else { return missingMessage }
+        return [
+            missingMessage,
+            L10n.format(.capturedLoginFields, capturedDisplayNames.joined(separator: ", "))
+        ].joined(separator: " · ")
     }
 
     private func validateAndPersistCredential(_ capturedCredential: DashboardCapturedCredential, config: DashboardReauthConfig, dismissAfterSave: Bool) {
@@ -225,6 +245,16 @@ struct DashboardReauthSheet: View {
                 quotaText: LocalizedTextDescriptor.localized(.cookieSaved),
                 quotaLabel: L10n.t(.cookieSaved)
             )
+        }
+
+        if provider == .longcat {
+            validateAndPersistLongCatCredential(
+                candidateKey,
+                capturedCredential: capturedCredential,
+                existingKey: existingKey,
+                dismissAfterSave: dismissAfterSave
+            )
+            return
         }
 
         guard provider.supportsQuotaQuery else {
@@ -307,6 +337,70 @@ struct DashboardReauthSheet: View {
                     if dismissAfterSave {
                         dismiss()
                     }
+                }
+            } catch {
+                await MainActor.run {
+                    isSaving = false
+                    didAutoSave = false
+                    statusMessage = L10n.format(.reauthValidationFailed, error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func validateAndPersistLongCatCredential(
+        _ candidateKey: APIKey,
+        capturedCredential: DashboardCapturedCredential,
+        existingKey: APIKey?,
+        dismissAfterSave: Bool
+    ) {
+        Task {
+            let service = QuotaService()
+            do {
+                if capturedCredential.fields["longcatLoginStatus"] != "1" {
+                    try await service.validateLongCatDashboardLogin(for: candidateKey)
+                }
+
+                var verifiedKey = candidateKey
+                do {
+                    let result = try await service.checkQuota(for: candidateKey, bypassCooldown: true)
+                    verifiedKey.remaining = result.remaining
+                    verifiedKey.limit = result.limit
+                    verifiedKey.resetAt = result.resetAt
+                    verifiedKey.planEndsAt = result.planEndsAt
+                    verifiedKey.planDisplayName = result.planDisplayName
+                    verifiedKey.quotaLabel = result.quotaLabel
+                    verifiedKey.quotaText = result.quotaText
+                    verifiedKey.lastHTTPStatus = result.httpStatus
+                    verifiedKey.lastDiagnosticMessage = result.diagnosticMessage
+                    verifiedKey.lastDiagnosticText = result.diagnosticText
+                } catch {
+                    verifiedKey.lastDiagnosticMessage = error.localizedDescription
+                    verifiedKey.lastDiagnosticText = LocalizedTextDescriptor.localized(.quotaErrorSchemaDrift)
+                }
+
+                await MainActor.run {
+                    verifiedKey.consecutiveFailureCount = 0
+                    verifiedKey.lastUpdated = Date()
+
+                    if existingKey == nil {
+                        monitor.addKey(verifiedKey)
+                    } else {
+                        monitor.updateKey(verifiedKey)
+                    }
+
+                    onSaved?(verifiedKey)
+                    isSaving = false
+                    statusMessage = L10n.t(.cookieSaved)
+                    if dismissAfterSave {
+                        dismiss()
+                    }
+                }
+            } catch QuotaError.unauthorized {
+                await MainActor.run {
+                    isSaving = false
+                    didAutoSave = false
+                    statusMessage = L10n.t(.reauthStillUnauthorized)
                 }
             } catch {
                 await MainActor.run {
@@ -471,36 +565,8 @@ struct DashboardWebView: NSViewRepresentable {
             let cookieStore = webView.configuration.websiteDataStore.httpCookieStore
             observedCookieStore = cookieStore
             cookieStore.add(self)
-            clearProviderCookiesBeforeLoading(webView: webView, cookieStore: cookieStore, url: url)
-        }
-
-        private func clearProviderCookiesBeforeLoading(webView: WKWebView, cookieStore: WKHTTPCookieStore, url: URL) {
-            cookieStore.getAllCookies { [weak self, weak webView] cookies in
-                guard let self, let webView else { return }
-
-                let staleCookies = cookies.filter { self.matchesAllowedCookieDomain($0.domain) }
-                guard !staleCookies.isEmpty else {
-                    DispatchQueue.main.async {
-                        self.hasStartedLoading = true
-                        webView.load(URLRequest(url: url))
-                    }
-                    return
-                }
-
-                let group = DispatchGroup()
-                for cookie in staleCookies {
-                    group.enter()
-                    cookieStore.delete(cookie) {
-                        group.leave()
-                    }
-                }
-
-                group.notify(queue: .main) { [weak self, weak webView] in
-                    guard let self, let webView else { return }
-                    self.hasStartedLoading = true
-                    webView.load(URLRequest(url: url))
-                }
-            }
+            hasStartedLoading = true
+            webView.load(URLRequest(url: url))
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -692,7 +758,7 @@ struct DashboardWebView: NSViewRepresentable {
                     guard let self else { return }
                     let capturedCredential = DashboardCapturedCredential(
                         provider: self.provider,
-                        cookieHeader: cookieHeader,
+                        cookieHeader: self.mergedCookieHeader(cookieHeader, with: webStorageFields),
                         webStorageFields: webStorageFields
                     )
 
@@ -712,12 +778,16 @@ struct DashboardWebView: NSViewRepresentable {
 
         private func captureWebStorageFields(from webView: WKWebView, completion: @escaping ([String: String]) -> Void) {
             let script = """
-            (() => {
               const keys = [
                 'kimi-auth', 'accessToken', 'access_token', 'authorization', 'bearerToken', 'bearer_token', 'token',
                 'deviceID', 'deviceId', 'x-msh-device-id',
                 'sessionID', 'sessionId', 'x-msh-session-id',
-                'trafficID', 'trafficId', 'x-traffic-id'
+                'trafficID', 'trafficId', 'x-traffic-id',
+                'userTicket', 'user_ticket', 'userticket',
+                'uuid',
+                'passport_uuid', 'passportUuid', 'passportUUID', 'passport-uuid',
+                'passpoart_uuid', 'passpoartUuid', 'passpoartUUID', 'passpoart-uuid',
+                'lt', 'loginTicket', 'login_ticket'
               ];
               const output = {};
               for (const storageName of ['localStorage', 'sessionStorage']) {
@@ -730,11 +800,67 @@ struct DashboardWebView: NSViewRepresentable {
                   }
                 } catch (_) {}
               }
+              try {
+                if (document.cookie) output.documentCookie = document.cookie;
+              } catch (_) {}
+              const cookieValue = (name) => {
+                try {
+                  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+                  return match ? match[2] : '';
+                } catch (_) {
+                  return '';
+                }
+              };
+              const isLongCatHost = (() => {
+                try {
+                  return location.hostname === 'longcat.chat' || location.hostname.endsWith('.longcat.chat');
+                } catch (_) {
+                  return false;
+                }
+              })();
+              if (isLongCatHost) {
+                let uuid = cookieValue('uuid') || cookieValue('passport_uuid');
+                if (!uuid) {
+                  try {
+                    const randomText = (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + String(Date.now()))
+                      .replaceAll('-', '')
+                      .slice(0, 20);
+                    uuid = `${randomText}.${String(Date.now()).slice(0, 10)}.1.0.0`;
+                    document.cookie = `passport_uuid=${uuid}; path=/`;
+                  } catch (_) {}
+                }
+                if (uuid && !output.uuid && !output.passport_uuid) output.passport_uuid = uuid;
+                try {
+                  const response = await fetch('/api/v1/user-current', {
+                    method: 'GET',
+                    credentials: 'same-origin',
+                    headers: {
+                      'x-requested-with': 'XMLHttpRequest',
+                      'X-Client-Language': 'zh'
+                    }
+                  });
+                  if (response.ok) {
+                    const body = await response.json();
+                    const data = body && (body.data || body.result || body.Data || body.Result);
+                    if (data) {
+                      if (data.token) output.longcatUserCurrentToken = String(data.token);
+                      if (data.loginStatus !== undefined && data.loginStatus !== null) output.longcatLoginStatus = String(data.loginStatus);
+                      if (data.userId !== undefined && data.userId !== null) output.longcatUserId = String(data.userId);
+                    }
+                  }
+                } catch (_) {}
+              }
               return output;
-            })();
             """
 
-            webView.evaluateJavaScript(script) { value, _ in
+            webView.callAsyncJavaScript(script, arguments: [:], in: nil, in: .page) { result in
+                let value: Any?
+                switch result {
+                case .success(let resultValue):
+                    value = resultValue
+                case .failure:
+                    value = nil
+                }
                 guard let object = value as? [String: Any] else {
                     completion([:])
                     return
@@ -748,6 +874,36 @@ struct DashboardWebView: NSViewRepresentable {
                 }
                 completion(fields)
             }
+        }
+
+        private func mergedCookieHeader(_ cookieHeader: String, with webStorageFields: [String: String]) -> String {
+            guard let documentCookie = webStorageFields["documentCookie"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !documentCookie.isEmpty else {
+                return cookieHeader
+            }
+
+            var existingNames = Set<String>()
+            var cookieParts: [String] = []
+            for part in cookieHeader.split(separator: ";") {
+                let trimmed = String(part).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard let name = trimmed.split(separator: "=", maxSplits: 1).first, !trimmed.isEmpty else {
+                    continue
+                }
+                existingNames.insert(String(name))
+                cookieParts.append(trimmed)
+            }
+
+            for part in documentCookie.split(separator: ";") {
+                let trimmed = String(part).trimmingCharacters(in: .whitespacesAndNewlines)
+                let pieces = trimmed.split(separator: "=", maxSplits: 1)
+                guard pieces.count == 2 else { continue }
+                let name = String(pieces[0])
+                guard !existingNames.contains(name) else { continue }
+                existingNames.insert(name)
+                cookieParts.append(trimmed)
+            }
+
+            return cookieParts.joined(separator: "; ")
         }
 
         private func matchesAllowedDomain(_ host: String) -> Bool {

@@ -41,22 +41,22 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
-            - Added Codex reset-credit expiry support from `/backend-api/wham/rate-limit-reset-credits`, storing the available count plus the earliest unredeemed expiry.
-            - Refined the expanded Codex account row so available reset credits, the `Use reset` action, and the earliest expiry read as one compact action group.
-            - Kept `/backend-api/wham/usage` as the Codex quota-window source while treating reset-credit detail failures as non-fatal metadata drift.
-            - Updated provider calibration and provider capability docs for the Codex reset-credit detail endpoint and fallback behavior.
-            - Preserved the existing guarded reset flow: using a Codex reset credit still requires confirmation and refreshes the same account after consumption.
-            - Carried forward the web-login credential save/edit hardening work from the current QA branch.
-            - Refreshed release-facing screenshots and visual QA coverage for the updated account-row layout.
+            - Added LongCat as one LLM provider with Token Pack quota and API pay-as-you-go balance under the same account row.
+            - Hardened first-save web-login authorization capture for LongCat, including same-origin login-state probing and browser-identity fallback handling.
+            - Added LongCat provider icon assets and companion API-key storage while keeping API keys copy-only for LongCat quota monitoring.
+            - Localized LongCat authentication diagnostics so raw fields such as token, UUID, and login status are grouped into user-facing labels.
+            - Localized quota-window details in expanded account rows, including token quota units and money-balance rows.
+            - Switched Simplified/Traditional Chinese CNY labels to compact `¥` formatting.
+            - This release publishes the Swift macOS DMG only.
 
             中文说明：
-            - 增加 Codex 重置次数有效期支持，从 `/backend-api/wham/rate-limit-reset-credits` 保存可用次数和未使用次数的最早过期时间。
-            - 调整 Codex 展开账号行，把可用重置次数、`使用重置` 和最早过期时间收成一个紧凑操作组。
-            - 保持 `/backend-api/wham/usage` 作为 Codex 额度窗口来源；重置次数详情失败时只降级 metadata，不影响额度刷新。
-            - 更新 provider 校准和 provider capability 文档，记录 Codex 重置次数详情接口和降级口径。
-            - 保留受保护的 Codex 重置流程：使用重置次数前仍需确认，消耗后刷新同一账号。
-            - 合入当前 QA 分支中的网页登录凭据保存 / 编辑加固。
-            - 刷新 release 截图和视觉 QA，覆盖新的账号行布局。
+            - 新增 LongCat LLM provider，在同一个账号行中展示 Token 资源包额度和 API 按量余额。
+            - 加固 LongCat 网页登录授权首次保存，支持同源登录状态探测和浏览器身份兜底。
+            - 增加 LongCat provider 图标，并支持额外保存可复制 API Key；LongCat 额度监控仍使用网页登录授权。
+            - 本地化 LongCat 认证诊断，把 token、UUID、登录状态等内部字段归并成用户可理解的名称。
+            - 本地化展开账号行的额度明细，包括 token 数量和余额行。
+            - 简体 / 繁体中文的人民币金额改为更紧凑的 `¥` 格式。
+            - 本次只发布 Swift macOS DMG。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.
 

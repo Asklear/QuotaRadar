@@ -123,7 +123,7 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 
 ## Fixed In v0.3.2
 
-- [x] Claude, Codex, Kimi, and OpenCode Go subscription providers can store companion API keys. API keys are only for copying and management; quota checks still use web login authorization.
+- [x] Claude, Codex, Kimi, LongCat, and OpenCode Go subscription/package providers can store companion API keys. API keys are only for copying and management; quota checks still use web login authorization.
 - [x] Added network proxy settings: system proxy, direct connection, and custom HTTP/SOCKS proxy, with centered menu controls in Settings.
 - [x] Adding or editing a credential immediately refreshes the matching provider, instead of waiting for automatic refresh or a second manual click.
 - [x] When multiple web login authorizations exist, the reauthentication window requires an explicit save target so the wrong account is not overwritten.
@@ -174,7 +174,7 @@ The broader UI redesign toward a native, dense, low-distraction macOS monitoring
 - [x] Simplify the credential page title hierarchy so the page title and local heading do not repeat the same wording.
 - [x] Show the basic expected credential type for each provider:
   - API key: Tavily, SerpAPI, Serper, Bocha, DeepSeek, Exa Team Management service key plus target API key id, and similar providers.
-  - Web login authorization: Querit, Claude Subscription, Anthropic Credits, Codex Subscription, Kimi Subscription, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
+  - Web login authorization: Querit, Claude Subscription, Anthropic Credits, Codex Subscription, Kimi Subscription, LongCat, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
   - Verified integrations: Aliyun Coding Plan can check subscription state through `aliclaw.coding-plan` and now parses 5-hour/weekly/monthly request-count fields when exposed; Tencent Cloud Coding Plan parses request-count quota cycles through dashboard `cgi/capi?cmd=DescribePkg&serviceType=hunyuan`. Business invocation API keys for both can be stored and shown, but they are not used for quota monitoring.
   - Sample still needed: the current Aliyun Coding Plan account returns no subscription; usage-field parsing is reserved, and if a subscribed account still does not expose usage details, keep "Usable · quota unknown".
   - Hidden extension stubs: XFYun Spark Token Plan, Volcengine Token Plan, Aliyun Token Plan, and Tencent Cloud Token Plan. They are not shown, imported, or refreshed until usable quota fields, measurement units, and real credential samples are confirmed.
@@ -185,7 +185,7 @@ The broader UI redesign toward a native, dense, low-distraction macOS monitoring
   - For Querit, `QUERIT_API_KEY` is stored only as a copyable API key; quota monitoring still stores web login authorization and uses the dashboard Account API.
   - For Kimi, extract the Bearer access token, `x-msh-device-id`, `x-msh-session-id`, `x-traffic-id`, and optional `kimi-auth` cookie.
 - [x] Add companion API-key storage for providers that use web login authorization for quota monitoring but still need user-facing API-key management:
-  - Querit, Claude Subscription, Anthropic Credits, Codex Subscription, Kimi Subscription, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
+  - Querit, Claude Subscription, Anthropic Credits, Codex Subscription, Kimi Subscription, LongCat, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
   - Companion API keys are copyable and editable, but do not create separate quota-monitoring or diagnostic rows.
   - Companion API keys are linked to the matching web login authorization; when multiple accounts exist, reauthentication requires an explicit save target.
 - [x] Make reauthentication auto-save:
@@ -265,6 +265,7 @@ Acceptance criteria for a new provider:
 - [ ] Gemini / Google AI Studio: check quota, billing, and project scope.
 - [ ] Qwen / DashScope: check Alibaba Cloud usage and resource packages.
 - [x] Moonshot / Kimi: Kimi Subscription is wired through web login authorization / Bearer access token. `BillingService/GetUsages` reads five-hour/weekly windows, remaining counts, and reset times, while `GetSubscription` reads subscription balance and expiry fields. No independent monthly rate-limit window is confirmed yet.
+- [x] Meituan LongCat: LongCat is wired as one LLM provider through LongCat web login authorization. The account row shows Token Pack remaining/total tokens and package expiry plus API pay-as-you-go balance; pay-as-you-go leaves reset/end empty because balance is non-expiring. LongCat API keys are companion copy-only credentials, not quota credentials.
 - [ ] Kimi Code OAuth unified authentication: the official `/coding/v1/usages` path returns a compatible `usage/limits` shape, but it requires a Device Code OAuth token. Add it later as a fallback/advanced path under one "Authenticate Kimi" action, not as a second primary button.
 - [x] Plan-name detection phase 1: added `planDisplayName` through `QuotaResult`, `APIKey`, persistence, refresh saves, quota overview, menu bar popover, and diagnostics. Fixtures now cover Kimi membership names, XFYun Spark package names, Aliyun instance names / types, and Tencent Cloud package names.
 - [x] Plan-name detection phase 2: validate saved-account plan display for Claude `Pro`, Codex `Pro 20x`, Volcengine `Lite`, Kimi `Adagio`, and XFYun Spark package names through live quota checks.
@@ -344,7 +345,7 @@ Keep this separate from Claude / Codex subscription quota. Subscription quota tr
 - [ ] Keep macOS as the short-term priority and preserve the native SwiftUI menu bar experience.
 - [ ] Treat the current Tauri app as a migration track, not a preview handoff:
   - Merge Swift mainline regularly before adding new Tauri work.
-  - Replicate Swift v0.4.0 quota history, local notifications, provider calibration, release QA, white-label/no-updater behavior, and provider/account handoff semantics.
+  - Replicate Swift v0.4.1 quota history, local notifications, provider calibration, release QA, white-label/no-updater behavior, LongCat billing semantics, and provider/account handoff semantics.
   - Rework Tauri visuals toward the Swift compact native monitoring surface before spending effort on Windows/Linux polish.
   - Use Windows/Linux screenshots only after the macOS Tauri baseline is close enough to Swift to make cross-platform QA meaningful.
 - [ ] Centralize localization keys and avoid hardcoded business copy inside views or parsers.
@@ -374,7 +375,7 @@ Keep this separate from Claude / Codex subscription quota. Subscription quota tr
 
 ## Next Starting Plan
 
-The first P6 history/trend/alert pass and the v0.4.0 Codex reset-expiry and account-action polish are complete. The next work should reduce provider drift risk and make release validation more repeatable.
+The first P6 history/trend/alert pass, the v0.4.0 Codex reset-expiry/account-action polish, and the v0.4.1 LongCat billing/provider-auth pass are complete. The next work should reduce provider drift risk and make release validation more repeatable.
 
 1. [x] Add a lightweight live-acceptance matrix for saved web-login providers, covering saved authorization presence, plan name, quota, reset time, plan end, reset-credit count, and live refresh result without printing secrets.
 2. [x] Turn the dashboard reauthentication first-save fix into broader regression coverage across Claude, Codex, Volcengine, XFYun Spark, Kimi, OpenCode Go, and Querit.

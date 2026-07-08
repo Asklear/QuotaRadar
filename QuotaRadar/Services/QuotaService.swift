@@ -525,6 +525,206 @@ enum QuotaParsers {
         )
     }
 
+    static func parseLongCatTokenPackSummary(_ data: Data) throws -> QuotaResult {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw QuotaError.invalidResponse
+        }
+        try validateLongCatEnvelope(object)
+
+        let payload = firstDictionary(in: object, keys: ["data", "result", "Data", "Result"]) ?? object
+        guard let currentLot = firstDictionary(
+            in: payload,
+            keys: ["currentLot", "current_lot", "currentPackage", "current_package", "current"]
+        ) else {
+            throw QuotaError.invalidResponse
+        }
+
+        let remaining = firstDoubleValue(
+            in: currentLot,
+            keys: ["remainingToken", "remaining_token", "remainToken", "remain_token", "leftToken", "left_token"]
+        )
+        let total = firstDoubleValue(
+            in: currentLot,
+            keys: ["totalToken", "total_token", "quotaToken", "quota_token", "amountToken", "amount_token"]
+        )
+        let consumed = firstDoubleValue(
+            in: currentLot,
+            keys: ["consumedToken", "consumed_token", "usedToken", "used_token"]
+        )
+
+        let resolvedRemaining = remaining ?? {
+            guard let total, let consumed else { return nil }
+            return max(0, total - consumed)
+        }()
+        let resolvedTotal = total ?? {
+            guard let resolvedRemaining, let consumed else { return nil }
+            return resolvedRemaining + consumed
+        }()
+
+        guard let resolvedRemaining,
+              let resolvedTotal,
+              resolvedTotal > 0 else {
+            throw QuotaError.invalidResponse
+        }
+
+        let safeRemaining = Int(max(0, resolvedRemaining).rounded(.down))
+        let safeTotal = max(safeRemaining, Int(resolvedTotal.rounded(.down)))
+        let expiry = firstDateValue(
+            in: currentLot,
+            keys: ["expireTime", "expire_time", "expiresAt", "expires_at", "validUntil", "valid_until"]
+        ) ?? firstDateValue(
+            in: payload,
+            keys: ["expireTime", "expire_time", "expiresAt", "expires_at", "validUntil", "valid_until"]
+        )
+
+        return QuotaResult(
+            remaining: safeRemaining,
+            limit: safeTotal,
+            resetAt: nil,
+            planEndsAt: expiry,
+            planDisplayName: longCatTokenPackDisplayName(from: currentLot),
+            quotaLabel: "\(safeRemaining) / \(safeTotal) tokens"
+        )
+    }
+
+    static func parseLongCatPayAsYouGoSummary(_ data: Data) throws -> QuotaResult {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw QuotaError.invalidResponse
+        }
+        try validateLongCatEnvelope(object)
+
+        let payload = firstDictionary(in: object, keys: ["data", "result", "Data", "Result"]) ?? object
+        let balanceRoot = firstDictionary(in: payload, keys: ["paygoBalance", "paygo_balance", "balance"]) ?? payload
+        let primary = firstDictionary(in: balanceRoot, keys: ["primary", "Primary"]) ?? balanceRoot
+        let currency = stringValue(primary["currency"] ?? primary["Currency"])?.uppercased() ?? "CNY"
+        guard let amount = firstDecimalValue(
+            in: primary,
+            keys: ["amount", "balance", "availableAmount", "available_amount", "totalBalance", "total_balance"]
+        ), amount >= 0 else {
+            throw QuotaError.invalidResponse
+        }
+
+        let cents = NSDecimalNumber(decimal: amount * Decimal(100)).intValue
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        formatter.minimumIntegerDigits = 1
+        let labelValue = formatter.string(from: NSDecimalNumber(decimal: amount))
+            ?? NSDecimalNumber(decimal: amount).stringValue
+
+        return QuotaResult(
+            remaining: max(0, cents),
+            limit: max(0, cents),
+            resetAt: nil,
+            planEndsAt: nil,
+            planDisplayName: "API Pay-as-you-go",
+            quotaLabel: "\(currency) \(labelValue) balance"
+        )
+    }
+
+    static func parseLongCatBillingSummary(
+        tokenPackData: Data?,
+        payAsYouGoData: Data?
+    ) throws -> QuotaResult {
+        var tokenPack: QuotaResult?
+        var payAsYouGo: QuotaResult?
+        var fallbackError: Error?
+
+        if let tokenPackData {
+            do {
+                tokenPack = try parseLongCatTokenPackSummary(tokenPackData)
+            } catch QuotaError.unauthorized {
+                throw QuotaError.unauthorized
+            } catch {
+                fallbackError = fallbackError ?? error
+            }
+        }
+
+        if let payAsYouGoData {
+            do {
+                payAsYouGo = try parseLongCatPayAsYouGoSummary(payAsYouGoData)
+            } catch QuotaError.unauthorized {
+                throw QuotaError.unauthorized
+            } catch {
+                fallbackError = fallbackError ?? error
+            }
+        }
+
+        guard tokenPack != nil || payAsYouGo != nil else {
+            throw fallbackError ?? QuotaError.invalidResponse
+        }
+
+        var windows: [QuotaWindowText] = []
+        if let tokenPack {
+            windows.append(
+                QuotaWindowText(
+                    name: "tokenPack",
+                    percentText: longCatTokenPackPercentText(remaining: tokenPack.remaining, total: tokenPack.limit),
+                    resetAt: nil,
+                    remainingText: tokenPack.quotaLabel
+                )
+            )
+        }
+        if let payAsYouGo {
+            windows.append(
+                QuotaWindowText(
+                    name: "paygoBalance",
+                    percentText: longCatPayAsYouGoDisplayText(from: payAsYouGo),
+                    resetAt: nil,
+                    remainingText: payAsYouGo.quotaLabel
+                )
+            )
+        }
+
+        if let tokenPack {
+            return QuotaResult(
+                remaining: tokenPack.remaining,
+                limit: tokenPack.limit,
+                resetAt: nil,
+                planEndsAt: tokenPack.planEndsAt,
+                planDisplayName: "LongCat",
+                quotaLabel: windows.map { L10n.quotaWindowDisplay($0.name, $0.percentText, language: .english) }.joined(separator: " · "),
+                quotaText: .quotaWindows(windows)
+            )
+        }
+
+        let payAsYouGoBalance = payAsYouGo?.remaining ?? 0
+        return QuotaResult(
+            remaining: payAsYouGoBalance,
+            limit: 0,
+            resetAt: nil,
+            planEndsAt: nil,
+            planDisplayName: "LongCat",
+            quotaLabel: payAsYouGo?.quotaLabel,
+            quotaText: .quotaWindows(windows)
+        )
+    }
+
+    static func validateLongCatUserCurrent(_ data: Data) throws {
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw QuotaError.invalidResponse
+        }
+        try validateLongCatEnvelope(object)
+
+        let payload = firstDictionary(in: object, keys: ["data", "result", "Data", "Result"])
+        guard let payload else {
+            throw QuotaError.unauthorized
+        }
+        if let loginStatus = firstDoubleValue(in: payload, keys: ["loginStatus", "login_status"]) {
+            guard loginStatus > 0 else {
+                throw QuotaError.unauthorized
+            }
+            return
+        }
+        if firstDoubleValue(in: payload, keys: ["userId", "user_id", "id"]) != nil
+            || firstNonEmptyStringValue(in: payload, keys: ["userId", "user_id", "id", "email", "name", "phone", "token"]) != nil {
+            return
+        }
+
+        throw QuotaError.unauthorized
+    }
+
     static func parseXFYunCodingPlanList(_ data: Data, now: Date = Date()) throws -> QuotaResult {
         struct CodingPlanListResponse: Decodable {
             struct PageData: Decodable {
@@ -2076,6 +2276,96 @@ enum QuotaParsers {
         return nil
     }
 
+    private static func firstNonEmptyStringValue(in source: [String: Any], keys: [String]) -> String? {
+        for key in keys {
+            guard let value = stringValue(source[key])?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !value.isEmpty else {
+                continue
+            }
+            return value
+        }
+        return nil
+    }
+
+    private static func firstDecimalValue(in source: [String: Any], keys: [String]) -> Decimal? {
+        for key in keys {
+            if let value = decimalValue(source[key]) {
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func decimalValue(_ value: Any?) -> Decimal? {
+        if let decimal = value as? Decimal {
+            return decimal
+        }
+        if let number = value as? NSNumber {
+            return number.decimalValue
+        }
+        if let string = value as? String {
+            return Decimal(string: string, locale: Locale(identifier: "en_US_POSIX"))
+                ?? Decimal(string: string)
+        }
+        return nil
+    }
+
+    private static func validateLongCatEnvelope(_ object: [String: Any]) throws {
+        guard let code = longCatEnvelopeCode(object) else {
+            return
+        }
+
+        if code == 401 || code == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard code == 0 || code == 200 else {
+            throw QuotaError.invalidResponse
+        }
+    }
+
+    private static func longCatEnvelopeCode(_ object: [String: Any]) -> Int? {
+        for key in ["code", "Code", "errCode", "errorCode"] {
+            if let value = doubleValue(object[key]) {
+                return Int(value)
+            }
+        }
+        return nil
+    }
+
+    private static func longCatTokenPackDisplayName(from source: [String: Any]) -> String {
+        let category = stringValue(source["grantCategory"] ?? source["grant_category"])?.uppercased()
+        if category == "GIFT" {
+            return "Gift Token Pack"
+        }
+        return "Token Pack"
+    }
+
+    private static func longCatTokenPackPercentText(remaining: Int, total: Int) -> String {
+        guard total > 0, remaining > 0 else { return "0%" }
+        let percent = max(0, min(100, Double(remaining) / Double(total) * 100))
+        if percent < 1 {
+            return "<1%"
+        }
+        if abs(percent.rounded() - percent) < 0.05 {
+            return "\(Int(percent.rounded()))%"
+        }
+        return String(format: "%.1f%%", locale: Locale(identifier: "en_US_POSIX"), percent)
+    }
+
+    private static func longCatPayAsYouGoDisplayText(from result: QuotaResult) -> String {
+        guard let label = result.quotaLabel else {
+            return "CNY 0.00"
+        }
+        let balanceSuffix = " balance"
+        let value = label.hasSuffix(balanceSuffix)
+            ? String(label.dropLast(balanceSuffix.count))
+            : label
+        if value.hasPrefix("CNY ") {
+            return "¥" + value.dropFirst(4)
+        }
+        return value
+    }
+
     private static func aliyunTimestampDate(_ value: Any?) -> Date? {
         let numericValue: Double?
         numericValue = doubleValue(value)
@@ -2676,7 +2966,7 @@ private struct DashboardCredential {
 
     func value(for names: [String]) -> String? {
         for name in names {
-            if let value = fields[name.lowercased()], !value.isEmpty {
+            if let value = fields[name.lowercased()]?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
                 return value
             }
         }
@@ -2762,11 +3052,147 @@ private struct KimiDashboardCredential {
     }
 }
 
+struct LongCatDashboardCredential {
+    let cookieHeader: String
+
+    init?(_ raw: String) {
+        let credential = DashboardCredential(raw)
+        let existingCookieHeader = Self.cookieHeader(from: credential.cookie)
+        if let existingCookieHeader,
+           Self.cookieHeaderContainsLongCatSession(existingCookieHeader) {
+            self.cookieHeader = existingCookieHeader
+            return
+        }
+
+        let token = Self.stripBearerPrefix(credential.value(for: [
+            "token",
+            "accessToken",
+            "access_token",
+            "authorization",
+            "bearerToken",
+            "bearer_token",
+            "loginToken",
+            "login_token"
+        ]) ?? "")
+        let uuid = credential.value(for: ["uuid"])
+        let passportUUID = credential.value(for: [
+            "passport_uuid",
+            "passportUuid",
+            "passportUUID",
+            "passport-uuid",
+            "passpoart_uuid",
+            "passpoartUuid",
+            "passpoartUUID",
+            "passpoart-uuid"
+        ])
+        let userTicket = credential.value(for: ["userTicket", "user_ticket", "userticket"])
+        let lt = credential.value(for: ["lt", "loginTicket", "login_ticket"])
+
+        guard !token.isEmpty,
+              uuid != nil || passportUUID != nil else {
+            if let existingCookieHeader {
+                self.cookieHeader = existingCookieHeader
+                return
+            }
+            return nil
+        }
+
+        var cookiePairs = Self.cookiePairs(from: existingCookieHeader)
+        Self.upsertCookiePair(name: "token", value: token, pairs: &cookiePairs)
+        if let userTicket {
+            Self.upsertCookiePair(name: "userTicket", value: userTicket, pairs: &cookiePairs)
+        }
+        if let uuid {
+            Self.upsertCookiePair(name: "uuid", value: uuid, pairs: &cookiePairs)
+        }
+        if let passportUUID {
+            Self.upsertCookiePair(name: "passport_uuid", value: passportUUID, pairs: &cookiePairs)
+        }
+        if let lt {
+            Self.upsertCookiePair(name: "lt", value: lt, pairs: &cookiePairs)
+        }
+
+        self.cookieHeader = cookiePairs
+            .map { "\($0.0)=\($0.1)" }
+            .joined(separator: "; ")
+    }
+
+    private static func cookieHeader(from value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              !trimmed.hasPrefix("{"),
+              trimmed.contains("=") else {
+            return nil
+        }
+        return trimmed
+    }
+
+    private static func cookieHeaderContainsLongCatSession(_ value: String) -> Bool {
+        cookiePairs(from: value).contains { name, _ in
+            name == "longcat_session"
+        }
+    }
+
+    private static func cookiePairs(from value: String?) -> [(String, String)] {
+        guard let value else { return [] }
+        return value.split(separator: ";").compactMap { part -> (String, String)? in
+            let pieces = part.split(separator: "=", maxSplits: 1).map {
+                String($0).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            guard pieces.count == 2, !pieces[0].isEmpty else { return nil }
+            return (pieces[0], pieces[1])
+        }
+    }
+
+    private static func upsertCookiePair(name: String, value: String, pairs: inout [(String, String)]) {
+        let trimmedValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedValue.isEmpty else { return }
+        if let index = pairs.firstIndex(where: { $0.0 == name }) {
+            pairs[index] = (name, trimmedValue)
+        } else {
+            pairs.append((name, trimmedValue))
+        }
+    }
+
+    private static func stripBearerPrefix(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.lowercased().hasPrefix("bearer ") {
+            return String(trimmed.dropFirst("Bearer ".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return trimmed
+    }
+}
+
 actor QuotaService {
     private var lastCheck: [String: Date] = [:]
 
     private var session: URLSession {
         URLSession(configuration: AppAppearanceStore.configuredURLSessionConfiguration())
+    }
+
+    func validateLongCatDashboardLogin(for key: APIKey) async throws {
+        guard key.provider == .longcat,
+              let credential = LongCatDashboardCredential(key.key) else {
+            throw QuotaError.unauthorized
+        }
+
+        var request = URLRequest(url: URL(string: "https://longcat.chat/api/v1/user-current")!)
+        request.httpMethod = "GET"
+        applyLongCatDashboardHeaders(to: &request, credential: credential)
+        request.httpBody = nil
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        try QuotaParsers.validateLongCatUserCurrent(data)
     }
 
     func checkQuota(for key: APIKey, bypassCooldown: Bool = false) async throws -> QuotaResult {
@@ -2808,6 +3234,8 @@ actor QuotaService {
             return try await checkCodexSubscriptionQuota(key: key)
         case .kimiSubscription:
             return try await checkKimiSubscriptionQuota(key: key)
+        case .longcat:
+            return try await checkLongCatQuota(key: key)
         case .deepseek:
             return try await checkDeepSeekQuota(key: key)
         case .xfyunCodingPlan:
@@ -3350,6 +3778,69 @@ actor QuotaService {
         if let trafficID = credential.trafficID {
             request.setValue(trafficID, forHTTPHeaderField: "x-traffic-id")
         }
+    }
+
+    /// LongCat: dashboard billing endpoints for token package and API pay-as-you-go balance.
+    /// The secret should be the logged-in Cookie header, or JSON: {"cookie":"..."}.
+    private func checkLongCatQuota(key: APIKey) async throws -> QuotaResult {
+        guard let credential = LongCatDashboardCredential(key.key) else {
+            throw QuotaError.unauthorized
+        }
+
+        let tokenPackResponse = try await fetchLongCatBillingSummary(
+            path: "/api/pay/quota/metering/token-packs/summary",
+            credential: credential
+        )
+        let payAsYouGoResponse = try await fetchLongCatBillingSummary(
+            path: "/api/pay/quota/metering/api-usage/summary",
+            credential: credential
+        )
+
+        var result = try QuotaParsers.parseLongCatBillingSummary(
+            tokenPackData: tokenPackResponse.data,
+            payAsYouGoData: payAsYouGoResponse.data
+        )
+        result.httpStatus = payAsYouGoResponse.response.statusCode
+        return result
+    }
+
+    private func fetchLongCatBillingSummary(
+        path: String,
+        credential: LongCatDashboardCredential
+    ) async throws -> (data: Data, response: HTTPURLResponse) {
+        var request = URLRequest(url: URL(string: "https://longcat.chat\(path)")!)
+        request.httpMethod = "POST"
+        applyLongCatDashboardHeaders(to: &request, credential: credential)
+        request.httpBody = Data("{}".utf8)
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        return (data, httpResponse)
+    }
+
+    private func applyLongCatDashboardHeaders(to request: inout URLRequest, credential: LongCatDashboardCredential) {
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        request.setValue("zh-CN,zh;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(credential.cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue("https://longcat.chat", forHTTPHeaderField: "Origin")
+        request.setValue("https://longcat.chat/platform/", forHTTPHeaderField: "Referer")
+        request.setValue("\"Chromium\";v=\"148\", \"Google Chrome\";v=\"148\", \"Not/A)Brand\";v=\"99\"", forHTTPHeaderField: "sec-ch-ua")
+        request.setValue("?0", forHTTPHeaderField: "sec-ch-ua-mobile")
+        request.setValue("\"macOS\"", forHTTPHeaderField: "sec-ch-ua-platform")
+        request.setValue("empty", forHTTPHeaderField: "sec-fetch-dest")
+        request.setValue("cors", forHTTPHeaderField: "sec-fetch-mode")
+        request.setValue("same-origin", forHTTPHeaderField: "sec-fetch-site")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
     }
 
     /// DeepSeek: 通过 API 获取 quota
