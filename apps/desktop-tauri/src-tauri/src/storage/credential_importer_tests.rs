@@ -1,11 +1,12 @@
-use std::{fs, path::PathBuf};
+use std::{fs, io, path::PathBuf};
 
 use crate::domain::CredentialKind;
 
 use super::{
     credential_importer::{
-        import_claude_settings_content, import_claude_settings_file, import_credentials_into_store,
-        parse_env_content, ImportedCredential, ImportedCredentialSource,
+        claude_settings_error_is_missing, import_claude_settings_content,
+        import_claude_settings_file, import_credentials_into_store, parse_env_content,
+        ImportedCredential, ImportedCredentialSource,
     },
     metadata_store::{load_credentials, MemoryMetadataStore, MetadataStore},
     secret_store::{MemorySecretVault, SecretVault},
@@ -105,6 +106,16 @@ fn missing_claude_settings_file_is_skipped_without_clearing_existing_credentials
             .expect("secret read"),
         Some("brave-existing-secret".to_string())
     );
+}
+
+#[test]
+fn windows_missing_claude_settings_errors_are_skipped_like_not_found() {
+    assert!(claude_settings_error_is_missing(
+        &io::Error::from_raw_os_error(2)
+    ));
+    assert!(claude_settings_error_is_missing(
+        &io::Error::from_raw_os_error(3)
+    ));
 }
 
 #[test]

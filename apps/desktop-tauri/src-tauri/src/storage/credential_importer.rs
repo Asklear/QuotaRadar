@@ -69,7 +69,7 @@ pub fn import_claude_settings_file(
 ) -> Result<CredentialImportSummary, String> {
     let content = match fs::read_to_string(settings_path) {
         Ok(content) => content,
-        Err(error) if error.kind() == ErrorKind::NotFound => {
+        Err(error) if claude_settings_error_is_missing(&error) => {
             return import_credentials_into_store(metadata_store, secret_vault, Vec::new());
         }
         Err(error) => {
@@ -82,6 +82,10 @@ pub fn import_claude_settings_file(
     let imported = import_claude_settings_content(&content)?;
 
     import_credentials_into_store(metadata_store, secret_vault, imported)
+}
+
+pub(super) fn claude_settings_error_is_missing(error: &std::io::Error) -> bool {
+    matches!(error.kind(), ErrorKind::NotFound) || matches!(error.raw_os_error(), Some(2 | 3))
 }
 
 pub fn parse_env_content(
