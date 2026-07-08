@@ -251,4 +251,15 @@ describe("i18n", () => {
     expect(formatSystemDisplayText("3 searches left", t)).toBe("剩余 3 次搜索");
     expect(formatSystemDisplayText("200 / 1000 tokens", t)).toBe("200 / 1000 个 token");
   });
+
+  it("localizes provider quota badge text without leaving English fragments", () => {
+    const t = (key: keyof typeof en) => translate(key, "zh-Hans");
+
+    expect(formatSystemDisplayText("Usable · quota unknown", t)).toBe("可用 · 额度未知");
+    expect(formatSystemDisplayText("No Serper credits available", t)).toBe(
+      "无可用 Serper 点数",
+    );
+    expect(formatSystemDisplayText("USD 45.67 used", t)).toBe("已用 USD 45.67");
+    expect(formatSystemDisplayText("CNY 128.40 available", t)).toBe("可用 CNY 128.40");
+  });
 });

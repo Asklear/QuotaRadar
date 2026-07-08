@@ -133,6 +133,8 @@ const providerDiagnosticServiceKeys: Record<string, MessageKey> = {
 };
 
 const decimalNumberPattern = String.raw`([0-9]+(?:\.[0-9]+)?)`;
+const currencyCodePattern = String.raw`([A-Z]{3})`;
+const providerNamePattern = String.raw`(.+?)`;
 
 const structuredQuotaLabelPatterns: Array<{
   pattern: RegExp;
@@ -173,6 +175,26 @@ const structuredQuotaLabelPatterns: Array<{
     pattern: new RegExp(`^${decimalNumberPattern} / ${decimalNumberPattern} tokens$`),
     key: "quotaLabel.tokenQuota",
     fields: ["used", "limit"],
+  },
+  {
+    pattern: /^Usable · quota unknown$/,
+    key: "quotaLabel.usableQuotaUnknown",
+    fields: [],
+  },
+  {
+    pattern: new RegExp(`^No ${providerNamePattern} credits available$`),
+    key: "quotaLabel.noProviderCreditsAvailable",
+    fields: ["provider"],
+  },
+  {
+    pattern: new RegExp(`^${currencyCodePattern} ${decimalNumberPattern} used$`),
+    key: "quotaLabel.currencyUsed",
+    fields: ["currency", "amount"],
+  },
+  {
+    pattern: new RegExp(`^${currencyCodePattern} ${decimalNumberPattern} available$`),
+    key: "quotaLabel.currencyAvailable",
+    fields: ["currency", "amount"],
   },
 ];
 
