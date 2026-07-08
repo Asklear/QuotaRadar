@@ -113,8 +113,16 @@ describe("CredentialsPage", () => {
     });
     fireEvent.click(within(screen.getByRole("dialog", { name: "Add Credential" })).getByRole("button", { name: "Add Credential" }));
 
-    expect(await screen.findByText("Tavily Test Key")).toBeInTheDocument();
+    const createdName = await screen.findByText("Tavily Test Key");
+    expect(createdName).toBeInTheDocument();
     expect(screen.getByText("tvly••••alue")).toBeInTheDocument();
+    const createdRow = createdName.closest(".credential-row");
+    if (!(createdRow instanceof HTMLElement)) {
+      throw new Error("Expected created credential to render inside a credential row");
+    }
+    expect(within(createdRow).getByText(/not checked/i)).toBeInTheDocument();
+    expect(within(createdRow).queryByText(/failed/i)).not.toBeInTheDocument();
+    expect(createdRow.querySelector(".credential-dot")).toHaveAttribute("data-tone", "healthy");
   });
 
   it("opens existing credentials in edit mode and replaces the row on save", async () => {
