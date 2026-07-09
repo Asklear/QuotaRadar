@@ -41,21 +41,15 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
-            - Added LongCat as one LLM provider with Token Pack quota and API pay-as-you-go balance under the same account row.
-            - Hardened first-save web-login authorization capture for LongCat, including same-origin login-state probing and browser-identity fallback handling.
-            - Added LongCat provider icon assets and companion API-key storage while keeping API keys copy-only for LongCat quota monitoring.
-            - Localized LongCat authentication diagnostics so raw fields such as token, UUID, and login status are grouped into user-facing labels.
-            - Localized quota-window details in expanded account rows, including token quota units and money-balance rows.
-            - Switched Simplified/Traditional Chinese CNY labels to compact `¥` formatting.
+            - Keeps the settings sidebar footer showing the installed version number, such as `v0.4.3`, at all times.
+            - Keeps update-check status visible as a secondary line after manual or background checks.
+            - Retains the Kimi duplicate quota-detail suppression and standard Swift-only unsigned DMG release path.
             - This release publishes the Swift macOS DMG only.
 
             中文说明：
-            - 新增 LongCat LLM provider，在同一个账号行中展示 Token 资源包额度和 API 按量余额。
-            - 加固 LongCat 网页登录授权首次保存，支持同源登录状态探测和浏览器身份兜底。
-            - 增加 LongCat provider 图标，并支持额外保存可复制 API Key；LongCat 额度监控仍使用网页登录授权。
-            - 本地化 LongCat 认证诊断，把 token、UUID、登录状态等内部字段归并成用户可理解的名称。
-            - 本地化展开账号行的额度明细，包括 token 数量和余额行。
-            - 简体 / 繁体中文的人民币金额改为更紧凑的 `¥` 格式。
+            - 设置页侧边栏左下角会始终显示当前安装版本号，例如 `v0.4.3`。
+            - 手动或后台检查更新后的状态会作为第二行辅助信息展示，不再覆盖版本号。
+            - 保留 Kimi 重复额度明细抑制，以及 Swift-only 未签名 DMG 的标准发布路径。
             - 本次只发布 Swift macOS DMG。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.

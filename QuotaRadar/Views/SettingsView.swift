@@ -235,11 +235,13 @@ struct SidebarUpdateFooter: View {
         updater.isChecking || updater.isDownloading
     }
 
-    private var statusText: String {
-        if GitHubReleaseUpdater.isUpdateCheckingAvailable {
-            return updater.statusMessage ?? L10n.t(.checkForUpdates)
-        }
-        return updater.currentVersion
+    private var versionText: String {
+        "v\(updater.currentVersion)"
+    }
+
+    private var updateStatusText: String? {
+        guard GitHubReleaseUpdater.isUpdateCheckingAvailable else { return nil }
+        return updater.statusMessage ?? L10n.t(.checkForUpdates)
     }
 
     var body: some View {
@@ -254,11 +256,19 @@ struct SidebarUpdateFooter: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
 
-                    Text(statusText)
-                        .font(.caption2)
-                        .foregroundStyle(isBusy ? .primary : .tertiary)
+                    Text(versionText)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.primary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
+
+                    if let updateStatusText {
+                        Text(updateStatusText)
+                            .font(.caption2)
+                            .foregroundStyle(isBusy ? .primary : .tertiary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
                 }
 
                 if GitHubReleaseUpdater.isUpdateCheckingAvailable {

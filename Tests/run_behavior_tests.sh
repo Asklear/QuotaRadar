@@ -59,9 +59,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.4\.2' \
+assert_match '0\.4\.3' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.4.2 should be recorded in Info.plist"
+  "Quota Radar 0.4.3 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -745,6 +745,39 @@ PY
 assert_match 'Text\(L10n\.t\(\.version\)\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings sidebar footer should show the installed app version"
+assert_match 'private var versionText: String' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings sidebar footer should keep the installed version as a dedicated value"
+assert_match 'private var updateStatusText: String\?' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Settings sidebar footer should keep update-check status separate from the installed version"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Views/SettingsView.swift").read_text()
+try:
+    footer = source.split("struct SidebarUpdateFooter: View", 1)[1].split("\nstruct ", 1)[0]
+except IndexError:
+    print("FAIL: SidebarUpdateFooter should exist", file=sys.stderr)
+    sys.exit(1)
+
+required = {
+    "Text(versionText)": "installed version should be rendered from versionText",
+    "if let updateStatusText": "update status should be optional and secondary",
+    "Text(updateStatusText)": "update status should render separately from the version",
+    '"v\\(updater.currentVersion)"': "versionText should prefix the bundle version with v",
+}
+
+for needle, message in required.items():
+    if needle not in footer:
+        print(f"FAIL: Settings sidebar footer {message}", file=sys.stderr)
+        sys.exit(1)
+
+if "Text(statusText)" in footer or "private var statusText" in footer:
+    print("FAIL: Settings sidebar footer should not replace the version with update status text", file=sys.stderr)
+    sys.exit(1)
+PY
 assert_match 'updater\.checkForUpdatesFromUI\(\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings sidebar footer should provide a manual update check action"

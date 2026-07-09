@@ -69,6 +69,12 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Keep the settings sidebar update footer on an explicit up-to-date status after successful background checks, so the lower-left update control no longer looks idle when no new release is available.
 - [x] Bump version metadata, README release commands, behavior tests, and the standard DMG artifact for `v0.4.2`.
 
+## v0.4.3 Sidebar Version Footer Fix
+
+- [x] Keep the lower-left settings sidebar footer showing the installed version number, such as `v0.4.3`, at all times.
+- [x] Move update-check status to a secondary line so `Check for Updates`, `Up to date`, and download states no longer replace the version number.
+- [x] Add behavior coverage for the separated version and update-status footer values, and bump release metadata for `v0.4.3`.
+
 ## v0.3.7 Monitoring Trust And Attention
 
 - [x] Add a compact last-refresh status marker beside Last Updated in expanded provider rows, so users can see whether the latest refresh updated, had no change, failed, or was skipped without adding a history list.
