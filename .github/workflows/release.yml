@@ -41,15 +41,15 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
-            - Keeps the settings sidebar footer showing the installed version number, such as `v0.4.3`, at all times.
-            - Keeps update-check status visible as a secondary line after manual or background checks.
-            - Retains the Kimi duplicate quota-detail suppression and standard Swift-only unsigned DMG release path.
+            - Fixes the lower-left settings footer so localized labels no longer contain stale hard-coded version numbers.
+            - Shows the installed bundle version once, from `CFBundleShortVersionString`, while update-check status stays secondary.
+            - Adds behavior coverage that rejects app-version numbers inside the localized version label.
             - This release publishes the Swift macOS DMG only.
 
             中文说明：
-            - 设置页侧边栏左下角会始终显示当前安装版本号，例如 `v0.4.3`。
-            - 手动或后台检查更新后的状态会作为第二行辅助信息展示，不再覆盖版本号。
-            - 保留 Kimi 重复额度明细抑制，以及 Swift-only 未签名 DMG 的标准发布路径。
+            - 修复设置页左下角本地化标签硬编码旧版本号的问题。
+            - 当前安装版本只从 `CFBundleShortVersionString` 渲染一次，更新检查状态仍作为辅助信息展示。
+            - 增加行为测试，禁止本地化版本标签再次写入具体 app 版本号。
             - 本次只发布 Swift macOS DMG。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.

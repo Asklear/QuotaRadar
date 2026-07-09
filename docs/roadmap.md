@@ -75,6 +75,12 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Move update-check status to a secondary line so `Check for Updates`, `Up to date`, and download states no longer replace the version number.
 - [x] Add behavior coverage for the separated version and update-status footer values, and bump release metadata for `v0.4.3`.
 
+## v0.4.4 Sidebar Version Label Hotfix
+
+- [x] Remove stale hard-coded `0.4.1` values from the localized `Version` label across English, Chinese, Japanese, and Korean.
+- [x] Keep the lower-left settings footer rendering the installed bundle version only once, from `CFBundleShortVersionString`.
+- [x] Add behavior coverage that rejects app-version numbers inside the localized version label.
+
 ## v0.3.7 Monitoring Trust And Attention
 
 - [x] Add a compact last-refresh status marker beside Last Updated in expanded provider rows, so users can see whether the latest refresh updated, had no change, failed, or was skipped without adding a history list.

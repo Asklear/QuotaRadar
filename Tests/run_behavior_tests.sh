@@ -59,9 +59,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.4\.3' \
+assert_match '0\.4\.4' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.4.3 should be recorded in Info.plist"
+  "Quota Radar 0.4.4 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -745,6 +745,9 @@ PY
 assert_match 'Text\(L10n\.t\(\.version\)\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings sidebar footer should show the installed app version"
+assert_no_match '\.version: ".*[0-9]+\.[0-9]+\.[0-9]+' \
+  "QuotaRadar/Models/AppLanguage.swift" \
+  "Version localization should be a label only and must not hard-code an app version"
 assert_match 'private var versionText: String' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings sidebar footer should keep the installed version as a dedicated value"
