@@ -12,7 +12,7 @@ Quota Radar is a macOS menu bar app for monitoring search API balances and LLM c
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Current version: `v0.4.1`.
+Current version: `v0.4.2`.
 
 ## Screenshots
 
@@ -124,9 +124,9 @@ open build/QuotaRadar.dmg
 Manual GitHub Release upload:
 
 ```bash
-gh release create v0.4.1 build/QuotaRadar.dmg \
-  --title "Quota Radar v0.4.1" \
-  --notes "LongCat quota monitoring, first-save web-login hardening, localized quota details, compact RMB balance labels, and unsigned Swift macOS DMG for trusted users."
+gh release create v0.4.2 build/QuotaRadar.dmg \
+  --title "Quota Radar v0.4.2" \
+  --notes "Fixes Kimi quota-window duplicate details, keeps update-check status visible after successful no-update checks, and includes the latest subscription/reset metadata refinements."
 ```
 
 Unsigned DMGs do not require an Apple Developer Program account, but macOS Gatekeeper may block downloaded copies. Install only if you trust the source repository and release. If macOS says the app is damaged or cannot be opened:

@@ -92,7 +92,7 @@ final class GitHubReleaseUpdater: ObservableObject {
             isChecking = false
 
             guard let update else {
-                statusMessage = userInitiated ? L10n.t(.noUpdatesAvailable) : nil
+                statusMessage = L10n.t(.noUpdatesAvailable)
                 if userInitiated {
                     presentNoUpdateAlert()
                 }
@@ -101,7 +101,7 @@ final class GitHubReleaseUpdater: ObservableObject {
 
             if !userInitiated,
                defaults.string(forKey: Self.skippedReleaseTagKey) == update.tagName {
-                statusMessage = nil
+                statusMessage = L10n.t(.noUpdatesAvailable)
                 return
             }
 

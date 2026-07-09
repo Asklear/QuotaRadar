@@ -278,13 +278,38 @@ struct QuotaWindowText: Codable, Equatable {
     var detailValueText: String? {
         if let resetAt {
             let resetText = L10n.format(.resetDate, L10n.shortDateTime(resetAt))
-            if let remainingParentheticalText {
+            if let remainingParentheticalText, !QuotaWindowText.isDuplicateRemaining(percentText: percentText, remainingText: remainingText) {
                 return "\(resetText)\(L10n.parentheticalSuffix(remainingParentheticalText))"
             }
             return resetText
         }
         guard let remainingText else { return nil }
         return L10n.localizedQuotaLabel(remainingText)
+    }
+
+    /// Returns true when the parenthesized remaining text conveys the same
+    /// percentage already shown in `percentText`, so pairing the two would be
+    /// visually redundant (e.g. "98%" followed by "(98/100)").
+    static func isDuplicateRemaining(percentText: String, remainingText: String?) -> Bool {
+        guard let remainingText else { return false }
+        let percentDigits = percentText.prefix { $0.isNumber || $0 == "." }
+        guard let percentValue = Double(percentDigits) else { return false }
+        // If the displayed percentage already carries decimal precision (e.g.
+        // "39.6%"), the parenthesized count adds information and must be kept.
+        if percentDigits.contains(".") {
+            return false
+        }
+        let parts = remainingText
+            .split(separator: "/", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        guard parts.count == 2,
+              let numerator = Double(parts[0]),
+              let denominator = Double(parts[1]),
+              denominator == 100 else {
+            return false
+        }
+        let derivedPercent = (numerator * 100) / denominator
+        return abs(derivedPercent - percentValue) < 1
     }
 }
 

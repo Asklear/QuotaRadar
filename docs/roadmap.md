@@ -63,6 +63,12 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - [x] Add `install.sh --white-label` and `scripts/package_dmg.sh --white-label`, with a separate `.build-white-label` scratch directory and `build/QuotaRadar-WhiteLabel.dmg` artifact.
 - [x] Verify the white-label DMG with code-signature validation and release-safety string scans for upstream GitHub Release URLs.
 
+## v0.4.2 Kimi Quota Detail And Updater Status Fixes
+
+- [x] Suppress redundant Kimi percentage-scale quota detail such as `98 / 100` when the same value is already shown as `98%`, while preserving absolute quota scale such as `3000 / 10000`.
+- [x] Keep the settings sidebar update footer on an explicit up-to-date status after successful background checks, so the lower-left update control no longer looks idle when no new release is available.
+- [x] Bump version metadata, README release commands, behavior tests, and the standard DMG artifact for `v0.4.2`.
+
 ## v0.3.7 Monitoring Trust And Attention
 
 - [x] Add a compact last-refresh status marker beside Last Updated in expanded provider rows, so users can see whether the latest refresh updated, had no change, failed, or was skipped without adding a history list.

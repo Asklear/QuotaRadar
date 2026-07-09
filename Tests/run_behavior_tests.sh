@@ -59,9 +59,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.4\.1' \
+assert_match '0\.4\.2' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.4.1 should be recorded in Info.plist"
+  "Quota Radar 0.4.2 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -691,6 +691,9 @@ assert_match '检查更新' \
 assert_match 'L10n\.t\(\.checkForUpdates\)' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings should expose a localized Check for Updates action"
+assert_match 'statusMessage = L10n\.t\(\.noUpdatesAvailable\)' \
+  "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
+  "Updater should keep an up-to-date status in the lower-left footer after a successful background check finds no update"
 assert_match 'SidebarUpdateFooter' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Settings sidebar should keep version and update status in the lower-left footer"
@@ -5531,6 +5534,10 @@ let claudeWindowResetKey = APIKey(
 require(claudeWindowResetKey.visibleQuotaResetSummary == "", "Claude subscription should not duplicate 5h/week reset timing in the last-updated timing column")
 require(claudeWindowResetKey.quotaRowSubtitle == "", "Claude subscription should not repeat multi-window quota text in the compact credential row")
 require(claudeWindowResetKey.quotaWindowDetails.count == 2, "Claude subscription should keep reset timing attached to the five-hour and weekly quota rows")
+let duplicateKimiWindow = QuotaWindowText(name: "5h", percentText: "98%", resetAt: localizedResetDate, remainingText: "98 / 100")
+require(duplicateKimiWindow.detailValueText?.contains("98 / 100") == false, "Kimi percentage-scale quota details should not repeat the same 98/100 payload after the 98% value")
+let scaleAwareKimiWindow = QuotaWindowText(name: "month", percentText: "30%", resetAt: localizedResetDate, remainingText: "3000 / 10000")
+require(scaleAwareKimiWindow.detailValueText?.contains("3000 / 10000") == true, "Kimi subscription-balance details should keep absolute remaining/total credits when they add scale beyond the percentage")
 let expiredClaudeFiveHourReset = Date().addingTimeInterval(-60 * 60)
 let futureClaudeWeeklyReset = Date().addingTimeInterval(60 * 60)
 let staleClaudeWindowResetKey = APIKey(
