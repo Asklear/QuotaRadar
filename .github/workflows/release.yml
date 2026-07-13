@@ -41,15 +41,17 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
-            - Fixes the lower-left settings footer so localized labels no longer contain stale hard-coded version numbers.
-            - Shows the installed bundle version once, from `CFBundleShortVersionString`, while update-check status stays secondary.
-            - Adds behavior coverage that rejects app-version numbers inside the localized version label.
+            - Adapts Codex quota parsing to dynamic single- or dual-window responses.
+            - Identifies each quota period from `limit_window_seconds` instead of assuming fixed primary/secondary positions.
+            - Displays weekly-only or five-hour-only usage without synthesizing a missing period or retaining stale cached values.
+            - Adds regression coverage for historical dual-window, weekly-only, five-hour-only, unknown-duration, and missing-reset responses.
             - This release publishes the Swift macOS DMG only.
 
             中文说明：
-            - 修复设置页左下角本地化标签硬编码旧版本号的问题。
-            - 当前安装版本只从 `CFBundleShortVersionString` 渲染一次，更新检查状态仍作为辅助信息展示。
-            - 增加行为测试，禁止本地化版本标签再次写入具体 app 版本号。
+            - 兼容 Codex 动态单窗口或双窗口额度响应。
+            - 根据 `limit_window_seconds` 判断额度周期，不再依赖 primary / secondary 固定位置。
+            - 只有周额度或只有 5 小时额度时也能正常刷新，不补造缺失周期、不保留旧缓存。
+            - 增加旧双窗口、仅周窗口、仅 5 小时窗口、未知时长和缺失重置时间的回归测试。
             - 本次只发布 Swift macOS DMG。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.

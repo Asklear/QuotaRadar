@@ -1015,35 +1015,32 @@ enum QuotaParsers {
         }
 
         var windows: [PercentQuotaWindow] = []
-        if let primaryWindow = rateLimit.primary_window {
-            let windowName = quotaWindowName(seconds: primaryWindow.limit_window_seconds) ?? "5h"
-            if let parsed = codexPercentQuotaWindow(
-                name: windowName,
-                usedPercent: primaryWindow.used_percent,
-                resetAt: primaryWindow.reset_at,
-                resetAfterSeconds: primaryWindow.reset_after_seconds
-            ) {
-                windows.append(parsed)
+        func appendRecognizedWindow(_ window: UsageResponse.UsageWindow?) {
+            guard let window,
+                  let windowName = quotaWindowName(seconds: window.limit_window_seconds),
+                  let parsed = codexPercentQuotaWindow(
+                    name: windowName,
+                    usedPercent: window.used_percent,
+                    resetAt: window.reset_at,
+                    resetAfterSeconds: window.reset_after_seconds
+                  ) else {
+                return
             }
+            windows.append(parsed)
         }
-        if let secondaryWindow = rateLimit.secondary_window {
-            let windowName = quotaWindowName(seconds: secondaryWindow.limit_window_seconds) ?? "week"
-            if let parsed = codexPercentQuotaWindow(
-                name: windowName,
-                usedPercent: secondaryWindow.used_percent,
-                resetAt: secondaryWindow.reset_at,
-                resetAfterSeconds: secondaryWindow.reset_after_seconds
-            ) {
-                windows.append(parsed)
-            }
-        }
+        appendRecognizedWindow(rateLimit.primary_window)
+        appendRecognizedWindow(rateLimit.secondary_window)
 
         guard !windows.isEmpty else {
             throw QuotaError.invalidResponse
         }
 
         let orderedWindows = orderPercentWindows(windows)
-        try requireCalibratedResetWindows(orderedWindows, names: ["5h", "week"])
+        guard orderedWindows.allSatisfy({ $0.resetAt != nil }) else {
+            throw QuotaError.schemaDrift
+        }
+        let returnedWindowNames = Set(orderedWindows.map(\.name))
+        try requireCalibratedResetWindows(orderedWindows, names: returnedWindowNames)
         let resetCreditsRemaining: Int?
         if let availableCount = response.rate_limit_reset_credits?.available_count,
            availableCount >= 0 {

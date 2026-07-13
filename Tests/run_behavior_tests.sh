@@ -59,9 +59,9 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.4\.4' \
+assert_match '0\.4\.5' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.4.4 should be recorded in Info.plist"
+  "Quota Radar 0.4.5 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -8374,6 +8374,31 @@ require(codexUsage.resetAt != nil, "Codex subscription usage should expose the t
 require(codexUsage.planEndsAt == nil, "Codex wham usage does not expose subscription end date")
 require(codexUsage.planDisplayName == "Pro", "Codex wham usage should expose plan_type as a concrete plan name")
 require(codexUsage.codexResetCreditsRemaining == 3, "Codex wham usage should expose available reset credits")
+let codexWeeklyOnlyUsage = try! QuotaParsers.parseCodexWhamUsage(Data("""
+{"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":10,"limit_window_seconds":604800,"reset_after_seconds":576032,"reset_at":1784512371},"secondary_window":null}}
+""".utf8))
+require(codexWeeklyOnlyUsage.quotaLabel == "week 90%", "Codex should display a returned weekly-only quota window")
+require(codexWeeklyOnlyUsage.quotaText?.quotaWindows.map(\.name) == ["week"], "Codex should not synthesize a missing five-hour window")
+let codexFiveHourOnlyUsage = try! QuotaParsers.parseCodexWhamUsage(Data("""
+{"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":25,"limit_window_seconds":18000,"reset_after_seconds":12000,"reset_at":1784512371},"secondary_window":null}}
+""".utf8))
+require(codexFiveHourOnlyUsage.quotaLabel == "5h 75%", "Codex should display a returned five-hour-only quota window")
+require(codexFiveHourOnlyUsage.quotaText?.quotaWindows.map(\.name) == ["5h"], "Codex should not synthesize a missing weekly window")
+let codexUnknownAndWeeklyUsage = try! QuotaParsers.parseCodexWhamUsage(Data("""
+{"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":25,"limit_window_seconds":12345,"reset_after_seconds":12000,"reset_at":1784512371},"secondary_window":{"used_percent":10,"limit_window_seconds":604800,"reset_after_seconds":576032,"reset_at":1784512371}}}
+""".utf8))
+require(codexUnknownAndWeeklyUsage.quotaLabel == "week 90%", "Codex should ignore an unknown quota duration when a recognized weekly window is present")
+require(codexUnknownAndWeeklyUsage.quotaText?.quotaWindows.map(\.name) == ["week"], "Codex should not mislabel an unknown quota duration as five-hour usage")
+do {
+    _ = try QuotaParsers.parseCodexWhamUsage(Data("""
+    {"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":25,"limit_window_seconds":12345,"reset_after_seconds":12000,"reset_at":1784512371},"secondary_window":null}}
+    """.utf8))
+    fail("Codex should reject a response containing only unknown quota-window durations")
+} catch QuotaError.schemaDrift {
+} catch QuotaError.invalidResponse {
+} catch {
+    fail("Codex unknown-only quota duration should throw schemaDrift or invalidResponse, got \(error)")
+}
 let codexResetCreditDetails = try! QuotaParsers.parseCodexResetCreditDetails(Data("""
 {"credits":[{"id":"reset-redacted-1","reset_type":"codex_rate_limits","status":"available","granted_at":"2026-06-18T00:38:14.297461Z","expires_at":"2026-07-18T00:38:14.297461Z","redeem_started_at":null,"redeemed_at":null},{"id":"reset-redacted-2","reset_type":"codex_rate_limits","status":"available","granted_at":"2026-06-26T23:56:41.527892Z","expires_at":"2026-07-26T23:56:41.527892Z","redeem_started_at":null,"redeemed_at":null}],"available_count":2,"total_earned_count":0}
 """.utf8))

@@ -17,6 +17,13 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - Secrets stay local. Source code, tests, README files, and GitHub Releases must never contain real API keys or cookies.
 - Every provider needs clear diagnostics: usable, quota unknown, credential expired, connection failed, unsupported API, or quota-consuming check.
 
+## v0.4.5 Codex Dynamic Quota Windows
+
+- [x] Identify Codex quota windows from `limit_window_seconds` instead of assuming `primary_window` is always five hours and `secondary_window` is always weekly.
+- [x] Accept weekly-only or five-hour-only responses without synthesizing a missing window or retaining stale values.
+- [x] Ignore unknown window durations when a recognized window remains, reject unknown-only responses, and keep reset timestamp validation for every displayed window.
+- [x] Add regression coverage for historical dual-window, weekly-only, five-hour-only, mixed unknown/recognized, unknown-only, and missing-reset responses.
+
 ## v0.3.5 RC / Release Hygiene
 
 - [x] Consolidate the README surface so English is the default entry point, with Simplified Chinese docs and screenshots linked explicitly.
