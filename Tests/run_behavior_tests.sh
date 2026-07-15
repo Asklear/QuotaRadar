@@ -4071,6 +4071,9 @@ assert_no_match 'clearProviderCookiesBeforeLoading' \
 assert_no_match 'cookieStore\.delete' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should not delete WebView cookies while the user is trying to save web-login authorization"
+assert_no_match 'removeData\(|removeDataOfTypes|removeWebsiteData' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard reauthentication should preserve WebKit website data while capturing a fresh login credential"
 assert_match 'cookiesDidChange' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should retry cookie capture when login cookies change"
@@ -4140,28 +4143,31 @@ assert_no_match 'WKWebsiteDataStore\.default\(\)\.httpCookieStore\.getAllCookies
 assert_match 'manualCaptureRequestID' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Manual dashboard credential save should signal the embedded WebView to capture the current login state"
+assert_no_match 'latestCapturedCredential' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Manual dashboard credential save must not keep or resubmit a stale cached credential"
 assert_match 'captureCredential\(from: webView\)' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Manual dashboard credential save should share the automatic cookie and WebStorage capture path"
-assert_match 'DashboardCredentialCapturePolicy\.isCredentialReady\(latestCapturedCredential' \
+assert_match 'automaticCaptureResetRequestID' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
-  "Manual dashboard credential save should reuse only a completed captured credential"
+  "Provider validation failure should explicitly re-arm automatic WebView credential capture"
 assert_match 'DashboardCredentialCapturePolicy\.manualRetryDelays' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Manual dashboard credential save should briefly retry after early partial cookie reads"
 assert_match 'scheduleCookieCaptureRetry' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Automatic dashboard credential capture should schedule delayed retries after cookie and navigation events"
-assert_match 'DashboardCredentialCapturePolicy\.automaticRetryDelays' \
+assert_match 'DashboardCredentialCapturePolicy\.nextAutomaticRetryDelay' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
-  "Automatic dashboard credential capture should wait for provider cookies to settle before giving up"
+  "Automatic dashboard credential capture should use the provider retry policy before giving up"
 assert_match 'automaticRetryDelays\(for provider: Provider\)' \
   "QuotaRadar/Services/DashboardReauth.swift" \
   "Dashboard reauthentication should allow provider-specific delayed cookie capture"
 assert_match 'captureWebStorageFieldsIfAllowed' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard credential capture should read WebStorage only when the visible page is on an allowed provider domain"
-assert_match 'guard !didEmitCookies, let webView else' \
+assert_match 'guard !captureLifecycle\.hasEmittedAutomaticCredential, let webView else' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard cookie capture should rely on provider-domain cookie filtering instead of requiring the visible WebView URL to have returned to the provider domain"
 assert_match 'reauthStillUnauthorized' \
@@ -7031,6 +7037,35 @@ let volcengineAutomaticCredentialDelays = DashboardCredentialCapturePolicy.autom
 require(defaultAutomaticCredentialDelays == [0.35, 1.0, 2.0], "Default dashboard credential auto-capture retry timing should stay compact")
 require(volcengineAutomaticCredentialDelays.count > defaultAutomaticCredentialDelays.count, "Volcengine dashboard credential auto-capture should keep watching longer during first-login SSO cookie settling")
 require(volcengineAutomaticCredentialDelays.last ?? 0 >= 7.0, "Volcengine dashboard credential auto-capture should wait long enough for first-login cookies to settle")
+require(DashboardCredentialCapturePolicy.nextAutomaticRetryDelay(
+    for: .codexSubscription,
+    completedRetryCount: defaultAutomaticCredentialDelays.count
+) == nil, "Cookie-backed providers should stop automatic polling after the compact retry window")
+require(DashboardCredentialCapturePolicy.nextAutomaticRetryDelay(
+    for: .kimiSubscription,
+    completedRetryCount: defaultAutomaticCredentialDelays.count
+) != nil, "Kimi should continue low-frequency capture when login material arrives through WebStorage only")
+require(DashboardCredentialCapturePolicy.nextAutomaticRetryDelay(
+    for: .longcat,
+    completedRetryCount: defaultAutomaticCredentialDelays.count
+) != nil, "LongCat should continue low-frequency capture when login material arrives through WebStorage only")
+
+var captureLifecycle = DashboardCredentialCaptureLifecycle(initialResetRequestID: 0)
+require(captureLifecycle.beginAutomaticEmission(), "The first ready dashboard credential should be emitted")
+require(!captureLifecycle.beginAutomaticEmission(), "A ready credential should not be emitted twice while validation is pending")
+require(!captureLifecycle.consumeResetRequest(0), "The initial reset request ID should not re-arm capture")
+require(captureLifecycle.consumeResetRequest(1), "A validation failure should consume a new reset request and re-arm capture")
+require(captureLifecycle.beginAutomaticEmission(), "A fresh dashboard credential should be emitted after failed validation re-arms capture")
+require(!captureLifecycle.consumeResetRequest(1), "The same reset request ID should not re-arm capture twice")
+
+var validationLifecycle = DashboardReauthValidationLifecycle()
+require(validationLifecycle.beginValidation(), "The first automatic dashboard credential should start validation")
+require(!validationLifecycle.beginValidation(), "Manual save must not overlap an automatic validation already in flight")
+require(validationLifecycle.finishValidation(succeeded: false) == .recapture, "Unauthorized validation should request recapture without persistence")
+require(!validationLifecycle.isValidationInFlight, "Failed validation should release the shared in-flight gate")
+require(validationLifecycle.beginValidation(), "A fresh manual WebView capture should validate after the failed candidate")
+require(validationLifecycle.finishValidation(succeeded: true) == .persist, "Only successful validation should permit credential persistence")
+require(!validationLifecycle.isValidationInFlight, "Successful validation should release the shared in-flight gate")
 let reauthedVolcengineSecret = DashboardCookieBuilder.reauthenticatedSecret(
     cookieHeader: "AccountID=account-redacted; csrfToken=n; digest=d; userInfo=u",
     existingSecret: #"{"cookie":"old","csrfToken":"old","projectName":"default","xWebId":"web-id"}"#
@@ -7285,6 +7320,14 @@ let firstSaveDashboardProviderScenarios: [FirstSaveDashboardProviderScenario] = 
         expectedSecretFragments: ["sessionKeyLC=claude-session"]
     ),
     FirstSaveDashboardProviderScenario(
+        provider: .anthropicCredits,
+        cookies: [
+            firstSaveCookie("sessionKey", value: "anthropic-session", domain: ".claude.ai")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["sessionKey=anthropic-session"]
+    ),
+    FirstSaveDashboardProviderScenario(
         provider: .codexSubscription,
         cookies: [
             firstSaveCookie("__search-next-auth", value: "chatgpt-session", domain: ".chatgpt.com")
@@ -7312,6 +7355,25 @@ let firstSaveDashboardProviderScenarios: [FirstSaveDashboardProviderScenario] = 
         ],
         webStorageFields: [:],
         expectedSecretFragments: ["account_id=account-redacted", "atp-auth-token=atp-redacted", "ssoSessionId=sso-redacted", "tenantToken=tenant-redacted"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .aliyunCodingPlan,
+        cookies: [
+            firstSaveCookie("aliyun_lang", value: "zh", domain: ".aliyun.com"),
+            firstSaveCookie("cna", value: "device-redacted", domain: ".aliyun.com"),
+            firstSaveCookie("login_aliyunid_ticket", value: "aliyun-ticket", domain: "bailian.console.aliyun.com")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["aliyun_lang=zh", "cna=device-redacted", "login_aliyunid_ticket=aliyun-ticket"]
+    ),
+    FirstSaveDashboardProviderScenario(
+        provider: .tencentCloudCodingPlan,
+        cookies: [
+            firstSaveCookie("skey", value: "tencent-skey", domain: ".cloud.tencent.com"),
+            firstSaveCookie("uin", value: "tencent-uin", domain: "console.cloud.tencent.com")
+        ],
+        webStorageFields: [:],
+        expectedSecretFragments: ["skey=tencent-skey", "uin=tencent-uin"]
     ),
     FirstSaveDashboardProviderScenario(
         provider: .kimiSubscription,
@@ -7368,16 +7430,19 @@ let firstSaveDashboardProviderScenarios: [FirstSaveDashboardProviderScenario] = 
 
 let expectedFirstSaveProviders: [Provider] = [
     .claudeSubscription,
+    .anthropicCredits,
     .codexSubscription,
     .volcengineCodingPlan,
     .xfyunCodingPlan,
+    .aliyunCodingPlan,
+    .tencentCloudCodingPlan,
     .kimiSubscription,
     .opencodeGo,
     .querit,
     .longcat,
     .longcat
 ]
-require(firstSaveDashboardProviderScenarios.map(\.provider) == expectedFirstSaveProviders, "First-save regression matrix should explicitly cover Claude, Codex, Volcengine, XFYun, Kimi, OpenCode Go, Querit, and LongCat cookie plus storage captures")
+require(firstSaveDashboardProviderScenarios.map(\.provider) == expectedFirstSaveProviders, "First-save regression matrix should explicitly cover all eleven dashboard reauthentication providers, plus LongCat cookie and storage captures")
 
 for scenario in firstSaveDashboardProviderScenarios {
     guard let config = DashboardReauthConfig(provider: scenario.provider) else {

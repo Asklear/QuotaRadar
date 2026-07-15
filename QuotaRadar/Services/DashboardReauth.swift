@@ -156,6 +156,48 @@ struct DashboardCapturedCredential {
     }
 }
 
+struct DashboardCredentialCaptureLifecycle {
+    private(set) var hasEmittedAutomaticCredential = false
+    private var lastResetRequestID: Int
+
+    init(initialResetRequestID: Int) {
+        self.lastResetRequestID = initialResetRequestID
+    }
+
+    mutating func beginAutomaticEmission() -> Bool {
+        guard !hasEmittedAutomaticCredential else { return false }
+        hasEmittedAutomaticCredential = true
+        return true
+    }
+
+    mutating func consumeResetRequest(_ requestID: Int) -> Bool {
+        guard requestID != lastResetRequestID else { return false }
+        lastResetRequestID = requestID
+        hasEmittedAutomaticCredential = false
+        return true
+    }
+}
+
+enum DashboardReauthValidationDisposition: Equatable {
+    case persist
+    case recapture
+}
+
+struct DashboardReauthValidationLifecycle {
+    private(set) var isValidationInFlight = false
+
+    mutating func beginValidation() -> Bool {
+        guard !isValidationInFlight else { return false }
+        isValidationInFlight = true
+        return true
+    }
+
+    mutating func finishValidation(succeeded: Bool) -> DashboardReauthValidationDisposition {
+        isValidationInFlight = false
+        return succeeded ? .persist : .recapture
+    }
+}
+
 enum DashboardCredentialCapturePolicy {
     static let manualRetryDelays: [TimeInterval] = [0.25, 0.75, 1.5]
 
@@ -165,6 +207,23 @@ enum DashboardCredentialCapturePolicy {
             return [0.35, 1.0, 2.0, 4.0, 7.0]
         default:
             return [0.35, 1.0, 2.0]
+        }
+    }
+
+    static func nextAutomaticRetryDelay(
+        for provider: Provider,
+        completedRetryCount: Int
+    ) -> TimeInterval? {
+        let retryDelays = automaticRetryDelays(for: provider)
+        if completedRetryCount < retryDelays.count {
+            return retryDelays[completedRetryCount]
+        }
+
+        switch provider {
+        case .kimiSubscription, .longcat:
+            return 5.0
+        default:
+            return nil
         }
     }
 
