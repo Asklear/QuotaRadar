@@ -167,6 +167,12 @@ struct DashboardCapturedCredential {
     }
 }
 
+enum DashboardAutomaticCredentialEmissionDecision: Equatable {
+    case emit
+    case unchanged
+    case blocked
+}
+
 struct DashboardCredentialCaptureLifecycle {
     private(set) var hasEmittedAutomaticCredential = false
     private var lastResetRequestID: Int
@@ -176,14 +182,18 @@ struct DashboardCredentialCaptureLifecycle {
         self.lastResetRequestID = initialResetRequestID
     }
 
-    mutating func beginAutomaticEmission(credentialIdentity: Int) -> Bool {
-        guard !hasEmittedAutomaticCredential,
-              credentialIdentity != lastEmittedCredentialIdentity else {
-            return false
+    mutating func automaticEmissionDecision(
+        credentialIdentity: Int
+    ) -> DashboardAutomaticCredentialEmissionDecision {
+        guard !hasEmittedAutomaticCredential else {
+            return .blocked
+        }
+        guard credentialIdentity != lastEmittedCredentialIdentity else {
+            return .unchanged
         }
         hasEmittedAutomaticCredential = true
         lastEmittedCredentialIdentity = credentialIdentity
-        return true
+        return .emit
     }
 
     mutating func consumeResetRequest(_ requestID: Int) -> Bool {

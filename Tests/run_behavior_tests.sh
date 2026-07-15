@@ -7066,12 +7066,20 @@ require(rejectedCapture.captureIdentity == unchangedRejectedCapture.captureIdent
 require(rejectedCapture.captureIdentity != refreshedCapture.captureIdentity, "Changed browser credentials should have a different in-memory capture identity")
 
 var captureLifecycle = DashboardCredentialCaptureLifecycle(initialResetRequestID: 0)
-require(captureLifecycle.beginAutomaticEmission(credentialIdentity: rejectedCapture.captureIdentity), "The first ready dashboard credential should be emitted")
-require(!captureLifecycle.beginAutomaticEmission(credentialIdentity: rejectedCapture.captureIdentity), "A ready credential should not be emitted twice while validation is pending")
+require(captureLifecycle.automaticEmissionDecision(credentialIdentity: rejectedCapture.captureIdentity) == .emit, "The first ready dashboard credential should be emitted")
+require(captureLifecycle.automaticEmissionDecision(credentialIdentity: rejectedCapture.captureIdentity) == .blocked, "A ready credential should not be emitted twice while validation is pending")
 require(!captureLifecycle.consumeResetRequest(0), "The initial reset request ID should not re-arm capture")
 require(captureLifecycle.consumeResetRequest(1), "A validation failure should consume a new reset request and re-arm capture")
-require(!captureLifecycle.beginAutomaticEmission(credentialIdentity: unchangedRejectedCapture.captureIdentity), "Re-armed automatic capture must not immediately revalidate the unchanged rejected credential")
-require(captureLifecycle.beginAutomaticEmission(credentialIdentity: refreshedCapture.captureIdentity), "A changed dashboard credential should be emitted after failed validation re-arms capture")
+require(captureLifecycle.automaticEmissionDecision(credentialIdentity: unchangedRejectedCapture.captureIdentity) == .unchanged, "Re-armed automatic capture must not immediately revalidate the unchanged rejected credential")
+require(DashboardCredentialCapturePolicy.nextAutomaticRetryDelay(
+    for: .kimiSubscription,
+    completedRetryCount: 100
+) != nil, "An unchanged rejected Kimi credential should keep low-frequency WebStorage polling active without validation")
+require(DashboardCredentialCapturePolicy.nextAutomaticRetryDelay(
+    for: .longcat,
+    completedRetryCount: 100
+) != nil, "An unchanged rejected LongCat credential should keep low-frequency WebStorage polling active without validation")
+require(captureLifecycle.automaticEmissionDecision(credentialIdentity: refreshedCapture.captureIdentity) == .emit, "A changed dashboard credential should be emitted after failed validation re-arms capture")
 require(!captureLifecycle.consumeResetRequest(1), "The same reset request ID should not re-arm capture twice")
 
 var validationLifecycle = DashboardReauthValidationLifecycle()

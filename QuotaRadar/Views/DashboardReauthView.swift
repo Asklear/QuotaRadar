@@ -715,9 +715,27 @@ struct DashboardWebView: NSViewRepresentable {
                     return
                 }
 
-                guard self.captureLifecycle.beginAutomaticEmission(
+                let emissionDecision = self.captureLifecycle.automaticEmissionDecision(
                     credentialIdentity: capturedCredential.captureIdentity
-                ) else { return }
+                )
+                switch emissionDecision {
+                case .emit:
+                    break
+                case .unchanged:
+                    guard let delay = DashboardCredentialCapturePolicy.nextAutomaticRetryDelay(
+                        for: self.provider,
+                        completedRetryCount: completedRetryCount
+                    ) else { return }
+                    DispatchQueue.main.async {
+                        self.scheduleCookieCaptureRetry(
+                            completedRetryCount: completedRetryCount + 1,
+                            delay: delay
+                        )
+                    }
+                    return
+                case .blocked:
+                    return
+                }
                 self.pendingCookieCaptureWorkItem?.cancel()
                 DispatchQueue.main.async {
                     self.onCredentialAvailable(capturedCredential)
