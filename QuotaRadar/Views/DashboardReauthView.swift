@@ -715,7 +715,9 @@ struct DashboardWebView: NSViewRepresentable {
                     return
                 }
 
-                guard self.captureLifecycle.beginAutomaticEmission() else { return }
+                guard self.captureLifecycle.beginAutomaticEmission(
+                    credentialIdentity: capturedCredential.captureIdentity
+                ) else { return }
                 self.pendingCookieCaptureWorkItem?.cancel()
                 DispatchQueue.main.async {
                     self.onCredentialAvailable(capturedCredential)

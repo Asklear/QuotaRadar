@@ -41,6 +41,17 @@ struct DashboardCapturedCredential {
         !cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !fields.isEmpty
     }
 
+    var captureIdentity: Int {
+        var hasher = Hasher()
+        hasher.combine(provider)
+        hasher.combine(cookieHeader)
+        for (name, value) in fields.sorted(by: { $0.key < $1.key }) {
+            hasher.combine(name)
+            hasher.combine(value)
+        }
+        return hasher.finalize()
+    }
+
     func reauthenticatedSecret(existingSecret: String?) -> String {
         DashboardCookieBuilder.reauthenticatedSecret(
             cookieHeader: cookieHeader,
@@ -159,14 +170,19 @@ struct DashboardCapturedCredential {
 struct DashboardCredentialCaptureLifecycle {
     private(set) var hasEmittedAutomaticCredential = false
     private var lastResetRequestID: Int
+    private var lastEmittedCredentialIdentity: Int?
 
     init(initialResetRequestID: Int) {
         self.lastResetRequestID = initialResetRequestID
     }
 
-    mutating func beginAutomaticEmission() -> Bool {
-        guard !hasEmittedAutomaticCredential else { return false }
+    mutating func beginAutomaticEmission(credentialIdentity: Int) -> Bool {
+        guard !hasEmittedAutomaticCredential,
+              credentialIdentity != lastEmittedCredentialIdentity else {
+            return false
+        }
         hasEmittedAutomaticCredential = true
+        lastEmittedCredentialIdentity = credentialIdentity
         return true
     }
 

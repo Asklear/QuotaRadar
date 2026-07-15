@@ -7050,12 +7050,28 @@ require(DashboardCredentialCapturePolicy.nextAutomaticRetryDelay(
     completedRetryCount: defaultAutomaticCredentialDelays.count
 ) != nil, "LongCat should continue low-frequency capture when login material arrives through WebStorage only")
 
+let rejectedCapture = DashboardCapturedCredential(
+    provider: .codexSubscription,
+    cookieHeader: "__search-next-auth=rejected"
+)
+let unchangedRejectedCapture = DashboardCapturedCredential(
+    provider: .codexSubscription,
+    cookieHeader: "__search-next-auth=rejected"
+)
+let refreshedCapture = DashboardCapturedCredential(
+    provider: .codexSubscription,
+    cookieHeader: "__search-next-auth=refreshed"
+)
+require(rejectedCapture.captureIdentity == unchangedRejectedCapture.captureIdentity, "Equivalent browser credentials should have the same in-memory capture identity")
+require(rejectedCapture.captureIdentity != refreshedCapture.captureIdentity, "Changed browser credentials should have a different in-memory capture identity")
+
 var captureLifecycle = DashboardCredentialCaptureLifecycle(initialResetRequestID: 0)
-require(captureLifecycle.beginAutomaticEmission(), "The first ready dashboard credential should be emitted")
-require(!captureLifecycle.beginAutomaticEmission(), "A ready credential should not be emitted twice while validation is pending")
+require(captureLifecycle.beginAutomaticEmission(credentialIdentity: rejectedCapture.captureIdentity), "The first ready dashboard credential should be emitted")
+require(!captureLifecycle.beginAutomaticEmission(credentialIdentity: rejectedCapture.captureIdentity), "A ready credential should not be emitted twice while validation is pending")
 require(!captureLifecycle.consumeResetRequest(0), "The initial reset request ID should not re-arm capture")
 require(captureLifecycle.consumeResetRequest(1), "A validation failure should consume a new reset request and re-arm capture")
-require(captureLifecycle.beginAutomaticEmission(), "A fresh dashboard credential should be emitted after failed validation re-arms capture")
+require(!captureLifecycle.beginAutomaticEmission(credentialIdentity: unchangedRejectedCapture.captureIdentity), "Re-armed automatic capture must not immediately revalidate the unchanged rejected credential")
+require(captureLifecycle.beginAutomaticEmission(credentialIdentity: refreshedCapture.captureIdentity), "A changed dashboard credential should be emitted after failed validation re-arms capture")
 require(!captureLifecycle.consumeResetRequest(1), "The same reset request ID should not re-arm capture twice")
 
 var validationLifecycle = DashboardReauthValidationLifecycle()
