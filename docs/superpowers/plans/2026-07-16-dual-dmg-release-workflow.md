@@ -18,19 +18,21 @@
 
 - [ ] **Step 1: Add structure-aware red tests**
 
-Add a Python source check that reads `.github/workflows/release.yml`, requires exactly one `softprops/action-gh-release@v2` invocation, and verifies these tokens occur in this order:
+Add a Python source check that reads `.github/workflows/release.yml`, isolates the `jobs:` mapping, and uses job-header matching to require exactly one job named `release` with `runs-on: macos-14`. Within that isolated job, require exactly one `softprops/action-gh-release@v2` invocation and verify these exact command structures occur in this order:
 
 ```text
 scripts/package_dmg.sh --rebuild
-https://api.github.com/repos/Asklear/QuotaRadar/releases/latest
-https://github.com/Asklear/QuotaRadar/releases/latest
+strings 'build/Quota Radar.app/Contents/MacOS/QuotaRadar' | rg -F 'https://api.github.com/repos/Asklear/QuotaRadar/releases/latest'
+strings 'build/Quota Radar.app/Contents/MacOS/QuotaRadar' | rg -F 'https://github.com/Asklear/QuotaRadar/releases/latest'
 scripts/package_dmg.sh --rebuild --white-label
-White-label app leaked an updater URL
-White-label DMG leaked an updater URL
+if strings 'build/Quota Radar.app/Contents/MacOS/QuotaRadar' | rg ...; then
+if strings build/QuotaRadar-WhiteLabel.dmg | rg ...; then
 hdiutil verify build/QuotaRadar.dmg
 hdiutil verify build/QuotaRadar-WhiteLabel.dmg
 uses: softprops/action-gh-release@v2
 ```
+
+Match the two guard blocks with whitespace-tolerant regular expressions and require their error branches to contain `White-label app leaked an updater URL` and `White-label DMG leaked an updater URL`, respectively. This binds each exclusion check to the correct artifact rather than accepting the same strings in release prose or an unrelated step.
 
 Within the single action block, require a multiline `files: |` input containing exactly the two release artifact paths before `body: |`:
 
@@ -120,7 +122,7 @@ git add .github/workflows/release.yml README.md README.zh-Hans.md Tests/run_beha
 git commit -m "release: upload standard and white-label DMGs"
 ```
 
-### Task 3: Final verification and branch push
+### Task 3: Review, final verification, and branch push
 
 **Files:**
 - Verify: `.github/workflows/release.yml`
@@ -128,7 +130,15 @@ git commit -m "release: upload standard and white-label DMGs"
 - Verify: `README.zh-Hans.md`
 - Verify: `Tests/run_behavior_tests.sh`
 
-- [ ] **Step 1: Run final source gates**
+- [ ] **Step 1: Independently review the workflow diff**
+
+Use @requesting-code-review with base `d9d952f` and the implementation HEAD. Require review of build order, scan timing, action inputs, README parity, tag-only trigger, and the no-publish boundary.
+
+- [ ] **Step 2: Resolve review findings and commit them**
+
+Evaluate every finding with @receiving-code-review. Use TDD for behavior changes, commit every accepted fix, and do not proceed with any unresolved Critical or Important issue.
+
+- [ ] **Step 3: Run final source gates after all review fixes**
 
 ```bash
 git diff --check v0.4.5..HEAD
@@ -139,11 +149,7 @@ bash scripts/check_tauri_sources.sh
 
 Expected: clean diff, clean worktree, behavior suite exit 0, and Tauri source safety passed.
 
-- [ ] **Step 2: Independently review the workflow diff**
-
-Use @requesting-code-review with base `d9d952f` and the implementation HEAD. Require review of build order, scan timing, action inputs, README parity, tag-only trigger, and the no-publish boundary. Resolve every Critical or Important finding before push.
-
-- [ ] **Step 3: Rename the historical local branch**
+- [ ] **Step 4: Rename the historical local branch**
 
 ```bash
 git branch -m release/v0.4.6
@@ -151,7 +157,7 @@ git branch -m release/v0.4.6
 
 Verify `git status --short --branch` reports `release/v0.4.6`.
 
-- [ ] **Step 4: Push only the release branch**
+- [ ] **Step 5: Push only the release branch**
 
 ```bash
 git push -u origin release/v0.4.6
@@ -159,7 +165,7 @@ git push -u origin release/v0.4.6
 
 Do not push to `main`, create `v0.4.6`, or run a release command.
 
-- [ ] **Step 5: Verify remote branch identity and release inactivity**
+- [ ] **Step 6: Verify remote branch identity and release inactivity**
 
 ```bash
 test "$(git rev-parse HEAD)" = "$(git ls-remote origin refs/heads/release/v0.4.6 | cut -f1)"
