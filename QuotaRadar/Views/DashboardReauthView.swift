@@ -298,14 +298,10 @@ struct DashboardReauthSheet: View {
             } catch let rotationError as AnySearchCredentialRotationError {
                 await MainActor.run {
                     guard validationLifecycle.finishValidation(succeeded: true) == .persist else { return }
-                    var verifiedKey = candidateKey
-                    verifiedKey.key = rotationError.refreshedCredential
-                    verifiedKey.lastHTTPStatus = (rotationError.underlying as? QuotaError)?.httpStatus
-                    verifiedKey.lastDiagnosticMessage = rotationError.underlying.localizedDescription
-                    verifiedKey.lastDiagnosticText = (rotationError.underlying as? QuotaError)?.localizedTextDescriptor
-                    verifiedKey.quotaLabel = rotationError.underlying.localizedDescription
-                    verifiedKey.quotaText = (rotationError.underlying as? QuotaError)?.localizedTextDescriptor
-                    verifiedKey.consecutiveFailureCount += 1
+                    let verifiedKey = QuotaMonitor.applyingRotatedCredentialFailure(
+                        rotationError,
+                        to: existingKey ?? candidateKey
+                    )
 
                     if existingKey == nil {
                         monitor.addKey(verifiedKey)

@@ -4353,6 +4353,9 @@ assert_match 'verifiedKey\.key = result\.refreshedCredential \?\? candidateKey\.
 assert_match 'catch let rotationError as AnySearchCredentialRotationError' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard validation should preserve a successful token rotation when the following usage request fails"
+assert_match 'QuotaMonitor\.applyingRotatedCredentialFailure' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard validation should reuse quota failure semantics while preserving a rotated credential"
 assert_match 'onSaved\?\(candidateKey\)' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should report directly saved dashboard credentials back to the Add Credential flow"
@@ -8385,6 +8388,21 @@ let rotatedFailure = AnySearchCredentialRotationError(
 let preservedRotationAfterUsageFailure = QuotaMonitor.applyingTransientFailure(rotatedFailure, to: successfulAnySearch)
 require(preservedRotationAfterUsageFailure.key == rotatedAnySearch.key, "A successful token rotation must persist even when the following usage request fails")
 require(preservedRotationAfterUsageFailure.lastDiagnosticText?.key == .quotaErrorInvalidResponse, "Rotation wrapper should preserve the underlying usage failure diagnostic")
+let rotatedUnauthorized = QuotaMonitor.applyingRotatedCredentialFailure(
+    AnySearchCredentialRotationError(underlying: QuotaError.unauthorized, refreshedCredential: rotatedAnySearch.key),
+    to: successfulAnySearch,
+    now: Date(timeIntervalSince1970: 1784197000)
+)
+require(rotatedUnauthorized.key == rotatedAnySearch.key, "Unauthorized usage after refresh should still preserve the rotated token")
+require(rotatedUnauthorized.remaining == nil && rotatedUnauthorized.limit == nil && rotatedUnauthorized.resetAt == nil, "Unauthorized usage after refresh should clear stale quota")
+require(rotatedUnauthorized.isCredentialExpired, "Unauthorized usage after refresh should mark dashboard authorization expired")
+let rotatedForbidden = QuotaMonitor.applyingRotatedCredentialFailure(
+    AnySearchCredentialRotationError(underlying: QuotaError.invalidAPIKey(statusCode: 403), refreshedCredential: rotatedAnySearch.key),
+    to: successfulAnySearch,
+    now: Date(timeIntervalSince1970: 1784197000)
+)
+require(rotatedForbidden.key == rotatedAnySearch.key, "Forbidden usage should preserve the already rotated token")
+require(rotatedForbidden.remaining == nil && rotatedForbidden.lastHTTPStatus == 403, "Forbidden usage should clear quota and retain HTTP 403")
 
 let acceptedAnySearchRotation = QuotaMonitor.reconcileRefreshResults(
     startedWith: [successfulAnySearch],

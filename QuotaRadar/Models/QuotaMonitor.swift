@@ -505,6 +505,60 @@ class QuotaMonitor: ObservableObject {
         return failed
     }
 
+    nonisolated static func applyingRotatedCredentialFailure(
+        _ rotationError: AnySearchCredentialRotationError,
+        to key: APIKey,
+        now: Date = Date()
+    ) -> APIKey {
+        var failed = key
+        failed.key = rotationError.refreshedCredential
+
+        if case QuotaError.unauthorized = rotationError.underlying {
+            failed.remaining = nil
+            failed.limit = nil
+            failed.resetAt = nil
+            failed.planEndsAt = nil
+            failed.planDisplayName = nil
+            failed.codexResetCreditsRemaining = nil
+            failed.codexResetCreditsEarliestExpiresAt = nil
+            failed.lastHTTPStatus = 401
+            if failed.provider.supportsDashboardReauthentication {
+                failed.quotaLabel = L10n.t(.credentialExpired)
+                failed.quotaText = LocalizedTextDescriptor.localized(.credentialExpired)
+                failed.lastDiagnosticMessage = L10n.t(.credentialExpired)
+                failed.lastDiagnosticText = LocalizedTextDescriptor.localized(.credentialExpired)
+            } else {
+                failed.quotaLabel = rotationError.underlying.localizedDescription
+                failed.quotaText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
+                failed.lastDiagnosticMessage = rotationError.underlying.localizedDescription
+                failed.lastDiagnosticText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
+            }
+            failed.consecutiveFailureCount = 0
+            failed.lastUpdated = now
+            return failed
+        }
+
+        if case QuotaError.invalidAPIKey(let statusCode) = rotationError.underlying {
+            failed.remaining = nil
+            failed.limit = nil
+            failed.resetAt = nil
+            failed.planEndsAt = nil
+            failed.planDisplayName = nil
+            failed.codexResetCreditsRemaining = nil
+            failed.codexResetCreditsEarliestExpiresAt = nil
+            failed.lastHTTPStatus = statusCode
+            failed.quotaLabel = rotationError.underlying.localizedDescription
+            failed.quotaText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
+            failed.lastDiagnosticMessage = rotationError.underlying.localizedDescription
+            failed.lastDiagnosticText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
+            failed.consecutiveFailureCount += 1
+            failed.lastUpdated = now
+            return failed
+        }
+
+        return applyingTransientFailure(rotationError, to: failed)
+    }
+
     nonisolated static func refreshFailureContext(
         _ error: Error
     ) -> (error: Error, refreshedCredential: String?) {
