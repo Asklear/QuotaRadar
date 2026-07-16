@@ -38,7 +38,7 @@ The Dock icon opens the main window; the menu bar popover gives quick quota visi
 
 Open `Credentials` from the main window sidebar.
 
-Normal providers use API keys. Exa uses a usage-query API key rather than a search invocation key. Querit, Claude, Codex, Kimi, LongCat, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, and Aliyun/Tencent Cloud Coding Plan can store both an API key and web login authorization: API keys are for management and copying, while web login authorization is for quota monitoring.
+Normal providers use API keys. Exa uses a usage-query API key rather than a search invocation key. AnySearch, Querit, Claude, Codex, Kimi, LongCat, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, and Aliyun/Tencent Cloud Coding Plan can store both an API key and web login authorization: API keys are for management and copying, while web login authorization is for quota monitoring. Existing AnySearch API keys are preserved; save the logged-in console authorization once to enable the 1,000-request UTC-daily meter.
 
 The credential page separates `API Key` from `Quota monitoring authorization`: copy buttons appear only on API-key rows. Web login authorization is used only by Quota Radar to check quota and is not displayed or copied as an API key.
 

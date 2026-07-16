@@ -38,7 +38,7 @@ Dock 图标会打开主窗口；状态栏弹窗用于快速查看额度。
 
 打开主窗口左侧的 `配置凭据`。
 
-普通 provider 使用 API 密钥；Exa 使用用量查询专用 API key，不等同于搜索调用 key。Querit、Claude、Codex、Kimi、LongCat、讯飞星火 coding plan、火山引擎 coding plan、OpenCode Go、阿里云/腾讯云 coding plan 可同时保存 API Key 和网页登录授权：API Key 用于管理和复制，网页登录授权用于额度监控。
+普通 provider 使用 API 密钥；Exa 使用用量查询专用 API key，不等同于搜索调用 key。AnySearch、Querit、Claude、Codex、Kimi、LongCat、讯飞星火 coding plan、火山引擎 coding plan、OpenCode Go、阿里云/腾讯云 coding plan 可同时保存 API Key 和网页登录授权：API Key 用于管理和复制，网页登录授权用于额度监控。现有 AnySearch API Key 会保留；在已登录控制台保存一次授权后即可显示每日 UTC 1,000 次额度。
 
 配置页会区分 `API 密钥` 和 `额度监控授权`：复制按钮只会出现在 API 密钥行；网页登录授权只供 Quota Radar 查询额度，不会作为 API key 展示或复制。
 

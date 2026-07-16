@@ -5236,7 +5236,7 @@ let dailyAnySearch = APIKey(
     quotaText: .localized(.dailyRequestsUsageFormat, "356", "644", "1000"),
     quotaLabel: "356 used · 644 remaining / 1000 daily"
 )
-require(!dailyAnySearch.isUnlimitedQuota, "AnySearch should no longer use the unlimited sentinel")
+require(!dailyAnySearch.isUnlimitedQuota, "AnySearch should use a finite daily quota")
 require(dailyAnySearch.remainingBadgeText == "64%", "AnySearch should show the real daily remaining percentage")
 require(dailyAnySearch.quotaDisplayText == "356 used · 644 remaining / 1000 daily", "AnySearch should show used, remaining, and daily limit")
 let anySearchStat = ProviderStats(provider: .anysearch, keys: [dailyAnySearch])

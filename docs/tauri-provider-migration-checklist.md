@@ -24,7 +24,7 @@ implemented and verified in `apps/desktop-tauri`.
 | DeepSeek | LLM | API key | Done | Money balance provider, CNY display. |
 | Serper | AI Search | API key | Done | Account endpoint returns credits. |
 | Bocha | AI Search | API key | Done | Money balance provider, CNY display. |
-| AnySearch | AI Search | API key placeholder | Done | No remote quota; current Swift policy is unlimited/free. |
+| AnySearch | AI Search | Web login plus companion API key | Done | Swift queries the bounded UTC-day dashboard usage summary and computes remaining from 1,000/day. |
 | WeChat Search | AI Search | API key | Done | Money balance provider, CNY display. |
 | Exa | AI Search | Admin credential | Done | Plain Exa search key is insufficient; requires service key plus target API key id. |
 | Querit | AI Search | Web login plus optional API key | Done | Production HTTP refresh for dashboard account monthly request usage; when plan limit is absent, reports usage without fake quota totals. |
@@ -57,7 +57,7 @@ API can return a usable account without quota, and network error mapping.
 | SerpAPI | `GET https://serpapi.com/account.json?api_key=...` | Query API key | Monthly searches. | Next month fallback if not exposed. |
 | Serper | `GET https://google.serper.dev/account` | `X-API-KEY` | Credit balance. | No reset date exposed by Swift parser. |
 | Bocha | `GET https://api.bochaai.com/v1/fund/remaining` | Bearer API key | Remaining RMB balance. | No reset date exposed by Swift parser. |
-| AnySearch | Local policy | Stored API key placeholder | Unlimited/free. | No reset date. |
+| AnySearch | `GET https://anysearch.com/api/api/user/usage/summary?from=...&to=...` | Dashboard Bearer authorization | Daily requests used and 1,000-request free limit. | Next UTC midnight. |
 | WeChat Search | `POST https://www.dajiala.com/fbmain/monitor/v3/get_remain_money` | Form `key=...` | Remaining RMB balance. | No reset date exposed by Swift parser. |
 | Exa | `GET https://admin-api.exa.ai/team-management/api-keys/{apiKeyID}/usage?numDays=...` | JSON/admin credential with service key and API key id | Team-management usage over a day window. | Window-based, not a monthly subscription reset. |
 | DeepSeek | `GET https://api.deepseek.com/user/balance` | Bearer API key | Remaining RMB balance. | No reset date exposed by Swift parser. |

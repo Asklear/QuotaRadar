@@ -209,7 +209,7 @@ The broader UI redesign toward a native, dense, low-distraction macOS monitoring
 - [x] Simplify the credential page title hierarchy so the page title and local heading do not repeat the same wording.
 - [x] Show the basic expected credential type for each provider:
   - API key: Tavily, SerpAPI, Serper, Bocha, DeepSeek, Exa Team Management service key plus target API key id, and similar providers.
-  - Web login authorization: Querit, Claude Subscription, Anthropic Credits, Codex Subscription, Kimi Subscription, LongCat, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
+  - Web login authorization: AnySearch, Querit, Claude Subscription, Anthropic Credits, Codex Subscription, Kimi Subscription, LongCat, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
   - Verified integrations: Aliyun Coding Plan can check subscription state through `aliclaw.coding-plan` and now parses 5-hour/weekly/monthly request-count fields when exposed; Tencent Cloud Coding Plan parses request-count quota cycles through dashboard `cgi/capi?cmd=DescribePkg&serviceType=hunyuan`. Business invocation API keys for both can be stored and shown, but they are not used for quota monitoring.
   - Sample still needed: the current Aliyun Coding Plan account returns no subscription; usage-field parsing is reserved, and if a subscribed account still does not expose usage details, keep "Usable · quota unknown".
   - Hidden extension stubs: XFYun Spark Token Plan, Volcengine Token Plan, Aliyun Token Plan, and Tencent Cloud Token Plan. They are not shown, imported, or refreshed until usable quota fields, measurement units, and real credential samples are confirmed.
@@ -220,7 +220,7 @@ The broader UI redesign toward a native, dense, low-distraction macOS monitoring
   - For Querit, `QUERIT_API_KEY` is stored only as a copyable API key; quota monitoring still stores web login authorization and uses the dashboard Account API.
   - For Kimi, extract the Bearer access token, `x-msh-device-id`, `x-msh-session-id`, `x-traffic-id`, and optional `kimi-auth` cookie.
 - [x] Add companion API-key storage for providers that use web login authorization for quota monitoring but still need user-facing API-key management:
-  - Querit, Claude Subscription, Anthropic Credits, Codex Subscription, Kimi Subscription, LongCat, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
+  - AnySearch, Querit, Claude Subscription, Anthropic Credits, Codex Subscription, Kimi Subscription, LongCat, XFYun Spark Coding Plan, Volcengine Coding Plan, OpenCode Go, Aliyun Coding Plan, and Tencent Cloud Coding Plan.
   - Companion API keys are copyable and editable, but do not create separate quota-monitoring or diagnostic rows.
   - Companion API keys are linked to the matching web login authorization; when multiple accounts exist, reauthentication requires an explicit save target.
 - [x] Make reauthentication auto-save:

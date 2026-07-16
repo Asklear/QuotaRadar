@@ -72,8 +72,6 @@ struct LocalizedTextDescriptor: Codable, Equatable {
             return .localized(.usableUnknownQuota)
         case "Usage limit exceeded":
             return .localized(.usageLimitExceeded)
-        case "Unlimited free usage":
-            return .localized(.unlimited)
         case "Unavailable", "Quota unavailable":
             return .localized(.quotaUnavailable)
         case "No subscribed plan", "No subscription found":
@@ -1085,8 +1083,6 @@ enum L10n {
             return t(.usableUnknownQuota, language: language)
         case "Usage limit exceeded":
             return t(.usageLimitExceeded, language: language)
-        case "Unlimited free usage":
-            return t(.unlimited, language: language)
         case "Unavailable":
             return t(.quotaUnavailable, language: language)
         case "No subscribed plan", "No subscription found":
