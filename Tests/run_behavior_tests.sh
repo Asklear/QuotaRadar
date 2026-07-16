@@ -610,13 +610,26 @@ for token in ordered_tokens:
 if positions != sorted(positions) or len(set(positions)) != len(positions):
     sys.exit("FAIL: Dual-DMG build, scan, verify, and upload steps are out of order")
 
-guard_patterns = {
-    "app": r"if strings 'build/Quota Radar\.app/Contents/MacOS/QuotaRadar' \|.*?White-label app leaked an updater URL.*?\bfi\b",
-    "DMG": r"if strings build/QuotaRadar-WhiteLabel\.dmg \|.*?White-label DMG leaked an updater URL.*?\bfi\b",
+guard_requirements = {
+    "app": (
+        r"if strings 'build/Quota Radar\.app/Contents/MacOS/QuotaRadar' \|",
+        "White-label app leaked an updater URL",
+    ),
+    "DMG": (
+        r"if strings build/QuotaRadar-WhiteLabel\.dmg \|",
+        "White-label DMG leaked an updater URL",
+    ),
 }
-for label, pattern in guard_patterns.items():
-    if not re.search(pattern, jobs, re.DOTALL):
+for label, (command_pattern, error_message) in guard_requirements.items():
+    guard = re.search(
+        rf"(?ms)^          {command_pattern}(?P<body>(?:(?!^          fi\s*$).)*)^          fi\s*$",
+        jobs,
+    )
+    if not guard:
         sys.exit(f"FAIL: White-label {label} updater exclusion must scan the correct artifact and fail explicitly")
+    guard_body = guard.group("body")
+    if error_message not in guard_body or not re.search(r"(?m)^            exit 1\s*$", guard_body):
+        sys.exit(f"FAIL: White-label {label} updater exclusion must stop the release on a URL leak")
 
 release_actions = list(re.finditer(r"(?m)^        uses: softprops/action-gh-release@v2\s*$", jobs))
 if len(release_actions) != 1:
