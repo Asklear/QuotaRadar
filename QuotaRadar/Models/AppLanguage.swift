@@ -145,6 +145,9 @@ struct LocalizedTextDescriptor: Codable, Equatable {
         if let match = regexCapture(normalized, pattern: #"^([0-9]+) monthly requests used$"#) {
             return .localized(.monthlyRequestsUsedFormat, match[0])
         }
+        if let match = regexCapture(normalized, pattern: #"^([0-9]+) used · ([0-9]+) remaining / ([0-9]+) daily$"#) {
+            return .localized(.dailyRequestsUsageFormat, match[0], match[1], match[2])
+        }
         if let match = regexCapture(normalized, pattern: #"^([0-9]+) / ([0-9]+) tokens$"#) {
             return .localized(.tokenQuotaFormat, match[0], match[1])
         }
@@ -653,6 +656,7 @@ enum L10n {
         case monthlyCreditsFormat
         case monthlyRequestsFormat
         case monthlyRequestsUsedFormat
+        case dailyRequestsUsageFormat
         case searchesLeftFormat
         case creditsLeftFormat
         case noProviderCreditsAvailableFormat
@@ -1613,6 +1617,7 @@ enum L10n {
         .monthlyCreditsFormat: "%@ / %@ monthly credits",
         .monthlyRequestsFormat: "%@ / %@ monthly requests",
         .monthlyRequestsUsedFormat: "%@ monthly requests used",
+        .dailyRequestsUsageFormat: "%@ used · %@ remaining / %@ daily",
         .searchesLeftFormat: "%@ searches left",
         .creditsLeftFormat: "%@ credits left",
         .noProviderCreditsAvailableFormat: "No %@ credits available",
@@ -1954,6 +1959,7 @@ enum L10n {
         .monthlyCreditsFormat: "%@ / %@ 月度积分",
         .monthlyRequestsFormat: "%@ / %@ 月度请求",
         .monthlyRequestsUsedFormat: "已用 %@ 次月度请求",
+        .dailyRequestsUsageFormat: "今日已用 %@ · 剩余 %@ / 每日 %@",
         .searchesLeftFormat: "剩余 %@ 次搜索",
         .creditsLeftFormat: "剩余 %@ 积分",
         .noProviderCreditsAvailableFormat: "没有可用的 %@ 积分",
@@ -2201,6 +2207,7 @@ enum L10n {
         .monthlyCreditsFormat: "%@ / %@ 月度積分",
         .monthlyRequestsFormat: "%@ / %@ 月度請求",
         .monthlyRequestsUsedFormat: "已用 %@ 次月度請求",
+        .dailyRequestsUsageFormat: "今日已用 %@ · 剩餘 %@ / 每日 %@",
         .searchesLeftFormat: "剩餘 %@ 次搜尋",
         .creditsLeftFormat: "剩餘 %@ 積分",
         .tokenQuotaFormat: "%@ / %@ 個 token",
@@ -2525,6 +2532,7 @@ enum L10n {
         .monthlyCreditsFormat: "%@ / %@ 月間クレジット",
         .monthlyRequestsFormat: "%@ / %@ 月間リクエスト",
         .monthlyRequestsUsedFormat: "%@ 件の月間リクエスト使用済み",
+        .dailyRequestsUsageFormat: "本日 %@ 使用 · 残り %@ / 1日 %@",
         .searchesLeftFormat: "残り %@ 検索",
         .creditsLeftFormat: "残り %@ クレジット",
         .noProviderCreditsAvailableFormat: "%@ の利用可能なクレジットはありません",
@@ -2865,6 +2873,7 @@ enum L10n {
         .monthlyCreditsFormat: "%@ / %@ 월간 크레딧",
         .monthlyRequestsFormat: "%@ / %@ 월간 요청",
         .monthlyRequestsUsedFormat: "월간 요청 %@회 사용됨",
+        .dailyRequestsUsageFormat: "오늘 %@회 사용 · %@회 남음 / 일일 %@회",
         .searchesLeftFormat: "%@회 검색 남음",
         .creditsLeftFormat: "%@ 크레딧 남음",
         .noProviderCreditsAvailableFormat: "사용 가능한 %@ 크레딧 없음",

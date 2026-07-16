@@ -4531,9 +4531,9 @@ assert_match 'key\.lastUpdated = Date\(\)' \
 assert_no_match 'api.anysearch.ai' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch must not use the obsolete .ai endpoint"
-assert_match 'Unlimited free usage' \
+assert_match 'https://anysearch\.com/api/api/user/usage/summary' \
   "QuotaRadar/Services/QuotaService.swift" \
-  "AnySearch should be represented as free unlimited usage instead of quota unavailable"
+  "AnySearch should query the verified dashboard daily usage endpoint"
 assert_match 'case \.anysearch:' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch must have explicit quota handling"
@@ -5215,22 +5215,23 @@ let tinyBadge = APIKey(name: "BRAVE_API_KEY_4", key: "brave", provider: .brave, 
 require(tinyBadge == "<1%", "Remaining badge should not round tiny nonzero quotas down to 0%")
 let fullBadge = APIKey(name: "BRAVE_API_KEY_5", key: "brave", provider: .brave, remaining: 1000, limit: 1000).remainingBadgeText
 require(fullBadge == "100%", "Remaining badge should show full quota as 100%")
-let unlimitedAnySearch = APIKey(
-    name: "ANYSEARCH_API_KEY",
-    key: "anysearch",
+let dailyAnySearch = APIKey(
+    name: "ANYSEARCH_SESSION",
+    key: "session-redacted",
     provider: .anysearch,
-    remaining: Int.max,
-    limit: Int.max,
-    quotaLabel: "Unlimited free usage"
+    remaining: 644,
+    limit: 1000,
+    quotaText: .localized(.dailyRequestsUsageFormat, "356", "644", "1000"),
+    quotaLabel: "356 used · 644 remaining / 1000 daily"
 )
-require(unlimitedAnySearch.isUnlimitedQuota, "AnySearch should recognize persisted Int.max quotas as unlimited")
-require(unlimitedAnySearch.remainingBadgeText == "∞", "AnySearch should show an unlimited badge instead of a fake percentage")
-require(unlimitedAnySearch.quotaDisplayText == "Unlimited", "AnySearch rows should not display the Int.max sentinel value")
-let anySearchStat = ProviderStats(provider: .anysearch, keys: [unlimitedAnySearch])
-require(anySearchStat.totalLimitDisplayText == "Unlimited", "AnySearch provider totals should not display the Int.max sentinel value")
-require(anySearchStat.totalRemainingDisplayText == "Unlimited", "AnySearch provider remaining totals should not display the Int.max sentinel value")
-require(anySearchStat.statusBarProviderQuotaText == "Unlimited", "Status bar provider quota text should show AnySearch as unlimited")
-require(anySearchStat.statusBarProviderBadgeText == "∞", "Status bar provider badge should show AnySearch as unlimited")
+require(!dailyAnySearch.isUnlimitedQuota, "AnySearch should no longer use the unlimited sentinel")
+require(dailyAnySearch.remainingBadgeText == "64%", "AnySearch should show the real daily remaining percentage")
+require(dailyAnySearch.quotaDisplayText == "356 used · 644 remaining / 1000 daily", "AnySearch should show used, remaining, and daily limit")
+let anySearchStat = ProviderStats(provider: .anysearch, keys: [dailyAnySearch])
+require(anySearchStat.totalLimitDisplayText == "1000", "AnySearch provider totals should expose the daily limit")
+require(anySearchStat.totalRemainingDisplayText == "644", "AnySearch provider totals should expose daily remaining")
+require(anySearchStat.statusBarProviderQuotaText == "356 used · 644 remaining / 1000 daily", "Status bar should show AnySearch used, remaining, and daily limit")
+require(anySearchStat.statusBarProviderBadgeText == "64%", "Status bar should show AnySearch daily remaining percent")
 let tavilyProviderOverview = ProviderStats(provider: .tavily, keys: [
     APIKey(name: "TAVILY_API_KEY", key: "tvly-1", provider: .tavily, remaining: 750, limit: 1000),
     APIKey(name: "TAVILY_API_KEY_2", key: "tvly-2", provider: .tavily, remaining: 250, limit: 1000),
@@ -8656,6 +8657,41 @@ require(querit.quotaLabel == "10 monthly requests used", "Querit should display 
 require(querit.quotaText?.key == .monthlyRequestsUsedFormat, "Querit usage-only results should carry a structured monthly-requests-used descriptor")
 require(querit.resetAt == nil, "Querit account endpoint does not expose a reset date")
 require(querit.planEndsAt == nil, "Querit account endpoint does not expose a plan end date")
+
+let anySearchDaily = try! QuotaParsers.parseAnySearchDailyUsage(Data("""
+{"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-16T09:31:17Z"},"scope":"user","total_requests":356,"success_requests":356}}
+""".utf8))
+require(anySearchDaily.remaining == 644, "AnySearch should compute remaining from the verified daily limit")
+require(anySearchDaily.limit == 1000, "AnySearch should expose the official free daily limit")
+require(anySearchDaily.quotaText == .localized(.dailyRequestsUsageFormat, "356", "644", "1000"), "AnySearch should retain observed used, remaining, and limit")
+let anySearchExpectedReset = ISO8601DateFormatter().date(from: "2026-07-17T00:00:00Z")!
+require(abs((anySearchDaily.resetAt?.timeIntervalSince1970 ?? 0) - anySearchExpectedReset.timeIntervalSince1970) < 1, "AnySearch should reset at the next UTC midnight")
+
+let anySearchOverLimit = try! QuotaParsers.parseAnySearchDailyUsage(Data("""
+{"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-16T23:59:59Z"},"scope":"user","total_requests":1200,"success_requests":1200}}
+""".utf8))
+require(anySearchOverLimit.remaining == 0, "AnySearch remaining should clamp at zero above the daily limit")
+require(anySearchOverLimit.quotaText == .localized(.dailyRequestsUsageFormat, "1200", "0", "1000"), "AnySearch should preserve exact above-limit usage evidence")
+
+for invalidAnySearchJSON in [
+    #"{"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-16T09:31:17Z"},"scope":"user"}}"#,
+    #"{"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-16T09:31:17Z"},"scope":"user","total_requests":-1}}"#,
+    #"{"code":0,"message":"ok","data":{"period":{"from":"not-a-date","to":"2026-07-16T09:31:17Z"},"scope":"user","total_requests":1}}"#
+] {
+    do {
+        _ = try QuotaParsers.parseAnySearchDailyUsage(Data(invalidAnySearchJSON.utf8))
+        fail("AnySearch malformed daily usage should be rejected")
+    } catch QuotaError.invalidResponse {
+    } catch {
+        fail("AnySearch malformed daily usage should throw invalidResponse, got \(error)")
+    }
+}
+
+let anySearchFixedNow = ISO8601DateFormatter().date(from: "2026-07-16T09:31:17Z")!
+require(
+    AnySearchDailyUsageRequest.url(now: anySearchFixedNow).absoluteString == "https://anysearch.com/api/api/user/usage/summary?from=2026-07-16T00%3A00%3A00.000Z&to=2026-07-16T09%3A31%3A17.000Z",
+    "AnySearch request should use explicit percent-encoded UTC millisecond bounds"
+)
 
 let xfyun = try! QuotaParsers.parseXFYunCodingPlanList(Data("""
 {"code":0,"data":{"rows":[{"name":"高效版","validFrom":"2026-05-28 17:48:58","expiresAt":"2026-06-28 17:48:58","codingPlanUsageDTO":{"packageLeft":853441,"packageLimit":900000,"packageUsage":46559,"rp5hLimit":6000,"rp5hUsage":3622,"rpwLimit":450000,"rpwUsage":17454}}]},"succeed":true}

@@ -49,6 +49,57 @@ struct QuotaResult {
     }
 }
 
+enum AnySearchDailyUsageRequest {
+    static let dailyLimit = 1_000
+    private static let utc = TimeZone(secondsFromGMT: 0)!
+
+    static func url(now: Date = Date()) -> URL {
+        let from = utcCalendar.startOfDay(for: now)
+        let fromValue = encodedQueryValue(formatter.string(from: from))
+        let toValue = encodedQueryValue(formatter.string(from: now))
+        return URL(string: "https://anysearch.com/api/api/user/usage/summary?from=\(fromValue)&to=\(toValue)")!
+    }
+
+    static func date(from value: String) -> Date? {
+        for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX", "yyyy-MM-dd'T'HH:mm:ssXXXXX"] {
+            let parser = DateFormatter()
+            parser.calendar = utcCalendar
+            parser.locale = Locale(identifier: "en_US_POSIX")
+            parser.timeZone = utc
+            parser.dateFormat = format
+            if let date = parser.date(from: value) {
+                return date
+            }
+        }
+        return nil
+    }
+
+    static func nextUTCMidnight(after dayStart: Date) -> Date? {
+        utcCalendar.date(byAdding: .day, value: 1, to: utcCalendar.startOfDay(for: dayStart))
+    }
+
+    private static var utcCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = utc
+        return calendar
+    }
+
+    private static var formatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.calendar = utcCalendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = utc
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
+        return formatter
+    }
+
+    private static func encodedQueryValue(_ value: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+    }
+}
+
 struct SubscriptionLifecycleInfo {
     var planEndsAt: Date?
     var planDisplayName: String?
@@ -408,6 +459,52 @@ enum QuotaParsers {
             limit: limit,
             resetAt: nil,
             quotaLabel: "\(remaining) / \(limit) monthly requests"
+        )
+    }
+
+    static func parseAnySearchDailyUsage(_ data: Data) throws -> QuotaResult {
+        struct UsageResponse: Decodable {
+            struct UsageData: Decodable {
+                struct Period: Decodable {
+                    let from: String
+                    let to: String
+                }
+
+                let period: Period
+                let scope: String
+                let total_requests: Int
+            }
+
+            let code: Int
+            let data: UsageData?
+        }
+
+        guard let response = try? JSONDecoder().decode(UsageResponse.self, from: data),
+              response.code == 0,
+              let usage = response.data,
+              usage.scope == "user",
+              usage.total_requests >= 0,
+              let periodStart = AnySearchDailyUsageRequest.date(from: usage.period.from),
+              let periodEnd = AnySearchDailyUsageRequest.date(from: usage.period.to),
+              periodEnd >= periodStart,
+              let resetAt = AnySearchDailyUsageRequest.nextUTCMidnight(after: periodStart) else {
+            throw QuotaError.invalidResponse
+        }
+
+        let limit = AnySearchDailyUsageRequest.dailyLimit
+        let remaining = max(0, limit - usage.total_requests)
+        let label = "\(usage.total_requests) used · \(remaining) remaining / \(limit) daily"
+        return QuotaResult(
+            remaining: remaining,
+            limit: limit,
+            resetAt: resetAt,
+            quotaLabel: label,
+            quotaText: .localized(
+                .dailyRequestsUsageFormat,
+                String(usage.total_requests),
+                String(remaining),
+                String(limit)
+            )
         )
     }
 
