@@ -46,10 +46,22 @@ struct QuotaThresholdNotificationStore {
         defaults.set(Array(nextIDs), forKey: deliveredEventIDsKey)
     }
 
-    func clearResolvedEvents(retainingActive activeEvents: [QuotaThresholdNotificationEvent]) {
+    func clearResolvedEvents(
+        retainingActive activeEvents: [QuotaThresholdNotificationEvent],
+        affectedKeyIDs: Set<UUID>? = nil
+    ) {
         let activeIDs = Set(activeEvents.map(\.id))
         let deliveredIDs = Set(defaults.stringArray(forKey: deliveredEventIDsKey) ?? [])
-        defaults.set(Array(deliveredIDs.intersection(activeIDs)), forKey: deliveredEventIDsKey)
+        let nextIDs: Set<String>
+        if let affectedKeyIDs {
+            nextIDs = deliveredIDs.filter { deliveredID in
+                !affectedKeyIDs.contains { deliveredID.hasSuffix($0.uuidString) }
+                    || activeIDs.contains(deliveredID)
+            }
+        } else {
+            nextIDs = deliveredIDs.intersection(activeIDs)
+        }
+        defaults.set(Array(nextIDs), forKey: deliveredEventIDsKey)
     }
 }
 
@@ -70,10 +82,21 @@ final class QuotaThresholdNotificationService {
         self.store = store
     }
 
-    func notifyIfNeeded(for keys: [APIKey], snapshots: [QuotaSnapshot] = [], now: Date = Date()) {
+    func notifyIfNeeded(
+        for keys: [APIKey],
+        snapshots: [QuotaSnapshot] = [],
+        now: Date = Date(),
+        affectedKeyIDs: Set<UUID>? = nil
+    ) {
         let activeEvents = Self.events(for: keys, snapshots: snapshots, now: now)
-        store.clearResolvedEvents(retainingActive: activeEvents)
-        let freshEvents = store.freshEvents(from: activeEvents)
+        store.clearResolvedEvents(
+            retainingActive: activeEvents,
+            affectedKeyIDs: affectedKeyIDs
+        )
+        let allFreshEvents = store.freshEvents(from: activeEvents)
+        let freshEvents = affectedKeyIDs.map {
+            Self.affectedEvents(from: allFreshEvents, affectedKeyIDs: $0)
+        } ?? allFreshEvents
         guard !freshEvents.isEmpty else { return }
 
         center.getNotificationSettings { [center, store] settings in
@@ -107,6 +130,13 @@ final class QuotaThresholdNotificationService {
                 }
                 return lhs.provider.displayName().localizedStandardCompare(rhs.provider.displayName()) == .orderedAscending
             }
+    }
+
+    static func affectedEvents(
+        from events: [QuotaThresholdNotificationEvent],
+        affectedKeyIDs: Set<UUID>
+    ) -> [QuotaThresholdNotificationEvent] {
+        events.filter { affectedKeyIDs.contains($0.keyID) }
     }
 
     private static func notificationEvent(for key: APIKey) -> QuotaThresholdNotificationEvent? {

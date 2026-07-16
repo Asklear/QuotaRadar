@@ -496,28 +496,24 @@ class QuotaMonitor: ObservableObject {
         Task {
             self.ensureSecretsLoaded()
 
-            var updatedKeys: [APIKey] = []
-            var failedKeys: [String] = []
+            let refreshStartKeys = apiKeys
+            var deferredResults: [DeferredRefreshResult] = []
             var foundTargetKey = false
 
-            for var key in Self.refreshCandidateKeys(from: apiKeys, targetProviders: targetProviders) {
+            for var key in Self.refreshCandidateKeys(from: refreshStartKeys, targetProviders: targetProviders) {
                 guard Provider.visibleCases.contains(key.provider) else {
-                    updatedKeys.append(key)
                     continue
                 }
 
                 if let targetProviders, !targetProviders.contains(key.provider) {
-                    updatedKeys.append(key)
                     continue
                 }
 
                 guard key.isActive, !key.key.isEmpty else {
-                    updatedKeys.append(key)
                     continue
                 }
 
                 if key.isStoredAPIKeyOnlyCredential {
-                    updatedKeys.append(key)
                     continue
                 }
 
@@ -531,21 +527,26 @@ class QuotaMonitor: ObservableObject {
                     key.lastDiagnosticMessage = L10n.t(.quotaConsumingRefreshWarning)
                     key.lastDiagnosticText = LocalizedTextDescriptor.localized(.quotaConsumingRefreshWarning)
                     key.lastHTTPStatus = nil
-                    recordQuotaSnapshot(for: key, outcome: .skipped)
-                    updatedKeys.append(key)
+                    deferredResults.append(
+                        DeferredRefreshResult(key: key, outcome: .skipped, countsAsFailure: false)
+                    )
                     continue
                 }
 
                 do {
                     let result = try await service.checkQuota(for: key, bypassCooldown: mode == .manual)
                     applySuccessfulQuotaResult(result, to: &key, now: Date())
-                    recordQuotaSnapshot(for: key, outcome: .success)
-                    updatedKeys.append(key)
+                    deferredResults.append(
+                        DeferredRefreshResult(key: key, outcome: .success, countsAsFailure: false)
+                    )
                 } catch {
                     print("Failed to check quota for \(key.name): \(error)")
                     let outcome: QuotaSnapshotOutcome
+                    let countsAsFailure: Bool
                     if case QuotaError.cooldown = error {
-                        updatedKeys.append(key)
+                        deferredResults.append(
+                            DeferredRefreshResult(key: key, outcome: nil, countsAsFailure: false)
+                        )
                         continue
                     } else if case QuotaError.notSupported = error {
                         key.remaining = nil
@@ -567,6 +568,7 @@ class QuotaMonitor: ObservableObject {
                         key.consecutiveFailureCount = 0
                         key.lastUpdated = Date()
                         outcome = .unsupported
+                        countsAsFailure = false
                     } else if case QuotaError.noSubscription = error {
                         key.remaining = nil
                         key.limit = nil
@@ -583,6 +585,7 @@ class QuotaMonitor: ObservableObject {
                         key.consecutiveFailureCount = 0
                         key.lastUpdated = Date()
                         outcome = .noSubscription
+                        countsAsFailure = false
                     } else if case QuotaError.unauthorized = error {
                         key.remaining = nil
                         key.limit = nil
@@ -605,8 +608,8 @@ class QuotaMonitor: ObservableObject {
                             : LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
                         key.consecutiveFailureCount = 0
                         key.lastUpdated = Date()
-                        failedKeys.append(key.name)
                         outcome = .unauthorized
+                        countsAsFailure = true
                     } else if case QuotaError.invalidAPIKey = error {
                         key.remaining = nil
                         key.limit = nil
@@ -622,23 +625,44 @@ class QuotaMonitor: ObservableObject {
                         key.lastDiagnosticText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
                         key.consecutiveFailureCount += 1
                         key.lastUpdated = Date()
-                        failedKeys.append(key.name)
                         outcome = .unauthorized
+                        countsAsFailure = true
                     } else {
                         key.lastHTTPStatus = (error as? QuotaError)?.httpStatus
                         key.lastDiagnosticMessage = error.localizedDescription
                         key.lastDiagnosticText = (error as? QuotaError)?.localizedTextDescriptor
                         key.consecutiveFailureCount += 1
                         key.lastUpdated = Date()
-                        failedKeys.append(key.name)
                         outcome = .failed
+                        countsAsFailure = true
                     }
-                    recordQuotaSnapshot(for: key, outcome: outcome)
-                    updatedKeys.append(key)
+                    deferredResults.append(
+                        DeferredRefreshResult(
+                            key: key,
+                            outcome: outcome,
+                            countsAsFailure: countsAsFailure
+                        )
+                    )
                 }
             }
 
-            self.apiKeys = updatedKeys
+            let reconciliation = Self.reconcileRefreshResults(
+                startedWith: refreshStartKeys,
+                results: deferredResults,
+                current: apiKeys
+            )
+            self.apiKeys = reconciliation.keys
+            for result in reconciliation.acceptedResults {
+                if let outcome = result.outcome {
+                    self.recordQuotaSnapshot(for: result.key, outcome: outcome)
+                }
+            }
+            let failedKeys = reconciliation.acceptedResults
+                .filter(\.countsAsFailure)
+                .map { $0.key.name }
+            let affectedNotificationKeyIDs = Set(
+                reconciliation.acceptedResults.map { $0.key.id }
+            )
             if let targetProviders, !foundTargetKey, targetProviders.count == 1 {
                 self.refreshMessage = L10n.t(.noKeyConfigured)
                 self.lastError = nil
@@ -651,10 +675,13 @@ class QuotaMonitor: ObservableObject {
                 self.refreshMessage = nil
             }
             self.saveKeys()
-            QuotaThresholdNotificationService.shared.notifyIfNeeded(
-                for: self.apiKeys,
-                snapshots: self.quotaSnapshots
-            )
+            if !affectedNotificationKeyIDs.isEmpty {
+                QuotaThresholdNotificationService.shared.notifyIfNeeded(
+                    for: self.apiKeys,
+                    snapshots: self.quotaSnapshots,
+                    affectedKeyIDs: affectedNotificationKeyIDs
+                )
+            }
             self.refreshingProviders = []
             self.isRefreshing = false
         }

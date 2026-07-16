@@ -2145,6 +2145,41 @@ assert_match 'key\.consecutiveFailureCount = 0' \
 assert_match 'QuotaThresholdNotificationService\.shared\.notifyIfNeeded' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "QuotaMonitor should evaluate threshold notifications after refreshes update key state"
+python3 - <<'PY'
+from pathlib import Path
+import sys
+
+source = Path("QuotaRadar/Models/QuotaMonitor.swift").read_text()
+try:
+    refresh = source.split("private func refresh(targetProviders:", 1)[1].split("    func addKey(", 1)[0]
+except IndexError:
+    print("FAIL: could not inspect QuotaMonitor refresh reconciliation", file=sys.stderr)
+    sys.exit(1)
+
+required = [
+    "refreshStartKeys",
+    "deferredResults",
+    "reconcileRefreshResults",
+    "reconciliation.acceptedResults",
+    "affectedNotificationKeyIDs",
+    "affectedKeyIDs: affectedNotificationKeyIDs",
+]
+missing = [token for token in required if token not in refresh]
+if missing:
+    print(f"FAIL: live refresh should defer and reconcile result side effects; missing {missing}", file=sys.stderr)
+    sys.exit(1)
+
+before_reconciliation, after_reconciliation = refresh.split("let reconciliation = Self.reconcileRefreshResults", 1)
+if "recordQuotaSnapshot(for:" in before_reconciliation:
+    print("FAIL: live refresh must not record quota snapshots before stale-result reconciliation", file=sys.stderr)
+    sys.exit(1)
+if "failedKeys.append" in before_reconciliation:
+    print("FAIL: live refresh must not accumulate failure UI before stale-result reconciliation", file=sys.stderr)
+    sys.exit(1)
+if after_reconciliation.find("recordQuotaSnapshot(for:") < after_reconciliation.find("reconciliation.acceptedResults"):
+    print("FAIL: snapshot recording should iterate only accepted refresh results", file=sys.stderr)
+    sys.exit(1)
+PY
 assert_match 'var planDisplayName: String\?' \
   "QuotaRadar/Services/QuotaService.swift" \
   "QuotaResult should carry a concrete plan/package display name when the provider exposes it"
@@ -2681,9 +2716,9 @@ assert_match 'static func items' \
 assert_match 'func refreshHistoryItems\(for key: APIKey\)' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "QuotaMonitor should expose refresh-history rows to SwiftUI surfaces"
-assert_match 'recordQuotaSnapshot\(for: key, outcome: \.skipped\)' \
+assert_match 'DeferredRefreshResult\(key: key, outcome: \.skipped, countsAsFailure: false\)' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
-  "Automatic refresh skips should be recorded as quota snapshots instead of only updating diagnostics"
+  "Automatic refresh skips should defer their quota snapshot until stale-result reconciliation"
 assert_no_match 'struct ProviderQuotaRefreshHistoryView' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Expanded provider accounts should not add a bulky refresh-history list to the monitor"
@@ -6909,6 +6944,20 @@ require(store.freshEvents(from: events).isEmpty, "Threshold notification store s
 store.clearResolvedEvents(retainingActive: [])
 require(store.freshEvents(from: []).isEmpty, "Threshold notification store should clear resolved events when no thresholds are active")
 require(store.freshEvents(from: [events[0]]) == [events[0]], "Threshold notification store should allow a threshold notification again after the condition recovered")
+
+let scopedDefaults = UserDefaults(suiteName: "QuotaRadarScopedThresholdNotificationTests.\(UUID().uuidString)")!
+let scopedStore = QuotaThresholdNotificationStore(defaults: scopedDefaults)
+let scopedEvents = Array(events.prefix(2))
+scopedStore.markDelivered(scopedEvents, retainingActive: scopedEvents)
+scopedStore.clearResolvedEvents(retainingActive: [], affectedKeyIDs: [scopedEvents[0].keyID])
+require(scopedStore.freshEvents(from: scopedEvents) == [scopedEvents[0]], "Scoped clearing should resolve only accepted credential IDs and preserve unaffected delivery state")
+require(
+    QuotaThresholdNotificationService.affectedEvents(
+        from: scopedEvents,
+        affectedKeyIDs: [scopedEvents[1].keyID]
+    ) == [scopedEvents[1]],
+    "Notification delivery should select only accepted refresh credential IDs"
+)
 
 SWIFT
 
