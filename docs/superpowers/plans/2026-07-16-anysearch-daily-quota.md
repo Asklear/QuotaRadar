@@ -44,7 +44,7 @@ require(Provider.anysearch.dashboardAuthenticationCookieNames == ["accessToken"]
 
 Also assert that `ANYSEARCH_API_KEY` is copyable and classed as `isStoredAPIKeyOnlyCredential`, while `ANYSEARCH_SESSION` is a non-copyable quota-monitoring authorization.
 
-Assert `Provider.anysearch.capability.dataSource == .dashboardAPI` and an AnySearch monitoring record reports `.dashboardAPI` through its presentation data source instead of `.localPolicy`.
+Assert `Provider.anysearch.capability.usageSource == .dashboardAPI` and an AnySearch monitoring record reports `.dashboardAPI` through its presentation data source instead of `.localPolicy`.
 
 - [ ] **Step 2: Run the behavior suite and verify the new assertions fail**
 
@@ -325,7 +325,7 @@ Run:
 ```bash
 git diff --check
 bash Tests/run_behavior_tests.sh
-rg -n "Unlimited free usage|app\.anysearch\.ai|AnySearch.*unlimited|AnySearch.*无限" QuotaRadar Tests docs README.md README.zh-Hans.md TODO.md -g '!docs/superpowers/**'
+if rg -n "Unlimited free usage|app\.anysearch\.ai|AnySearch.*unlimited|AnySearch.*无限" QuotaRadar Tests docs README.md README.zh-Hans.md TODO.md -g '!docs/superpowers/**'; then exit 1; fi
 ```
 
 Expected: diff check and behavior suite pass; stale search returns no live capability claims.
@@ -357,6 +357,7 @@ Restart the locally built app without clearing defaults/database. Confirm the AP
 Run the same local build and guard commands encoded by `.github/workflows/release.yml`:
 
 ```bash
+set -euo pipefail
 scripts/package_dmg.sh --rebuild
 test -s build/QuotaRadar.dmg
 strings 'build/Quota Radar.app/Contents/MacOS/QuotaRadar' | rg -F 'https://api.github.com/repos/Asklear/QuotaRadar/releases/latest'
