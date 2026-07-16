@@ -4338,9 +4338,9 @@ assert_match 'private func handleDashboardCredentialSaved\(_ savedKey: APIKey\)'
 assert_match 'showingReauth = false' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Add Credential should close the web-login sheet after the captured credential is saved"
-assert_match 'linkedAuthorizationID: savedKey\.id' \
+assert_match 'QuotaMonitor\.companionAPIKeySaveDecision' \
   "QuotaRadar/Views/SettingsView.swift" \
-  "Companion API keys entered during Add Credential should be linked to the saved web-login authorization"
+  "Companion API keys entered or previously saved during Add Credential should be linked to the web-login authorization"
 assert_match 'let onSaved: \(\(APIKey\) -> Void\)\?' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should expose a saved-credential callback for create flows"
@@ -4555,6 +4555,12 @@ assert_match 'state\.refreshToken' \
 assert_match 'state\.expiresAt' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "AnySearch dashboard capture should retain the millisecond expiry"
+assert_match 'QuotaMonitor\.companionAPIKeySaveDecision' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Dashboard save should adopt an existing companion API key even when the input is empty"
+assert_match 'clearingCompanionLinks' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "Deleting dashboard authorization should clear surviving companion links"
 assert_match 'https://www.dajiala.com/fbmain/monitor/v3/get_remain_money' \
   "QuotaRadar/Services/QuotaService.swift" \
   "WeChat search quota must use the Dajiala remaining-money endpoint"
@@ -8343,6 +8349,67 @@ require(failedAnySearch.resetAt == successfulAnySearch.resetAt, "Transient failu
 require(failedAnySearch.lastUpdated == successfulAnySearch.lastUpdated, "Transient failures should preserve the last-success timestamp")
 require(failedAnySearch.quotaText == successfulAnySearch.quotaText, "Transient failures should preserve the structured daily usage descriptor")
 require(failedAnySearch.consecutiveFailureCount == successfulAnySearch.consecutiveFailureCount + 1, "Transient failures should increment the failure count")
+
+let anySearchAuthorizationID = UUID(uuidString: "40000000-0000-0000-0000-000000000001")!
+let anySearchAPIKeyID = UUID(uuidString: "40000000-0000-0000-0000-000000000002")!
+let anySearchAuthorization = APIKey(
+    id: anySearchAuthorizationID,
+    name: "ANYSEARCH_SESSION",
+    key: "session-redacted",
+    provider: .anysearch
+)
+let existingAnySearchAPIKey = APIKey(
+    id: anySearchAPIKeyID,
+    name: "ANYSEARCH_API_KEY",
+    key: "saved-api-key-redacted",
+    provider: .anysearch
+)
+switch QuotaMonitor.companionAPIKeySaveDecision(
+    authorization: anySearchAuthorization,
+    enteredValue: "",
+    keys: [existingAnySearchAPIKey, anySearchAuthorization]
+) {
+case .update(let adopted):
+    require(adopted.id == anySearchAPIKeyID, "Saving AnySearch authorization should adopt the existing API key")
+    require(adopted.key == "saved-api-key-redacted", "Empty companion input must preserve the existing API key secret")
+    require(adopted.linkedAuthorizationID == anySearchAuthorizationID, "Existing AnySearch API key should link to the saved authorization")
+default:
+    require(false, "Saving AnySearch authorization with an existing API key should produce an update decision")
+}
+
+var linkedAnySearchAPIKey = existingAnySearchAPIKey
+linkedAnySearchAPIKey.linkedAuthorizationID = anySearchAuthorizationID
+let afterAuthorizationDeletion = QuotaMonitor.clearingCompanionLinks(
+    toAuthorizationID: anySearchAuthorizationID,
+    in: [linkedAnySearchAPIKey, anySearchAuthorization]
+)
+require(afterAuthorizationDeletion.first { $0.id == anySearchAPIKeyID }?.linkedAuthorizationID == nil, "Deleting authorization should keep and unlink the AnySearch API key")
+
+var orphanAnySearchAPIKey = existingAnySearchAPIKey
+orphanAnySearchAPIKey.linkedAuthorizationID = UUID(uuidString: "40000000-0000-0000-0000-000000000099")!
+switch QuotaMonitor.companionAPIKeySaveDecision(
+    authorization: anySearchAuthorization,
+    enteredValue: "",
+    keys: [orphanAnySearchAPIKey, anySearchAuthorization]
+) {
+case .update(let reclaimed):
+    require(reclaimed.id == anySearchAPIKeyID, "Recapture should reclaim an orphan AnySearch API key instead of duplicating it")
+    require(reclaimed.linkedAuthorizationID == anySearchAuthorizationID, "Reclaimed AnySearch API key should link to the new authorization")
+default:
+    require(false, "Recapture should update the orphan AnySearch API key")
+}
+
+switch QuotaMonitor.companionAPIKeySaveDecision(
+    authorization: anySearchAuthorization,
+    enteredValue: "new-api-key-redacted",
+    keys: [anySearchAuthorization]
+) {
+case .add(let added):
+    require(added.name == "ANYSEARCH_API_KEY" && added.key == "new-api-key-redacted", "A non-empty companion input should create a missing AnySearch API key")
+    require(added.linkedAuthorizationID == anySearchAuthorizationID, "New AnySearch API key should link to the authorization")
+default:
+    require(false, "A non-empty companion input should add a missing AnySearch API key")
+}
 SWIFT
 
 swiftc \

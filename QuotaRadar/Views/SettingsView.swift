@@ -1210,28 +1210,17 @@ struct AddKeySheet: View {
             return
         }
 
-        let trimmedCompanionAPIKey = companionAPIKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedCompanionAPIKey.isEmpty else {
-            return
-        }
-
-        if let existingCompanion = monitor.apiKeys.first(where: {
-            $0.provider == provider
-                && $0.isStoredAPIKeyOnlyCredential
-                && ($0.linkedAuthorizationID == savedKey.id || $0.linkedAuthorizationID == nil)
-        }) {
-            var updatedCompanion = existingCompanion
-            updatedCompanion.name = provider.copyableAPIKeyCredentialName
-            updatedCompanion.key = trimmedCompanionAPIKey
-            updatedCompanion.linkedAuthorizationID = savedKey.id
-            monitor.updateKey(updatedCompanion)
-        } else {
-            monitor.addKey(APIKey(
-                name: provider.copyableAPIKeyCredentialName,
-                key: trimmedCompanionAPIKey,
-                provider: provider,
-                linkedAuthorizationID: savedKey.id
-            ))
+        switch QuotaMonitor.companionAPIKeySaveDecision(
+            authorization: savedKey,
+            enteredValue: companionAPIKey,
+            keys: monitor.apiKeys
+        ) {
+        case .none:
+            break
+        case .update(let companion):
+            monitor.updateKey(companion)
+        case .add(let companion):
+            monitor.addKey(companion)
         }
     }
 

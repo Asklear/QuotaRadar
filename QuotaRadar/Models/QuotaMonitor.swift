@@ -9,6 +9,12 @@ enum RefreshMode {
 
 @MainActor
 class QuotaMonitor: ObservableObject {
+    enum CompanionAPIKeySaveDecision {
+        case none
+        case update(APIKey)
+        case add(APIKey)
+    }
+
     static let shared = QuotaMonitor()
     private static let providerOrderDefaultsKey = "providerOrder"
     private static let customProviderOrderEnabledDefaultsKey = "customProviderOrderEnabled"
@@ -704,7 +710,63 @@ class QuotaMonitor: ObservableObject {
         saveKeys()
     }
 
+    nonisolated static func companionAPIKeySaveDecision(
+        authorization: APIKey,
+        enteredValue: String,
+        keys: [APIKey]
+    ) -> CompanionAPIKeySaveDecision {
+        let provider = authorization.provider
+        guard provider.supportsCompanionAPIKeyStorage,
+              !authorization.isStoredAPIKeyOnlyCredential else {
+            return .none
+        }
+
+        let trimmedValue = enteredValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let authorizationIDs = Set(keys.filter {
+            $0.provider == provider && !$0.isStoredAPIKeyOnlyCredential
+        }.map(\.id))
+        let candidates = keys.filter {
+            $0.provider == provider && $0.isStoredAPIKeyOnlyCredential
+        }
+        let existing = candidates.first { $0.linkedAuthorizationID == authorization.id }
+            ?? candidates.first { $0.linkedAuthorizationID == nil }
+            ?? candidates.first { candidate in
+                guard let linkedID = candidate.linkedAuthorizationID else { return false }
+                return !authorizationIDs.contains(linkedID)
+            }
+
+        if var existing {
+            existing.name = provider.copyableAPIKeyCredentialName
+            if !trimmedValue.isEmpty {
+                existing.key = trimmedValue
+            }
+            existing.linkedAuthorizationID = authorization.id
+            return .update(existing)
+        }
+
+        guard !trimmedValue.isEmpty else { return .none }
+        return .add(APIKey(
+            name: provider.copyableAPIKeyCredentialName,
+            key: trimmedValue,
+            provider: provider,
+            linkedAuthorizationID: authorization.id
+        ))
+    }
+
+    nonisolated static func clearingCompanionLinks(
+        toAuthorizationID authorizationID: UUID,
+        in keys: [APIKey]
+    ) -> [APIKey] {
+        keys.map { key in
+            guard key.linkedAuthorizationID == authorizationID else { return key }
+            var unlinked = key
+            unlinked.linkedAuthorizationID = nil
+            return unlinked
+        }
+    }
+
     func removeKey(id: UUID) {
+        apiKeys = Self.clearingCompanionLinks(toAuthorizationID: id, in: apiKeys)
         apiKeys.removeAll { $0.id == id }
         store.delete(id: id)
         quotaSnapshots = historyStore.deleteSnapshots(for: id, existing: quotaSnapshots)
