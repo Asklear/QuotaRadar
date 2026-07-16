@@ -5052,7 +5052,12 @@ require(Provider.kimiSubscription.dashboardURL == "https://www.kimi.com/membersh
 require(Provider.tencentCloudCodingPlan.dashboardURL == "https://console.cloud.tencent.com/tokenhub/codingplan", "Tencent Cloud Coding Plan should open the TokenHub Coding Plan page")
 require(Provider.tencentCloudTokenPlan.dashboardURL == "https://console.cloud.tencent.com/tokenhub/tokenplan", "Tencent Cloud Token Plan should open the TokenHub Token Plan page")
 require(Provider.bocha.dashboardURL == "https://open.bochaai.com/dashboard", "Bocha should expose its official dashboard jump link")
-require(Provider.anysearch.dashboardURL == "https://app.anysearch.ai/login", "AnySearch should expose the official app login jump link from its website")
+require(Provider.anysearch.dashboardURL == "https://anysearch.com/console/overview", "AnySearch should open the current console overview")
+require(Provider.anysearch.defaultCredentialName == "ANYSEARCH_SESSION", "AnySearch quota monitoring should use a separate session record")
+require(Provider.anysearch.copyableAPIKeyCredentialName == "ANYSEARCH_API_KEY", "AnySearch invocation key should remain a separate copyable credential")
+require(Provider.anysearch.supportsCompanionAPIKeyStorage, "AnySearch should preserve a companion invocation API key")
+require(Provider.anysearch.capability.credentialKind == .dashboardCookie, "AnySearch quota monitoring should use dashboard authorization")
+require(Provider.anysearch.capability.usageSource == .dashboardAPI, "AnySearch quota should come from the verified dashboard usage API")
 require(Provider.xfyunCodingPlan.supportsQuotaQuery, "XFYun Coding Plan should support dashboard quota checks")
 require(!Provider.xfyunTokenPlan.supportsQuotaQuery, "XFYun Token Plan should not claim quota checks until a usage API is implemented")
 require(Provider.volcengineCodingPlan.supportsQuotaQuery, "Volcengine Coding Plan should support dashboard quota checks")
@@ -7280,6 +7285,7 @@ require(Provider.volcengineCodingPlan.supportsDashboardReauthentication, "Volcen
 require(!Provider.volcengineTokenPlan.supportsDashboardReauthentication, "Volcengine Token Plan should use signed API credentials instead of web-login reauthentication")
 require(Provider.opencodeGo.supportsDashboardReauthentication, "OpenCode Go should support dashboard reauthentication")
 require(Provider.querit.supportsDashboardReauthentication, "Querit should support web-login reauthentication")
+require(Provider.anysearch.supportsDashboardReauthentication, "AnySearch should support web-login reauthentication")
 require(Provider.aliyunCodingPlan.supportsDashboardReauthentication, "Aliyun Coding Plan should support web-login authorization capture so users with accounts can verify the quota endpoint")
 require(!Provider.aliyunTokenPlan.supportsDashboardReauthentication, "Aliyun Token Plan should use its dedicated API key until a quota endpoint is captured")
 require(Provider.tencentCloudCodingPlan.supportsDashboardReauthentication, "Tencent Cloud Coding Plan should support web-login authorization capture so users with accounts can verify the quota endpoint")
@@ -7293,6 +7299,7 @@ require(Provider.kimiSubscription.supportsDashboardReauthentication, "Kimi subsc
 require(Provider.longcat.supportsDashboardReauthentication, "LongCat should support web-login authorization capture")
 require(!Provider.brave.supportsDashboardReauthentication, "Brave should not use dashboard-cookie reauthentication")
 let expectedDashboardReauthProviders: Set<Provider> = [
+    .anysearch,
     .querit,
     .xfyunCodingPlan,
     .volcengineCodingPlan,
@@ -7313,6 +7320,8 @@ require(DashboardReauthConfig(provider: .xfyunTokenPlan) == nil, "XFYun Token Pl
 require(DashboardReauthConfig(provider: .volcengineCodingPlan)?.cookieDomains == ["volcengine.com", "console.volcengine.com"], "Volcengine should capture console.volcengine.com and domain-wide volcengine.com cookies")
 require(DashboardReauthConfig(provider: .volcengineTokenPlan) == nil, "Volcengine Token Plan should not expose dashboard-cookie reauthentication")
 require(DashboardReauthConfig(provider: .querit)?.cookieDomains == ["querit.ai"], "Querit should capture querit.ai dashboard cookies")
+require(DashboardReauthConfig(provider: .anysearch)?.cookieDomains == ["anysearch.com"], "AnySearch should capture only anysearch.com Web Storage")
+require(DashboardReauthConfig(provider: .anysearch)?.requiredCookieNames == ["accessToken"], "AnySearch should save only after an access token is captured")
 require(DashboardReauthConfig(provider: .aliyunCodingPlan)?.cookieDomains == ["aliyun.com", "bailian.console.aliyun.com"], "Aliyun Coding Plan should capture Alibaba Cloud web login authorization for quota endpoint verification")
 require(DashboardReauthConfig(provider: .aliyunCodingPlan)?.loginURL.absoluteString == "https://bailian.console.aliyun.com/?tab=plan#/efm/subscription/coding-plan", "Aliyun Coding Plan reauthentication should open the protected subscription route instead of the public home page")
 require(DashboardReauthConfig(provider: .aliyunTokenPlan) == nil, "Aliyun Token Plan should not capture cookies without a verified dashboard quota endpoint")
