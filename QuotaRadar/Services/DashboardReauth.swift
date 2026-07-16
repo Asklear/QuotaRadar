@@ -44,6 +44,13 @@ struct DashboardCapturedCredential {
     var captureIdentity: Int {
         var hasher = Hasher()
         hasher.combine(provider)
+        if provider == .tencentCloudCodingPlan {
+            for name in ["uin", "skey", "p_skey", "ownerUin"] {
+                hasher.combine(name)
+                hasher.combine(DashboardCookieBuilder.cookieValue(named: name, in: cookieHeader))
+            }
+            return hasher.finalize()
+        }
         hasher.combine(cookieHeader)
         for (name, value) in fields.sorted(by: { $0.key < $1.key }) {
             hasher.combine(name)

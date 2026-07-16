@@ -7075,6 +7075,21 @@ let refreshedCapture = DashboardCapturedCredential(
 require(rejectedCapture.captureIdentity == unchangedRejectedCapture.captureIdentity, "Equivalent browser credentials should have the same in-memory capture identity")
 require(rejectedCapture.captureIdentity != refreshedCapture.captureIdentity, "Changed browser credentials should have a different in-memory capture identity")
 
+let tencentCaptureWithTrackingA = DashboardCapturedCredential(
+    provider: .tencentCloudCodingPlan,
+    cookieHeader: "uin=o123; skey=session-redacted; ownerUin=o123; nodesess=tracking-a"
+)
+let tencentCaptureWithTrackingB = DashboardCapturedCredential(
+    provider: .tencentCloudCodingPlan,
+    cookieHeader: "uin=o123; skey=session-redacted; ownerUin=o123; nodesess=tracking-b"
+)
+let tencentCaptureWithNewSession = DashboardCapturedCredential(
+    provider: .tencentCloudCodingPlan,
+    cookieHeader: "uin=o123; skey=new-session-redacted; ownerUin=o123; nodesess=tracking-b"
+)
+require(tencentCaptureWithTrackingA.captureIdentity == tencentCaptureWithTrackingB.captureIdentity, "Tencent capture identity should ignore unrelated rotating cookies")
+require(tencentCaptureWithTrackingA.captureIdentity != tencentCaptureWithNewSession.captureIdentity, "Tencent capture identity should change when authentication cookies change")
+
 var captureLifecycle = DashboardCredentialCaptureLifecycle(initialResetRequestID: 0)
 require(captureLifecycle.automaticEmissionDecision(credentialIdentity: rejectedCapture.captureIdentity) == .emit, "The first ready dashboard credential should be emitted")
 require(captureLifecycle.automaticEmissionDecision(credentialIdentity: rejectedCapture.captureIdentity) == .blocked, "A ready credential should not be emitted twice while validation is pending")
@@ -8343,13 +8358,31 @@ require(opencode.resetAt != nil && opencode.resetAt! > Date(), "OpenCode Go shou
 require(opencode.planEndsAt == nil, "OpenCode Go usage endpoint does not expose the subscription end date")
 
 do {
-    _ = try QuotaParsers.parseOpenCodeGoUsage(Data("""
-;0x00000001;((self.$R=self.$R||{})["server-fn:11"]=[],null)
-""".utf8))
+    _ = try QuotaParsers.parseOpenCodeGoUsage(
+        Data(#";0x0000002f;((self.$R=self.$R||{})["server-fn:11"]=[],null)"#.utf8),
+        expectedServerInstance: "server-fn:11"
+    )
     fail("OpenCode Go should report noSubscription when the authenticated server function returns null")
 } catch QuotaError.noSubscription {
 } catch {
     fail("OpenCode Go null subscription should throw noSubscription, got \(error)")
+}
+
+for openCodeNullNearMiss in [
+    #";0x0000002f;((self.$R=self.$R||{})["server-fn:12"]=[],null)"#,
+    #";0x00000030;((self.$R=self.$R||{})["server-fn:11"]=[],null)"#,
+    #"prefix;0x0000002f;((self.$R=self.$R||{})["server-fn:11"]=[],null)"#,
+] {
+    do {
+        _ = try QuotaParsers.parseOpenCodeGoUsage(
+            Data(openCodeNullNearMiss.utf8),
+            expectedServerInstance: "server-fn:11"
+        )
+        fail("OpenCode Go should reject null envelopes with the wrong frame or server instance")
+    } catch QuotaError.invalidResponse {
+    } catch {
+        fail("OpenCode Go null near-miss should throw invalidResponse, got \(error)")
+    }
 }
 
 do {
@@ -8469,6 +8502,14 @@ for tencentUnauthorizedPayload in [
     } catch {
         fail("Tencent Cloud auth envelope should throw unauthorized, got \(error)")
     }
+}
+
+do {
+    _ = try QuotaParsers.parseTencentCloudCodingPlanDescribePkg(Data(#"{"code":123,"msg":"login service unavailable"}"#.utf8))
+    fail("Tencent Cloud generic login-service failures should remain invalidResponse")
+} catch QuotaError.invalidResponse {
+} catch {
+    fail("Tencent Cloud generic login-service error should throw invalidResponse, got \(error)")
 }
 
 let claudeOrganizationID = try! QuotaParsers.parseClaudeOrganizationID(Data("""

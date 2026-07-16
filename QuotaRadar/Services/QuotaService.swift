@@ -931,15 +931,20 @@ enum QuotaParsers {
         )
     }
 
-    static func parseOpenCodeGoUsage(_ data: Data) throws -> QuotaResult {
+    static func parseOpenCodeGoUsage(
+        _ data: Data,
+        expectedServerInstance: String? = nil
+    ) throws -> QuotaResult {
         guard let text = String(data: data, encoding: .utf8) else {
             throw QuotaError.invalidResponse
         }
         if text.contains("/auth/authorize") {
             throw QuotaError.unauthorized
         }
-        if text.contains("server-fn:"),
-           text.range(of: #",\s*null\)\s*$"#, options: .regularExpression) != nil {
+        if isOpenCodeGoNullSubscriptionEnvelope(
+            text,
+            expectedServerInstance: expectedServerInstance
+        ) {
             throw QuotaError.noSubscription
         }
 
@@ -977,6 +982,41 @@ enum QuotaParsers {
                 .map { window in "\(window.name) \(formatPercent(window.remainingPercent))" }
                 .joined(separator: " · ")
         )
+    }
+
+    private static func isOpenCodeGoNullSubscriptionEnvelope(
+        _ text: String,
+        expectedServerInstance: String?
+    ) -> Bool {
+        let frameParts = text.split(
+            separator: ";",
+            maxSplits: 2,
+            omittingEmptySubsequences: false
+        )
+        guard frameParts.count == 3,
+              frameParts[0].isEmpty else {
+            return false
+        }
+
+        let frameLength = String(frameParts[1])
+        guard frameLength.count == 10,
+              frameLength.hasPrefix("0x"),
+              frameLength.dropFirst(2).allSatisfy(\.isHexDigit),
+              let declaredLength = Int(frameLength.dropFirst(2), radix: 16) else {
+            return false
+        }
+
+        let payload = String(frameParts[2])
+        guard payload.utf8.count == declaredLength else { return false }
+
+        let serverInstancePattern: String
+        if let expectedServerInstance {
+            serverInstancePattern = NSRegularExpression.escapedPattern(for: expectedServerInstance)
+        } else {
+            serverInstancePattern = "server-fn:[0-9]+"
+        }
+        let pattern = "^\\(\\(self\\.\\$R=self\\.\\$R\\|\\|\\{\\}\\)\\[\"\(serverInstancePattern)\"\\]=\\[\\],null\\)$"
+        return payload.range(of: pattern, options: .regularExpression) != nil
     }
 
     static func parseCodexWhamUsage(_ data: Data) throws -> QuotaResult {
@@ -1476,12 +1516,10 @@ enum QuotaParsers {
             || code == 401
             || code == 403
         let hasUnauthorizedMessage = normalizedMessage.contains("uin_or_skey_missing")
-            || normalizedMessage.contains("login")
             || normalizedMessage.contains("expired")
             || normalizedMessage.contains("csrf")
             || normalizedMessage.contains("unauthorized")
             || normalizedMessage.contains("登录态")
-            || normalizedMessage.contains("登录")
             || normalizedMessage.contains("重新登录")
             || normalizedMessage.contains("过期")
         return knownUnauthorizedCode || hasUnauthorizedMessage
@@ -4153,7 +4191,10 @@ actor QuotaService {
         }
 
         return try withHTTPStatus(
-            QuotaParsers.parseOpenCodeGoUsage(data),
+            QuotaParsers.parseOpenCodeGoUsage(
+                data,
+                expectedServerInstance: serverInstance
+            ),
             from: httpResponse
         )
     }
