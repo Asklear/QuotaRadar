@@ -8341,6 +8341,20 @@ do {
     fail("Volcengine coding-plan Result without QuotaUsage but with Status and UpdateTimestamp should map to noSubscription, got \(error)")
 }
 
+for nearMiss in [
+    #"{"ResponseMetadata":{"Action":"GetCodingPlanUsage"},"Result":{"Status":"NotSubscribed","UpdateTimestamp":1782921599,"Message":"shape changed"}}"#,
+    #"{"ResponseMetadata":{"Action":"GetCodingPlanUsage"},"Result":{"Status":null,"UpdateTimestamp":1782921599}}"#,
+    #"{"ResponseMetadata":{"Action":"GetCodingPlanUsage"},"Result":{"Status":"NotSubscribed","UpdateTimestamp":null}}"#,
+] {
+    do {
+        _ = try QuotaParsers.parseVolcengineCodingPlanUsage(Data(nearMiss.utf8))
+        fail("Volcengine coding-plan no-subscription near-misses should not parse as valid usage")
+    } catch QuotaError.invalidResponse {
+    } catch {
+        fail("Volcengine coding-plan no-subscription near-misses should map to invalidResponse, got \(error)")
+    }
+}
+
 let volcInvalidCSRFData = Data("""
 {"ResponseMetadata":{"Action":"GetCodingPlanUsage","Error":{"Code":"InvalidCSRFToken","Message":"Invalid CSRF token."}},"Result":null}
 """.utf8)

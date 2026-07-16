@@ -852,9 +852,9 @@ enum QuotaParsers {
     static func parseVolcengineCodingPlanUsage(_ data: Data) throws -> QuotaResult {
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let result = object["Result"] as? [String: Any],
-           result["QuotaUsage"] == nil,
-           result["Status"] != nil,
-           result["UpdateTimestamp"] != nil {
+           Set(result.keys) == Set(["Status", "UpdateTimestamp"]),
+           let status = result["Status"], !(status is NSNull),
+           let updateTimestamp = result["UpdateTimestamp"], !(updateTimestamp is NSNull) {
             throw QuotaError.noSubscription
         }
 
