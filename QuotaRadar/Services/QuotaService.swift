@@ -3685,7 +3685,8 @@ actor QuotaService {
             throw QuotaError.unauthorized
         }
 
-        var request = URLRequest(url: AnySearchDailyUsageRequest.url())
+        let now = Date()
+        var request = URLRequest(url: AnySearchDailyUsageRequest.url(now: now))
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(credential.accessToken)", forHTTPHeaderField: "Authorization")
@@ -3702,7 +3703,7 @@ actor QuotaService {
         }
 
         return try withHTTPStatus(
-            QuotaParsers.parseAnySearchDailyUsage(data),
+            QuotaParsers.parseAnySearchDailyUsage(data, now: now),
             from: httpResponse
         )
     }

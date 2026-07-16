@@ -4540,6 +4540,12 @@ assert_match 'request\.setValue\("Bearer .*credential\.accessToken.*forHTTPHeade
 assert_match 'QuotaParsers\.parseAnySearchDailyUsage' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch refresh should parse the verified daily response"
+assert_match 'AnySearchDailyUsageRequest\.url\(now: now\)' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "AnySearch request and response validation should share one captured instant across UTC midnight"
+assert_match 'parseAnySearchDailyUsage\(data, now: now\)' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "AnySearch response validation should use the request instant instead of a later wall-clock read"
 assert_match 'case \.anysearch:' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch must have explicit quota handling"
