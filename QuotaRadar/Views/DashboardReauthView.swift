@@ -827,6 +827,15 @@ struct DashboardWebView: NSViewRepresentable {
                 } catch (_) {}
               }
               try {
+                if (location.hostname === 'anysearch.com' || location.hostname.endsWith('.anysearch.com')) {
+                  const authState = JSON.parse(localStorage.getItem('search-template-auth-state') || '{}');
+                  const state = authState && authState.state;
+                  if (state && typeof state.accessToken === 'string') output.anysearchAccessToken = state.accessToken;
+                  if (state && typeof state.refreshToken === 'string') output.anysearchRefreshToken = state.refreshToken;
+                  if (state && Number.isInteger(state.expiresAt)) output.anysearchExpiresAt = String(state.expiresAt);
+                }
+              } catch (_) {}
+              try {
                 if (document.cookie) output.documentCookie = document.cookie;
               } catch (_) {}
               const cookieValue = (name) => {

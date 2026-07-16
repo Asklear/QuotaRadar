@@ -79,13 +79,32 @@ struct DashboardCapturedCredential {
         )
 
         switch provider {
+        case .anysearch:
+            return normalizedAnySearchFields(storage: storage)
         case .kimiSubscription:
             return normalizedKimiFields(cookieHeader: cookieHeader, storage: storage)
         case .longcat:
             return normalizedLongCatFields(cookieHeader: cookieHeader, storage: storage)
-        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .querit, .anthropic, .anthropicCredits, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .deepseek, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
+        case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .wxmp, .querit, .anthropic, .anthropicCredits, .claudeAPIUsage, .claudeSubscription, .codexAPIUsage, .codexSubscription, .deepseek, .xfyunCodingPlan, .xfyunTokenPlan, .volcengineCodingPlan, .volcengineTokenPlan, .opencodeGo, .aliyunCodingPlan, .aliyunTokenPlan, .tencentCloudCodingPlan, .tencentCloudTokenPlan:
             return [:]
         }
+    }
+
+    private static func normalizedAnySearchFields(storage: [String: String]) -> [String: String] {
+        guard let accessToken = firstNonEmptyValue(in: storage, keys: ["anysearchAccessToken"]) else {
+            return [:]
+        }
+
+        var fields = ["accessToken": stripBearerPrefix(accessToken)]
+        if let refreshToken = firstNonEmptyValue(in: storage, keys: ["anysearchRefreshToken"]) {
+            fields["refreshToken"] = refreshToken
+        }
+        if let rawExpiry = firstNonEmptyValue(in: storage, keys: ["anysearchExpiresAt"]),
+           let expiry = Int64(rawExpiry),
+           expiry > 0 {
+            fields["expiresAt"] = String(expiry)
+        }
+        return fields
     }
 
     private static func normalizedKimiFields(cookieHeader: String, storage: [String: String]) -> [String: String] {

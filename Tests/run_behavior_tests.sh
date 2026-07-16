@@ -4537,6 +4537,18 @@ assert_match 'Unlimited free usage' \
 assert_match 'case \.anysearch:' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch must have explicit quota handling"
+assert_match 'search-template-auth-state' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "AnySearch dashboard capture should read the observed localStorage auth state"
+assert_match 'state\.accessToken' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "AnySearch dashboard capture should extract only the access token field"
+assert_match 'state\.refreshToken' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "AnySearch dashboard capture should retain the refresh token for forward compatibility"
+assert_match 'state\.expiresAt' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "AnySearch dashboard capture should retain the millisecond expiry"
 assert_match 'https://www.dajiala.com/fbmain/monitor/v3/get_remain_money' \
   "QuotaRadar/Services/QuotaService.swift" \
   "WeChat search quota must use the Dajiala remaining-money endpoint"
@@ -7386,6 +7398,22 @@ require(DashboardCookieBuilder.missingRequiredCredentialNames(
     requiredNames: Provider.kimiSubscription.dashboardAuthenticationCookieNames
 ).isEmpty, "Kimi reauthentication should accept accessToken captured from web storage when the auth cookie is not exposed")
 require(kimiCapturedFromStorage.reauthenticatedSecret(existingSecret: nil).contains("\"accessToken\""), "Kimi reauthentication should save storage-derived token metadata as JSON instead of a raw preference cookie")
+let anySearchCapturedFromStorage = DashboardCapturedCredential(
+    provider: .anysearch,
+    cookieHeader: "",
+    webStorageFields: [
+        "anysearchAccessToken": "Bearer access-redacted",
+        "anysearchRefreshToken": "refresh-redacted",
+        "anysearchExpiresAt": "1784196000000"
+    ]
+)
+require(anySearchCapturedFromStorage.fields["accessToken"] == "access-redacted", "AnySearch WebStorage capture should strip the Bearer prefix")
+require(anySearchCapturedFromStorage.fields["refreshToken"] == "refresh-redacted", "AnySearch WebStorage capture should retain the refresh token")
+require(anySearchCapturedFromStorage.fields["expiresAt"] == "1784196000000", "AnySearch WebStorage capture should retain the millisecond expiry")
+require(DashboardCredentialCapturePolicy.isCredentialReady(
+    anySearchCapturedFromStorage,
+    requiredNames: Provider.anysearch.dashboardAuthenticationCookieNames
+), "AnySearch access token should complete dashboard capture")
 let longCatCapturedFromStorage = DashboardCapturedCredential(
     provider: .longcat,
     cookieHeader: "locale=zh",
