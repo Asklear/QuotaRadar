@@ -124,7 +124,7 @@ open build/QuotaRadar.dmg
 Manual GitHub Release upload:
 
 ```bash
-gh release create v0.4.6 build/QuotaRadar.dmg \
+gh release create v0.4.6 build/QuotaRadar.dmg build/QuotaRadar-WhiteLabel.dmg \
   --title "Quota Radar v0.4.6" \
   --notes "Repairs dashboard credential recapture for Codex, Aliyun, Volcengine, OpenCode Go, and Tencent Cloud, with provider-specific request and response handling. Concurrent refreshes now reconcile per credential so stale results cannot overwrite newer authentication state. Credential values stay local and are never included in diagnostics."
 ```

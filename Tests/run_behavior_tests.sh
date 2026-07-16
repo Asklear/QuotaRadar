@@ -575,6 +575,78 @@ assert_match 'scripts/package_dmg.sh --rebuild' \
 assert_match 'softprops/action-gh-release' \
   ".github/workflows/release.yml" \
   "Release workflow should upload the DMG to GitHub Releases"
+python3 - <<'PY'
+from pathlib import Path
+import re
+import sys
+
+workflow = Path(".github/workflows/release.yml").read_text()
+try:
+    jobs = workflow.split("\njobs:\n", 1)[1]
+except IndexError:
+    sys.exit("FAIL: Release workflow should contain a jobs mapping")
+
+job_names = re.findall(r"(?m)^  ([A-Za-z0-9_-]+):\s*$", jobs)
+if job_names != ["release"] or "    runs-on: macos-14" not in jobs:
+    sys.exit(f"FAIL: Release workflow should contain one macOS release job; found {job_names}")
+
+ordered_tokens = [
+    "scripts/package_dmg.sh --rebuild",
+    "strings 'build/Quota Radar.app/Contents/MacOS/QuotaRadar' | rg -F 'https://api.github.com/repos/Asklear/QuotaRadar/releases/latest'",
+    "strings 'build/Quota Radar.app/Contents/MacOS/QuotaRadar' | rg -F 'https://github.com/Asklear/QuotaRadar/releases/latest'",
+    "scripts/package_dmg.sh --rebuild --white-label",
+    "if strings 'build/Quota Radar.app/Contents/MacOS/QuotaRadar' |",
+    "if strings build/QuotaRadar-WhiteLabel.dmg |",
+    "hdiutil verify build/QuotaRadar.dmg",
+    "hdiutil verify build/QuotaRadar-WhiteLabel.dmg",
+    "uses: softprops/action-gh-release@v2",
+]
+positions = []
+for token in ordered_tokens:
+    position = jobs.find(token)
+    if position < 0:
+        sys.exit(f"FAIL: Dual-DMG release workflow is missing {token!r}")
+    positions.append(position)
+if positions != sorted(positions) or len(set(positions)) != len(positions):
+    sys.exit("FAIL: Dual-DMG build, scan, verify, and upload steps are out of order")
+
+guard_patterns = {
+    "app": r"if strings 'build/Quota Radar\.app/Contents/MacOS/QuotaRadar' \|.*?White-label app leaked an updater URL.*?\bfi\b",
+    "DMG": r"if strings build/QuotaRadar-WhiteLabel\.dmg \|.*?White-label DMG leaked an updater URL.*?\bfi\b",
+}
+for label, pattern in guard_patterns.items():
+    if not re.search(pattern, jobs, re.DOTALL):
+        sys.exit(f"FAIL: White-label {label} updater exclusion must scan the correct artifact and fail explicitly")
+
+release_actions = list(re.finditer(r"(?m)^        uses: softprops/action-gh-release@v2\s*$", jobs))
+if len(release_actions) != 1:
+    sys.exit(f"FAIL: Release workflow should use one GitHub Release action; found {len(release_actions)}")
+action_block = jobs[release_actions[0].start():]
+files_match = re.search(
+    r"(?m)^          files: \|[ \t]*\n(?P<paths>(?:^            \S[^\n]*\n?)+)",
+    action_block,
+)
+if not files_match:
+    sys.exit("FAIL: GitHub Release action should use a multiline files input")
+uploaded_paths = [line.strip() for line in files_match.group("paths").splitlines()]
+expected_paths = ["build/QuotaRadar.dmg", "build/QuotaRadar-WhiteLabel.dmg"]
+if uploaded_paths != expected_paths:
+    sys.exit(f"FAIL: GitHub Release should upload exactly both DMGs; found {uploaded_paths}")
+
+for readme_path in ("README.md", "README.zh-Hans.md"):
+    readme = Path(readme_path).read_text()
+    try:
+        command = readme.split("gh release create v0.4.6", 1)[1].split("```", 1)[0]
+    except IndexError:
+        sys.exit(f"FAIL: {readme_path} should document the v0.4.6 manual release command")
+    for artifact in expected_paths:
+        if artifact not in command:
+            sys.exit(f"FAIL: {readme_path} manual release command is missing {artifact}")
+
+for stale_wording in ("This release publishes the Swift macOS DMG only.", "本次只发布 Swift macOS DMG。"):
+    if stale_wording in workflow:
+        sys.exit(f"FAIL: Release workflow still describes a single asset: {stale_wording}")
+PY
 assert_match 'final class GitHubReleaseUpdater' \
   "QuotaRadar/Services/GitHubReleaseUpdater.swift" \
   "QuotaRadar should include a GitHub Release updater service"

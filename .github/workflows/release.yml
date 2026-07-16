@@ -30,13 +30,42 @@ jobs:
       - name: Run behavior tests
         run: bash Tests/run_behavior_tests.sh
 
-      - name: Build unsigned DMG
+      - name: Build standard unsigned DMG
         run: scripts/package_dmg.sh --rebuild
 
-      - name: Upload DMG to GitHub Release
+      - name: Verify standard updater build
+        run: |
+          test -s build/QuotaRadar.dmg
+          strings 'build/Quota Radar.app/Contents/MacOS/QuotaRadar' | rg -F 'https://api.github.com/repos/Asklear/QuotaRadar/releases/latest'
+          strings 'build/Quota Radar.app/Contents/MacOS/QuotaRadar' | rg -F 'https://github.com/Asklear/QuotaRadar/releases/latest'
+
+      - name: Build WhiteLabel unsigned DMG
+        run: scripts/package_dmg.sh --rebuild --white-label
+
+      - name: Verify both release artifacts
+        run: |
+          set -euo pipefail
+          if strings 'build/Quota Radar.app/Contents/MacOS/QuotaRadar' |
+            rg 'Asklear/QuotaRadar|api\.github\.com/repos/Asklear/QuotaRadar|github\.com/Asklear/QuotaRadar/releases/latest'; then
+            echo 'White-label app leaked an updater URL' >&2
+            exit 1
+          fi
+          if strings build/QuotaRadar-WhiteLabel.dmg |
+            rg 'Asklear/QuotaRadar|api\.github\.com/repos/Asklear/QuotaRadar|github\.com/Asklear/QuotaRadar/releases/latest'; then
+            echo 'White-label DMG leaked an updater URL' >&2
+            exit 1
+          fi
+          test -s build/QuotaRadar.dmg
+          test -s build/QuotaRadar-WhiteLabel.dmg
+          hdiutil verify build/QuotaRadar.dmg
+          hdiutil verify build/QuotaRadar-WhiteLabel.dmg
+
+      - name: Upload both DMGs to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/QuotaRadar.dmg
+          files: |
+            build/QuotaRadar.dmg
+            build/QuotaRadar-WhiteLabel.dmg
           body: |
             Quota Radar macOS build.
 
@@ -46,7 +75,7 @@ jobs:
             - Adds bounded Volcengine CSRF rotation, exact OpenCode Go null/no-subscription parsing, and explicit Tencent Cloud unauthorized handling.
             - Reconciles concurrent refreshes per credential so stale results cannot overwrite newer authentication state or emit stale snapshots, failure banners, or notifications.
             - Keeps provider-specific capture and request rules isolated. Credential values remain local and are never included in diagnostics.
-            - This release publishes the Swift macOS DMG only.
+            - This release includes the standard Swift macOS DMG with update checks and a WhiteLabel DMG without upstream GitHub updater endpoints.
 
             中文说明：
             - 修复 Codex 授权被拒绝或过期后的控制台凭据重新捕获，并刷新套餐和额度状态。
@@ -54,7 +83,7 @@ jobs:
             - 增加火山引擎有界 CSRF 轮换、OpenCode Go 精确 null / 未订阅解析，以及腾讯云未授权响应分类。
             - 并发刷新改为按凭据协调，旧结果不会覆盖新认证状态，也不会写入过期快照、失败横幅或通知。
             - 各 provider 的捕获与请求规则保持隔离；凭据值只留在本机，也不会写入诊断。
-            - 本次只发布 Swift macOS DMG。
+            - 本次同时提供带更新检查的标准 Swift macOS DMG，以及不包含上游 GitHub 更新地址的 WhiteLabel DMG。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.
 

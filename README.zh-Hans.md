@@ -119,7 +119,7 @@ open build/QuotaRadar.dmg
 手动发布到 GitHub Release：
 
 ```bash
-gh release create v0.4.6 build/QuotaRadar.dmg \
+gh release create v0.4.6 build/QuotaRadar.dmg build/QuotaRadar-WhiteLabel.dmg \
   --title "Quota Radar v0.4.6" \
   --notes "分别修复 Codex、阿里云、火山引擎、OpenCode Go 和腾讯云的控制台凭据重新捕获、请求与响应处理。并发刷新改为按凭据协调，旧刷新结果不会覆盖刚保存的新认证状态。凭据值只保存在本机，也不会写入诊断。"
 ```
