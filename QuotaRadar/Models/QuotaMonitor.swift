@@ -362,6 +362,117 @@ class QuotaMonitor: ObservableObject {
         return candidates
     }
 
+    struct DeferredRefreshResult {
+        var key: APIKey
+        var outcome: QuotaSnapshotOutcome?
+        var countsAsFailure: Bool
+    }
+
+    struct RefreshReconciliation {
+        var keys: [APIKey]
+        var acceptedResults: [DeferredRefreshResult]
+    }
+
+    private struct RefreshMutationSignature: Equatable {
+        let key: String
+        let name: String
+        let provider: Provider
+        let isActive: Bool
+        let note: String?
+        let linkedAuthorizationID: UUID?
+        let lastUpdated: Date?
+
+        init(_ key: APIKey) {
+            self.key = key.key
+            name = key.name
+            provider = key.provider
+            isActive = key.isActive
+            note = key.note
+            linkedAuthorizationID = key.linkedAuthorizationID
+            lastUpdated = key.lastUpdated
+        }
+    }
+
+    nonisolated static func reconcileRefreshResults(
+        startedWith startKeys: [APIKey],
+        results: [DeferredRefreshResult],
+        current currentKeys: [APIKey]
+    ) -> RefreshReconciliation {
+        let startByID = Dictionary(uniqueKeysWithValues: startKeys.map { ($0.id, $0) })
+        let completionKeys = currentKeys
+        let completionByID = Dictionary(uniqueKeysWithValues: completionKeys.map { ($0.id, $0) })
+        var mergedKeys = completionKeys
+        var acceptedResults: [DeferredRefreshResult] = []
+        var presentIDs = Set(completionKeys.map(\.id))
+
+        for result in results {
+            let refreshedKey = result.key
+
+            if let startKey = startByID[refreshedKey.id] {
+                guard let completionKey = completionByID[refreshedKey.id],
+                      RefreshMutationSignature(completionKey) == RefreshMutationSignature(startKey),
+                      let mergedIndex = mergedKeys.firstIndex(where: { $0.id == refreshedKey.id }) else {
+                    continue
+                }
+
+                let mergedKey = applyingRefreshMetadata(from: refreshedKey, to: completionKey)
+                mergedKeys[mergedIndex] = mergedKey
+                var acceptedResult = result
+                acceptedResult.key = mergedKey
+                acceptedResults.append(acceptedResult)
+                continue
+            }
+
+            guard let sourceID = refreshedKey.linkedAuthorizationID,
+                  let startSource = startByID[sourceID],
+                  let completionSource = completionByID[sourceID],
+                  RefreshMutationSignature(completionSource) == RefreshMutationSignature(startSource),
+                  completionSource.isActive,
+                  !completionSource.key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  !completionSource.isStoredAPIKeyOnlyCredential else {
+                continue
+            }
+
+            let hasCompletionTimeDirectCredential = completionKeys.contains { key in
+                key.provider == refreshedKey.provider
+                    && key.linkedAuthorizationID == nil
+                    && !key.isStoredAPIKeyOnlyCredential
+            }
+            guard !hasCompletionTimeDirectCredential,
+                  !presentIDs.contains(refreshedKey.id) else {
+                continue
+            }
+
+            mergedKeys.append(refreshedKey)
+            presentIDs.insert(refreshedKey.id)
+            acceptedResults.append(result)
+        }
+
+        return RefreshReconciliation(keys: mergedKeys, acceptedResults: acceptedResults)
+    }
+
+    private nonisolated static func applyingRefreshMetadata(
+        from refreshed: APIKey,
+        to current: APIKey
+    ) -> APIKey {
+        var merged = current
+        merged.remaining = refreshed.remaining
+        merged.limit = refreshed.limit
+        merged.resetAt = refreshed.resetAt
+        merged.planEndsAt = refreshed.planEndsAt
+        merged.planDisplayName = refreshed.planDisplayName
+        merged.codexResetCreditsRemaining = refreshed.codexResetCreditsRemaining
+        merged.codexResetCreditsEarliestExpiresAt = refreshed.codexResetCreditsEarliestExpiresAt
+        merged.quotaLabel = refreshed.quotaLabel
+        merged.quotaText = refreshed.quotaText
+        merged.lastHTTPStatus = refreshed.lastHTTPStatus
+        merged.lastDiagnosticMessage = refreshed.lastDiagnosticMessage
+        merged.lastDiagnosticText = refreshed.lastDiagnosticText
+        merged.consecutiveFailureCount = refreshed.consecutiveFailureCount
+        merged.lastUpdated = refreshed.lastUpdated
+        return merged
+    }
+
     private func refresh(targetProviders: Set<Provider>?, mode: RefreshMode) {
         guard !isRefreshing else {
             if mode == .manual {

@@ -7910,6 +7910,207 @@ let unrelatedRefreshKeys = QuotaMonitor.refreshCandidateKeys(
     targetProviders: [.codexSubscription]
 )
 require(!unrelatedRefreshKeys.contains { $0.provider == .anthropicCredits }, "Refreshing unrelated providers should not create derived Anthropic Credits credentials")
+
+func refreshFixture(
+    id: UUID,
+    name: String = "VOLCENGINE_CODING_PLAN_COOKIE",
+    secret: String = "old-secret",
+    provider: Provider = .volcengineCodingPlan,
+    isActive: Bool = true,
+    note: String? = "old-note",
+    linkedAuthorizationID: UUID? = nil,
+    lastUpdated: Date? = Date(timeIntervalSince1970: 100)
+) -> APIKey {
+    let key = APIKey(
+        id: id,
+        name: name,
+        key: secret,
+        provider: provider,
+        isActive: isActive,
+        note: note,
+        linkedAuthorizationID: linkedAuthorizationID,
+        remaining: 100,
+        limit: 1000,
+        resetAt: Date(timeIntervalSince1970: 200),
+        planEndsAt: Date(timeIntervalSince1970: 300),
+        planDisplayName: "Old",
+        codexResetCreditsRemaining: 1,
+        codexResetCreditsEarliestExpiresAt: Date(timeIntervalSince1970: 400),
+        lastUpdated: lastUpdated,
+        lastHTTPStatus: 200,
+        lastDiagnosticMessage: "old-diagnostic",
+        lastDiagnosticText: .localized(.updatedJustNow),
+        consecutiveFailureCount: 1,
+        quotaText: .localized(.updatedJustNow),
+        quotaLabel: "old",
+        usageCount: 7,
+        lastUsed: Date(timeIntervalSince1970: 500)
+    )
+    return key
+}
+
+func refreshedFixture(from original: APIKey, remaining: Int = 800) -> APIKey {
+    var key = original
+    key.remaining = remaining
+    key.limit = 2000
+    key.resetAt = Date(timeIntervalSince1970: 1_200)
+    key.planEndsAt = Date(timeIntervalSince1970: 1_300)
+    key.planDisplayName = "Pro"
+    key.codexResetCreditsRemaining = 4
+    key.codexResetCreditsEarliestExpiresAt = Date(timeIntervalSince1970: 1_400)
+    key.lastUpdated = Date(timeIntervalSince1970: 1_500)
+    key.lastHTTPStatus = 201
+    key.lastDiagnosticMessage = "fresh-diagnostic"
+    key.lastDiagnosticText = .localized(.noSubscribedPlan)
+    key.consecutiveFailureCount = 3
+    key.quotaText = .localized(.noSubscribedPlan)
+    key.quotaLabel = "fresh"
+    key.usageCount = 0
+    key.lastUsed = nil
+    return key
+}
+
+let refreshMergeID = UUID(uuidString: "30000000-0000-0000-0000-000000000001")!
+let refreshOriginal = refreshFixture(id: refreshMergeID)
+let refreshResultKey = refreshedFixture(from: refreshOriginal)
+var refreshCurrent = refreshOriginal
+refreshCurrent.usageCount = 99
+refreshCurrent.lastUsed = Date(timeIntervalSince1970: 999)
+let acceptedRefresh = QuotaMonitor.reconcileRefreshResults(
+    startedWith: [refreshOriginal],
+    results: [.init(key: refreshResultKey, outcome: .success, countsAsFailure: false)],
+    current: [refreshCurrent]
+)
+require(acceptedRefresh.keys.count == 1 && acceptedRefresh.acceptedResults.count == 1, "Unchanged credentials should accept exactly one refresh result")
+let acceptedRefreshKey = acceptedRefresh.keys[0]
+require(acceptedRefreshKey.remaining == 800 && acceptedRefreshKey.limit == 2000, "Accepted refreshes should copy remaining and limit")
+require(acceptedRefreshKey.resetAt == Date(timeIntervalSince1970: 1_200), "Accepted refreshes should copy resetAt")
+require(acceptedRefreshKey.planEndsAt == Date(timeIntervalSince1970: 1_300) && acceptedRefreshKey.planDisplayName == "Pro", "Accepted refreshes should copy plan lifecycle metadata")
+require(acceptedRefreshKey.codexResetCreditsRemaining == 4 && acceptedRefreshKey.codexResetCreditsEarliestExpiresAt == Date(timeIntervalSince1970: 1_400), "Accepted refreshes should copy both Codex reset-credit fields")
+require(acceptedRefreshKey.quotaLabel == "fresh" && acceptedRefreshKey.quotaText?.key == .noSubscribedPlan, "Accepted refreshes should copy quota labels and structured text")
+require(acceptedRefreshKey.lastHTTPStatus == 201 && acceptedRefreshKey.lastDiagnosticMessage == "fresh-diagnostic" && acceptedRefreshKey.lastDiagnosticText?.key == .noSubscribedPlan, "Accepted refreshes should copy HTTP and diagnostic fields")
+require(acceptedRefreshKey.consecutiveFailureCount == 3 && acceptedRefreshKey.lastUpdated == Date(timeIntervalSince1970: 1_500), "Accepted refreshes should copy failure count and refresh timestamp")
+require(acceptedRefreshKey.usageCount == 99 && acceptedRefreshKey.lastUsed == Date(timeIntervalSince1970: 999), "Accepted refreshes should preserve concurrent local usage state")
+
+let signatureMutations: [(String, (inout APIKey) -> Void)] = [
+    ("secret", { $0.key = "new-secret" }),
+    ("name", { $0.name = "RENAMED" }),
+    ("provider", { $0.provider = .tencentCloudCodingPlan }),
+    ("active state", { $0.isActive = false }),
+    ("note", { $0.note = "new-note" }),
+    ("linked authorization", { $0.linkedAuthorizationID = UUID(uuidString: "30000000-0000-0000-0000-000000000099")! }),
+    ("last-updated timestamp", { $0.lastUpdated = Date(timeIntervalSince1970: 101) }),
+]
+for (label, mutate) in signatureMutations {
+    var current = refreshOriginal
+    mutate(&current)
+    let rejected = QuotaMonitor.reconcileRefreshResults(
+        startedWith: [refreshOriginal],
+        results: [.init(key: refreshResultKey, outcome: .unauthorized, countsAsFailure: true)],
+        current: [current]
+    )
+    require(rejected.keys == [current], "Concurrent \(label) changes should remain current")
+    require(rejected.acceptedResults.isEmpty, "Concurrent \(label) changes should reject stale refresh side effects")
+}
+
+let addedDuringRefresh = refreshFixture(
+    id: UUID(uuidString: "30000000-0000-0000-0000-000000000002")!,
+    name: "NEW_ACCOUNT"
+)
+let preserveAddition = QuotaMonitor.reconcileRefreshResults(
+    startedWith: [refreshOriginal],
+    results: [.init(key: refreshResultKey, outcome: .success, countsAsFailure: false)],
+    current: [refreshCurrent, addedDuringRefresh]
+)
+require(preserveAddition.keys.map(\.id) == [refreshMergeID, addedDuringRefresh.id], "Credentials added during refresh should preserve current order")
+let preserveDeletion = QuotaMonitor.reconcileRefreshResults(
+    startedWith: [refreshOriginal],
+    results: [.init(key: refreshResultKey, outcome: .success, countsAsFailure: false)],
+    current: []
+)
+require(preserveDeletion.keys.isEmpty && preserveDeletion.acceptedResults.isEmpty, "Credentials deleted during refresh should not be recreated or emit side effects")
+
+let failureID = UUID(uuidString: "30000000-0000-0000-0000-000000000003")!
+let failureOriginal = refreshFixture(id: failureID, name: "SECOND_ACCOUNT")
+let acceptedOutcomes = QuotaMonitor.reconcileRefreshResults(
+    startedWith: [refreshOriginal, failureOriginal],
+    results: [
+        .init(key: refreshResultKey, outcome: .success, countsAsFailure: false),
+        .init(key: refreshedFixture(from: failureOriginal, remaining: 0), outcome: .failed, countsAsFailure: true),
+    ],
+    current: [refreshOriginal, failureOriginal]
+)
+require(acceptedOutcomes.acceptedResults.map(\.outcome) == [.success, .failed], "Accepted success and failure outcomes should be emitted once in result order")
+require(acceptedOutcomes.acceptedResults.map(\.countsAsFailure) == [false, true], "Accepted failure UI flags should be preserved exactly once")
+
+let sourceOneID = UUID(uuidString: "30000000-0000-0000-0000-000000000010")!
+let sourceTwoID = UUID(uuidString: "30000000-0000-0000-0000-000000000011")!
+let sourceOne = refreshFixture(id: sourceOneID, name: "CLAUDE_ONE", secret: "source-one", provider: .claudeSubscription, note: nil)
+let sourceTwo = refreshFixture(id: sourceTwoID, name: "CLAUDE_TWO", secret: "source-two", provider: .claudeSubscription, note: nil)
+let derivedOneID = UUID(uuidString: "30000000-0000-0000-0000-000000000012")!
+let derivedTwoID = UUID(uuidString: "30000000-0000-0000-0000-000000000013")!
+var derivedOne = refreshFixture(id: derivedOneID, name: "ANTHROPIC_ONE", secret: sourceOne.key, provider: .anthropicCredits, note: nil, linkedAuthorizationID: sourceOneID, lastUpdated: nil)
+derivedOne = refreshedFixture(from: derivedOne, remaining: 600)
+var derivedTwo = refreshFixture(id: derivedTwoID, name: "ANTHROPIC_TWO", secret: sourceTwo.key, provider: .anthropicCredits, note: nil, linkedAuthorizationID: sourceTwoID, lastUpdated: nil)
+derivedTwo = refreshedFixture(from: derivedTwo, remaining: 700)
+let acceptedDerived = QuotaMonitor.reconcileRefreshResults(
+    startedWith: [sourceOne, sourceTwo],
+    results: [
+        .init(key: derivedOne, outcome: .success, countsAsFailure: false),
+        .init(key: derivedTwo, outcome: .success, countsAsFailure: false),
+    ],
+    current: [sourceOne, sourceTwo]
+)
+require(acceptedDerived.keys.map(\.id) == [sourceOneID, sourceTwoID, derivedOneID, derivedTwoID], "Multiple eligible derived results should append independently in result order")
+require(acceptedDerived.acceptedResults.map { $0.key.id } == [derivedOneID, derivedTwoID], "Derived accepted side effects should retain result order")
+
+let existingLinkedDerived = refreshFixture(
+    id: UUID(uuidString: "30000000-0000-0000-0000-000000000014")!,
+    name: "EXISTING_LINKED",
+    secret: sourceOne.key,
+    provider: .anthropicCredits,
+    note: nil,
+    linkedAuthorizationID: sourceOneID
+)
+let linkedRowsAreNotDirect = QuotaMonitor.reconcileRefreshResults(
+    startedWith: [sourceOne, sourceTwo],
+    results: [.init(key: derivedTwo, outcome: .success, countsAsFailure: false)],
+    current: [sourceOne, sourceTwo, existingLinkedDerived]
+)
+require(linkedRowsAreNotDirect.keys.contains { $0.id == derivedTwoID }, "Linked derived rows should not suppress another eligible derived result as a direct credential")
+
+for (label, mutate) in signatureMutations {
+    var changedSource = sourceOne
+    mutate(&changedSource)
+    let rejectedDerived = QuotaMonitor.reconcileRefreshResults(
+        startedWith: [sourceOne],
+        results: [.init(key: derivedOne, outcome: .unauthorized, countsAsFailure: true)],
+        current: [changedSource]
+    )
+    require(!rejectedDerived.keys.contains { $0.id == derivedOneID }, "Derived results should reject concurrent source \(label) changes")
+    require(rejectedDerived.acceptedResults.isEmpty, "Rejected derived source \(label) changes should emit no side effects")
+}
+
+let deletedSourceDerived = QuotaMonitor.reconcileRefreshResults(
+    startedWith: [sourceOne],
+    results: [.init(key: derivedOne, outcome: .success, countsAsFailure: false)],
+    current: []
+)
+require(deletedSourceDerived.keys.isEmpty && deletedSourceDerived.acceptedResults.isEmpty, "Deleted sources should reject derived refresh results")
+let concurrentDirectAnthropic = refreshFixture(
+    id: UUID(uuidString: "30000000-0000-0000-0000-000000000015")!,
+    name: "ANTHROPIC_DIRECT",
+    secret: "direct-secret",
+    provider: .anthropicCredits,
+    note: nil,
+    linkedAuthorizationID: nil
+)
+let directSuppressesDerived = QuotaMonitor.reconcileRefreshResults(
+    startedWith: [sourceOne],
+    results: [.init(key: derivedOne, outcome: .success, countsAsFailure: false)],
+    current: [sourceOne, concurrentDirectAnthropic]
+)
+require(directSuppressesDerived.keys.map(\.id) == [sourceOneID, concurrentDirectAnthropic.id] && directSuppressesDerived.acceptedResults.isEmpty, "A concurrently added direct credential should suppress stale derived rows")
 SWIFT
 
 swiftc \
