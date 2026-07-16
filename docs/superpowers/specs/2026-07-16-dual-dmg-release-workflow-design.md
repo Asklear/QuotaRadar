@@ -21,15 +21,18 @@ Configure the existing `softprops/action-gh-release` step with a multiline `file
 
 Update the workflow body in English and Chinese to say that the release contains both the standard Swift macOS DMG and the WhiteLabel DMG. Briefly distinguish the standard updater-enabled build from the build that omits upstream update endpoints.
 
+Keep both manual release fallbacks aligned: update the `gh release create` commands in `README.md` and `README.zh-Hans.md` so each command uploads both DMG paths.
+
 ## Regression Coverage
 
 Extend `Tests/run_behavior_tests.sh` with source assertions requiring:
 
-- the standard packaging command;
-- the white-label packaging command;
-- both DMG paths in the release action's upload list;
-- artifact verification and white-label updater-URL exclusion in the workflow;
+- exactly one macOS release job with the order standard build, standard app updater-URL checks, white-label build, white-label app/DMG URL exclusion scans, both artifact verifications, then upload;
+- both DMG paths specifically inside the multiline `files` input of the single `softprops/action-gh-release` invocation;
+- both DMG paths in the English and Chinese manual `gh release create` commands;
 - release wording that no longer says only one Swift macOS DMG is published.
+
+Use a small structure-aware Python check inside the behavior script to isolate the release job and action block, then compare token positions for the required sequence. This prevents a workflow from passing merely because the right strings exist in the wrong steps or scan the wrong scratch app bundle.
 
 Use a red-green cycle: add the workflow assertions first and verify they fail against the current single-DMG workflow, then make the minimal workflow change and rerun the complete behavior suite.
 
