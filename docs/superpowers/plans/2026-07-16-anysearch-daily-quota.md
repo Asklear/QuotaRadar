@@ -4,7 +4,7 @@
 
 **Goal:** Replace AnySearch's false unlimited state with authenticated UTC-daily usage monitoring while preserving the existing copyable API key.
 
-**Architecture:** Model AnySearch as a dashboard authorization plus companion API key. Capture and normalize the console's localStorage auth state, construct an explicitly bounded UTC-day request, parse `data.total_requests` against the provider-specific 1,000/day limit, and persist a localized used/remaining/limit descriptor. Keep token refresh and `/user/keys` runtime verification out of scope because only the usage contract was verified.
+**Architecture:** Model AnySearch as a dashboard authorization plus companion API key. Capture and normalize the console's localStorage auth state, refresh the short-lived access token through the verified `/api/ssuser/auth/refresh` contract, construct an explicitly bounded UTC-day request, parse `data.total_requests` against the provider-specific 1,000/day limit, and persist both the rotated credential and localized quota through optimistic reconciliation. Keep `/user/keys` runtime verification out of scope.
 
 **Tech Stack:** Swift 5, SwiftUI, WebKit, Foundation `URLSession`/`JSONDecoder`, existing shell-based behavior harness, macOS `xcodebuild`.
 
@@ -214,7 +214,7 @@ git commit -m "feat: parse AnySearch daily usage"
 
 - [ ] **Step 1: Add failing integration/source contract tests**
 
-Assert that `checkAnySearchQuota` parses an `AnySearchDashboardCredential`, rejects expired millisecond timestamps before networking, sets `Authorization: Bearer ...`, calls only `/api/api/user/usage/summary` with `from` and `to`, maps 401/403 to `QuotaError.unauthorized`, and never calls `/user/keys` or a guessed refresh endpoint.
+Assert that `checkAnySearchQuota` parses an `AnySearchDashboardCredential`, refreshes within 30 seconds of expiry through `POST /api/ssuser/auth/refresh`, sets `Authorization: Bearer ...`, calls `/api/api/user/usage/summary` with `from` and `to`, and retries usage only once after 401. It must never call `/user/keys` at runtime.
 
 Replace legacy source assertions for `Int.max`, infinity, and `"Unlimited free usage"` with assertions for the verified endpoint and `parseAnySearchDailyUsage`.
 
@@ -230,7 +230,7 @@ Expected: FAIL because AnySearch still returns the unlimited sentinel and failur
 
 - [ ] **Step 4: Implement credential parsing and HTTP request**
 
-Add internal `AnySearchDashboardCredential` parsing the serialized `DashboardCredential` fields. Reject missing/expired `accessToken` as unauthorized. Build the exact request, send Bearer auth and JSON accept headers, handle 401/403 explicitly, require HTTP 200, and parse with `QuotaParsers.parseAnySearchDailyUsage`.
+Add internal `AnySearchDashboardCredential` parsing the serialized fields and the verified refresh response. Build the exact requests, rotate both tokens, derive millisecond expiry from `expires_in_seconds`, and return the rotated serialized credential through `QuotaResult`. Let `QuotaMonitor` apply it only when optimistic reconciliation confirms the saved authorization has not changed concurrently.
 
 - [ ] **Step 5: Preserve last-success data on transient failure**
 

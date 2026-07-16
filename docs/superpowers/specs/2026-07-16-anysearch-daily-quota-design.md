@@ -31,7 +31,7 @@ Existing API-key-only users keep their record unchanged. After upgrading, quota 
 AnySearch dashboard reauthentication opens `https://anysearch.com/console/overview`. The WebView capture reads and parses the `search-template-auth-state` localStorage value and extracts only the normalized fields needed for requests:
 
 - access token;
-- refresh token, retained for forward compatibility but not used in this iteration;
+- refresh token, used by the verified console refresh contract;
 - access-token expiry, normalized from the observed Unix-millisecond integer.
 
 The serialized authorization uses the existing protected dashboard-credential storage path. Raw tokens, API keys, cookies, and user identity values must not be logged, placed in diagnostics, or exposed through copy actions.
@@ -65,11 +65,13 @@ The cumulative `quota_used` value returned by the keys endpoint must not be inte
 
 ## Expiry and failure behavior
 
-The AnySearch refresh-token HTTP contract has not been observed and is deliberately out of scope. QuotaRadar stores the captured refresh token for forward compatibility but does not send it. If `state.expiresAt` is already past or the usage request returns 401 or 403, QuotaRadar marks the authorization expired and asks the user to save dashboard authorization again. It must not guess a refresh URL or mutate the stored secret from `QuotaService`.
+The console refresh contract was verified from the live frontend and a successful redacted browser request: `POST https://anysearch.com/api/ssuser/auth/refresh`, JSON body `{ "refresh_token": "..." }`, and response fields `access_token`, `refresh_token`, and `expires_in_seconds`. The refresh token rotates on success.
+
+When expiry is within 30 seconds, QuotaRadar refreshes before querying usage. A usage 401 triggers one refresh and one retry when a refresh token exists; no loop is allowed. `QuotaService` returns the rotated serialized credential with the quota result. `QuotaMonitor` persists it only through the existing optimistic refresh reconciliation, so a concurrent manual reauthentication wins and cannot be overwritten by an older refresh.
 
 Failure behavior is remaining-data-safe:
 
-- An expired timestamp or HTTP 401/403 marks the dashboard authorization expired and requests reauthentication.
+- Missing or rejected refresh material, or HTTP 401/403 after the single refresh attempt, marks the dashboard authorization expired and requests reauthentication.
 - Missing or malformed response fields produce an invalid-response diagnostic.
 - Transport and server failures leave `remaining`, `limit`, `resetAt`, and the last-successful `lastUpdated` value unchanged. Only failure diagnostics and failure counters may change.
 - An API-key-only record reports that dashboard authorization is required instead of claiming unlimited quota.
@@ -92,7 +94,8 @@ Behavior and parser tests must cover:
 - UTC day-start and next-midnight calculation, including the Asia/Shanghai 08:00 boundary;
 - mandatory `from` and `to` query parameters;
 - 200, 401, 403, server-error, and transport-error behavior;
-- expired-token and 401/403 reauthentication behavior without an invented refresh request;
+- pre-expiry refresh, refresh-token rotation, one bounded 401 retry, and refresh failure reauthentication behavior;
+- optimistic persistence proving an older rotated token cannot overwrite concurrent reauthentication;
 - preservation and linking of existing `ANYSEARCH_API_KEY` records;
 - delete-authorization, clear-link, recapture, relink, and duplicate-free repeated migration/capture behavior;
 - API-key copy behavior and non-copyable authorization behavior;

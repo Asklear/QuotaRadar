@@ -13,6 +13,7 @@ struct QuotaResult {
     var httpStatus: Int? = nil
     var diagnosticMessage: String? = nil
     var diagnosticText: LocalizedTextDescriptor? = nil
+    var refreshedCredential: String? = nil
     var codexResetCreditsRemaining: Int? = nil
     var codexResetCreditsEarliestExpiresAt: Date? = nil
 
@@ -28,6 +29,7 @@ struct QuotaResult {
         httpStatus: Int? = nil,
         diagnosticMessage: String? = nil,
         diagnosticText: LocalizedTextDescriptor? = nil,
+        refreshedCredential: String? = nil,
         codexResetCreditsRemaining: Int? = nil,
         codexResetCreditsEarliestExpiresAt: Date? = nil
     ) {
@@ -44,6 +46,7 @@ struct QuotaResult {
         self.httpStatus = httpStatus
         self.diagnosticMessage = diagnosticMessage
         self.diagnosticText = diagnosticText ?? diagnosticMessage.flatMap(LocalizedTextDescriptor.fromLegacyLabel)
+        self.refreshedCredential = refreshedCredential
         self.codexResetCreditsRemaining = codexResetCreditsRemaining
         self.codexResetCreditsEarliestExpiresAt = codexResetCreditsEarliestExpiresAt
     }
@@ -3225,6 +3228,11 @@ private struct ChatGPTSessionContext {
 }
 
 struct AnySearchDashboardCredential {
+    struct RefreshResult {
+        let credential: AnySearchDashboardCredential
+        let serializedCredential: String
+    }
+
     let accessToken: String
     let refreshToken: String?
     let expiresAt: Date?
@@ -3250,6 +3258,73 @@ struct AnySearchDashboardCredential {
     func isExpired(at date: Date = Date()) -> Bool {
         guard let expiresAt else { return false }
         return expiresAt <= date
+    }
+
+    static func refreshResult(from data: Data, now: Date = Date()) throws -> RefreshResult {
+        struct Tokens: Decodable {
+            let access_token: String
+            let refresh_token: String
+            let expires_in_seconds: Int
+        }
+
+        struct Envelope: Decodable {
+            let code: Int?
+            let data: Tokens?
+            let access_token: String?
+            let refresh_token: String?
+            let expires_in_seconds: Int?
+
+            var tokens: Tokens? {
+                if let data { return data }
+                guard let access_token, let refresh_token, let expires_in_seconds else { return nil }
+                return Tokens(
+                    access_token: access_token,
+                    refresh_token: refresh_token,
+                    expires_in_seconds: expires_in_seconds
+                )
+            }
+        }
+
+        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data),
+              envelope.code == nil || envelope.code == 0,
+              let tokens = envelope.tokens,
+              !tokens.access_token.isEmpty,
+              !tokens.refresh_token.isEmpty,
+              tokens.expires_in_seconds > 0 else {
+            throw QuotaError.invalidResponse
+        }
+
+        let expiresAt = now.addingTimeInterval(TimeInterval(tokens.expires_in_seconds))
+        let credential = AnySearchDashboardCredential(
+            accessToken: tokens.access_token,
+            refreshToken: tokens.refresh_token,
+            expiresAt: expiresAt
+        )
+        return RefreshResult(
+            credential: credential,
+            serializedCredential: try credential.serialized()
+        )
+    }
+
+    private init(accessToken: String, refreshToken: String?, expiresAt: Date?) {
+        self.accessToken = Self.stripBearerPrefix(accessToken)
+        self.refreshToken = refreshToken
+        self.expiresAt = expiresAt
+    }
+
+    private func serialized() throws -> String {
+        var object: [String: String] = ["accessToken": accessToken]
+        if let refreshToken {
+            object["refreshToken"] = refreshToken
+        }
+        if let expiresAt {
+            object["expiresAt"] = String(Int64((expiresAt.timeIntervalSince1970 * 1_000).rounded()))
+        }
+        let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        guard let value = String(data: data, encoding: .utf8) else {
+            throw QuotaError.invalidResponse
+        }
+        return value
     }
 
     private static func stripBearerPrefix(_ value: String) -> String {
@@ -3680,11 +3755,59 @@ actor QuotaService {
 
     /// AnySearch: authenticated console usage for the current UTC day.
     private func checkAnySearchQuota(key: APIKey) async throws -> QuotaResult {
-        guard let credential = AnySearchDashboardCredential(key.key),
-              !credential.isExpired() else {
+        guard var credential = AnySearchDashboardCredential(key.key) else {
             throw QuotaError.unauthorized
         }
 
+        var refreshedCredential: String?
+        if credential.isExpired(at: Date().addingTimeInterval(30)) {
+            let refresh = try await refreshAnySearchCredential(credential)
+            credential = refresh.credential
+            refreshedCredential = refresh.serializedCredential
+        }
+
+        do {
+            var result = try await requestAnySearchDailyUsage(credential)
+            result.refreshedCredential = refreshedCredential
+            return result
+        } catch QuotaError.unauthorized where refreshedCredential == nil && credential.refreshToken != nil {
+            let refresh = try await refreshAnySearchCredential(credential)
+            var result = try await requestAnySearchDailyUsage(refresh.credential)
+            result.refreshedCredential = refresh.serializedCredential
+            return result
+        }
+    }
+
+    private func refreshAnySearchCredential(
+        _ credential: AnySearchDashboardCredential
+    ) async throws -> AnySearchDashboardCredential.RefreshResult {
+        guard let refreshToken = credential.refreshToken, !refreshToken.isEmpty else {
+            throw QuotaError.unauthorized
+        }
+
+        var request = URLRequest(url: URL(string: "https://anysearch.com/api/ssuser/auth/refresh")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["refresh_token": refreshToken])
+
+        let refreshStartedAt = Date()
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 400 || httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+        return try AnySearchDashboardCredential.refreshResult(from: data, now: refreshStartedAt)
+    }
+
+    private func requestAnySearchDailyUsage(
+        _ credential: AnySearchDashboardCredential
+    ) async throws -> QuotaResult {
         let now = Date()
         var request = URLRequest(url: AnySearchDailyUsageRequest.url(now: now))
         request.httpMethod = "GET"

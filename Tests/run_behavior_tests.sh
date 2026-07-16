@@ -4546,6 +4546,15 @@ assert_match 'AnySearchDailyUsageRequest\.url\(now: now\)' \
 assert_match 'parseAnySearchDailyUsage\(data, now: now\)' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch response validation should use the request instant instead of a later wall-clock read"
+assert_match 'https://anysearch\.com/api/ssuser/auth/refresh' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "AnySearch should use the verified console refresh endpoint"
+assert_match 'refresh_token' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "AnySearch refresh should send and parse the verified refresh-token contract"
+assert_match 'refreshedCredential' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "AnySearch quota results should return rotated credentials for optimistic persistence"
 assert_match 'case \.anysearch:' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch must have explicit quota handling"
@@ -8359,6 +8368,24 @@ require(failedAnySearch.lastUpdated == successfulAnySearch.lastUpdated, "Transie
 require(failedAnySearch.quotaText == successfulAnySearch.quotaText, "Transient failures should preserve the structured daily usage descriptor")
 require(failedAnySearch.consecutiveFailureCount == successfulAnySearch.consecutiveFailureCount + 1, "Transient failures should increment the failure count")
 
+var rotatedAnySearch = successfulAnySearch
+rotatedAnySearch.key = #"{"accessToken":"rotated-access","refreshToken":"rotated-refresh","expiresAt":"1784197800000"}"#
+let acceptedAnySearchRotation = QuotaMonitor.reconcileRefreshResults(
+    startedWith: [successfulAnySearch],
+    results: [.init(key: rotatedAnySearch, outcome: .success, countsAsFailure: false)],
+    current: [successfulAnySearch]
+)
+require(acceptedAnySearchRotation.keys.first?.key == rotatedAnySearch.key, "Accepted refresh should persist the rotated AnySearch credential")
+var concurrentlyReauthenticatedAnySearch = successfulAnySearch
+concurrentlyReauthenticatedAnySearch.key = "newer-reauth-secret"
+let rejectedAnySearchRotation = QuotaMonitor.reconcileRefreshResults(
+    startedWith: [successfulAnySearch],
+    results: [.init(key: rotatedAnySearch, outcome: .success, countsAsFailure: false)],
+    current: [concurrentlyReauthenticatedAnySearch]
+)
+require(rejectedAnySearchRotation.keys.first?.key == "newer-reauth-secret", "Older refresh-token rotation must not overwrite concurrent reauthentication")
+require(rejectedAnySearchRotation.acceptedResults.isEmpty, "Rejected stale AnySearch rotation should emit no success side effects")
+
 let anySearchAuthorizationID = UUID(uuidString: "40000000-0000-0000-0000-000000000001")!
 let anySearchAPIKeyID = UUID(uuidString: "40000000-0000-0000-0000-000000000002")!
 let anySearchAuthorization = APIKey(
@@ -8763,6 +8790,15 @@ let anySearchCredentialWithoutExpiry = AnySearchDashboardCredential(#"{"accessTo
 require(anySearchCredentialWithoutExpiry?.accessToken == "access-redacted", "AnySearch access token should remain usable when optional expiry is absent")
 require(anySearchCredentialWithoutExpiry?.expiresAt == nil, "AnySearch credential should represent a missing optional expiry")
 require(anySearchCredentialWithoutExpiry?.isExpired(at: Date(timeIntervalSince1970: 1784196001)) == false, "Missing optional expiry should not be treated as already expired")
+let anySearchRefreshNow = Date(timeIntervalSince1970: 1784196000)
+let anySearchRefreshResult = try! AnySearchDashboardCredential.refreshResult(
+    from: Data(#"{"code":0,"message":"ok","data":{"access_token":"rotated-access-redacted","refresh_token":"rotated-refresh-redacted","expires_in_seconds":1800}}"#.utf8),
+    now: anySearchRefreshNow
+)
+require(anySearchRefreshResult.credential.accessToken == "rotated-access-redacted", "AnySearch refresh should parse the rotated access token")
+require(anySearchRefreshResult.credential.refreshToken == "rotated-refresh-redacted", "AnySearch refresh should parse refresh-token rotation")
+require(anySearchRefreshResult.credential.expiresAt?.timeIntervalSince1970 == 1784197800, "AnySearch refresh should convert expires_in_seconds to a millisecond expiry")
+require(anySearchRefreshResult.serializedCredential.contains("rotated-refresh-redacted"), "AnySearch refresh should serialize the rotated credential for persistence")
 try! QuotaParsers.validateLongCatUserCurrent(Data("""
 {"code":0,"data":{"userId":12345,"loginStatus":1,"name":"LongCat User"}}
 """.utf8))

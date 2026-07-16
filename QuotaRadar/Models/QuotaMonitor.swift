@@ -474,6 +474,7 @@ class QuotaMonitor: ObservableObject {
         to current: APIKey
     ) -> APIKey {
         var merged = current
+        merged.key = refreshed.key
         merged.remaining = refreshed.remaining
         merged.limit = refreshed.limit
         merged.resetAt = refreshed.resetAt
@@ -826,6 +827,9 @@ class QuotaMonitor: ObservableObject {
     }
 
     private func applySuccessfulQuotaResult(_ result: QuotaResult, to key: inout APIKey, now: Date) {
+        if let refreshedCredential = result.refreshedCredential {
+            key.key = refreshedCredential
+        }
         key.remaining = result.remaining
         key.limit = result.limit
         key.resetAt = result.resetAt
