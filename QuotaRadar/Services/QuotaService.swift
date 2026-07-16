@@ -938,6 +938,10 @@ enum QuotaParsers {
         if text.contains("/auth/authorize") {
             throw QuotaError.unauthorized
         }
+        if text.contains("server-fn:"),
+           text.range(of: #",\s*null\)\s*$"#, options: .regularExpression) != nil {
+            throw QuotaError.noSubscription
+        }
 
         let specs = [
             (field: "rollingUsage", name: "5h"),
@@ -1465,14 +1469,22 @@ enum QuotaParsers {
     }
 
     private static func isTencentCloudUnauthorized(code: Int, message: String?) -> Bool {
-        guard code == 7 || code == 401 || code == 403 else { return false }
         let normalizedMessage = message?.lowercased() ?? ""
-        return normalizedMessage.isEmpty
-            || normalizedMessage.contains("uin_or_skey_missing")
+        let knownUnauthorizedCode = code == 7
+            || code == 9
+            || code == 50
+            || code == 401
+            || code == 403
+        let hasUnauthorizedMessage = normalizedMessage.contains("uin_or_skey_missing")
             || normalizedMessage.contains("login")
+            || normalizedMessage.contains("expired")
+            || normalizedMessage.contains("csrf")
             || normalizedMessage.contains("unauthorized")
+            || normalizedMessage.contains("登录态")
             || normalizedMessage.contains("登录")
             || normalizedMessage.contains("重新登录")
+            || normalizedMessage.contains("过期")
+        return knownUnauthorizedCode || hasUnauthorizedMessage
     }
 
     static func parseAliyunCodingPlanStatus(_ data: Data) throws -> QuotaResult {
@@ -2837,6 +2849,50 @@ enum QuotaParsers {
     }
 }
 
+enum VolcengineCodingPlanAuthPolicy {
+    static func errorCode(in data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let metadata = object["ResponseMetadata"] as? [String: Any],
+              let error = metadata["Error"] as? [String: Any] else {
+            return nil
+        }
+        return (error["Code"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func shouldRetryInvalidCSRF(completedRetryCount: Int) -> Bool {
+        completedRetryCount == 0
+    }
+
+    static func rotatedCSRFToken(from response: HTTPURLResponse) -> String? {
+        guard let value = response.value(forHTTPHeaderField: "x-need-token")?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty else {
+            return nil
+        }
+        return value
+    }
+
+    static func replacingCookie(named name: String, value: String, in cookieHeader: String) -> String {
+        var didReplace = false
+        var parts = cookieHeader.split(separator: ";").compactMap { rawPart -> String? in
+            let part = String(rawPart).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !part.isEmpty else { return nil }
+            let pieces = part.split(separator: "=", maxSplits: 1).map(String.init)
+            guard pieces.count == 2 else { return part }
+            if pieces[0].trimmingCharacters(in: .whitespacesAndNewlines) == name {
+                guard !didReplace else { return nil }
+                didReplace = true
+                return "\(name)=\(value)"
+            }
+            return part
+        }
+        if !didReplace {
+            parts.append("\(name)=\(value)")
+        }
+        return parts.joined(separator: "; ")
+    }
+}
+
 enum QuotaError: Error, LocalizedError {
     case invalidResponse
     case schemaDrift
@@ -3900,36 +3956,67 @@ actor QuotaService {
         }
 
         let projectName = credential.value(for: ["projectName", "project"]) ?? "default"
-        var request = URLRequest(url: URL(string: "https://console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/GetCodingPlanUsage?")!)
-        request.httpMethod = "POST"
-        applyVolcengineDashboardHeaders(to: &request, credential: credential, projectName: projectName)
-        request.httpBody = try JSONSerialization.data(withJSONObject: ["ProjectName": projectName])
+        var cookieHeader = credential.cookie
+        var csrfTokenOverride: String?
+        var completedCSRFRetryCount = 0
 
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw QuotaError.invalidResponse
-        }
-        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
-            throw QuotaError.unauthorized
-        }
-        guard httpResponse.statusCode == 200 else {
-            throw QuotaError.invalidResponse
-        }
-
-        var result = try QuotaParsers.parseVolcengineCodingPlanUsage(data)
-        result.planEndsAt = key.planEndsAt ?? result.planEndsAt
-        result.planDisplayName = key.planDisplayName ?? result.planDisplayName
-        if shouldRefreshLowChurnAccountMetadata(for: key, bypassCooldown: bypassCooldown),
-           let lifecycle = try? await fetchVolcengineCodingPlanSubscription(
+        while true {
+            var request = URLRequest(url: URL(string: "https://console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/GetCodingPlanUsage?")!)
+            request.httpMethod = "POST"
+            applyVolcengineDashboardHeaders(
+                to: &request,
                 credential: credential,
-                projectName: projectName
-           ) {
-            result.planEndsAt = lifecycle.planEndsAt ?? result.planEndsAt
-            result.planDisplayName = lifecycle.planDisplayName ?? result.planDisplayName
-        }
+                projectName: projectName,
+                cookieHeaderOverride: cookieHeader,
+                csrfTokenOverride: csrfTokenOverride
+            )
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["ProjectName": projectName])
 
-        return withHTTPStatus(result, from: httpResponse)
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw QuotaError.invalidResponse
+            }
+            if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                throw QuotaError.unauthorized
+            }
+            guard httpResponse.statusCode == 200 else {
+                throw QuotaError.invalidResponse
+            }
+
+            if VolcengineCodingPlanAuthPolicy.errorCode(in: data) == "InvalidCSRFToken" {
+                guard VolcengineCodingPlanAuthPolicy.shouldRetryInvalidCSRF(
+                    completedRetryCount: completedCSRFRetryCount
+                ),
+                let rotatedToken = VolcengineCodingPlanAuthPolicy.rotatedCSRFToken(from: httpResponse) else {
+                    throw QuotaError.unauthorized
+                }
+                completedCSRFRetryCount += 1
+                csrfTokenOverride = rotatedToken
+                cookieHeader = VolcengineCodingPlanAuthPolicy.replacingCookie(
+                    named: "csrfToken",
+                    value: rotatedToken,
+                    in: cookieHeader
+                )
+                continue
+            }
+            if VolcengineCodingPlanAuthPolicy.errorCode(in: data) != nil {
+                throw QuotaError.invalidResponse
+            }
+
+            var result = try QuotaParsers.parseVolcengineCodingPlanUsage(data)
+            result.planEndsAt = key.planEndsAt ?? result.planEndsAt
+            result.planDisplayName = key.planDisplayName ?? result.planDisplayName
+            if shouldRefreshLowChurnAccountMetadata(for: key, bypassCooldown: bypassCooldown),
+               let lifecycle = try? await fetchVolcengineCodingPlanSubscription(
+                    credential: credential,
+                    projectName: projectName
+               ) {
+                result.planEndsAt = lifecycle.planEndsAt ?? result.planEndsAt
+                result.planDisplayName = lifecycle.planDisplayName ?? result.planDisplayName
+            }
+
+            return withHTTPStatus(result, from: httpResponse)
+        }
     }
 
     private func fetchVolcengineCodingPlanSubscription(
@@ -3964,18 +4051,22 @@ actor QuotaService {
     private func applyVolcengineDashboardHeaders(
         to request: inout URLRequest,
         credential: DashboardCredential,
-        projectName: String
+        projectName: String,
+        cookieHeaderOverride: String? = nil,
+        csrfTokenOverride: String? = nil
     ) {
         request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(credential.cookie, forHTTPHeaderField: "Cookie")
+        request.setValue(cookieHeaderOverride ?? credential.cookie, forHTTPHeaderField: "Cookie")
         request.setValue("https://console.volcengine.com", forHTTPHeaderField: "Origin")
         request.setValue("https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=subscribe&projectName=\(projectName)", forHTTPHeaderField: "Referer")
 
-        if let csrfToken = credential.value(for: ["csrfToken", "csrf", "xCsrfToken"]) ?? credential.cookieValue(named: "csrfToken") {
+        if let csrfToken = csrfTokenOverride
+            ?? credential.value(for: ["csrfToken", "csrf", "xCsrfToken"])
+            ?? credential.cookieValue(named: "csrfToken") {
             request.setValue(csrfToken, forHTTPHeaderField: "x-csrf-token")
         }
-        if let webID = credential.value(for: ["xWebId", "x-web-id", "webId"]) {
+        if let webID = credential.value(for: ["xWebId", "x-web-id", "webId", "webID"]) {
             request.setValue(webID, forHTTPHeaderField: "x-web-id")
         }
     }

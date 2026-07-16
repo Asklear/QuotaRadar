@@ -246,7 +246,7 @@ enum DashboardCredentialCapturePolicy {
         }
 
         switch provider {
-        case .kimiSubscription, .longcat:
+        case .kimiSubscription, .longcat, .tencentCloudCodingPlan:
             return 5.0
         default:
             return nil

@@ -51,7 +51,7 @@ struct CurlCredentialParser {
                 fields["csrfToken"] = csrfToken
             }
             if let webID = headers["x-web-id"] {
-                fields["webID"] = webID
+                fields["xWebId"] = webID
             }
             if let projectName = parseJSONBody(in: curl)["ProjectName"] {
                 fields["projectName"] = projectName

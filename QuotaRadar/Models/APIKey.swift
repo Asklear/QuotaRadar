@@ -696,7 +696,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         case .aliyunCodingPlan, .aliyunTokenPlan:
             return ["login_aliyunid_ticket", "aliyun_lang", "cna"]
         case .tencentCloudCodingPlan:
-            return ["uin", "skey"]
+            return ["uin", "skey|p_skey"]
         case .tavily, .brave, .serpapi, .serper, .exa, .bocha, .anysearch, .wxmp, .anthropic, .claudeAPIUsage, .codexAPIUsage, .deepseek, .tencentCloudTokenPlan:
             return []
         }
@@ -891,7 +891,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         case .opencodeGo:
             return "https://opencode.ai/workspace/wrk_01KSKR4K4WDJY0JZSCJTMRZ5CV/go"
         case .aliyunCodingPlan:
-            return "https://bailian.console.aliyun.com/"
+            return "https://bailian.console.aliyun.com/?tab=plan#/efm/subscription/coding-plan"
         case .aliyunTokenPlan:
             return "https://bailian.console.aliyun.com/"
         case .tencentCloudCodingPlan:

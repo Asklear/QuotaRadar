@@ -6550,6 +6550,8 @@ let volc = try! CurlCredentialParser.parse(volcCurl, provider: .volcengineCoding
 require(volc.provider == .volcengineCodingPlan, "Volcengine cURL parse should preserve provider")
 require(volc.cookie.contains("digest=redacted"), "Volcengine cURL parse should extract cookie")
 require(volc.fields["csrfToken"] == "csrf-redacted", "Volcengine cURL parse should extract x-csrf-token")
+require(volc.fields["xWebId"] == "web-id-redacted", "Volcengine cURL parse should normalize x-web-id to the replay field name")
+require(volc.fields["webID"] == nil, "Volcengine cURL parse should not keep the legacy unread webID alias")
 require(volc.fields["projectName"] == "default", "Volcengine cURL parse should extract ProjectName")
 require(volc.serializedCredential.contains("\"cookie\""), "Volcengine parser should serialize credential as JSON")
 
@@ -7049,6 +7051,14 @@ require(DashboardCredentialCapturePolicy.nextAutomaticRetryDelay(
     for: .longcat,
     completedRetryCount: defaultAutomaticCredentialDelays.count
 ) != nil, "LongCat should continue low-frequency capture when login material arrives through WebStorage only")
+require(DashboardCredentialCapturePolicy.nextAutomaticRetryDelay(
+    for: .tencentCloudCodingPlan,
+    completedRetryCount: 100
+) != nil, "Tencent Cloud should keep passive capture alive while QQ login replaces stale console cookies")
+require(DashboardCredentialCapturePolicy.nextAutomaticRetryDelay(
+    for: .aliyunCodingPlan,
+    completedRetryCount: defaultAutomaticCredentialDelays.count
+) == nil, "Aliyun visitor pages should not add indefinite shared capture polling")
 
 let rejectedCapture = DashboardCapturedCredential(
     provider: .codexSubscription,
@@ -7152,7 +7162,21 @@ require(DashboardReauthConfig(provider: .volcengineCodingPlan)?.cookieDomains ==
 require(DashboardReauthConfig(provider: .volcengineTokenPlan) == nil, "Volcengine Token Plan should not expose dashboard-cookie reauthentication")
 require(DashboardReauthConfig(provider: .querit)?.cookieDomains == ["querit.ai"], "Querit should capture querit.ai dashboard cookies")
 require(DashboardReauthConfig(provider: .aliyunCodingPlan)?.cookieDomains == ["aliyun.com", "bailian.console.aliyun.com"], "Aliyun Coding Plan should capture Alibaba Cloud web login authorization for quota endpoint verification")
+require(DashboardReauthConfig(provider: .aliyunCodingPlan)?.loginURL.absoluteString == "https://bailian.console.aliyun.com/?tab=plan#/efm/subscription/coding-plan", "Aliyun Coding Plan reauthentication should open the protected subscription route instead of the public home page")
 require(DashboardReauthConfig(provider: .aliyunTokenPlan) == nil, "Aliyun Token Plan should not capture cookies without a verified dashboard quota endpoint")
+let aliyunVisitorCredential = DashboardCapturedCredential(
+    provider: .aliyunCodingPlan,
+    cookieHeader: "_bl_uid=visitor-redacted"
+)
+require(!DashboardCredentialCapturePolicy.isCredentialReady(
+    aliyunVisitorCredential,
+    requiredNames: Provider.aliyunCodingPlan.dashboardAuthenticationCookieNames
+), "Aliyun visitor cookies must not be accepted as dashboard login authorization")
+require(DashboardCredentialCapturePolicy.missingRequiredCredentialNames(
+    aliyunVisitorCredential,
+    requiredNames: Provider.aliyunCodingPlan.dashboardAuthenticationCookieNames
+).contains("login_aliyunid_ticket"), "Aliyun visitor state should keep requiring the real login ticket")
+require(Provider.tencentCloudCodingPlan.dashboardAuthenticationCookieNames == ["uin", "skey|p_skey"], "Tencent Cloud dashboard capture should accept p_skey only as an alternative to skey")
 require(DashboardReauthConfig(provider: .tencentCloudCodingPlan)?.cookieDomains == ["cloud.tencent.com", "console.cloud.tencent.com"], "Tencent Cloud Coding Plan should capture Tencent Cloud web login authorization for quota endpoint verification")
 require(DashboardReauthConfig(provider: .claudeSubscription)?.cookieDomains == ["claude.ai"], "Claude subscription should capture claude.ai web-login authorization")
 require(DashboardReauthConfig(provider: .anthropicCredits)?.cookieDomains == ["claude.ai"], "Anthropic Credits should capture the same claude.ai login authorization")
@@ -8282,6 +8306,27 @@ do {
     fail("Volcengine coding-plan missing reset timestamp should throw schemaDrift, got \(error)")
 }
 
+let volcInvalidCSRFData = Data("""
+{"ResponseMetadata":{"Action":"GetCodingPlanUsage","Error":{"Code":"InvalidCSRFToken","Message":"Invalid CSRF token."}},"Result":null}
+""".utf8)
+require(VolcengineCodingPlanAuthPolicy.errorCode(in: volcInvalidCSRFData) == "InvalidCSRFToken", "Volcengine should classify HTTP-200 CSRF error envelopes before quota parsing")
+require(VolcengineCodingPlanAuthPolicy.shouldRetryInvalidCSRF(completedRetryCount: 0), "Volcengine should allow one CSRF bootstrap retry")
+require(!VolcengineCodingPlanAuthPolicy.shouldRetryInvalidCSRF(completedRetryCount: 1), "Volcengine must not retry InvalidCSRFToken more than once")
+let volcRotatedResponse = HTTPURLResponse(
+    url: URL(string: "https://console.volcengine.com/api/top/ark/cn-beijing/2024-01-01/GetCodingPlanUsage")!,
+    statusCode: 200,
+    httpVersion: "HTTP/2",
+    headerFields: ["x-need-token": "rotated-redacted"]
+)!
+require(VolcengineCodingPlanAuthPolicy.rotatedCSRFToken(from: volcRotatedResponse) == "rotated-redacted", "Volcengine should read the rotated token from x-need-token")
+let rotatedVolcCookie = VolcengineCodingPlanAuthPolicy.replacingCookie(
+    named: "csrfToken",
+    value: "rotated-redacted",
+    in: "digest=d; csrfToken=stale; AccountID=a"
+)
+require(rotatedVolcCookie.contains("csrfToken=rotated-redacted"), "Volcengine CSRF retry should replace the stale csrfToken cookie")
+require(!rotatedVolcCookie.contains("csrfToken=stale"), "Volcengine CSRF retry must not replay the rejected csrfToken")
+
 let volcSubscription = try! QuotaParsers.parseVolcengineCodingPlanSubscription(Data("""
 {"ResponseMetadata":{"Action":"ListSubscribeTrade"},"Result":{"InfoList":[{"ResourceType":"CodingPlan","ResourceName":"","BizInfo":"lite","PayType":"pre","Status":"Running","InstanceID":"tsi-redacted","StartTime":"2026-06-01T05:18:09Z","EndTime":"2026-07-01T15:59:59Z","EnableAutoRenew":false,"Quantity":1,"Period":"monthly"}]}}
 """.utf8))
@@ -8296,6 +8341,32 @@ require(opencode.limit == 10000, "OpenCode Go percentage limit should be 10000 b
 require(opencode.quotaLabel == "5h 98% · week 50% · month 25%", "OpenCode Go should display rolling, weekly, and monthly usage windows")
 require(opencode.resetAt != nil && opencode.resetAt! > Date(), "OpenCode Go should convert resetInSec into a future reset date")
 require(opencode.planEndsAt == nil, "OpenCode Go usage endpoint does not expose the subscription end date")
+
+do {
+    _ = try QuotaParsers.parseOpenCodeGoUsage(Data("""
+;0x00000001;((self.$R=self.$R||{})["server-fn:11"]=[],null)
+""".utf8))
+    fail("OpenCode Go should report noSubscription when the authenticated server function returns null")
+} catch QuotaError.noSubscription {
+} catch {
+    fail("OpenCode Go null subscription should throw noSubscription, got \(error)")
+}
+
+do {
+    _ = try QuotaParsers.parseOpenCodeGoUsage(Data("<a href=\"/auth/authorize\">login</a>".utf8))
+    fail("OpenCode Go auth redirect should remain unauthorized")
+} catch QuotaError.unauthorized {
+} catch {
+    fail("OpenCode Go auth redirect should throw unauthorized, got \(error)")
+}
+
+do {
+    _ = try QuotaParsers.parseOpenCodeGoUsage(Data(";0x1;((self.$R=self.$R||{})[\"server-fn:11\"]=[],{unexpected:true})".utf8))
+    fail("OpenCode Go malformed non-null responses should remain invalidResponse")
+} catch QuotaError.invalidResponse {
+} catch {
+    fail("OpenCode Go malformed non-null response should throw invalidResponse, got \(error)")
+}
 
 do {
     _ = try QuotaParsers.parseAliyunCodingPlanStatus(Data("""
@@ -8384,6 +8455,20 @@ do {
 } catch QuotaError.unauthorized {
 } catch {
     fail("Tencent Cloud Coding Plan login-state failure should throw unauthorized, got \(error)")
+}
+
+for tencentUnauthorizedPayload in [
+    #"{"code":50,"msg":"登录态过期，请重新登录(-40002)"}"#,
+    #"{"code":9,"msg":"验证CSRF失败，请重新登录"}"#,
+    #"{"code":123,"msg":"login expired"}"#,
+] {
+    do {
+        _ = try QuotaParsers.parseTencentCloudCodingPlanDescribePkg(Data(tencentUnauthorizedPayload.utf8))
+        fail("Tencent Cloud HTTP-200 login and CSRF failures should be unauthorized")
+    } catch QuotaError.unauthorized {
+    } catch {
+        fail("Tencent Cloud auth envelope should throw unauthorized, got \(error)")
+    }
 }
 
 let claudeOrganizationID = try! QuotaParsers.parseClaudeOrganizationID(Data("""
