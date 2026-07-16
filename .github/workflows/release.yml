@@ -70,6 +70,8 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
+            - Replaces AnySearch's stale unlimited state with authenticated UTC-daily usage monitoring for the 1,000-request free plan while keeping the existing copyable API key.
+            - Refreshes AnySearch's short-lived console authorization, persists rotating tokens across retry and failure paths, and preserves the last successful quota on transient errors.
             - Repairs Codex dashboard credential recapture after rejected or stale authorization and refreshes the saved plan and quota state.
             - Captures Aliyun login material from the protected console route.
             - Adds bounded Volcengine CSRF rotation, exact OpenCode Go null/no-subscription parsing, and explicit Tencent Cloud unauthorized handling.
@@ -78,6 +80,8 @@ jobs:
             - This release includes the standard Swift macOS DMG with update checks and a WhiteLabel DMG without upstream GitHub updater endpoints.
 
             中文说明：
+            - AnySearch 不再显示错误的无限额度，改为通过网页登录授权展示每日 UTC 1,000 次免费额度，同时保留原有可复制 API Key。
+            - 自动续期 AnySearch 短期控制台授权，在重试和失败路径中保存轮换 token，并在瞬时错误时保留最近一次成功额度。
             - 修复 Codex 授权被拒绝或过期后的控制台凭据重新捕获，并刷新套餐和额度状态。
             - 阿里云改从受保护控制台路由捕获完整登录信息。
             - 增加火山引擎有界 CSRF 轮换、OpenCode Go 精确 null / 未订阅解析，以及腾讯云未授权响应分类。
