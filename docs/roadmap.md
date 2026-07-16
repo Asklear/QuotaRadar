@@ -17,6 +17,16 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - Secrets stay local. Source code, tests, README files, and GitHub Releases must never contain real API keys or cookies.
 - Every provider needs clear diagnostics: usable, quota unknown, credential expired, connection failed, unsupported API, or quota-consuming check.
 
+## v0.4.6 Dashboard Reauthentication And Refresh Reconciliation
+
+- [x] Keep Codex dashboard credential recapture reliable after rejected or stale authorization, then refresh the saved subscription name and quota state.
+- [x] Capture Aliyun login material from the protected console route instead of accepting an incomplete public-route cookie set.
+- [x] Rotate Volcengine CSRF candidates within a bounded request sequence and classify the exact no-subscription response separately from unauthorized access.
+- [x] Parse OpenCode Go's exact null/no-subscription framing without treating a valid empty plan as an invalid server response.
+- [x] Classify Tencent Cloud unauthorized responses explicitly and keep passive recapture available for refreshed console login state.
+- [x] Reconcile in-flight refreshes per credential so stale results, snapshots, failure banners, and notifications cannot overwrite or describe a newer authentication edit.
+- [x] Keep provider capture and request rules isolated. Raw cookies, tokens, and authorization values remain local and never appear in diagnostics.
+
 ## v0.4.5 Codex Dynamic Quota Windows
 
 - [x] Identify Codex quota windows from `limit_window_seconds` instead of assuming `primary_window` is always five hours and `secondary_window` is always weekly.

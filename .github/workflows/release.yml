@@ -41,17 +41,19 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
-            - Adapts Codex quota parsing to dynamic single- or dual-window responses.
-            - Identifies each quota period from `limit_window_seconds` instead of assuming fixed primary/secondary positions.
-            - Displays weekly-only or five-hour-only usage without synthesizing a missing period or retaining stale cached values.
-            - Adds regression coverage for historical dual-window, weekly-only, five-hour-only, unknown-duration, and missing-reset responses.
+            - Repairs Codex dashboard credential recapture after rejected or stale authorization and refreshes the saved plan and quota state.
+            - Captures Aliyun login material from the protected console route.
+            - Adds bounded Volcengine CSRF rotation, exact OpenCode Go null/no-subscription parsing, and explicit Tencent Cloud unauthorized handling.
+            - Reconciles concurrent refreshes per credential so stale results cannot overwrite newer authentication state or emit stale snapshots, failure banners, or notifications.
+            - Keeps provider-specific capture and request rules isolated. Credential values remain local and are never included in diagnostics.
             - This release publishes the Swift macOS DMG only.
 
             中文说明：
-            - 兼容 Codex 动态单窗口或双窗口额度响应。
-            - 根据 `limit_window_seconds` 判断额度周期，不再依赖 primary / secondary 固定位置。
-            - 只有周额度或只有 5 小时额度时也能正常刷新，不补造缺失周期、不保留旧缓存。
-            - 增加旧双窗口、仅周窗口、仅 5 小时窗口、未知时长和缺失重置时间的回归测试。
+            - 修复 Codex 授权被拒绝或过期后的控制台凭据重新捕获，并刷新套餐和额度状态。
+            - 阿里云改从受保护控制台路由捕获完整登录信息。
+            - 增加火山引擎有界 CSRF 轮换、OpenCode Go 精确 null / 未订阅解析，以及腾讯云未授权响应分类。
+            - 并发刷新改为按凭据协调，旧结果不会覆盖新认证状态，也不会写入过期快照、失败横幅或通知。
+            - 各 provider 的捕获与请求规则保持隔离；凭据值只留在本机，也不会写入诊断。
             - 本次只发布 Swift macOS DMG。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.

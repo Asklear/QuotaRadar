@@ -59,9 +59,12 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '0\.4\.5' \
+assert_match '<string>0\.4\.6</string>' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.4.5 should be recorded in Info.plist"
+  "Quota Radar 0.4.6 should be recorded in Info.plist"
+assert_match '<string>20</string>' \
+  "QuotaRadar/Info.plist" \
+  "Quota Radar Build 20 should be recorded in Info.plist"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
