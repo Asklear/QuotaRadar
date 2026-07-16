@@ -54,7 +54,7 @@ enum AnySearchDailyUsageRequest {
     private static let utc = TimeZone(secondsFromGMT: 0)!
 
     static func url(now: Date = Date()) -> URL {
-        let from = utcCalendar.startOfDay(for: now)
+        let from = utcDayStart(for: now)
         let fromValue = encodedQueryValue(formatter.string(from: from))
         let toValue = encodedQueryValue(formatter.string(from: now))
         return URL(string: "https://anysearch.com/api/api/user/usage/summary?from=\(fromValue)&to=\(toValue)")!
@@ -75,7 +75,11 @@ enum AnySearchDailyUsageRequest {
     }
 
     static func nextUTCMidnight(after dayStart: Date) -> Date? {
-        utcCalendar.date(byAdding: .day, value: 1, to: utcCalendar.startOfDay(for: dayStart))
+        utcCalendar.date(byAdding: .day, value: 1, to: utcDayStart(for: dayStart))
+    }
+
+    static func utcDayStart(for date: Date) -> Date {
+        utcCalendar.startOfDay(for: date)
     }
 
     private static var utcCalendar: Calendar {
@@ -462,7 +466,7 @@ enum QuotaParsers {
         )
     }
 
-    static func parseAnySearchDailyUsage(_ data: Data) throws -> QuotaResult {
+    static func parseAnySearchDailyUsage(_ data: Data, now: Date = Date()) throws -> QuotaResult {
         struct UsageResponse: Decodable {
             struct UsageData: Decodable {
                 struct Period: Decodable {
@@ -486,8 +490,11 @@ enum QuotaParsers {
               usage.total_requests >= 0,
               let periodStart = AnySearchDailyUsageRequest.date(from: usage.period.from),
               let periodEnd = AnySearchDailyUsageRequest.date(from: usage.period.to),
+              abs(periodStart.timeIntervalSince(AnySearchDailyUsageRequest.utcDayStart(for: now))) < 0.5,
               periodEnd >= periodStart,
-              let resetAt = AnySearchDailyUsageRequest.nextUTCMidnight(after: periodStart) else {
+              periodEnd <= now.addingTimeInterval(1),
+              let resetAt = AnySearchDailyUsageRequest.nextUTCMidnight(after: periodStart),
+              periodEnd < resetAt else {
             throw QuotaError.invalidResponse
         }
 
@@ -3220,24 +3227,29 @@ private struct ChatGPTSessionContext {
 struct AnySearchDashboardCredential {
     let accessToken: String
     let refreshToken: String?
-    let expiresAt: Date
+    let expiresAt: Date?
 
     init?(_ raw: String) {
         let credential = DashboardCredential(raw)
-        guard let accessToken = credential.value(for: ["accessToken"]),
-              let rawExpiry = credential.value(for: ["expiresAt"]),
-              let expiryMilliseconds = TimeInterval(rawExpiry),
-              expiryMilliseconds > 0 else {
+        guard let accessToken = credential.value(for: ["accessToken"]) else {
             return nil
         }
 
         self.accessToken = Self.stripBearerPrefix(accessToken)
         self.refreshToken = credential.value(for: ["refreshToken"])
-        self.expiresAt = Date(timeIntervalSince1970: expiryMilliseconds / 1_000)
+        if let rawExpiry = credential.value(for: ["expiresAt"]) {
+            guard let expiryMilliseconds = TimeInterval(rawExpiry), expiryMilliseconds > 0 else {
+                return nil
+            }
+            self.expiresAt = Date(timeIntervalSince1970: expiryMilliseconds / 1_000)
+        } else {
+            self.expiresAt = nil
+        }
     }
 
     func isExpired(at date: Date = Date()) -> Bool {
-        expiresAt <= date
+        guard let expiresAt else { return false }
+        return expiresAt <= date
     }
 
     private static func stripBearerPrefix(_ value: String) -> String {

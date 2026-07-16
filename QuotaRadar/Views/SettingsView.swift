@@ -2664,7 +2664,8 @@ struct ProviderQuotaMonitorRow: View {
             DashboardReauthSheet(
                 monitor: monitor,
                 provider: provider,
-                key: keys.first
+                key: keys.first { !$0.isStoredAPIKeyOnlyCredential },
+                onSaved: handleProviderDashboardCredentialSaved
             )
         }
         .confirmationDialog(
@@ -2690,6 +2691,21 @@ struct ProviderQuotaMonitorRow: View {
             }
         } message: {
             Text(L10n.format(.codexResetQuotaConfirmMessage, codexResetConfirmationKey?.accountDisplayTitle ?? ""))
+        }
+    }
+
+    private func handleProviderDashboardCredentialSaved(_ savedKey: APIKey) {
+        switch QuotaMonitor.companionAPIKeySaveDecision(
+            authorization: savedKey,
+            enteredValue: "",
+            keys: monitor.apiKeys
+        ) {
+        case .none:
+            break
+        case .update(let companion):
+            monitor.updateKey(companion)
+        case .add(let companion):
+            monitor.addKey(companion)
         }
     }
 

@@ -4558,9 +4558,12 @@ assert_match 'state\.expiresAt' \
 assert_match 'QuotaMonitor\.companionAPIKeySaveDecision' \
   "QuotaRadar/Views/SettingsView.swift" \
   "Dashboard save should adopt an existing companion API key even when the input is empty"
-assert_match 'clearingCompanionLinks' \
+assert_match 'credentialRemovalPlan' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
-  "Deleting dashboard authorization should clear surviving companion links"
+  "Deleting dashboard authorization should unlink companion keys and remove derived dependents"
+assert_match 'onSaved: handleProviderDashboardCredentialSaved' \
+  "QuotaRadar/Views/SettingsView.swift" \
+  "Provider-row reauthentication should adopt an existing companion API key after saving authorization"
 assert_match 'https://www.dajiala.com/fbmain/monitor/v3/get_remain_money' \
   "QuotaRadar/Services/QuotaService.swift" \
   "WeChat search quota must use the Dajiala remaining-money endpoint"
@@ -8379,11 +8382,21 @@ default:
 
 var linkedAnySearchAPIKey = existingAnySearchAPIKey
 linkedAnySearchAPIKey.linkedAuthorizationID = anySearchAuthorizationID
-let afterAuthorizationDeletion = QuotaMonitor.clearingCompanionLinks(
-    toAuthorizationID: anySearchAuthorizationID,
-    in: [linkedAnySearchAPIKey, anySearchAuthorization]
+let derivedAnthropicID = UUID(uuidString: "40000000-0000-0000-0000-000000000003")!
+let derivedAnthropic = APIKey(
+    id: derivedAnthropicID,
+    name: "ANTHROPIC_CREDITS_SESSION",
+    key: "derived-session-redacted",
+    provider: .anthropicCredits,
+    linkedAuthorizationID: anySearchAuthorizationID
 )
-require(afterAuthorizationDeletion.first { $0.id == anySearchAPIKeyID }?.linkedAuthorizationID == nil, "Deleting authorization should keep and unlink the AnySearch API key")
+let removalPlan = QuotaMonitor.credentialRemovalPlan(
+    removing: anySearchAuthorizationID,
+    from: [linkedAnySearchAPIKey, anySearchAuthorization, derivedAnthropic]
+)
+require(removalPlan.keys.first { $0.id == anySearchAPIKeyID }?.linkedAuthorizationID == nil, "Deleting authorization should keep and unlink the AnySearch API key")
+require(!removalPlan.keys.contains { $0.id == derivedAnthropicID }, "Deleting source authorization should remove dependent derived monitoring rows")
+require(removalPlan.removedIDs == Set([anySearchAuthorizationID, derivedAnthropicID]), "Removal plan should delete the authorization and derived rows only")
 
 var orphanAnySearchAPIKey = existingAnySearchAPIKey
 orphanAnySearchAPIKey.linkedAuthorizationID = UUID(uuidString: "40000000-0000-0000-0000-000000000099")!
@@ -8737,9 +8750,13 @@ require(longCatMixedJSONCredential.cookieHeader.contains("passport_uuid=passport
 let anySearchCredential = AnySearchDashboardCredential(#"{"accessToken":"access-redacted","refreshToken":"refresh-redacted","expiresAt":"1784196000000"}"#)!
 require(anySearchCredential.accessToken == "access-redacted", "AnySearch credential should expose the captured access token")
 require(anySearchCredential.refreshToken == "refresh-redacted", "AnySearch credential should retain refresh token metadata without using it")
-require(anySearchCredential.expiresAt.timeIntervalSince1970 == 1784196000, "AnySearch credential should decode millisecond expiry")
+require(anySearchCredential.expiresAt?.timeIntervalSince1970 == 1784196000, "AnySearch credential should decode millisecond expiry")
 require(!anySearchCredential.isExpired(at: Date(timeIntervalSince1970: 1784195999)), "AnySearch credential should be valid before expiry")
 require(anySearchCredential.isExpired(at: Date(timeIntervalSince1970: 1784196001)), "AnySearch credential should expire after the captured timestamp")
+let anySearchCredentialWithoutExpiry = AnySearchDashboardCredential(#"{"accessToken":"access-redacted"}"#)
+require(anySearchCredentialWithoutExpiry?.accessToken == "access-redacted", "AnySearch access token should remain usable when optional expiry is absent")
+require(anySearchCredentialWithoutExpiry?.expiresAt == nil, "AnySearch credential should represent a missing optional expiry")
+require(anySearchCredentialWithoutExpiry?.isExpired(at: Date(timeIntervalSince1970: 1784196001)) == false, "Missing optional expiry should not be treated as already expired")
 try! QuotaParsers.validateLongCatUserCurrent(Data("""
 {"code":0,"data":{"userId":12345,"loginStatus":1,"name":"LongCat User"}}
 """.utf8))
@@ -8766,28 +8783,32 @@ require(querit.quotaText?.key == .monthlyRequestsUsedFormat, "Querit usage-only 
 require(querit.resetAt == nil, "Querit account endpoint does not expose a reset date")
 require(querit.planEndsAt == nil, "Querit account endpoint does not expose a plan end date")
 
+let anySearchMorningNow = ISO8601DateFormatter().date(from: "2026-07-16T09:31:17Z")!
 let anySearchDaily = try! QuotaParsers.parseAnySearchDailyUsage(Data("""
 {"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-16T09:31:17Z"},"scope":"user","total_requests":356,"success_requests":356}}
-""".utf8))
+""".utf8), now: anySearchMorningNow)
 require(anySearchDaily.remaining == 644, "AnySearch should compute remaining from the verified daily limit")
 require(anySearchDaily.limit == 1000, "AnySearch should expose the official free daily limit")
 require(anySearchDaily.quotaText == .localized(.dailyRequestsUsageFormat, "356", "644", "1000"), "AnySearch should retain observed used, remaining, and limit")
 let anySearchExpectedReset = ISO8601DateFormatter().date(from: "2026-07-17T00:00:00Z")!
 require(abs((anySearchDaily.resetAt?.timeIntervalSince1970 ?? 0) - anySearchExpectedReset.timeIntervalSince1970) < 1, "AnySearch should reset at the next UTC midnight")
 
+let anySearchEndOfDayNow = ISO8601DateFormatter().date(from: "2026-07-16T23:59:59Z")!
 let anySearchOverLimit = try! QuotaParsers.parseAnySearchDailyUsage(Data("""
 {"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-16T23:59:59Z"},"scope":"user","total_requests":1200,"success_requests":1200}}
-""".utf8))
+""".utf8), now: anySearchEndOfDayNow)
 require(anySearchOverLimit.remaining == 0, "AnySearch remaining should clamp at zero above the daily limit")
 require(anySearchOverLimit.quotaText == .localized(.dailyRequestsUsageFormat, "1200", "0", "1000"), "AnySearch should preserve exact above-limit usage evidence")
 
 for invalidAnySearchJSON in [
     #"{"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-16T09:31:17Z"},"scope":"user"}}"#,
     #"{"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-16T09:31:17Z"},"scope":"user","total_requests":-1}}"#,
-    #"{"code":0,"message":"ok","data":{"period":{"from":"not-a-date","to":"2026-07-16T09:31:17Z"},"scope":"user","total_requests":1}}"#
+    #"{"code":0,"message":"ok","data":{"period":{"from":"not-a-date","to":"2026-07-16T09:31:17Z"},"scope":"user","total_requests":1}}"#,
+    #"{"code":0,"message":"ok","data":{"period":{"from":"2026-06-16T09:31:17Z","to":"2026-07-16T09:31:17Z"},"scope":"user","total_requests":16397}}"#,
+    #"{"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-17T00:00:01Z"},"scope":"user","total_requests":400}}"#
 ] {
     do {
-        _ = try QuotaParsers.parseAnySearchDailyUsage(Data(invalidAnySearchJSON.utf8))
+        _ = try QuotaParsers.parseAnySearchDailyUsage(Data(invalidAnySearchJSON.utf8), now: anySearchMorningNow)
         fail("AnySearch malformed daily usage should be rejected")
     } catch QuotaError.invalidResponse {
     } catch {
@@ -8795,9 +8816,8 @@ for invalidAnySearchJSON in [
     }
 }
 
-let anySearchFixedNow = ISO8601DateFormatter().date(from: "2026-07-16T09:31:17Z")!
 require(
-    AnySearchDailyUsageRequest.url(now: anySearchFixedNow).absoluteString == "https://anysearch.com/api/api/user/usage/summary?from=2026-07-16T00%3A00%3A00.000Z&to=2026-07-16T09%3A31%3A17.000Z",
+    AnySearchDailyUsageRequest.url(now: anySearchMorningNow).absoluteString == "https://anysearch.com/api/api/user/usage/summary?from=2026-07-16T00%3A00%3A00.000Z&to=2026-07-16T09%3A31%3A17.000Z",
     "AnySearch request should use explicit percent-encoded UTC millisecond bounds"
 )
 

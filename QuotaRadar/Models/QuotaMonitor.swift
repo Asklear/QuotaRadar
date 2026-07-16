@@ -15,6 +15,11 @@ class QuotaMonitor: ObservableObject {
         case add(APIKey)
     }
 
+    struct CredentialRemovalPlan {
+        let keys: [APIKey]
+        let removedIDs: Set<UUID>
+    }
+
     static let shared = QuotaMonitor()
     private static let providerOrderDefaultsKey = "providerOrder"
     private static let customProviderOrderEnabledDefaultsKey = "customProviderOrderEnabled"
@@ -753,23 +758,38 @@ class QuotaMonitor: ObservableObject {
         ))
     }
 
-    nonisolated static func clearingCompanionLinks(
-        toAuthorizationID authorizationID: UUID,
-        in keys: [APIKey]
-    ) -> [APIKey] {
-        keys.map { key in
-            guard key.linkedAuthorizationID == authorizationID else { return key }
-            var unlinked = key
-            unlinked.linkedAuthorizationID = nil
-            return unlinked
+    nonisolated static func credentialRemovalPlan(
+        removing id: UUID,
+        from keys: [APIKey]
+    ) -> CredentialRemovalPlan {
+        var remainingKeys: [APIKey] = []
+        var removedIDs: Set<UUID> = [id]
+
+        for var key in keys {
+            if key.id == id {
+                continue
+            }
+            guard key.linkedAuthorizationID == id else {
+                remainingKeys.append(key)
+                continue
+            }
+            if key.isStoredAPIKeyOnlyCredential {
+                key.linkedAuthorizationID = nil
+                remainingKeys.append(key)
+            } else {
+                removedIDs.insert(key.id)
+            }
         }
+        return CredentialRemovalPlan(keys: remainingKeys, removedIDs: removedIDs)
     }
 
     func removeKey(id: UUID) {
-        apiKeys = Self.clearingCompanionLinks(toAuthorizationID: id, in: apiKeys)
-        apiKeys.removeAll { $0.id == id }
-        store.delete(id: id)
-        quotaSnapshots = historyStore.deleteSnapshots(for: id, existing: quotaSnapshots)
+        let plan = Self.credentialRemovalPlan(removing: id, from: apiKeys)
+        apiKeys = plan.keys
+        for removedID in plan.removedIDs {
+            store.delete(id: removedID)
+            quotaSnapshots = historyStore.deleteSnapshots(for: removedID, existing: quotaSnapshots)
+        }
         historyStore.save(quotaSnapshots)
         saveKeys()
     }
