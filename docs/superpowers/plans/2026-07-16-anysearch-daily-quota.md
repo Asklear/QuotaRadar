@@ -44,6 +44,8 @@ require(Provider.anysearch.dashboardAuthenticationCookieNames == ["accessToken"]
 
 Also assert that `ANYSEARCH_API_KEY` is copyable and classed as `isStoredAPIKeyOnlyCredential`, while `ANYSEARCH_SESSION` is a non-copyable quota-monitoring authorization.
 
+Assert `Provider.anysearch.capability.dataSource == .dashboardAPI` and an AnySearch monitoring record reports `.dashboardAPI` through its presentation data source instead of `.localPolicy`.
+
 - [ ] **Step 2: Run the behavior suite and verify the new assertions fail**
 
 Run: `bash Tests/run_behavior_tests.sh`
@@ -63,6 +65,8 @@ case .anysearch: return "https://anysearch.com/console/overview"
 ```
 
 Remove `.anysearch` from mutually exclusive API-key-only branches. Do not change another provider's values.
+
+Move AnySearch capability, trust calibration, and quota presentation data-source mappings from `.localPolicy` to `.dashboardAPI`.
 
 - [ ] **Step 4: Run the focused provider assertions**
 
@@ -268,6 +272,8 @@ Cover these arrays of in-memory `APIKey` values:
 
 Assert no raw session value is returned by `copyableCredentialValue`.
 
+Exercise the actual `handleDashboardCredentialSaved`/companion-save decision with an empty companion input: it must still adopt and link an existing unlinked or orphan `ANYSEARCH_API_KEY` without changing that record's secret.
+
 - [ ] **Step 2: Run tests and verify failure**
 
 Run: `bash Tests/run_behavior_tests.sh`
@@ -280,7 +286,7 @@ Add small internal helpers in `QuotaMonitor` for clearing links that point to a 
 
 - [ ] **Step 4: Update save/delete behavior**
 
-Before deleting a non-copy-only dashboard authorization, clear matching companion `linkedAuthorizationID` values and persist the survivors. When saving a companion after authorization capture, prefer a key linked to that authorization, then an unlinked key, then an orphan whose authorization ID no longer exists; create a new record only if none exists.
+Before deleting a non-copy-only dashboard authorization, clear matching companion `linkedAuthorizationID` values and persist the survivors. When dashboard authorization is saved, always run companion adoption even if the companion input is empty: prefer a key linked to that authorization, then an unlinked key, then an orphan whose authorization ID no longer exists, preserve its existing secret, and update only its link/name. If a non-empty companion input exists, update the adopted record's secret; create a new record only when the input is non-empty and no reusable record exists.
 
 - [ ] **Step 5: Run behavior tests**
 
@@ -319,16 +325,20 @@ Run:
 ```bash
 git diff --check
 bash Tests/run_behavior_tests.sh
-rg -n "Unlimited free usage|app\.anysearch\.ai|AnySearch.*unlimited|AnySearch.*无限" QuotaRadar Tests docs README* TODO*
+rg -n "Unlimited free usage|app\.anysearch\.ai|AnySearch.*unlimited|AnySearch.*无限" QuotaRadar Tests docs README.md README.zh-Hans.md TODO.md -g '!docs/superpowers/**'
 ```
 
 Expected: diff check and behavior suite pass; stale search returns no live capability claims.
 
 - [ ] **Step 3: Build the app**
 
-Run the repository's existing macOS build command used by the release branch (derive the exact scheme/configuration from the current release QA scripts rather than inventing one).
+Run:
 
-Expected: `BUILD SUCCEEDED`.
+```bash
+./build.sh release
+```
+
+Expected: exit 0 and `Build complete`.
 
 - [ ] **Step 4: Perform live logged-in acceptance**
 
@@ -344,7 +354,24 @@ Restart the locally built app without clearing defaults/database. Confirm the AP
 
 - [ ] **Step 7: Run release guards without publishing**
 
-Run the existing release QA guards, including standard/white-label URL leak checks where safe. Confirm `CFBundleShortVersionString` remains 0.4.6 and both standard/white-label workflow definitions remain intact. Do not push, tag, upload, or create a GitHub Release.
+Run the same local build and guard commands encoded by `.github/workflows/release.yml`:
+
+```bash
+scripts/package_dmg.sh --rebuild
+test -s build/QuotaRadar.dmg
+strings 'build/Quota Radar.app/Contents/MacOS/QuotaRadar' | rg -F 'https://api.github.com/repos/Asklear/QuotaRadar/releases/latest'
+strings 'build/Quota Radar.app/Contents/MacOS/QuotaRadar' | rg -F 'https://github.com/Asklear/QuotaRadar/releases/latest'
+scripts/package_dmg.sh --rebuild --white-label
+if strings 'build/Quota Radar.app/Contents/MacOS/QuotaRadar' | rg 'Asklear/QuotaRadar|api\.github\.com/repos/Asklear/QuotaRadar|github\.com/Asklear/QuotaRadar/releases/latest'; then exit 1; fi
+if strings build/QuotaRadar-WhiteLabel.dmg | rg 'Asklear/QuotaRadar|api\.github\.com/repos/Asklear/QuotaRadar|github\.com/Asklear/QuotaRadar/releases/latest'; then exit 1; fi
+test -s build/QuotaRadar.dmg
+test -s build/QuotaRadar-WhiteLabel.dmg
+hdiutil verify build/QuotaRadar.dmg
+hdiutil verify build/QuotaRadar-WhiteLabel.dmg
+plutil -extract CFBundleShortVersionString raw QuotaRadar/Info.plist | rg '^0\.4\.6$'
+```
+
+Expected: both DMGs are non-empty and verify successfully; standard binary contains both updater URLs; white-label app/DMG contain neither; version is 0.4.6. Do not push, tag, upload, or create a GitHub Release.
 
 - [ ] **Step 8: Commit docs and QA evidence-safe changes**
 

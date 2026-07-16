@@ -48,7 +48,7 @@ The request sends the saved access token as a Bearer authorization header. Both 
 
 The parser reads `data.total_requests` as today's used count and validates the response envelope and numeric value. The free-plan limit is the provider-specific constant 1,000 requests per UTC day:
 
-- `used = max(0, total_requests)`;
+- `used = total_requests`, which must be a non-negative integer or the response is rejected as invalid;
 - `limit = 1000`;
 - `remaining = max(0, limit - used)`;
 - `resetAt = next UTC midnight`.
@@ -77,6 +77,8 @@ Failure behavior is remaining-data-safe:
 ## UI behavior
 
 The AnySearch credential editor presents dashboard reauthentication and optional companion API-key storage. Existing API-key-only records remain manageable and copyable. Authorization records use the standard "quota monitoring authorization" identity and never expose a credential value.
+
+The provider capability and presentation data source are both dashboard API, replacing the previous local-policy classification and trust calibration.
 
 After a successful save, QuotaRadar immediately refreshes AnySearch and displays the daily remaining-first quota together with the last successful update time. The dashboard link points to `https://anysearch.com/console/overview`.
 
