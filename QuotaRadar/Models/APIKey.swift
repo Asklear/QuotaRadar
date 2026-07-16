@@ -1762,11 +1762,7 @@ struct APIKey: Identifiable, Codable, Equatable {
     }
 
     var isUnlimitedQuota: Bool {
-        guard provider == .anysearch else { return false }
-        if remaining == Int.max || limit == Int.max {
-            return true
-        }
-        return quotaText?.key == .unlimited || quotaLabel?.localizedCaseInsensitiveContains("unlimited") == true
+        false
     }
 
     var isCredentialExpired: Bool {
@@ -2108,6 +2104,9 @@ struct APIKey: Identifiable, Codable, Equatable {
     }
 
     private var quotaPresentationPrimaryText: String {
+        if provider == .anysearch, quotaText?.key == .dailyRequestsUsageFormat {
+            return quotaDisplayText
+        }
         if isUsableWithUnknownQuota {
             guard provider == .brave else {
                 return L10n.t(.usableUnknownQuota)

@@ -480,6 +480,15 @@ class QuotaMonitor: ObservableObject {
         return merged
     }
 
+    nonisolated static func applyingTransientFailure(_ error: Error, to key: APIKey) -> APIKey {
+        var failed = key
+        failed.lastHTTPStatus = (error as? QuotaError)?.httpStatus
+        failed.lastDiagnosticMessage = error.localizedDescription
+        failed.lastDiagnosticText = (error as? QuotaError)?.localizedTextDescriptor
+        failed.consecutiveFailureCount += 1
+        return failed
+    }
+
     private func refresh(targetProviders: Set<Provider>?, mode: RefreshMode) {
         guard !isRefreshing else {
             if mode == .manual {
@@ -635,11 +644,7 @@ class QuotaMonitor: ObservableObject {
                         outcome = .unauthorized
                         countsAsFailure = true
                     } else {
-                        key.lastHTTPStatus = (error as? QuotaError)?.httpStatus
-                        key.lastDiagnosticMessage = error.localizedDescription
-                        key.lastDiagnosticText = (error as? QuotaError)?.localizedTextDescriptor
-                        key.consecutiveFailureCount += 1
-                        key.lastUpdated = Date()
+                        key = Self.applyingTransientFailure(error, to: key)
                         outcome = .failed
                         countsAsFailure = true
                     }

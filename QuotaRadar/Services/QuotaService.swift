@@ -3217,6 +3217,38 @@ private struct ChatGPTSessionContext {
     let accountID: String?
 }
 
+struct AnySearchDashboardCredential {
+    let accessToken: String
+    let refreshToken: String?
+    let expiresAt: Date
+
+    init?(_ raw: String) {
+        let credential = DashboardCredential(raw)
+        guard let accessToken = credential.value(for: ["accessToken"]),
+              let rawExpiry = credential.value(for: ["expiresAt"]),
+              let expiryMilliseconds = TimeInterval(rawExpiry),
+              expiryMilliseconds > 0 else {
+            return nil
+        }
+
+        self.accessToken = Self.stripBearerPrefix(accessToken)
+        self.refreshToken = credential.value(for: ["refreshToken"])
+        self.expiresAt = Date(timeIntervalSince1970: expiryMilliseconds / 1_000)
+    }
+
+    func isExpired(at date: Date = Date()) -> Bool {
+        expiresAt <= date
+    }
+
+    private static func stripBearerPrefix(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.lowercased().hasPrefix("bearer ") {
+            return String(trimmed.dropFirst("Bearer ".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return trimmed
+    }
+}
+
 private struct KimiDashboardCredential {
     let accessToken: String
     let cookie: String?
@@ -3634,13 +3666,32 @@ actor QuotaService {
         )
     }
 
-    /// AnySearch: 当前免费使用，没有公开 quota 上限。
+    /// AnySearch: authenticated console usage for the current UTC day.
     private func checkAnySearchQuota(key: APIKey) async throws -> QuotaResult {
-        QuotaResult(
-            remaining: Int.max,
-            limit: Int.max,
-            resetAt: nil,
-            quotaLabel: "Unlimited free usage"
+        guard let credential = AnySearchDashboardCredential(key.key),
+              !credential.isExpired() else {
+            throw QuotaError.unauthorized
+        }
+
+        var request = URLRequest(url: AnySearchDailyUsageRequest.url())
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(credential.accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw QuotaError.invalidResponse
+        }
+        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            throw QuotaError.unauthorized
+        }
+        guard httpResponse.statusCode == 200 else {
+            throw QuotaError.invalidResponse
+        }
+
+        return try withHTTPStatus(
+            QuotaParsers.parseAnySearchDailyUsage(data),
+            from: httpResponse
         )
     }
 

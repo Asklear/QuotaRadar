@@ -4534,6 +4534,12 @@ assert_no_match 'api.anysearch.ai' \
 assert_match 'https://anysearch\.com/api/api/user/usage/summary' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch should query the verified dashboard daily usage endpoint"
+assert_match 'request\.setValue\("Bearer .*credential\.accessToken.*forHTTPHeaderField: "Authorization"' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "AnySearch dashboard usage requests should use the captured Bearer token"
+assert_match 'QuotaParsers\.parseAnySearchDailyUsage' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "AnySearch refresh should parse the verified daily response"
 assert_match 'case \.anysearch:' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch must have explicit quota handling"
@@ -5232,6 +5238,17 @@ require(anySearchStat.totalLimitDisplayText == "1000", "AnySearch provider total
 require(anySearchStat.totalRemainingDisplayText == "644", "AnySearch provider totals should expose daily remaining")
 require(anySearchStat.statusBarProviderQuotaText == "356 used · 644 remaining / 1000 daily", "Status bar should show AnySearch used, remaining, and daily limit")
 require(anySearchStat.statusBarProviderBadgeText == "64%", "Status bar should show AnySearch daily remaining percent")
+let exhaustedAnySearch = APIKey(
+    name: "ANYSEARCH_SESSION",
+    key: "session-redacted",
+    provider: .anysearch,
+    remaining: 0,
+    limit: 1000,
+    resetAt: ISO8601DateFormatter().date(from: "2026-07-17T00:00:00Z"),
+    quotaText: .localized(.dailyRequestsUsageFormat, "1200", "0", "1000"),
+    quotaLabel: "1200 used · 0 remaining / 1000 daily"
+)
+require(exhaustedAnySearch.quotaPresentation.primaryText == "1200 used · 0 remaining / 1000 daily", "AnySearch should preserve exact above-limit used evidence when exhausted")
 let tavilyProviderOverview = ProviderStats(provider: .tavily, keys: [
     APIKey(name: "TAVILY_API_KEY", key: "tvly-1", provider: .tavily, remaining: 750, limit: 1000),
     APIKey(name: "TAVILY_API_KEY_2", key: "tvly-2", provider: .tavily, remaining: 250, limit: 1000),
@@ -8308,6 +8325,24 @@ let directSuppressesDerived = QuotaMonitor.reconcileRefreshResults(
     current: [sourceOne, concurrentDirectAnthropic]
 )
 require(directSuppressesDerived.keys.map(\.id) == [sourceOneID, concurrentDirectAnthropic.id] && directSuppressesDerived.acceptedResults.isEmpty, "A concurrently added direct credential should suppress stale derived rows")
+let successfulAnySearch = APIKey(
+    name: "ANYSEARCH_SESSION",
+    key: "session-redacted",
+    provider: .anysearch,
+    remaining: 644,
+    limit: 1000,
+    resetAt: Date(timeIntervalSince1970: 1784246400),
+    lastUpdated: Date(timeIntervalSince1970: 1784196000),
+    quotaText: .localized(.dailyRequestsUsageFormat, "356", "644", "1000"),
+    quotaLabel: "356 used · 644 remaining / 1000 daily"
+)
+let failedAnySearch = QuotaMonitor.applyingTransientFailure(QuotaError.invalidResponse, to: successfulAnySearch)
+require(failedAnySearch.remaining == successfulAnySearch.remaining, "Transient failures should preserve AnySearch remaining")
+require(failedAnySearch.limit == successfulAnySearch.limit, "Transient failures should preserve AnySearch limit")
+require(failedAnySearch.resetAt == successfulAnySearch.resetAt, "Transient failures should preserve AnySearch reset")
+require(failedAnySearch.lastUpdated == successfulAnySearch.lastUpdated, "Transient failures should preserve the last-success timestamp")
+require(failedAnySearch.quotaText == successfulAnySearch.quotaText, "Transient failures should preserve the structured daily usage descriptor")
+require(failedAnySearch.consecutiveFailureCount == successfulAnySearch.consecutiveFailureCount + 1, "Transient failures should increment the failure count")
 SWIFT
 
 swiftc \
@@ -8632,6 +8667,12 @@ let longCatMixedJSONCredential = LongCatDashboardCredential("""
 require(longCatMixedJSONCredential.cookieHeader.contains("locale=zh"), "LongCat mixed JSON credentials should preserve existing cookie header fields")
 require(longCatMixedJSONCredential.cookieHeader.contains("token=token-from-json"), "LongCat mixed JSON credentials should merge JSON token metadata into the Cookie header")
 require(longCatMixedJSONCredential.cookieHeader.contains("passport_uuid=passport-from-json"), "LongCat mixed JSON credentials should prefer JSON passport metadata over stale cookie-only values")
+let anySearchCredential = AnySearchDashboardCredential(#"{"accessToken":"access-redacted","refreshToken":"refresh-redacted","expiresAt":"1784196000000"}"#)!
+require(anySearchCredential.accessToken == "access-redacted", "AnySearch credential should expose the captured access token")
+require(anySearchCredential.refreshToken == "refresh-redacted", "AnySearch credential should retain refresh token metadata without using it")
+require(anySearchCredential.expiresAt.timeIntervalSince1970 == 1784196000, "AnySearch credential should decode millisecond expiry")
+require(!anySearchCredential.isExpired(at: Date(timeIntervalSince1970: 1784195999)), "AnySearch credential should be valid before expiry")
+require(anySearchCredential.isExpired(at: Date(timeIntervalSince1970: 1784196001)), "AnySearch credential should expire after the captured timestamp")
 try! QuotaParsers.validateLongCatUserCurrent(Data("""
 {"code":0,"data":{"userId":12345,"loginStatus":1,"name":"LongCat User"}}
 """.utf8))
