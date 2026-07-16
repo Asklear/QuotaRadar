@@ -8321,6 +8321,26 @@ do {
     fail("Volcengine coding-plan missing reset timestamp should throw schemaDrift, got \(error)")
 }
 
+do {
+    _ = try QuotaParsers.parseVolcengineCodingPlanUsage(Data("""
+{"ResponseMetadata":{"Action":"GetCodingPlanUsage"},"Result":{"Status":"Running","QuotaUsage":[{"Level":"session","ResetTimestamp":-1}]}}
+""".utf8))
+    fail("Volcengine coding-plan incomplete HTTP-200 envelopes should not leak JSON decoding errors")
+} catch QuotaError.invalidResponse {
+} catch {
+    fail("Volcengine coding-plan incomplete HTTP-200 envelopes should map to invalidResponse, got \(error)")
+}
+
+do {
+    _ = try QuotaParsers.parseVolcengineCodingPlanUsage(Data("""
+{"ResponseMetadata":{"Action":"GetCodingPlanUsage"},"Result":{"Status":"NotSubscribed","UpdateTimestamp":1782921599}}
+""".utf8))
+    fail("Volcengine coding-plan no-subscription envelopes should not be treated as malformed usage")
+} catch QuotaError.noSubscription {
+} catch {
+    fail("Volcengine coding-plan Result without QuotaUsage but with Status and UpdateTimestamp should map to noSubscription, got \(error)")
+}
+
 let volcInvalidCSRFData = Data("""
 {"ResponseMetadata":{"Action":"GetCodingPlanUsage","Error":{"Code":"InvalidCSRFToken","Message":"Invalid CSRF token."}},"Result":null}
 """.utf8)

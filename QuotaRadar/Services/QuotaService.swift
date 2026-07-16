@@ -850,6 +850,14 @@ enum QuotaParsers {
     }
 
     static func parseVolcengineCodingPlanUsage(_ data: Data) throws -> QuotaResult {
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let result = object["Result"] as? [String: Any],
+           result["QuotaUsage"] == nil,
+           result["Status"] != nil,
+           result["UpdateTimestamp"] != nil {
+            throw QuotaError.noSubscription
+        }
+
         struct CodingPlanUsageResponse: Decodable {
             struct ResultData: Decodable {
                 let Status: String?
@@ -865,7 +873,12 @@ enum QuotaParsers {
             let Result: ResultData?
         }
 
-        let response = try JSONDecoder().decode(CodingPlanUsageResponse.self, from: data)
+        let response: CodingPlanUsageResponse
+        do {
+            response = try JSONDecoder().decode(CodingPlanUsageResponse.self, from: data)
+        } catch is DecodingError {
+            throw QuotaError.invalidResponse
+        }
         guard let usage = response.Result?.QuotaUsage, !usage.isEmpty else {
             throw QuotaError.invalidResponse
         }
