@@ -7926,6 +7926,28 @@ require(derivedAnthropicCredential.quotaLabel == nil, "Derived Anthropic Credits
 require(derivedAnthropicCredential.lastUpdated == nil, "Derived Anthropic Credits credentials should require its own refresh timestamp")
 require(anthopicRefreshKeys.contains { $0.id == claudeAuthorizationID }, "Refresh candidates should keep the source Claude credential in the list for preservation")
 
+let secondClaudeAuthorizationID = UUID(uuidString: "20000000-0000-0000-0000-000000000004")!
+let secondClaudeAuthorization = APIKey(
+    id: secondClaudeAuthorizationID,
+    name: "CLAUDE_SECOND_SESSION",
+    key: "sessionKey=second-redacted",
+    provider: .claudeSubscription
+)
+let linkedDerivedRefreshKeys = QuotaMonitor.refreshCandidateKeys(
+    from: [claudeAuthorization, secondClaudeAuthorization, derivedAnthropicCredential],
+    targetProviders: [.anthropicCredits]
+)
+let linkedDerivedCandidates = linkedDerivedRefreshKeys.filter { $0.provider == .anthropicCredits }
+require(linkedDerivedCandidates.count == 2, "An existing linked derived row should not suppress candidates for newly added source authorizations")
+require(
+    linkedDerivedCandidates.filter { $0.linkedAuthorizationID == claudeAuthorizationID }.count == 1,
+    "Existing linked sources should not receive duplicate derived candidates"
+)
+require(
+    linkedDerivedCandidates.contains { $0.linkedAuthorizationID == secondClaudeAuthorizationID },
+    "New source authorizations should receive their own derived monitoring candidate"
+)
+
 let directAnthropicCredential = APIKey(
     id: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!,
     name: "ANTHROPIC_CREDITS_SESSION",

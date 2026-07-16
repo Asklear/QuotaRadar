@@ -333,12 +333,16 @@ class QuotaMonitor: ObservableObject {
             guard let sourceProvider = sharedDashboardAuthorizationSourceProvider(for: provider) else {
                 continue
             }
-            let hasDirectMonitoringCredential = keys.contains {
+            let providerCredentials = keys.filter {
                 $0.provider == provider && !$0.isStoredAPIKeyOnlyCredential
+            }
+            let hasDirectMonitoringCredential = providerCredentials.contains {
+                $0.linkedAuthorizationID == nil
             }
             guard !hasDirectMonitoringCredential else {
                 continue
             }
+            let linkedAuthorizationIDs = Set(providerCredentials.compactMap(\.linkedAuthorizationID))
 
             let sourceCredentials = keys.filter {
                 $0.provider == sourceProvider
@@ -348,6 +352,9 @@ class QuotaMonitor: ObservableObject {
             }
 
             for (index, sourceCredential) in sourceCredentials.enumerated() {
+                guard !linkedAuthorizationIDs.contains(sourceCredential.id) else {
+                    continue
+                }
                 candidates.append(
                     derivedDashboardCredential(
                         from: sourceCredential,
