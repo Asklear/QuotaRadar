@@ -268,6 +268,7 @@ struct DashboardReauthSheet: View {
                 await MainActor.run {
                     guard validationLifecycle.finishValidation(succeeded: true) == .persist else { return }
                     var verifiedKey = candidateKey
+                    verifiedKey.key = result.refreshedCredential ?? candidateKey.key
                     verifiedKey.remaining = result.remaining
                     verifiedKey.limit = result.limit
                     verifiedKey.resetAt = result.resetAt
@@ -290,6 +291,31 @@ struct DashboardReauthSheet: View {
                     onSaved?(verifiedKey)
                     isSaving = false
                     statusMessage = L10n.t(.cookieSaved)
+                    if dismissAfterSave {
+                        dismiss()
+                    }
+                }
+            } catch let rotationError as AnySearchCredentialRotationError {
+                await MainActor.run {
+                    guard validationLifecycle.finishValidation(succeeded: true) == .persist else { return }
+                    var verifiedKey = candidateKey
+                    verifiedKey.key = rotationError.refreshedCredential
+                    verifiedKey.lastHTTPStatus = (rotationError.underlying as? QuotaError)?.httpStatus
+                    verifiedKey.lastDiagnosticMessage = rotationError.underlying.localizedDescription
+                    verifiedKey.lastDiagnosticText = (rotationError.underlying as? QuotaError)?.localizedTextDescriptor
+                    verifiedKey.quotaLabel = rotationError.underlying.localizedDescription
+                    verifiedKey.quotaText = (rotationError.underlying as? QuotaError)?.localizedTextDescriptor
+                    verifiedKey.consecutiveFailureCount += 1
+
+                    if existingKey == nil {
+                        monitor.addKey(verifiedKey)
+                    } else {
+                        monitor.updateKey(verifiedKey)
+                    }
+
+                    onSaved?(verifiedKey)
+                    isSaving = false
+                    statusMessage = L10n.format(.reauthValidationFailed, rotationError.underlying.localizedDescription)
                     if dismissAfterSave {
                         dismiss()
                     }

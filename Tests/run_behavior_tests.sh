@@ -4347,6 +4347,12 @@ assert_match 'let onSaved: \(\(APIKey\) -> Void\)\?' \
 assert_match 'onSaved\?\(verifiedKey\)' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should report validated saved credentials back to the Add Credential flow"
+assert_match 'verifiedKey\.key = result\.refreshedCredential \?\? candidateKey\.key' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard validation success should persist an AnySearch token rotation"
+assert_match 'catch let rotationError as AnySearchCredentialRotationError' \
+  "QuotaRadar/Views/DashboardReauthView.swift" \
+  "Dashboard validation should preserve a successful token rotation when the following usage request fails"
 assert_match 'onSaved\?\(candidateKey\)' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should report directly saved dashboard credentials back to the Add Credential flow"
