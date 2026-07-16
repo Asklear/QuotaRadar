@@ -493,12 +493,25 @@ class QuotaMonitor: ObservableObject {
     }
 
     nonisolated static func applyingTransientFailure(_ error: Error, to key: APIKey) -> APIKey {
+        let context = refreshFailureContext(error)
         var failed = key
-        failed.lastHTTPStatus = (error as? QuotaError)?.httpStatus
-        failed.lastDiagnosticMessage = error.localizedDescription
-        failed.lastDiagnosticText = (error as? QuotaError)?.localizedTextDescriptor
+        if let refreshedCredential = context.refreshedCredential {
+            failed.key = refreshedCredential
+        }
+        failed.lastHTTPStatus = (context.error as? QuotaError)?.httpStatus
+        failed.lastDiagnosticMessage = context.error.localizedDescription
+        failed.lastDiagnosticText = (context.error as? QuotaError)?.localizedTextDescriptor
         failed.consecutiveFailureCount += 1
         return failed
+    }
+
+    nonisolated static func refreshFailureContext(
+        _ error: Error
+    ) -> (error: Error, refreshedCredential: String?) {
+        guard let rotationError = error as? AnySearchCredentialRotationError else {
+            return (error, nil)
+        }
+        return (rotationError.underlying, rotationError.refreshedCredential)
     }
 
     private func refresh(targetProviders: Set<Provider>?, mode: RefreshMode) {
@@ -568,15 +581,20 @@ class QuotaMonitor: ObservableObject {
                         DeferredRefreshResult(key: key, outcome: .success, countsAsFailure: false)
                     )
                 } catch {
-                    print("Failed to check quota for \(key.name): \(error)")
+                    let failure = Self.refreshFailureContext(error)
+                    let effectiveError = failure.error
+                    if let refreshedCredential = failure.refreshedCredential {
+                        key.key = refreshedCredential
+                    }
+                    print("Failed to check quota for \(key.name): \(effectiveError)")
                     let outcome: QuotaSnapshotOutcome
                     let countsAsFailure: Bool
-                    if case QuotaError.cooldown = error {
+                    if case QuotaError.cooldown = effectiveError {
                         deferredResults.append(
                             DeferredRefreshResult(key: key, outcome: nil, countsAsFailure: false)
                         )
                         continue
-                    } else if case QuotaError.notSupported = error {
+                    } else if case QuotaError.notSupported = effectiveError {
                         key.remaining = nil
                         key.limit = nil
                         key.resetAt = nil
@@ -597,7 +615,7 @@ class QuotaMonitor: ObservableObject {
                         key.lastUpdated = Date()
                         outcome = .unsupported
                         countsAsFailure = false
-                    } else if case QuotaError.noSubscription = error {
+                    } else if case QuotaError.noSubscription = effectiveError {
                         key.remaining = nil
                         key.limit = nil
                         key.resetAt = nil
@@ -614,7 +632,7 @@ class QuotaMonitor: ObservableObject {
                         key.lastUpdated = Date()
                         outcome = .noSubscription
                         countsAsFailure = false
-                    } else if case QuotaError.unauthorized = error {
+                    } else if case QuotaError.unauthorized = effectiveError {
                         key.remaining = nil
                         key.limit = nil
                         key.resetAt = nil
@@ -622,15 +640,15 @@ class QuotaMonitor: ObservableObject {
                         key.planDisplayName = nil
                         key.codexResetCreditsRemaining = nil
                         key.codexResetCreditsEarliestExpiresAt = nil
-                        key.lastHTTPStatus = (error as? QuotaError)?.httpStatus ?? 401
+                        key.lastHTTPStatus = (effectiveError as? QuotaError)?.httpStatus ?? 401
                         if key.provider.supportsDashboardReauthentication {
                             key.quotaLabel = L10n.t(.credentialExpired)
                             key.quotaText = LocalizedTextDescriptor.localized(.credentialExpired)
                         } else {
-                            key.quotaLabel = error.localizedDescription
+                            key.quotaLabel = effectiveError.localizedDescription
                             key.quotaText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
                         }
-                        key.lastDiagnosticMessage = key.provider.supportsDashboardReauthentication ? L10n.t(.credentialExpired) : error.localizedDescription
+                        key.lastDiagnosticMessage = key.provider.supportsDashboardReauthentication ? L10n.t(.credentialExpired) : effectiveError.localizedDescription
                         key.lastDiagnosticText = key.provider.supportsDashboardReauthentication
                             ? LocalizedTextDescriptor.localized(.credentialExpired)
                             : LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
@@ -638,7 +656,7 @@ class QuotaMonitor: ObservableObject {
                         key.lastUpdated = Date()
                         outcome = .unauthorized
                         countsAsFailure = true
-                    } else if case QuotaError.invalidAPIKey = error {
+                    } else if case QuotaError.invalidAPIKey = effectiveError {
                         key.remaining = nil
                         key.limit = nil
                         key.resetAt = nil
@@ -646,10 +664,10 @@ class QuotaMonitor: ObservableObject {
                         key.planDisplayName = nil
                         key.codexResetCreditsRemaining = nil
                         key.codexResetCreditsEarliestExpiresAt = nil
-                        key.lastHTTPStatus = (error as? QuotaError)?.httpStatus
-                        key.quotaLabel = error.localizedDescription
+                        key.lastHTTPStatus = (effectiveError as? QuotaError)?.httpStatus
+                        key.quotaLabel = effectiveError.localizedDescription
                         key.quotaText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
-                        key.lastDiagnosticMessage = error.localizedDescription
+                        key.lastDiagnosticMessage = effectiveError.localizedDescription
                         key.lastDiagnosticText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
                         key.consecutiveFailureCount += 1
                         key.lastUpdated = Date()

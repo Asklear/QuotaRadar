@@ -67,7 +67,7 @@ The cumulative `quota_used` value returned by the keys endpoint must not be inte
 
 The console refresh contract was verified from the live frontend and a successful redacted browser request: `POST https://anysearch.com/api/ssuser/auth/refresh`, JSON body `{ "refresh_token": "..." }`, and response fields `access_token`, `refresh_token`, and `expires_in_seconds`. The refresh token rotates on success.
 
-When expiry is within 30 seconds, QuotaRadar refreshes before querying usage. A usage 401 triggers one refresh and one retry when a refresh token exists; no loop is allowed. `QuotaService` returns the rotated serialized credential with the quota result. `QuotaMonitor` persists it only through the existing optimistic refresh reconciliation, so a concurrent manual reauthentication wins and cannot be overwritten by an older refresh.
+When expiry is within 30 seconds, QuotaRadar refreshes before querying usage. A usage 401 triggers one refresh and one retry when a refresh token exists; a 403 is a permission failure and does not consume a refresh-token rotation. No loop is allowed. `QuotaService` returns the rotated serialized credential with either the quota result or a wrapped post-refresh usage error. `QuotaMonitor` persists it only through the existing optimistic refresh reconciliation, so rotation survives a later usage/network failure while concurrent manual reauthentication still wins over an older refresh.
 
 Failure behavior is remaining-data-safe:
 
@@ -95,6 +95,7 @@ Behavior and parser tests must cover:
 - mandatory `from` and `to` query parameters;
 - 200, 401, 403, server-error, and transport-error behavior;
 - pre-expiry refresh, refresh-token rotation, one bounded 401 retry, and refresh failure reauthentication behavior;
+- 403 without refresh, rotated-token persistence after a subsequent usage failure, and unreasonable expiry rejection before integer conversion;
 - optimistic persistence proving an older rotated token cannot overwrite concurrent reauthentication;
 - preservation and linking of existing `ANYSEARCH_API_KEY` records;
 - delete-authorization, clear-link, recapture, relink, and duplicate-free repeated migration/capture behavior;

@@ -214,7 +214,7 @@ git commit -m "feat: parse AnySearch daily usage"
 
 - [ ] **Step 1: Add failing integration/source contract tests**
 
-Assert that `checkAnySearchQuota` parses an `AnySearchDashboardCredential`, refreshes within 30 seconds of expiry through `POST /api/ssuser/auth/refresh`, sets `Authorization: Bearer ...`, calls `/api/api/user/usage/summary` with `from` and `to`, and retries usage only once after 401. It must never call `/user/keys` at runtime.
+Assert that `checkAnySearchQuota` parses an `AnySearchDashboardCredential`, refreshes within 30 seconds of expiry through `POST /api/ssuser/auth/refresh`, sets `Authorization: Bearer ...`, calls `/api/api/user/usage/summary` with `from` and `to`, and retries usage only once after 401. A 403 must not refresh. A successful rotation must be returned for optimistic persistence even if the following usage request fails. It must never call `/user/keys` at runtime.
 
 Replace legacy source assertions for `Int.max`, infinity, and `"Unlimited free usage"` with assertions for the verified endpoint and `parseAnySearchDailyUsage`.
 

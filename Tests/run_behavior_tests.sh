@@ -4383,7 +4383,7 @@ assert_match 'autoCookieSaveHint' \
 assert_match 'QuotaError\.unauthorized' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "Unauthorized quota refreshes should mark dashboard credentials as expired"
-assert_match 'key\.lastDiagnosticMessage = key\.provider\.supportsDashboardReauthentication \? L10n\.t\(\.credentialExpired\) : error\.localizedDescription' \
+assert_match 'key\.lastDiagnosticMessage = key\.provider\.supportsDashboardReauthentication \? L10n\.t\(\.credentialExpired\) : effectiveError\.localizedDescription' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "Dashboard-cookie providers should not describe expired cookies as invalid API keys"
 assert_no_match 'Cookies\.binarycookies|Login Data|Library/Application Support/Google/Chrome|SecKeychain' \
@@ -4555,6 +4555,9 @@ assert_match 'refresh_token' \
 assert_match 'refreshedCredential' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch quota results should return rotated credentials for optimistic persistence"
+assert_match 'case 403:' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "AnySearch usage 403 should stay a permission failure instead of consuming a refresh-token rotation"
 assert_match 'case \.anysearch:' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch must have explicit quota handling"
@@ -8367,9 +8370,16 @@ require(failedAnySearch.resetAt == successfulAnySearch.resetAt, "Transient failu
 require(failedAnySearch.lastUpdated == successfulAnySearch.lastUpdated, "Transient failures should preserve the last-success timestamp")
 require(failedAnySearch.quotaText == successfulAnySearch.quotaText, "Transient failures should preserve the structured daily usage descriptor")
 require(failedAnySearch.consecutiveFailureCount == successfulAnySearch.consecutiveFailureCount + 1, "Transient failures should increment the failure count")
-
 var rotatedAnySearch = successfulAnySearch
 rotatedAnySearch.key = #"{"accessToken":"rotated-access","refreshToken":"rotated-refresh","expiresAt":"1784197800000"}"#
+let rotatedFailure = AnySearchCredentialRotationError(
+    underlying: QuotaError.invalidResponse,
+    refreshedCredential: rotatedAnySearch.key
+)
+let preservedRotationAfterUsageFailure = QuotaMonitor.applyingTransientFailure(rotatedFailure, to: successfulAnySearch)
+require(preservedRotationAfterUsageFailure.key == rotatedAnySearch.key, "A successful token rotation must persist even when the following usage request fails")
+require(preservedRotationAfterUsageFailure.lastDiagnosticText?.key == .quotaErrorInvalidResponse, "Rotation wrapper should preserve the underlying usage failure diagnostic")
+
 let acceptedAnySearchRotation = QuotaMonitor.reconcileRefreshResults(
     startedWith: [successfulAnySearch],
     results: [.init(key: rotatedAnySearch, outcome: .success, countsAsFailure: false)],
@@ -8799,6 +8809,16 @@ require(anySearchRefreshResult.credential.accessToken == "rotated-access-redacte
 require(anySearchRefreshResult.credential.refreshToken == "rotated-refresh-redacted", "AnySearch refresh should parse refresh-token rotation")
 require(anySearchRefreshResult.credential.expiresAt?.timeIntervalSince1970 == 1784197800, "AnySearch refresh should convert expires_in_seconds to a millisecond expiry")
 require(anySearchRefreshResult.serializedCredential.contains("rotated-refresh-redacted"), "AnySearch refresh should serialize the rotated credential for persistence")
+do {
+    _ = try AnySearchDashboardCredential.refreshResult(
+        from: Data(#"{"code":0,"data":{"access_token":"access","refresh_token":"refresh","expires_in_seconds":9223372036854775807}}"#.utf8),
+        now: anySearchRefreshNow
+    )
+    fail("AnySearch refresh should reject an unreasonable expiry before Int64 conversion")
+} catch QuotaError.invalidResponse {
+} catch {
+    fail("AnySearch unreasonable expiry should throw invalidResponse, got \(error)")
+}
 try! QuotaParsers.validateLongCatUserCurrent(Data("""
 {"code":0,"data":{"userId":12345,"loginStatus":1,"name":"LongCat User"}}
 """.utf8))

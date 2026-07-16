@@ -3139,6 +3139,15 @@ enum QuotaError: Error, LocalizedError {
     }
 }
 
+struct AnySearchCredentialRotationError: Error, LocalizedError {
+    let underlying: Error
+    let refreshedCredential: String
+
+    var errorDescription: String? {
+        underlying.localizedDescription
+    }
+}
+
 private struct DashboardCredential {
     private let raw: String
     private let fields: [String: String]
@@ -3228,6 +3237,7 @@ private struct ChatGPTSessionContext {
 }
 
 struct AnySearchDashboardCredential {
+    private static let maxRefreshLifetimeSeconds = 7 * 24 * 60 * 60
     struct RefreshResult {
         let credential: AnySearchDashboardCredential
         let serializedCredential: String
@@ -3290,7 +3300,8 @@ struct AnySearchDashboardCredential {
               let tokens = envelope.tokens,
               !tokens.access_token.isEmpty,
               !tokens.refresh_token.isEmpty,
-              tokens.expires_in_seconds > 0 else {
+              tokens.expires_in_seconds > 0,
+              tokens.expires_in_seconds <= maxRefreshLifetimeSeconds else {
             throw QuotaError.invalidResponse
         }
 
@@ -3772,9 +3783,24 @@ actor QuotaService {
             return result
         } catch QuotaError.unauthorized where refreshedCredential == nil && credential.refreshToken != nil {
             let refresh = try await refreshAnySearchCredential(credential)
-            var result = try await requestAnySearchDailyUsage(refresh.credential)
-            result.refreshedCredential = refresh.serializedCredential
-            return result
+            do {
+                var result = try await requestAnySearchDailyUsage(refresh.credential)
+                result.refreshedCredential = refresh.serializedCredential
+                return result
+            } catch {
+                throw AnySearchCredentialRotationError(
+                    underlying: error,
+                    refreshedCredential: refresh.serializedCredential
+                )
+            }
+        } catch {
+            if let refreshedCredential {
+                throw AnySearchCredentialRotationError(
+                    underlying: error,
+                    refreshedCredential: refreshedCredential
+                )
+            }
+            throw error
         }
     }
 
@@ -3818,8 +3844,13 @@ actor QuotaService {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw QuotaError.invalidResponse
         }
-        if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+        switch httpResponse.statusCode {
+        case 401:
             throw QuotaError.unauthorized
+        case 403:
+            throw QuotaError.invalidAPIKey(statusCode: 403)
+        default:
+            break
         }
         guard httpResponse.statusCode == 200 else {
             throw QuotaError.invalidResponse
