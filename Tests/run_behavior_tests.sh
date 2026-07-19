@@ -8733,6 +8733,7 @@ require(brave429Unordered.resetAt == brave429Now.addingTimeInterval(1115690), "B
 let invalidBrave429Headers: [(String?, String?, String?)] = [
     (nil, "0, 0", "1;w=1, 2000;w=2678400"),
     ("1, nope", "0, 0", "1;w=1, 2000;w=2678400"),
+    ("1, bad, 2000", "0, bad, 0", "1;w=1, 2000;w=2678400"),
     ("1, 2000", "0, -1", "1;w=1, 2000;w=2678400"),
     ("1", "0, 0", "1;w=1, 2000;w=2678400"),
     ("1, 2000", "0, 0", "1;w=1, 1000;w=2678400"),
@@ -8759,7 +8760,7 @@ for (limitHeader, remainingHeader, policyHeader) in invalidBrave429Headers {
     }
 }
 
-let invalidBrave429ResetHeaders: [String?] = [nil, "1, nope", "1, -1", "1"]
+let invalidBrave429ResetHeaders: [String?] = [nil, "1, nope", "1, bad, 1115690", "1, -1", "1"]
 for resetHeader in invalidBrave429ResetHeaders {
     let result = try! QuotaParsers.parseBraveHTTPResponse(
         statusCode: 429,

@@ -238,9 +238,9 @@ enum QuotaParsers {
         }
 
         if statusCode == 429 {
-            let limits = parseCommaSeparatedInts(limitHeader)
-            let remaining = parseCommaSeparatedInts(remainingHeader)
-            guard let policies = parseStrictBravePolicyBuckets(policyHeader),
+            guard let limits = parseStrictCommaSeparatedInts(limitHeader),
+                  let remaining = parseStrictCommaSeparatedInts(remainingHeader),
+                  let policies = parseStrictBravePolicyBuckets(policyHeader),
                   !limits.isEmpty,
                   limits.count == remaining.count,
                   limits.count == policies.count,
@@ -259,11 +259,11 @@ enum QuotaParsers {
                 throw QuotaError.rateLimited(resetAt: nil)
             }
 
-            let resets = parseCommaSeparatedInts(resetHeader)
-            let hasAlignedResets = resets.count == limits.count
-                && !resets.contains(where: { $0 < 0 })
+            let resets = parseStrictCommaSeparatedInts(resetHeader)
+            let hasAlignedResets = resets?.count == limits.count
+                && resets?.contains(where: { $0 < 0 }) == false
             let resetAt: (Int) -> Date? = { index in
-                guard hasAlignedResets else { return nil }
+                guard hasAlignedResets, let resets else { return nil }
                 return now.addingTimeInterval(TimeInterval(resets[index]))
             }
 
@@ -1870,6 +1870,21 @@ enum QuotaParsers {
             .split(separator: ",")
             .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
         ?? []
+    }
+
+    private static func parseStrictCommaSeparatedInts(_ header: String?) -> [Int]? {
+        guard let header else { return nil }
+        let parts = header.split(separator: ",", omittingEmptySubsequences: false)
+        guard !parts.isEmpty else { return nil }
+
+        var values: [Int] = []
+        for part in parts {
+            guard let value = Int(part.trimmingCharacters(in: .whitespaces)) else {
+                return nil
+            }
+            values.append(value)
+        }
+        return values
     }
 
     private struct PercentQuotaWindow {
