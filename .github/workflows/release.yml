@@ -70,6 +70,8 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
+            - Updates Brave Search to persist `0 / limit` and the reset time when aligned HTTP 429 headers prove the longest request window is exhausted, while preserving short-window rate limits as transient errors.
+            - Strictly rejects malformed or misaligned Brave quota buckets instead of silently compressing them into false exhaustion evidence.
             - Replaces AnySearch's stale unlimited state with authenticated UTC-daily usage monitoring for the 1,000-request free plan while keeping the existing copyable API key.
             - Refreshes AnySearch's short-lived console authorization, persists rotating tokens across retry and failure paths, and preserves the last successful quota on transient errors.
             - Repairs Codex dashboard credential recapture after rejected or stale authorization and refreshes the saved plan and quota state.
@@ -80,6 +82,8 @@ jobs:
             - This release includes the standard Swift macOS DMG with update checks and a WhiteLabel DMG without upstream GitHub updater endpoints.
 
             中文说明：
+            - Brave Search 在严格对齐的 HTTP 429 响应证明最长额度周期耗尽时，会保存 `0 / 总额度` 和重置时间；短周期限流仍作为瞬时错误处理。
+            - 严格拒绝畸形或错位的 Brave 额度桶，避免静默压缩数组后误判为额度耗尽。
             - AnySearch 不再显示错误的无限额度，改为通过网页登录授权展示每日 UTC 1,000 次免费额度，同时保留原有可复制 API Key。
             - 自动续期 AnySearch 短期控制台授权，在重试和失败路径中保存轮换 token，并在瞬时错误时保留最近一次成功额度。
             - 修复 Codex 授权被拒绝或过期后的控制台凭据重新捕获，并刷新套餐和额度状态。

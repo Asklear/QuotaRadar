@@ -65,12 +65,24 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '<string>0\.4\.6</string>' \
+assert_match '<string>0\.4\.7</string>' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.4.6 should be recorded in Info.plist"
-assert_match '<string>20</string>' \
+  "Quota Radar 0.4.7 should be recorded in Info.plist"
+assert_match '<string>21</string>' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar Build 20 should be recorded in Info.plist"
+  "Quota Radar Build 21 should be recorded in Info.plist"
+assert_match 'Current version: `v0\.4\.7`\.' \
+  "README.md" \
+  "English README should show v0.4.7 as the current version"
+assert_match '当前版本：`v0\.4\.7`。' \
+  "README.zh-Hans.md" \
+  "Simplified Chinese README should show v0.4.7 as the current version"
+assert_match '^## v0\.4\.7 Brave HTTP 429 Quota Exhaustion$' \
+  "docs/roadmap.md" \
+  "English roadmap should document the v0.4.7 Brave quota fix"
+assert_match '^## v0\.4\.7 Brave HTTP 429 额度耗尽修复$' \
+  "docs/roadmap.zh-Hans.md" \
+  "Simplified Chinese roadmap should document the v0.4.7 Brave quota fix"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -655,9 +667,9 @@ if uploaded_paths != expected_paths:
 for readme_path in ("README.md", "README.zh-Hans.md"):
     readme = Path(readme_path).read_text()
     try:
-        command = readme.split("gh release create v0.4.6", 1)[1].split("```", 1)[0]
+        command = readme.split("gh release create v0.4.7", 1)[1].split("```", 1)[0]
     except IndexError:
-        sys.exit(f"FAIL: {readme_path} should document the v0.4.6 manual release command")
+        sys.exit(f"FAIL: {readme_path} should document the v0.4.7 manual release command")
     for artifact in expected_paths:
         if artifact not in command:
             sys.exit(f"FAIL: {readme_path} manual release command is missing {artifact}")

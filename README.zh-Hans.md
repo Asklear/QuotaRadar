@@ -12,7 +12,7 @@ Quota Radar 是一个 macOS 状态栏应用，用来监控搜索 API 余额和 L
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-当前版本：`v0.4.6`。
+当前版本：`v0.4.7`。
 
 ## 界面预览
 
@@ -119,9 +119,9 @@ open build/QuotaRadar.dmg
 手动发布到 GitHub Release：
 
 ```bash
-gh release create v0.4.6 build/QuotaRadar.dmg build/QuotaRadar-WhiteLabel.dmg \
-  --title "Quota Radar v0.4.6" \
-  --notes "分别修复 Codex、阿里云、火山引擎、OpenCode Go 和腾讯云的控制台凭据重新捕获、请求与响应处理。并发刷新改为按凭据协调，旧刷新结果不会覆盖刚保存的新认证状态。凭据值只保存在本机，也不会写入诊断。"
+gh release create v0.4.7 build/QuotaRadar.dmg build/QuotaRadar-WhiteLabel.dmg \
+  --title "Quota Radar v0.4.7" \
+  --notes "修复 Brave Search 最长额度周期耗尽后仍显示旧剩余额度的问题。仅当 HTTP 429 的额度桶严格对齐并证明最长周期耗尽时，更新为 0 / 总额度及重置时间；短期限流和畸形响应仍按瞬时错误处理。"
 ```
 
 未签名 DMG 不需要 Apple Developer Program，但 macOS Gatekeeper 可能拦截下载后的 app。只在信任源码和 release 的情况下安装。如果 macOS 提示 app 已损坏或无法打开：

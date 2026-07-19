@@ -12,7 +12,7 @@ Quota Radar is a macOS menu bar app for monitoring search API balances and LLM c
 ![Swift](https://img.shields.io/badge/swift-5.9-orange)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
-Current version: `v0.4.6`.
+Current version: `v0.4.7`.
 
 ## Screenshots
 
@@ -124,9 +124,9 @@ open build/QuotaRadar.dmg
 Manual GitHub Release upload:
 
 ```bash
-gh release create v0.4.6 build/QuotaRadar.dmg build/QuotaRadar-WhiteLabel.dmg \
-  --title "Quota Radar v0.4.6" \
-  --notes "Repairs dashboard credential recapture for Codex, Aliyun, Volcengine, OpenCode Go, and Tencent Cloud, with provider-specific request and response handling. Concurrent refreshes now reconcile per credential so stale results cannot overwrite newer authentication state. Credential values stay local and are never included in diagnostics."
+gh release create v0.4.7 build/QuotaRadar.dmg build/QuotaRadar-WhiteLabel.dmg \
+  --title "Quota Radar v0.4.7" \
+  --notes "Fixes Brave Search keys that kept showing stale remaining quota after their longest request window was exhausted. An aligned HTTP 429 response now records 0 / limit and its reset time, while short-window rate limits and malformed bucket headers remain transient."
 ```
 
 Unsigned DMGs do not require an Apple Developer Program account, but macOS Gatekeeper may block downloaded copies. Install only if you trust the source repository and release. If macOS says the app is damaged or cannot be opened:

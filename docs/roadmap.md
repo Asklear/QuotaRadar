@@ -17,6 +17,13 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - Secrets stay local. Source code, tests, README files, and GitHub Releases must never contain real API keys or cookies.
 - Every provider needs clear diagnostics: usable, quota unknown, credential expired, connection failed, unsupported API, or quota-consuming check.
 
+## v0.4.7 Brave HTTP 429 Quota Exhaustion
+
+- [x] Replace stale Brave remaining quota with `0 / limit` when aligned rate-limit headers prove the unique longest request window is exhausted.
+- [x] Preserve short-window HTTP 429 responses as transient rate limits so they do not overwrite the last successful long-window quota.
+- [x] Reject malformed, missing, negative, mismatched, or ambiguously tied quota buckets instead of inferring exhaustion from compressed header arrays.
+- [x] Persist the observed reset time and dedicated exhausted diagnostic while keeping existing 2xx, 401/403, 402, and 422 behavior unchanged.
+
 ## v0.4.6 Dashboard Reauthentication And Refresh Reconciliation
 
 - [x] Keep Codex dashboard credential recapture reliable after rejected or stale authorization, then refresh the saved subscription name and quota state.
