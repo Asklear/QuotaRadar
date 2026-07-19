@@ -38,6 +38,12 @@ assert_no_match '@StateObject private var monitor = QuotaMonitor\(' \
 assert_no_match 'for var key in apiKeys where key\.isActive' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "refreshAll must preserve inactive keys instead of filtering them out"
+assert_match 'nonisolated static func applyingSuccessfulQuotaResult' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "Successful quota persistence should expose a pure helper for exhausted Brave regression coverage"
+assert_match 'DeferredRefreshResult\(key: key, outcome: \.success, countsAsFailure: false\)' \
+  "QuotaRadar/Models/QuotaMonitor.swift" \
+  "Parsed Brave exhaustion should remain a successful observed quota sample"
 assert_no_match '\$\(' \
   "QuotaRadar/Info.plist" \
   "Info.plist in the source bundle must contain concrete app bundle values"
@@ -2277,7 +2283,7 @@ assert_match 'var planDisplayName: String\?' \
 assert_match 'var planDisplayName: String\?' \
   "QuotaRadar/Services/APIKeyStore.swift" \
   "APIKeyStore metadata should persist concrete plan/package display names"
-assert_match 'key\.planDisplayName = result\.planDisplayName' \
+assert_match '(key|updated)\.planDisplayName = result\.planDisplayName' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "QuotaMonitor should copy refreshed plan/package names onto API keys"
 assert_match 'verifiedKey\.planDisplayName = result\.planDisplayName' \
@@ -8361,6 +8367,41 @@ let directSuppressesDerived = QuotaMonitor.reconcileRefreshResults(
     current: [sourceOne, concurrentDirectAnthropic]
 )
 require(directSuppressesDerived.keys.map(\.id) == [sourceOneID, concurrentDirectAnthropic.id] && directSuppressesDerived.acceptedResults.isEmpty, "A concurrently added direct credential should suppress stale derived rows")
+let brave429PersistenceNow = Date(timeIntervalSince1970: 1784426400)
+let staleBrave = APIKey(
+    name: "BRAVE_API_KEY_3",
+    key: "brave-redacted",
+    provider: .brave,
+    remaining: 937,
+    limit: 2000,
+    resetAt: Date(timeIntervalSince1970: 1783000000),
+    lastUpdated: Date(timeIntervalSince1970: 1783000000),
+    lastHTTPStatus: 429,
+    lastDiagnosticMessage: "Rate limited",
+    consecutiveFailureCount: 2,
+    quotaText: .localized(.monthlyRequestsFormat, "937", "2000"),
+    quotaLabel: "937 / 2000 monthly requests"
+)
+let observedBraveExhaustion = try! QuotaParsers.parseBraveHTTPResponse(
+    statusCode: 429,
+    limitHeader: "1, 2000",
+    remainingHeader: "0, 0",
+    resetHeader: "1, 1115690",
+    policyHeader: "1;w=1, 2000;w=2678400",
+    knownRemaining: staleBrave.remaining,
+    knownLimit: staleBrave.limit,
+    now: brave429PersistenceNow
+)
+let persistedBraveExhaustion = QuotaMonitor.applyingSuccessfulQuotaResult(
+    observedBraveExhaustion,
+    to: staleBrave,
+    now: brave429PersistenceNow
+)
+require(persistedBraveExhaustion.remaining == 0 && persistedBraveExhaustion.limit == 2000, "Successful Brave HTTP 429 evidence should replace stale quota")
+require(persistedBraveExhaustion.lastHTTPStatus == 429, "Successful Brave HTTP 429 evidence should retain the provider status")
+require(persistedBraveExhaustion.consecutiveFailureCount == 0, "Observed Brave exhaustion should clear transient failure count")
+require(persistedBraveExhaustion.lastUpdated == brave429PersistenceNow, "Observed Brave exhaustion should advance the last-success timestamp")
+require(persistedBraveExhaustion.isExhausted, "Observed Brave exhaustion should produce exhausted health")
 let successfulAnySearch = APIKey(
     name: "ANYSEARCH_SESSION",
     key: "session-redacted",

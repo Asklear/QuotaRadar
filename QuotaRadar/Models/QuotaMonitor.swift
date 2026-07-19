@@ -899,23 +899,33 @@ class QuotaMonitor: ObservableObject {
     }
 
     private func applySuccessfulQuotaResult(_ result: QuotaResult, to key: inout APIKey, now: Date) {
+        key = Self.applyingSuccessfulQuotaResult(result, to: key, now: now)
+    }
+
+    nonisolated static func applyingSuccessfulQuotaResult(
+        _ result: QuotaResult,
+        to key: APIKey,
+        now: Date
+    ) -> APIKey {
+        var updated = key
         if let refreshedCredential = result.refreshedCredential {
-            key.key = refreshedCredential
+            updated.key = refreshedCredential
         }
-        key.remaining = result.remaining
-        key.limit = result.limit
-        key.resetAt = result.resetAt
-        key.planEndsAt = result.planEndsAt
-        key.planDisplayName = result.planDisplayName
-        key.codexResetCreditsRemaining = result.codexResetCreditsRemaining
-        key.codexResetCreditsEarliestExpiresAt = result.codexResetCreditsEarliestExpiresAt
-        key.quotaLabel = result.quotaLabel
-        key.quotaText = result.quotaText
-        key.lastHTTPStatus = result.httpStatus
-        key.lastDiagnosticMessage = result.diagnosticMessage
-        key.lastDiagnosticText = result.diagnosticText
-        key.consecutiveFailureCount = 0
-        key.lastUpdated = now
+        updated.remaining = result.remaining
+        updated.limit = result.limit
+        updated.resetAt = result.resetAt
+        updated.planEndsAt = result.planEndsAt
+        updated.planDisplayName = result.planDisplayName
+        updated.codexResetCreditsRemaining = result.codexResetCreditsRemaining
+        updated.codexResetCreditsEarliestExpiresAt = result.codexResetCreditsEarliestExpiresAt
+        updated.quotaLabel = result.quotaLabel
+        updated.quotaText = result.quotaText
+        updated.lastHTTPStatus = result.httpStatus
+        updated.lastDiagnosticMessage = result.diagnosticMessage
+        updated.lastDiagnosticText = result.diagnosticText
+        updated.consecutiveFailureCount = 0
+        updated.lastUpdated = now
+        return updated
     }
 
     private func recordQuotaSnapshot(for key: APIKey, outcome: QuotaSnapshotOutcome) {
