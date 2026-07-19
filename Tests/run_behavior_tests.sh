@@ -8641,6 +8641,135 @@ require(braveKnownManualQuota.remaining == 999, "Known Brave monthly quotas shou
 require(braveKnownManualQuota.limit == 1000, "Known Brave monthly quota limit should be preserved when Brave hides the monthly header")
 require(braveKnownManualQuota.quotaLabel == "999 / 1000 monthly requests", "Known Brave monthly quotas should display the known manual limit")
 require(braveKnownManualQuota.quotaText?.key == .monthlyRequestsFormat, "Known Brave monthly quota should carry a structured request quota descriptor")
+let brave429Now = Date(timeIntervalSince1970: 1784426400)
+let brave429Exhausted = try! QuotaParsers.parseBraveHTTPResponse(
+    statusCode: 429,
+    limitHeader: "1, 2000",
+    remainingHeader: "0, 0",
+    resetHeader: "1, 1115690",
+    policyHeader: "1;w=1, 2000;w=2678400",
+    knownRemaining: 937,
+    knownLimit: 2000,
+    now: brave429Now
+)
+require(brave429Exhausted.remaining == 0 && brave429Exhausted.limit == 2000, "Brave long-window HTTP 429 should replace stale quota with observed exhaustion")
+require(brave429Exhausted.resetAt == brave429Now.addingTimeInterval(1115690), "Brave long-window HTTP 429 should use the aligned reset relative to response time")
+require(brave429Exhausted.httpStatus == 429, "Brave exhausted quota evidence should retain HTTP 429")
+require(brave429Exhausted.quotaText == .localized(.monthlyRequestsFormat, "0", "2000"), "Brave exhausted quota evidence should retain a structured monthly descriptor")
+require(brave429Exhausted.diagnosticText?.key == .braveQuotaExhaustedDiagnostic, "Brave exhausted quota evidence should use a dedicated diagnostic")
+
+do {
+    _ = try QuotaParsers.parseBraveHTTPResponse(
+        statusCode: 429,
+        limitHeader: "1, 2000",
+        remainingHeader: "0, 1500",
+        resetHeader: "1, 1115690",
+        policyHeader: "1;w=1, 2000;w=2678400",
+        knownRemaining: 1500,
+        knownLimit: 2000,
+        now: brave429Now
+    )
+    fail("Brave short-window HTTP 429 should remain a transient rate limit")
+} catch QuotaError.rateLimited(let resetAt) {
+    require(resetAt == brave429Now.addingTimeInterval(1), "Brave transient HTTP 429 should use the exhausted short-window reset")
+} catch {
+    fail("Brave short-window HTTP 429 should throw rateLimited, got \(error)")
+}
+
+let brave429Unordered = try! QuotaParsers.parseBraveHTTPResponse(
+    statusCode: 429,
+    limitHeader: "2000, 1",
+    remainingHeader: "0, 0",
+    resetHeader: "1115690, 1",
+    policyHeader: "2000;w=2678400, 1;w=1",
+    knownRemaining: 937,
+    knownLimit: 2000,
+    now: brave429Now
+)
+require(brave429Unordered.limit == 2000, "Brave HTTP 429 should select the unique longest aligned policy window rather than the last bucket")
+require(brave429Unordered.resetAt == brave429Now.addingTimeInterval(1115690), "Brave reordered aligned buckets should retain their matching reset")
+
+let invalidBrave429Headers: [(String?, String?, String?)] = [
+    (nil, "0, 0", "1;w=1, 2000;w=2678400"),
+    ("1, nope", "0, 0", "1;w=1, 2000;w=2678400"),
+    ("1, 2000", "0, -1", "1;w=1, 2000;w=2678400"),
+    ("1", "0, 0", "1;w=1, 2000;w=2678400"),
+    ("1, 2000", "0, 0", "1;w=1, 1000;w=2678400"),
+    ("1, 2000", "0, 0", "2000;w=1, 1;w=2678400"),
+    ("1, 2000", "0, 0", "1;w=2678400, 2000;w=2678400"),
+]
+for (limitHeader, remainingHeader, policyHeader) in invalidBrave429Headers {
+    do {
+        _ = try QuotaParsers.parseBraveHTTPResponse(
+            statusCode: 429,
+            limitHeader: limitHeader,
+            remainingHeader: remainingHeader,
+            resetHeader: "1, 1115690",
+            policyHeader: policyHeader,
+            knownRemaining: 937,
+            knownLimit: 2000,
+            now: brave429Now
+        )
+        fail("Brave malformed or misaligned HTTP 429 headers should remain transient")
+    } catch QuotaError.rateLimited(let resetAt) {
+        require(resetAt == nil, "Brave malformed or misaligned HTTP 429 headers should not invent a reset")
+    } catch {
+        fail("Brave malformed HTTP 429 should throw rateLimited, got \(error)")
+    }
+}
+
+let invalidBrave429ResetHeaders: [String?] = [nil, "1, nope", "1, -1", "1"]
+for resetHeader in invalidBrave429ResetHeaders {
+    let result = try! QuotaParsers.parseBraveHTTPResponse(
+        statusCode: 429,
+        limitHeader: "1, 2000",
+        remainingHeader: "0, 0",
+        resetHeader: resetHeader,
+        policyHeader: "1;w=1, 2000;w=2678400",
+        knownRemaining: 937,
+        knownLimit: 2000,
+        now: brave429Now
+    )
+    require(result.remaining == 0 && result.limit == 2000, "Invalid Brave reset headers should not discard proven long-window exhaustion")
+    require(result.resetAt == nil, "Invalid Brave reset headers should not invent an exhaustion reset")
+}
+
+for unauthorizedStatus in [401, 403] {
+    do {
+        _ = try QuotaParsers.parseBraveHTTPResponse(
+            statusCode: unauthorizedStatus,
+            limitHeader: nil,
+            remainingHeader: nil,
+            resetHeader: nil,
+            policyHeader: nil,
+            knownRemaining: nil,
+            knownLimit: nil,
+            now: brave429Now
+        )
+        fail("Brave HTTP \(unauthorizedStatus) should remain unauthorized")
+    } catch QuotaError.unauthorized {
+    } catch {
+        fail("Brave HTTP \(unauthorizedStatus) should throw unauthorized, got \(error)")
+    }
+}
+
+let braveHTTP200 = try! QuotaParsers.parseBraveHTTPResponse(
+    statusCode: 200,
+    limitHeader: "1, 2000",
+    remainingHeader: "0, 1500",
+    resetHeader: "1, 1115690",
+    policyHeader: "1;w=1, 2000;w=2678400",
+    knownRemaining: nil,
+    knownLimit: nil,
+    now: brave429Now
+)
+require(braveHTTP200.remaining == 1500 && braveHTTP200.httpStatus == 200, "Brave HTTP 200 quota parsing should remain unchanged")
+require(braveHTTP200.diagnosticText?.key == .braveQuotaHeadersDiagnostic, "Brave HTTP 200 should retain its successful quota-header diagnostic")
+
+for language in [AppLanguage.english, .simplifiedChinese, .traditionalChinese, .japanese, .korean] {
+    let diagnostic = L10n.t(.braveQuotaExhaustedDiagnostic, language: language)
+    require(!diagnostic.isEmpty && diagnostic.localizedCaseInsensitiveContains("Brave"), "Brave exhausted quota diagnostic should be provider-specific in \(language.rawValue)")
+}
 let braveUsageLimitedResponse = try! QuotaParsers.parseBraveHTTPResponse(
     statusCode: 402,
     limitHeader: nil,

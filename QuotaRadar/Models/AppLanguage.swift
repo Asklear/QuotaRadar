@@ -666,6 +666,7 @@ enum L10n {
         case notAvailableShort
         case braveQuotaHeadersDiagnostic
         case braveUsageLimitDiagnostic
+        case braveQuotaExhaustedDiagnostic
         case queritAccountDiagnostic
         case exaBillingUsageDiagnostic
         case tokenQuotaFormat
@@ -1057,6 +1058,7 @@ enum L10n {
             .braveQuotaUnknownDiagnostic,
             .braveQuotaHeadersDiagnostic,
             .braveUsageLimitDiagnostic,
+            .braveQuotaExhaustedDiagnostic,
             .queritDashboardOnlyDiagnostic,
             .queritAccountDiagnostic,
             .exaServiceKeyDiagnostic,
@@ -1112,6 +1114,8 @@ enum L10n {
             return t(.braveQuotaHeadersDiagnostic, language: language)
         case "Brave returned HTTP 402 usage limit exceeded.":
             return t(.braveUsageLimitDiagnostic, language: language)
+        case "Brave long-window request quota exhausted.":
+            return t(.braveQuotaExhaustedDiagnostic, language: language)
         case "Querit account endpoint returned monthly request quota.",
              "Querit account endpoint returned monthly usage, but no plan quota limit.":
             return t(.queritAccountDiagnostic, language: language)
@@ -1626,6 +1630,7 @@ enum L10n {
         .notAvailableShort: "N/A",
         .braveQuotaHeadersDiagnostic: "Search works and Brave returned quota headers.",
         .braveUsageLimitDiagnostic: "Brave returned HTTP 402 usage limit exceeded.",
+        .braveQuotaExhaustedDiagnostic: "Brave monthly request quota is exhausted.",
         .queritAccountDiagnostic: "Querit account endpoint returned monthly usage, but no plan quota limit.",
         .exaBillingUsageDiagnostic: "Exa Team Management usage endpoint returned billing usage.",
         .quotaErrorInvalidResponse: "Invalid response from server",
@@ -1968,6 +1973,7 @@ enum L10n {
         .notAvailableShort: "未知",
         .braveQuotaHeadersDiagnostic: "搜索可用，Brave 返回了额度响应头。",
         .braveUsageLimitDiagnostic: "Brave 返回 HTTP 402，额度已用尽。",
+        .braveQuotaExhaustedDiagnostic: "Brave 月度请求额度已用尽。",
         .queritAccountDiagnostic: "Querit 账户接口返回了月度已用请求，但没有返回套餐上限。",
         .exaBillingUsageDiagnostic: "Exa Team Management 用量接口返回了账单用量。",
         .quotaErrorInvalidResponse: "服务器响应无效",
@@ -2209,6 +2215,7 @@ enum L10n {
         .tokenQuotaFormat: "%@ / %@ 個 token",
         .zeroRemainingBadge: "剩餘 0",
         .braveQuotaHeadersDiagnostic: "搜尋可用，Brave 返回了額度回應標頭。",
+        .braveQuotaExhaustedDiagnostic: "Brave 月度請求額度已用盡。",
         .capturedLoginFields: "已擷取：%@",
         .longCatLoginState: "LongCat 登入狀態",
         .longCatLoginAuthorization: "LongCat 登入授權",
@@ -2541,6 +2548,7 @@ enum L10n {
         .notAvailableShort: "不明",
         .braveQuotaHeadersDiagnostic: "検索は利用でき、Brave からクォータヘッダーが返されました。",
         .braveUsageLimitDiagnostic: "Brave が HTTP 402 使用上限超過を返しました。",
+        .braveQuotaExhaustedDiagnostic: "Brave の月間リクエストクォータを使い切りました。",
         .queritAccountDiagnostic: "Querit アカウントエンドポイントから月間使用量は返されましたが、プラン上限は返されませんでした。",
         .exaBillingUsageDiagnostic: "Exa Team Management 使用量エンドポイントから請求使用量が返されました。",
         .quotaErrorInvalidResponse: "サーバー応答が無効です",
@@ -2882,6 +2890,7 @@ enum L10n {
         .notAvailableShort: "알 수 없음",
         .braveQuotaHeadersDiagnostic: "검색이 가능하며 Brave가 할당량 헤더를 반환했습니다.",
         .braveUsageLimitDiagnostic: "Brave가 HTTP 402 사용 한도 초과를 반환했습니다.",
+        .braveQuotaExhaustedDiagnostic: "Brave 월간 요청 할당량을 모두 사용했습니다.",
         .queritAccountDiagnostic: "Querit 계정 엔드포인트가 월간 사용량은 반환했지만 플랜 한도는 반환하지 않았습니다.",
         .exaBillingUsageDiagnostic: "Exa Team Management 사용량 엔드포인트가 청구 사용량을 반환했습니다.",
         .quotaErrorInvalidResponse: "서버 응답이 올바르지 않습니다",

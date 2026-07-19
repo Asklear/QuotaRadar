@@ -123,6 +123,11 @@ struct ClaudeOrganizationContext {
 }
 
 enum QuotaParsers {
+    private struct BravePolicyBucket {
+        let quota: Int
+        let window: Int
+    }
+
     static func parseTavilyUsage(_ data: Data) throws -> QuotaResult {
         struct UsageResponse: Decodable {
             struct KeyUsage: Decodable {
@@ -221,7 +226,8 @@ enum QuotaParsers {
         resetHeader: String?,
         policyHeader: String?,
         knownRemaining: Int?,
-        knownLimit: Int?
+        knownLimit: Int?,
+        now: Date = Date()
     ) throws -> QuotaResult {
         if statusCode == 401 || statusCode == 403 {
             throw QuotaError.unauthorized
@@ -232,10 +238,54 @@ enum QuotaParsers {
         }
 
         if statusCode == 429 {
-            let resetAt = parseCommaSeparatedInts(resetHeader).last.map {
-                Date(timeIntervalSinceNow: TimeInterval(max(0, $0)))
+            let limits = parseCommaSeparatedInts(limitHeader)
+            let remaining = parseCommaSeparatedInts(remainingHeader)
+            guard let policies = parseStrictBravePolicyBuckets(policyHeader),
+                  !limits.isEmpty,
+                  limits.count == remaining.count,
+                  limits.count == policies.count,
+                  !limits.contains(where: { $0 < 0 }),
+                  !remaining.contains(where: { $0 < 0 }),
+                  zip(limits, policies).allSatisfy({ $0 == $1.quota }),
+                  let longestWindow = policies.map(\.window).max()
+            else {
+                throw QuotaError.rateLimited(resetAt: nil)
             }
-            throw QuotaError.rateLimited(resetAt: resetAt)
+
+            let longestIndices = policies.indices.filter {
+                policies[$0].window == longestWindow
+            }
+            guard longestIndices.count == 1, let longestIndex = longestIndices.first else {
+                throw QuotaError.rateLimited(resetAt: nil)
+            }
+
+            let resets = parseCommaSeparatedInts(resetHeader)
+            let hasAlignedResets = resets.count == limits.count
+                && !resets.contains(where: { $0 < 0 })
+            let resetAt: (Int) -> Date? = { index in
+                guard hasAlignedResets else { return nil }
+                return now.addingTimeInterval(TimeInterval(resets[index]))
+            }
+
+            if remaining[longestIndex] == 0 {
+                let limit = limits[longestIndex]
+                return QuotaResult(
+                    remaining: 0,
+                    limit: limit,
+                    resetAt: resetAt(longestIndex),
+                    quotaLabel: "0 / \(limit) monthly requests",
+                    quotaText: LocalizedTextDescriptor.localized(.monthlyRequestsFormat, "0", "\(limit)"),
+                    httpStatus: statusCode,
+                    diagnosticMessage: "Brave long-window request quota exhausted.",
+                    diagnosticText: LocalizedTextDescriptor.localized(.braveQuotaExhaustedDiagnostic)
+                )
+            }
+
+            let transientReset = remaining.indices
+                .filter { $0 != longestIndex && remaining[$0] == 0 }
+                .compactMap(resetAt)
+                .min()
+            throw QuotaError.rateLimited(resetAt: transientReset)
         }
 
         if statusCode == 402 {
@@ -2982,6 +3032,31 @@ enum QuotaParsers {
                     .flatMap { Int($0.trimmingCharacters(in: .whitespaces).dropFirst(2)) }
             }
         ?? []
+    }
+
+    private static func parseStrictBravePolicyBuckets(_ header: String?) -> [BravePolicyBucket]? {
+        guard let header else { return nil }
+        let parts = header.split(separator: ",", omittingEmptySubsequences: false)
+        guard !parts.isEmpty else { return nil }
+
+        var buckets: [BravePolicyBucket] = []
+        for part in parts {
+            let fields = part.split(separator: ";", omittingEmptySubsequences: false)
+            guard fields.count == 2,
+                  let quota = Int(fields[0].trimmingCharacters(in: .whitespaces)),
+                  quota > 0 else {
+                return nil
+            }
+
+            let windowField = fields[1].trimmingCharacters(in: .whitespaces)
+            guard windowField.hasPrefix("w="),
+                  let window = Int(windowField.dropFirst(2)),
+                  window > 0 else {
+                return nil
+            }
+            buckets.append(BravePolicyBucket(quota: quota, window: window))
+        }
+        return buckets
     }
 
     private static func nextMonthStartUTC() -> Date? {
