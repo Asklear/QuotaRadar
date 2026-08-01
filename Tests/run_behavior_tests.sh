@@ -119,6 +119,21 @@ assert_match 'QUOTARADAR_LIVE_ACCEPTANCE=1' \
 assert_match '--live' \
   "scripts/live_acceptance.sh" \
   "Live acceptance should require a visible --live flag before hitting provider endpoints"
+assert_match 'let remaining: Int\?' \
+  "scripts/live_acceptance_main.swift" \
+  "Sanitized live acceptance should report numeric remaining quota"
+assert_match 'let availability: String\?' \
+  "scripts/live_acceptance_main.swift" \
+  "Sanitized live acceptance should report structured availability evidence"
+assert_match 'let resetAt: String\?' \
+  "scripts/live_acceptance_main.swift" \
+  "Sanitized live acceptance should report provider reset or renewal timestamps"
+assert_match 'let planEndsAt: String\?' \
+  "scripts/live_acceptance_main.swift" \
+  "Sanitized live acceptance should report package expiry timestamps"
+assert_match 'checkedAt: Self\.failureEvidenceUpdatedAt\(for: credential\)' \
+  "scripts/live_acceptance_main.swift" \
+  "Failed live checks should timestamp preserved quota with its last successful update"
 assert_match 'live-acceptance-src' \
   "scripts/live_acceptance.sh" \
   "Live acceptance should compile from a temporary source tree so the app target does not need to become a library"
@@ -134,6 +149,9 @@ assert_match 'LiveAcceptanceRow' \
 assert_match 'Provider.visibleCases.filter \{ \$0.supportsDashboardReauthentication \}' \
   "scripts/live_acceptance_main.swift" \
   "Live acceptance should cover every visible dashboard-login provider"
+assert_match 'options\.hasProviderFilters \? Provider\.visibleCases : Provider\.visibleCases\.filter \{ \$0\.supportsDashboardReauthentication \}' \
+  "scripts/live_acceptance_main.swift" \
+  "An explicit provider filter should allow API-key providers such as SerpAPI"
 assert_match 'store.loadSecrets' \
   "scripts/live_acceptance_main.swift" \
   "Live acceptance should hydrate local secrets only inside the acceptance runner"
@@ -363,6 +381,9 @@ assert_match 'struct ProviderTrustCalibration' \
 assert_match 'var trustCalibration: ProviderTrustCalibration' \
   "QuotaRadar/Models/APIKey.swift" \
   "Each provider should expose trust calibration metadata from the same source as capability semantics"
+assert_match 'Authenticated dashboard billing overview contract' \
+  "QuotaRadar/Models/APIKey.swift" \
+  "AnySearch calibration should describe the current billing overview instead of the retired UTC-day summary"
 test -s "docs/provider-calibration.md" || fail "English provider calibration backlog should exist"
 test -s "docs/provider-calibration.zh-Hans.md" || fail "Chinese provider calibration backlog should exist"
 assert_match 'Observed Before Fixture' \
@@ -416,7 +437,7 @@ assert_match '2026-06-23 13:06 CST' \
 assert_match '2026-06-23 13:06 CST' \
   "docs/providers.zh-Hans.md" \
   "Chinese provider docs should record the latest redacted live acceptance timestamp"
-assert_match 'Live acceptance snapshot: 2026-06-23 13:06 CST' \
+assert_match 'Live acceptance snapshot: 2026-08-01 CST' \
   "docs/provider-calibration.md" \
   "Provider calibration backlog should retain the latest sanitized live acceptance snapshot summary"
 assert_match 'Aliyun Coding Plan.*Missing saved account' \
@@ -467,7 +488,7 @@ assert_match 'Claude web usage/prepaid credits.*浏览器实测 2026-06-23' \
 assert_match 'prepaid/credits' \
   "docs/provider-calibration.zh-Hans.md" \
   "Chinese Claude prepaid calibration should record the observed web endpoint without account identifiers"
-assert_match 'live acceptance 快照：2026-06-23 13:06 CST' \
+assert_match 'live acceptance 快照：2026-08-01 CST' \
   "docs/provider-calibration.zh-Hans.md" \
   "Chinese provider calibration backlog should retain the latest sanitized live acceptance snapshot summary"
 assert_match 'Aliyun Coding Plan.*缺少已保存账号' \
@@ -9189,6 +9210,16 @@ require(anySearchRefreshResult.credential.accessToken == "rotated-access-redacte
 require(anySearchRefreshResult.credential.refreshToken == "rotated-refresh-redacted", "AnySearch refresh should parse refresh-token rotation")
 require(anySearchRefreshResult.credential.expiresAt?.timeIntervalSince1970 == 1784197800, "AnySearch refresh should convert expires_in_seconds to a millisecond expiry")
 require(anySearchRefreshResult.serializedCredential.contains("rotated-refresh-redacted"), "AnySearch refresh should serialize the rotated credential for persistence")
+do {
+    _ = try AnySearchDashboardCredential.refreshResult(
+        from: Data(#"{"code":40114,"message":"refresh token revoked","data":{"request_id":"request-redacted"}}"#.utf8),
+        now: anySearchRefreshNow
+    )
+    fail("AnySearch revoked refresh tokens should require dashboard reauthentication")
+} catch QuotaError.unauthorized {
+} catch {
+    fail("AnySearch revoked refresh tokens should throw unauthorized, got \(error)")
+}
 do {
     _ = try AnySearchDashboardCredential.refreshResult(
         from: Data(#"{"code":0,"data":{"access_token":"access","refresh_token":"refresh","expires_in_seconds":9223372036854775807}}"#.utf8),

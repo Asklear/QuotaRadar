@@ -1133,8 +1133,8 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
             )
         case .anysearch:
             return .verified(
-                lastVerifiedAt: "2026-07-16 17:31 CST",
-                evidence: "Authenticated dashboard UTC-day usage summary",
+                lastVerifiedAt: "2026-08-01 CST",
+                evidence: "Authenticated dashboard billing overview contract",
                 fallbackBehavior: "Require fresh dashboard authorization when the saved access token expires."
             )
         case .anthropic, .claudeAPIUsage, .codexAPIUsage:

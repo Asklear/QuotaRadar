@@ -3436,15 +3436,12 @@ struct AnySearchDashboardCredential {
             let expires_in_seconds: Int
         }
 
-        struct Envelope: Decodable {
-            let code: Int?
-            let data: Tokens?
+        struct TokenPayload: Decodable {
             let access_token: String?
             let refresh_token: String?
             let expires_in_seconds: Int?
 
             var tokens: Tokens? {
-                if let data { return data }
                 guard let access_token, let refresh_token, let expires_in_seconds else { return nil }
                 return Tokens(
                     access_token: access_token,
@@ -3454,8 +3451,31 @@ struct AnySearchDashboardCredential {
             }
         }
 
-        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data),
-              envelope.code == nil || envelope.code == 0,
+        struct Envelope: Decodable {
+            let code: Int?
+            let data: TokenPayload?
+            let access_token: String?
+            let refresh_token: String?
+            let expires_in_seconds: Int?
+
+            var tokens: Tokens? {
+                if let tokens = data?.tokens { return tokens }
+                guard let access_token, let refresh_token, let expires_in_seconds else { return nil }
+                return Tokens(
+                    access_token: access_token,
+                    refresh_token: refresh_token,
+                    expires_in_seconds: expires_in_seconds
+                )
+            }
+        }
+
+        guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else {
+            throw QuotaError.invalidResponse
+        }
+        if envelope.code == 40114 {
+            throw QuotaError.unauthorized
+        }
+        guard envelope.code == nil || envelope.code == 0,
               let tokens = envelope.tokens,
               !tokens.access_token.isEmpty,
               !tokens.refresh_token.isEmpty,
@@ -3990,6 +4010,9 @@ actor QuotaService {
         do {
             return try AnySearchDashboardCredential.refreshResult(from: data, now: refreshStartedAt)
         } catch {
+            if let quotaError = error as? QuotaError, quotaError.isUnauthorized {
+                throw quotaError
+            }
             throw QuotaError.schemaDriftStatus(httpResponse.statusCode)
         }
     }

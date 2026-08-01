@@ -6,6 +6,12 @@ struct LiveAcceptanceRow: Encodable {
     let status: String
     let httpStatus: Int?
     let plan: String?
+    let remaining: Int?
+    let limit: Int?
+    let availability: String?
+    let resetAt: String?
+    let planEndsAt: String?
+    let checkedAt: String?
     let hasQuota: Bool
     let hasReset: Bool
     let hasPlanEnd: Bool
@@ -49,27 +55,29 @@ struct QuotaRadarLiveAcceptance {
     private static func printTable(_ rows: [LiveAcceptanceRow], live: Bool) {
         print(live ? "Quota Radar live acceptance matrix" : "Quota Radar live acceptance matrix (dry run)")
         print("No credential values, raw responses, or credential labels are printed.")
-        print("provider | account | status | http | plan | quota | reset | plan end | windows | reset credits | diagnostic | calibration | verified | evidence | fallback")
-        print("--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---")
+        print("provider | account | status | http | plan | remaining | limit | availability | reset at | plan ends at | checked at | quota | reset | plan end | windows | reset credits | diagnostic | calibration | verified | evidence | fallback")
+        print("--- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---")
 
         for row in rows {
-            let values = [
-                row.provider,
-                row.account,
-                row.status,
-                row.httpStatus.map(String.init) ?? "-",
-                row.plan ?? "-",
-                row.hasQuota ? "yes" : "no",
-                row.hasReset ? "yes" : "no",
-                row.hasPlanEnd ? "yes" : "no",
-                String(row.quotaWindowCount),
-                row.codexResetCredits.map(String.init) ?? "-",
-                row.diagnostic ?? "-",
-                row.calibrationStatus,
-                row.lastVerifiedAt ?? "-",
-                row.calibrationEvidence,
-                row.fallbackBehavior,
-            ]
+            var values: [String] = [row.provider, row.account, row.status]
+            values.append(row.httpStatus.map(String.init) ?? "-")
+            values.append(row.plan ?? "-")
+            values.append(row.remaining.map(String.init) ?? "-")
+            values.append(row.limit.map(String.init) ?? "-")
+            values.append(row.availability ?? "-")
+            values.append(row.resetAt ?? "-")
+            values.append(row.planEndsAt ?? "-")
+            values.append(row.checkedAt ?? "-")
+            values.append(row.hasQuota ? "yes" : "no")
+            values.append(row.hasReset ? "yes" : "no")
+            values.append(row.hasPlanEnd ? "yes" : "no")
+            values.append(String(row.quotaWindowCount))
+            values.append(row.codexResetCredits.map(String.init) ?? "-")
+            values.append(row.diagnostic ?? "-")
+            values.append(row.calibrationStatus)
+            values.append(row.lastVerifiedAt ?? "-")
+            values.append(row.calibrationEvidence)
+            values.append(row.fallbackBehavior)
             print(values.map(sanitizeCell).joined(separator: " | "))
         }
     }
@@ -86,6 +94,10 @@ struct LiveAcceptanceOptions {
     var live = false
     var outputJSON = false
     var providerFilters: Set<String> = []
+
+    var hasProviderFilters: Bool {
+        !providerFilters.isEmpty
+    }
 
     static func parse(_ arguments: ArraySlice<String>) throws -> LiveAcceptanceOptions {
         var options = LiveAcceptanceOptions()
@@ -153,7 +165,8 @@ struct LiveAcceptanceRunner {
     func run() async throws -> [LiveAcceptanceRow] {
         let metadata = store.load()
         let hydratedCredentials = store.loadSecrets(for: metadata)
-        let providers = Provider.visibleCases.filter { $0.supportsDashboardReauthentication }
+        let candidates = options.hasProviderFilters ? Provider.visibleCases : Provider.visibleCases.filter { $0.supportsDashboardReauthentication }
+        let providers = candidates
             .filter(options.includes)
 
         var rows: [LiveAcceptanceRow] = []
@@ -196,6 +209,12 @@ struct LiveAcceptanceRunner {
             status: "missing",
             httpStatus: nil,
             plan: nil,
+            remaining: nil,
+            limit: nil,
+            availability: nil,
+            resetAt: nil,
+            planEndsAt: nil,
+            checkedAt: nil,
             hasQuota: false,
             hasReset: false,
             hasPlanEnd: false,
@@ -217,6 +236,12 @@ struct LiveAcceptanceRunner {
             status: "ready",
             httpStatus: credential.lastHTTPStatus,
             plan: credential.realPlanDisplayName,
+            remaining: credential.remaining,
+            limit: credential.limit,
+            availability: credential.quotaAvailability?.rawValue,
+            resetAt: Self.iso8601(credential.resetAt),
+            planEndsAt: Self.iso8601(credential.planEndsAt),
+            checkedAt: Self.iso8601(credential.lastUpdated),
             hasQuota: credential.remaining != nil || credential.quotaText != nil || credential.quotaLabel != nil,
             hasReset: credential.resetAt != nil || credential.quotaWindowDetails.contains { $0.resetAt != nil },
             hasPlanEnd: credential.planEndsAt != nil,
@@ -240,6 +265,12 @@ struct LiveAcceptanceRunner {
                 status: "passed",
                 httpStatus: result.httpStatus,
                 plan: APIKey.normalizedPlanDisplayName(result.planDisplayName) ?? credential.realPlanDisplayName,
+                remaining: result.remaining,
+                limit: result.limit,
+                availability: result.quotaAvailability.rawValue,
+                resetAt: Self.iso8601(result.resetAt),
+                planEndsAt: Self.iso8601(result.planEndsAt),
+                checkedAt: Self.iso8601(Date()),
                 hasQuota: result.limit > 0 && result.remaining >= 0 && result.remaining <= result.limit || result.quotaText != nil,
                 hasReset: result.resetAt != nil || result.quotaWindows.contains { $0.resetAt != nil },
                 hasPlanEnd: result.planEndsAt != nil,
@@ -259,6 +290,12 @@ struct LiveAcceptanceRunner {
                 status: "failed",
                 httpStatus: quotaError?.httpStatus,
                 plan: credential.realPlanDisplayName,
+                remaining: credential.remaining,
+                limit: credential.limit,
+                availability: credential.quotaAvailability?.rawValue,
+                resetAt: Self.iso8601(credential.resetAt),
+                planEndsAt: Self.iso8601(credential.planEndsAt),
+                checkedAt: Self.failureEvidenceUpdatedAt(for: credential),
                 hasQuota: false,
                 hasReset: false,
                 hasPlanEnd: false,
@@ -271,5 +308,14 @@ struct LiveAcceptanceRunner {
                 fallbackBehavior: calibration.fallbackBehavior
             )
         }
+    }
+
+    private static func iso8601(_ date: Date?) -> String? {
+        guard let date else { return nil }
+        return ISO8601DateFormatter().string(from: date)
+    }
+
+    private static func failureEvidenceUpdatedAt(for credential: APIKey) -> String? {
+        iso8601(credential.lastUpdated)
     }
 }
