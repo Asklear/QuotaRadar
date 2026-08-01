@@ -2710,10 +2710,12 @@ struct ProviderStats: Identifiable {
     var keyQuotaDisplayText: String {
         guard !activeCredentialKeys.isEmpty else { return L10n.t(.notAvailableShort) }
         if hasUnlimitedQuota { return L10n.t(.unlimited) }
+        if hasVerifiedExhaustedQuota { return L10n.t(.usageLimitExceeded) }
         if provider.usesMoneyBalance { return totalRemainingDisplayText }
         if provider.usesCreditBalance { return totalRemainingDisplayText }
         if usesPercentageQuota {
-            return tightestQuotaWindowDisplay ?? totalRemainingDisplayText
+            return keyQuotaTightestWindowDisplay
+                ?? formatProviderPercent(keyQuotaTotalRemainingPercent)
         }
         return tightestActiveUsableMonitoringKey?.remainingBadgeText
             ?? tightestActiveMonitoringKey?.quotaPresentation.primaryText
@@ -2984,7 +2986,10 @@ struct ProviderStats: Identifiable {
     }
 
     private var tightestActiveUsableMonitoringKey: APIKey? {
-        sortedMonitoringKeysByCurrentQuota.last { key in
+        if !activeAvailableMonitoringKeys.isEmpty {
+            return APIKey.sortedByCurrentQuota(activeAvailableMonitoringKeys).last
+        }
+        return sortedMonitoringKeysByCurrentQuota.last { key in
             key.isActive
                 && !key.key.isEmpty
                 && !key.isCredentialExpired
@@ -2992,6 +2997,54 @@ struct ProviderStats: Identifiable {
                 && !key.isExhausted
                 && key.status != .failed
         }
+    }
+
+    private var activeAvailableMonitoringKeys: [APIKey] {
+        activeCredentialKeys.filter { $0.quotaAvailability == .available }
+    }
+
+    private var hasVerifiedExhaustedQuota: Bool {
+        activeAvailableMonitoringKeys.isEmpty
+            && activeCredentialKeys.contains { $0.quotaAvailability == .exhausted }
+    }
+
+    private var keyQuotaFiniteKeys: [APIKey] {
+        let candidates = activeAvailableMonitoringKeys.isEmpty
+            ? activeCredentialKeys
+            : activeAvailableMonitoringKeys
+        return candidates.filter {
+            !$0.isUnlimitedQuota
+                && $0.remaining != Int.max
+                && $0.limit != Int.max
+        }
+    }
+
+    private var keyQuotaTotalRemainingPercent: Double {
+        let percentageKeys = keyQuotaFiniteKeys.filter { ($0.limit ?? 0) > 0 && $0.remaining != nil }
+        guard !percentageKeys.isEmpty else { return 0 }
+        let percentages = percentageKeys.map { key -> Double in
+            let remaining = Double(key.remaining ?? 0)
+            let limit = Double(key.limit ?? 1)
+            return max(0, min(100, remaining / limit * 100))
+        }
+        return percentages.reduce(0, +) / Double(percentages.count)
+    }
+
+    private var keyQuotaPercentageWindows: [(name: String, percent: Double)] {
+        keyQuotaFiniteKeys.flatMap { key -> [(name: String, percent: Double)] in
+            if key.quotaText?.kind == .quotaWindows {
+                return key.quotaText?.quotaWindows.compactMap { window in
+                    Self.parsePercentWindow(name: window.name, percentText: window.percentText)
+                } ?? []
+            }
+            return key.quotaLabel.map(Self.parsePercentWindows) ?? []
+        }
+    }
+
+    private var keyQuotaTightestWindowDisplay: String? {
+        keyQuotaPercentageWindows
+            .min { lhs, rhs in lhs.percent < rhs.percent }
+            .map { L10n.quotaWindowDisplay($0.name, formatProviderPercent($0.percent)) }
     }
 
     private var usableMonitoringCredentialCount: Int {

@@ -5440,6 +5440,58 @@ let mixedTavilyStat = ProviderStats(
     ]
 )
 require(mixedTavilyStat.keyQuotaDisplayText == "36%", "Tavily overview should not let a long-exhausted key hide the remaining quota on a usable key")
+let verifiedExhaustedStats: [ProviderStats] = [
+    ProviderStats(provider: .tavily, keys: [
+        APIKey(name: "TAVILY_EMPTY", key: "tvly", provider: .tavily, remaining: 0, limit: 1000, quotaAvailability: .exhausted)
+    ]),
+    ProviderStats(provider: .brave, keys: [
+        APIKey(name: "BRAVE_429", key: "brave", provider: .brave, remaining: 0, limit: 2000, quotaAvailability: .exhausted, lastHTTPStatus: 429, lastDiagnosticMessage: "HTTP 429", quotaText: .localized(.monthlyRequestsFormat, "0", "2000"), quotaLabel: "0 / 2000 monthly requests")
+    ]),
+    ProviderStats(provider: .anthropicCredits, keys: [
+        APIKey(name: "ANTHROPIC_EMPTY", key: "cookie", provider: .anthropicCredits, remaining: 0, limit: 0, quotaAvailability: .exhausted, quotaText: .localized(.creditsLeftFormat, "0"), quotaLabel: "No Anthropic credits available")
+    ]),
+    ProviderStats(provider: .deepseek, keys: [
+        APIKey(name: "DEEPSEEK_EMPTY", key: "deepseek", provider: .deepseek, remaining: 0, limit: 0, quotaAvailability: .exhausted, quotaText: .localized(.moneyAvailableFormat, "CNY", "0.00"), quotaLabel: "CNY 0.00 available")
+    ]),
+    ProviderStats(provider: .codexSubscription, keys: [
+        APIKey(name: "CODEX_EMPTY", key: "cookie", provider: .codexSubscription, remaining: 0, limit: 10000, quotaAvailability: .exhausted, quotaLabel: "5h 0% · week 0%")
+    ]),
+    ProviderStats(provider: .longcat, keys: [
+        APIKey(name: "LONGCAT_EMPTY", key: "cookie", provider: .longcat, remaining: 0, limit: 50000000, quotaAvailability: .exhausted, quotaText: .localized(.tokenQuotaFormat, "0", "50000000"), quotaLabel: "0 / 50000000 tokens")
+    ]),
+]
+for stats in verifiedExhaustedStats {
+    require(stats.keyQuotaDisplayText == L10n.t(.usageLimitExceeded), "\(stats.provider.rawValue) verified exhaustion should use shared Key Quota copy")
+}
+
+let unavailableDeepSeekStat = ProviderStats(provider: .deepseek, keys: [
+    APIKey(name: "DEEPSEEK_UNAVAILABLE", key: "deepseek", provider: .deepseek, remaining: 0, limit: 0, quotaAvailability: .unavailable, quotaLabel: "Unavailable")
+])
+require(unavailableDeepSeekStat.keyQuotaDisplayText != L10n.t(.usageLimitExceeded), "Explicitly unavailable quota must not be presented as exhausted")
+let unknownExaStat = ProviderStats(provider: .exa, keys: [
+    APIKey(name: "EXA_UNKNOWN", key: "exa", provider: .exa, remaining: Int.max, limit: Int.max, quotaAvailability: .unknown, quotaText: .localized(.usableUnknownQuota))
+])
+require(unknownExaStat.keyQuotaDisplayText != L10n.t(.usageLimitExceeded), "Unknown usage-only quota must not be presented as exhausted")
+let legacyZeroStat = ProviderStats(provider: .tavily, keys: [
+    APIKey(name: "LEGACY_ZERO", key: "tvly", provider: .tavily, remaining: 0, limit: 1000)
+])
+require(legacyZeroStat.keyQuotaDisplayText != L10n.t(.usageLimitExceeded), "Legacy zero without structured evidence must retain legacy presentation")
+
+let mixedStructuredTavily = ProviderStats(provider: .tavily, keys: [
+    APIKey(name: "TAVILY_EXHAUSTED", key: "empty", provider: .tavily, remaining: 0, limit: 1000, quotaAvailability: .exhausted),
+    APIKey(name: "TAVILY_AVAILABLE", key: "usable", provider: .tavily, remaining: 361, limit: 1000, quotaAvailability: .available),
+])
+require(mixedStructuredTavily.keyQuotaDisplayText == "36%", "An available credential should prevent an exhausted sibling from forcing shared exhaustion")
+
+let mixedStructuredPercentage = ProviderStats(provider: .codexSubscription, keys: [
+    APIKey(name: "CODEX_EXHAUSTED", key: "empty", provider: .codexSubscription, remaining: 0, limit: 10000, quotaAvailability: .exhausted, quotaLabel: "5h 0% · week 0%"),
+    APIKey(name: "CODEX_AVAILABLE", key: "usable", provider: .codexSubscription, remaining: 7000, limit: 10000, quotaAvailability: .available, quotaLabel: "5h 80% · week 70%"),
+])
+require(mixedStructuredPercentage.keyQuotaDisplayText == "week 70%", "Percentage Key Quota should derive only from available credentials when one remains usable")
+
+let braveDetailEvidence = verifiedExhaustedStats[1].keys[0]
+require(braveDetailEvidence.quotaDisplayText != L10n.t(.usageLimitExceeded), "Shared Key Quota copy must not overwrite credential-detail quota text")
+require(braveDetailEvidence.lastHTTPStatus == 429 && braveDetailEvidence.lastDiagnosticMessage == "HTTP 429", "Shared Key Quota copy must retain provider HTTP and diagnostics")
 let exhaustedTavilyWithReset = APIKey(
     name: "TAVILY_EMPTY",
     key: "tvly-empty",
