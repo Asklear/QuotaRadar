@@ -63,6 +63,14 @@ enum AnySearchRefreshRequest {
     static let url = URL(string: "https://www.anysearch.com/api/ssuser/auth/refresh")!
 }
 
+enum SerpAPIAccountRequest {
+    static func url(apiKey: String) -> URL {
+        var components = URLComponents(string: "https://serpapi.com/account.json")!
+        components.queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
+        return components.url!
+    }
+}
+
 struct SubscriptionLifecycleInfo {
     var planEndsAt: Date?
     var planDisplayName: String?
@@ -336,6 +344,9 @@ enum QuotaParsers {
             let plan_searches_left: Int?
             let extra_credits: Int?
             let total_searches_left: Int?
+            let plan_renewal_date: String?
+            let plan_name: String?
+            let status: String?
         }
 
         let account = try JSONDecoder().decode(AccountResponse.self, from: data)
@@ -343,14 +354,28 @@ enum QuotaParsers {
             ?? account.plan_searches_left
             ?? max(0, account.searches_per_month - account.this_month_usage)
         let limit = account.searches_per_month + (account.extra_credits ?? 0)
+        let safeRemaining = max(0, remaining)
+        let planDisplayName = APIKey.normalizedPlanDisplayName(account.plan_name)
+        let diagnosticMessage = account.status?.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return QuotaResult(
-            remaining: max(0, remaining),
+            remaining: safeRemaining,
             limit: max(limit, remaining),
-            resetAt: nextMonthStartUTC(),
-            quotaAvailability: availability(forValidatedRemaining: max(0, remaining)),
-            quotaLabel: "\(max(0, remaining)) searches left"
+            resetAt: account.plan_renewal_date.flatMap(parseSerpAPIRenewalDate),
+            quotaAvailability: availability(forValidatedRemaining: safeRemaining),
+            planDisplayName: planDisplayName,
+            quotaLabel: "\(safeRemaining) searches left",
+            diagnosticMessage: diagnosticMessage?.isEmpty == false ? diagnosticMessage : nil
         )
+    }
+
+    private static func parseSerpAPIRenewalDate(_ value: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: value)
     }
 
     static func parseSerperAccount(_ data: Data) throws -> QuotaResult {
@@ -3079,18 +3104,6 @@ enum QuotaParsers {
         return buckets
     }
 
-    private static func nextMonthStartUTC() -> Date? {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-
-        let startOfCurrentMonth = calendar.date(
-            from: calendar.dateComponents([.year, .month], from: Date())
-        )
-        return startOfCurrentMonth.flatMap {
-            calendar.date(byAdding: DateComponents(month: 1), to: $0)
-        }
-    }
-
     private static func nextMonthStartLocal() -> Date? {
         let calendar = Calendar.current
         let startOfCurrentMonth = calendar.date(
@@ -3774,7 +3787,7 @@ actor QuotaService {
     /// SerpAPI: 有专门的 account endpoint
     /// GET https://serpapi.com/account?api_key=xxx
     private func checkSerpApiQuota(key: APIKey) async throws -> QuotaResult {
-        let url = URL(string: "https://serpapi.com/account.json?api_key=\(key.key)")!
+        let url = SerpAPIAccountRequest.url(apiKey: key.key)
         let (data, response) = try await session.data(from: url)
 
         guard let httpResponse = response as? HTTPURLResponse,

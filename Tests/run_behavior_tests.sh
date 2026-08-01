@@ -4528,6 +4528,12 @@ assert_no_match 'No monthly quota (remaining|configured)' \
 assert_match 'https://google.serper.dev/account' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Serper quota must use the non-search account endpoint"
+assert_no_match 'nextMonthStartUTC\(' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "SerpAPI must not invent a first-of-next-month renewal"
+assert_match 'URLQueryItem\(name: "api_key", value: apiKey\)' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "SerpAPI account requests should encode API keys through URLQueryItem"
 assert_match 'parseSerperAccount' \
   "QuotaRadar/Services/QuotaService.swift" \
   "Serper account responses should be parsed as credit balance"
@@ -8983,16 +8989,25 @@ do {
     fail("Brave HTTP 422 invalid subscription tokens should throw QuotaError")
 }
 
-let serp = try! QuotaParsers.parseSerpApiAccount(Data("""
-{"searches_per_month":250,"plan_searches_left":0,"extra_credits":5,"total_searches_left":5,"this_month_usage":250}
-""".utf8))
-require(serp.remaining == 5, "SerpAPI should prefer total_searches_left")
-require(serp.limit == 255, "SerpAPI should include extra credits in the displayed limit")
-var utcCalendar = Calendar(identifier: .gregorian)
-utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
-let serpResetComponents = utcCalendar.dateComponents([.day, .hour, .minute, .second], from: serp.resetAt!)
-require(serpResetComponents.day == 1, "SerpAPI reset should be represented as the first day of next month in UTC")
-require(serpResetComponents.hour == 0 && serpResetComponents.minute == 0 && serpResetComponents.second == 0, "SerpAPI reset should be midnight UTC")
+let serp = try! QuotaParsers.parseSerpApiAccount(Data(#"{"plan_name":"Free Plan","searches_per_month":250,"this_month_usage":250,"plan_searches_left":0,"extra_credits":0,"total_searches_left":0,"plan_renewal_date":"2026-08-10","status":"Your account has run out of searches."}"#.utf8))
+require(serp.remaining == 0 && serp.limit == 250, "SerpAPI should preserve 250 / 250 exhaustion")
+require(serp.planDisplayName == "Free Plan", "SerpAPI should preserve official plan name")
+require(serp.quotaAvailability == .exhausted, "SerpAPI official zero remaining should be exhausted")
+require(serp.resetAt?.timeIntervalSince1970 == 1786320000, "SerpAPI renewal must be 2026-08-10 00:00:00 UTC")
+require(serp.diagnosticMessage == "Your account has run out of searches.", "SerpAPI status should remain diagnostic evidence")
+
+let serpWithExtraCredits = try! QuotaParsers.parseSerpApiAccount(Data(#"{"searches_per_month":250,"this_month_usage":250,"plan_searches_left":0,"extra_credits":5,"total_searches_left":5}"#.utf8))
+require(serpWithExtraCredits.remaining == 5, "SerpAPI should prefer total_searches_left")
+require(serpWithExtraCredits.limit == 255, "SerpAPI should include extra credits in the displayed limit")
+require(serpWithExtraCredits.resetAt == nil, "Missing SerpAPI renewal date must not invent a reset")
+let serpInvalidRenewal = try! QuotaParsers.parseSerpApiAccount(Data(#"{"searches_per_month":250,"this_month_usage":100,"plan_searches_left":150,"extra_credits":0,"plan_renewal_date":"not-a-date"}"#.utf8))
+require(serpInvalidRenewal.resetAt == nil, "Invalid SerpAPI renewal date must leave reset unknown")
+
+let serpReservedKey = "key+with&reserved=value"
+let serpRequestURL = SerpAPIAccountRequest.url(apiKey: serpReservedKey)
+let serpRequestComponents = URLComponents(url: serpRequestURL, resolvingAgainstBaseURL: false)!
+require(serpRequestComponents.queryItems?.first(where: { $0.name == "api_key" })?.value == serpReservedKey, "SerpAPI URLQueryItem should round-trip reserved key characters")
+require(serpRequestComponents.percentEncodedQuery?.contains("%26") == true && serpRequestComponents.percentEncodedQuery?.contains("%3D") == true, "SerpAPI request URL must encode reserved separators")
 
 let serper = try! QuotaParsers.parseSerperAccount(Data("""
 {"balance":24,"rateLimit":5}
