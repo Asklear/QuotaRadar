@@ -3943,24 +3943,15 @@ actor QuotaService {
         )
     }
 
-    /// AnySearch: authenticated console usage for the current UTC day.
+    /// AnySearch: authenticated console billing overview.
     private func checkAnySearchQuota(key: APIKey) async throws -> QuotaResult {
-        guard var credential = AnySearchDashboardCredential(key.key) else {
+        guard let credential = AnySearchDashboardCredential(key.key) else {
             throw QuotaError.unauthorized
         }
 
-        var refreshedCredential: String?
-        if credential.isExpired(at: Date().addingTimeInterval(30)) {
-            let refresh = try await refreshAnySearchCredential(credential)
-            credential = refresh.credential
-            refreshedCredential = refresh.serializedCredential
-        }
-
         do {
-            var result = try await requestAnySearchBillingOverview(credential)
-            result.refreshedCredential = refreshedCredential
-            return result
-        } catch let quotaError as QuotaError where quotaError.isUnauthorized && refreshedCredential == nil && credential.refreshToken != nil {
+            return try await requestAnySearchBillingOverview(credential)
+        } catch let quotaError as QuotaError where quotaError.isUnauthorized && credential.refreshToken != nil {
             let refresh = try await refreshAnySearchCredential(credential)
             do {
                 var result = try await requestAnySearchBillingOverview(refresh.credential)
@@ -3972,14 +3963,6 @@ actor QuotaService {
                     refreshedCredential: refresh.serializedCredential
                 )
             }
-        } catch {
-            if let refreshedCredential {
-                throw AnySearchCredentialRotationError(
-                    underlying: error,
-                    refreshedCredential: refreshedCredential
-                )
-            }
-            throw error
         }
     }
 

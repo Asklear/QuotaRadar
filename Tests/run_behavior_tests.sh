@@ -4597,6 +4597,9 @@ assert_match 'request\.setValue\("Bearer .*credential\.accessToken.*forHTTPHeade
 assert_match 'QuotaParsers\.parseAnySearchBillingOverview' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch refresh should parse the current billing overview response"
+assert_no_match 'if credential\.isExpired\(at: Date\(\)\.addingTimeInterval\(30\)\)' \
+  "QuotaRadar/Services/QuotaService.swift" \
+  "AnySearch should try the current access token before refreshing an advisory local expiry"
 assert_no_match 'AnySearchDailyUsageRequest|parseAnySearchDailyUsage|api/api/user/usage/summary' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch must not silently retain the retired daily usage-summary contract"

@@ -35,7 +35,7 @@
 | Serper | AI Search | API 密钥 | Account API | 未公开 | 否 | `GET /account` | 返回账户余额和 `rateLimit`；不暴露 reset/end 字段。 |
 | Exa | AI Search | API 密钥 | Admin API | 未公开 | 否 | Team Management usage API | 普通 search key 不能查询额度证据；Team Management 凭据只能读取账单用量证据。usage-only 原始字段只作为解析证据；主界面仍显示“可用 · 额度未知”，直到接口暴露剩余额度或套餐上限。 |
 | Bocha | AI Search | API 密钥 | 官方余额 API | 无固定周期 | 否 | Remaining fund API | 以人民币余额显示。 |
-| AnySearch | AI Search | 网页登录授权；配套 API Key 用于保存/复制 | 控制台 Billing Overview API | Provider `reset_period`；只使用返回的精确 reset | 否 | `GET https://www.anysearch.com/api/api/user/billing/overview`；`POST https://www.anysearch.com/api/ssuser/auth/refresh` | 在 `www` 控制台捕获 `search-template-auth-state`，解析官方 used/remaining/total、套餐和可选 `next_reset_at`；不再硬编码 1,000 或 UTC reset。refresh 业务码 `40114` 表示保存 token 已被撤销，需要重新进行控制台认证。 |
+| AnySearch | AI Search | 网页登录授权；配套 API Key 用于保存/复制 | 控制台 Billing Overview API | Provider `reset_period`；只使用返回的精确 reset | 否 | `GET https://www.anysearch.com/api/api/user/billing/overview`；`POST https://www.anysearch.com/api/ssuser/auth/refresh` | 在 `www` 控制台捕获 `search-template-auth-state`，解析官方 used/remaining/total、套餐和可选 `next_reset_at`；不再硬编码 1,000 或 UTC reset。`expiresAt` 只作提示：先尝试 access token，usage 实际返回 401 后才 refresh，因为 refresh token 被撤销（`40114`）时 access token 仍可能短暂可用。 |
 | Querit | AI Search | 网页登录授权；可选 API Key 仅用于保存/复制 | 控制台 Account API | 未公开 | 否 | `/api/v1/user/account` | 可读取月度请求使用证据；当前账号接口未暴露套餐上限、重置时间或结束日期。`QUERIT_API_KEY` 可保存和复制，但不能查 dashboard 额度。usage-only 原始字段只作为解析证据；主界面仍显示“可用 · 额度未知”，直到接口暴露剩余额度或套餐上限。 |
 | 微信搜索 | AI Search | API 密钥 | 官方余额 API | 无固定周期 | 否 | Remaining money API | 以人民币余额显示。 |
 

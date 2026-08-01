@@ -40,7 +40,7 @@ live acceptance 输出是脱敏矩阵。它会包含 provider 校准状态、最
 | OpenAI prepaid credits | 文档观察 2026-06-23；浏览器观察时 OpenAI Platform login missing。 | OpenAI API 文档公开的是 organization usage / cost reporting，例如 `GET/organization/costs`；未确认公开 prepaid credit balance API。不要在没有官方接口或登录态 Platform 余额字段前接入 OpenAI prepaid credits。 |
 | Claude Subscription OAuth usage/limits | 文档观察 2026-06-23。 | Anthropic Admin API 的 usage / cost reporting 属于组织管理员接口，需要 `org:admin`；它和个人 Claude Subscription 额度不是同一个口径。当前还没有观察到 Claude Code OAuth `usage/limits` 端点，所以 Claude Subscription 继续以 `claude.ai` organization usage 接口作为来源。 |
 | Claude web usage/prepaid credits | 浏览器实测 2026-06-23；Anthropic Credits live acceptance 于 2026-06-23 15:56 CST 通过。 | Kimi WebBridge live browser observation 观察到 `GET https://claude.ai/api/organizations/<org>/usage`、`GET https://claude.ai/api/organizations/<org>/prepaid/credits`、`GET https://claude.ai/api/organizations/<org>/overage_credit_grant`。usage 响应包含 `five_hour.utilization`、`seven_day.utilization`、`seven_day.resets_at`、`spend.used` 等字段；prepaid 响应包含 `amount`、`auto_reload_settings`、`last_paid_purchase_cents`、`pending_invoice_amount_cents` 等字段。Quota Radar 将 prepaid credits 作为独立 `Anthropic Credits` provider，使用 Claude 网页登录授权；本次脱敏复放通过已有 Claude Subscription 凭据返回 HTTP 200 并解析余额，直接 Anthropic Credits live acceptance 已确认有 quota 证据。 |
-| AnySearch billing overview | 2026-08-01 浏览器/frontend 和登录账号观察。 | `www.anysearch.com` 控制台保存 `search-template-auth-state`；refresh 为 `/api/ssuser/auth/refresh`，billing overview 为 `/api/api/user/billing/overview`，返回套餐、used、remaining、total、reset period 和可选精确 reset。后续保存会话复放在 HTTP 200 内返回业务码 `40114`（refresh token 已撤销）；这是认证过期，不是 schema drift。 |
+| AnySearch billing overview | 2026-08-01 浏览器/frontend 和登录账号观察。 | `www.anysearch.com` 控制台仍保存 `search-template-auth-state`；refresh 为 `/api/ssuser/auth/refresh`，billing overview 实际落到 `/api/api/user/billing/overview`，返回套餐、used、remaining、total、reset period 和可选精确 reset。内嵌控制台在显示已用 503、剩余 497 时，主动 refresh 仍返回 HTTP 200 内业务码 `40114`（refresh token 已撤销）。因此 Quota Radar 必须先尝试 access token，只有 usage 实际 401 后才 refresh。 |
 | SerpAPI account | 2026-08-01 登录态 `account.json` 证据。 | Free Plan 返回总额 250、已用 250、剩余 0、耗尽状态文案，以及官方 `plan_renewal_date = 2026-08-10`；不能用本地月初替代。 |
 | LongCat billing endpoints | 2026-08-01 登录态复放。 | 两个 dashboard billing endpoint 均返回 HTTP 200。Token Pack `expireTime` 是中国本地 `yyyy-MM-dd HH:mm:ss`；API 按量没有资源包到期。只靠业务 API key 仍不能查询。 |
 | Kimi WebBridge | 已连接，并完成 Claude 浏览器实测。 | Kimi WebBridge 可用于 Claude 校准；OpenAI prepaid credits 未完成实测，因为浏览器跳转到了 OpenAI Platform 登录页。 |
@@ -52,7 +52,7 @@ live acceptance 快照：2026-08-01 CST。
 | Provider | 结果 | 脱敏证据 |
 | --- | --- | --- |
 | Querit | 通过 | 仍是可用、额度未知状态；账号接口只观察到 usage-only evidence，未观察到 limit/reset 字段。 |
-| AnySearch | 需要重新认证 | 已保存 refresh token 被服务端明确撤销（HTTP 200 内业务码 `40114`）。Quota Radar 现在按认证过期提示，不再误报 schema drift；Chrome 控制台当前未登录，因此没有宣称新额度。 |
+| AnySearch | 已重新校准；修复版仍需在独立 WebView 登录后完成最终保存证明 | 内嵌控制台显示 Free Plan，已用 503、剩余 497 / 1,000。保存失败根因是应用仅依据本地到期时间提前 refresh，尚未尝试仍可用的 access token；修复后改为 access-token-first，仅在实际 401 后 refresh。 |
 | SerpAPI | 通过 | HTTP 200；Free Plan 剩余 0 / 250，官方续期日为 2026-08-10。 |
 | Claude Subscription | 通过 | 观察到套餐、两个额度窗口、reset 字段和套餐到期 metadata。 |
 | Anthropic Credits | 通过 | 已基于观察到的 `prepaid/credits` 形态接入 parser fixture 和 provider capability；通过保存的 Claude 网页登录授权脱敏复放返回 HTTP 200 并解析余额。直接 Anthropic Credits live acceptance 已通过，确认有 quota 证据且没有 reset / plan-end / window 字段。 |
