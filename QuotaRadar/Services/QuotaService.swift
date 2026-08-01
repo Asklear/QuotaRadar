@@ -131,6 +131,14 @@ enum QuotaParsers {
         let window: Int
     }
 
+    private static func availability(forValidatedRemaining remaining: Int) -> QuotaAvailabilityState {
+        remaining > 0 ? .available : .exhausted
+    }
+
+    private static func availability(forValidatedPercent percent: Double) -> QuotaAvailabilityState {
+        percent > 0 ? .available : .exhausted
+    }
+
     static func parseTavilyUsage(_ data: Data) throws -> QuotaResult {
         struct UsageResponse: Decodable {
             struct KeyUsage: Decodable {
@@ -155,6 +163,7 @@ enum QuotaParsers {
                 remaining: remaining,
                 limit: keyLimit,
                 resetAt: nextMonthStartLocal(),
+                quotaAvailability: availability(forValidatedRemaining: remaining),
                 quotaLabel: "\(remaining) / \(keyLimit) monthly credits"
             )
         }
@@ -168,6 +177,7 @@ enum QuotaParsers {
             remaining: remaining,
             limit: accountLimit,
             resetAt: nextMonthStartLocal(),
+            quotaAvailability: availability(forValidatedRemaining: remaining),
             quotaLabel: "\(remaining) / \(accountLimit) monthly credits"
         )
     }
@@ -209,6 +219,7 @@ enum QuotaParsers {
                 remaining: Int.max,
                 limit: Int.max,
                 resetAt: resetAt,
+                quotaAvailability: .unknown,
                 quotaLabel: "Search OK · monthly quota not exposed"
             )
         }
@@ -218,6 +229,7 @@ enum QuotaParsers {
             remaining: safeRemaining,
             limit: limit,
             resetAt: resetAt,
+            quotaAvailability: availability(forValidatedRemaining: safeRemaining),
             quotaLabel: label
         )
     }
@@ -276,6 +288,7 @@ enum QuotaParsers {
                     remaining: 0,
                     limit: limit,
                     resetAt: resetAt(longestIndex),
+                    quotaAvailability: .exhausted,
                     quotaLabel: "0 / \(limit) monthly requests",
                     quotaText: LocalizedTextDescriptor.localized(.monthlyRequestsFormat, "0", "\(limit)"),
                     httpStatus: statusCode,
@@ -296,6 +309,7 @@ enum QuotaParsers {
                 remaining: 0,
                 limit: max(knownLimit ?? 0, knownRemaining ?? 0),
                 resetAt: nil,
+                quotaAvailability: .exhausted,
                 quotaLabel: "Usage limit exceeded",
                 quotaText: LocalizedTextDescriptor.localized(.usageLimitExceeded),
                 httpStatus: statusCode,
@@ -355,6 +369,7 @@ enum QuotaParsers {
             remaining: refreshedRemaining,
             limit: knownLimit,
             resetAt: result.resetAt,
+            quotaAvailability: availability(forValidatedRemaining: refreshedRemaining),
             planEndsAt: result.planEndsAt,
             planDisplayName: result.planDisplayName,
             quotaLabel: "\(refreshedRemaining) / \(knownLimit) monthly requests"
@@ -380,6 +395,7 @@ enum QuotaParsers {
             remaining: max(0, remaining),
             limit: max(limit, remaining),
             resetAt: nextMonthStartUTC(),
+            quotaAvailability: availability(forValidatedRemaining: max(0, remaining)),
             quotaLabel: "\(max(0, remaining)) searches left"
         )
     }
@@ -400,6 +416,7 @@ enum QuotaParsers {
             remaining: remaining,
             limit: remaining,
             resetAt: nil,
+            quotaAvailability: availability(forValidatedRemaining: remaining),
             quotaLabel: label
         )
     }
@@ -423,6 +440,7 @@ enum QuotaParsers {
             remaining: Int.max,
             limit: Int.max,
             resetAt: nil,
+            quotaAvailability: .unknown,
             quotaLabel: "USD \(String(format: "%.2f", totalCost)) used"
         )
     }
@@ -443,6 +461,7 @@ enum QuotaParsers {
             remaining: credits,
             limit: credits,
             resetAt: nil,
+            quotaAvailability: availability(forValidatedRemaining: credits),
             quotaLabel: label
         )
     }
@@ -504,6 +523,7 @@ enum QuotaParsers {
                 remaining: Int.max,
                 limit: Int.max,
                 resetAt: nil,
+                quotaAvailability: .unknown,
                 quotaLabel: "\(used) monthly requests used",
                 quotaText: .localized(.monthlyRequestsUsedFormat, String(used)),
                 diagnosticMessage: "Querit account endpoint returned monthly usage, but no plan quota limit.",
@@ -518,6 +538,7 @@ enum QuotaParsers {
             remaining: remaining,
             limit: limit,
             resetAt: nil,
+            quotaAvailability: availability(forValidatedRemaining: remaining),
             quotaLabel: "\(remaining) / \(limit) monthly requests"
         )
     }
@@ -561,6 +582,7 @@ enum QuotaParsers {
             remaining: remaining,
             limit: limit,
             resetAt: resetAt,
+            quotaAvailability: availability(forValidatedRemaining: remaining),
             quotaLabel: label,
             quotaText: .localized(
                 .dailyRequestsUsageFormat,
@@ -584,7 +606,13 @@ enum QuotaParsers {
 
         let response = try JSONDecoder().decode(BalanceResponse.self, from: data)
         guard response.is_available, let balance = response.balance_infos.first else {
-            return QuotaResult(remaining: 0, limit: 0, resetAt: nil, quotaLabel: "Unavailable")
+            return QuotaResult(
+                remaining: 0,
+                limit: 0,
+                resetAt: nil,
+                quotaAvailability: .unavailable,
+                quotaLabel: "Unavailable"
+            )
         }
 
         guard let value = Decimal(string: balance.total_balance) else {
@@ -602,6 +630,7 @@ enum QuotaParsers {
             remaining: max(0, cents),
             limit: max(0, cents),
             resetAt: nil,
+            quotaAvailability: availability(forValidatedRemaining: max(0, cents)),
             quotaLabel: "\(balance.currency) \(labelValue) available"
         )
     }
@@ -646,6 +675,7 @@ enum QuotaParsers {
             remaining: max(0, cents),
             limit: max(0, cents),
             resetAt: nil,
+            quotaAvailability: availability(forValidatedRemaining: max(0, cents)),
             quotaLabel: "CNY \(labelValue) available"
         )
     }
@@ -681,6 +711,7 @@ enum QuotaParsers {
             remaining: max(0, cents),
             limit: max(0, cents),
             resetAt: nil,
+            quotaAvailability: availability(forValidatedRemaining: max(0, cents)),
             quotaLabel: "CNY \(labelValue) balance"
         )
     }
@@ -741,6 +772,7 @@ enum QuotaParsers {
             remaining: safeRemaining,
             limit: safeTotal,
             resetAt: nil,
+            quotaAvailability: availability(forValidatedRemaining: safeRemaining),
             planEndsAt: expiry,
             planDisplayName: longCatTokenPackDisplayName(from: currentLot),
             quotaLabel: "\(safeRemaining) / \(safeTotal) tokens"
@@ -777,6 +809,7 @@ enum QuotaParsers {
             remaining: max(0, cents),
             limit: max(0, cents),
             resetAt: nil,
+            quotaAvailability: availability(forValidatedRemaining: max(0, cents)),
             planEndsAt: nil,
             planDisplayName: "API Pay-as-you-go",
             quotaLabel: "\(currency) \(labelValue) balance"
@@ -842,6 +875,7 @@ enum QuotaParsers {
                 remaining: tokenPack.remaining,
                 limit: tokenPack.limit,
                 resetAt: nil,
+                quotaAvailability: tokenPack.quotaAvailability,
                 planEndsAt: tokenPack.planEndsAt,
                 planDisplayName: "LongCat",
                 quotaLabel: windows.map { L10n.quotaWindowDisplay($0.name, $0.percentText, language: .english) }.joined(separator: " · "),
@@ -854,6 +888,7 @@ enum QuotaParsers {
             remaining: payAsYouGoBalance,
             limit: 0,
             resetAt: nil,
+            quotaAvailability: payAsYouGo?.quotaAvailability ?? .unknown,
             planEndsAt: nil,
             planDisplayName: "LongCat",
             quotaLabel: payAsYouGo?.quotaLabel,
@@ -1481,6 +1516,7 @@ enum QuotaParsers {
             remaining: Int.max,
             limit: Int.max,
             resetAt: nil,
+            quotaAvailability: .unknown,
             planEndsAt: planEndsAt,
             planDisplayName: detectedPlanDisplayName,
             quotaLabel: "Usable · quota unknown",
@@ -1749,6 +1785,7 @@ enum QuotaParsers {
             remaining: Int.max,
             limit: Int.max,
             resetAt: nil,
+            quotaAvailability: .unknown,
             planEndsAt: aliyunTimestampDate(codingPlanInfo["endTime"]),
             planDisplayName: planDisplayName(from: codingPlanInfo),
             quotaLabel: "Usable · quota unknown",
@@ -1864,6 +1901,7 @@ enum QuotaParsers {
             remaining: remaining,
             limit: max(limit, remaining),
             resetAt: nil,
+            quotaAvailability: availability(forValidatedRemaining: remaining),
             quotaLabel: "\(remaining) / \(max(limit, remaining)) tokens"
         )
     }
@@ -1918,6 +1956,7 @@ enum QuotaParsers {
             remaining: max(0, min(10_000, basisPoints)),
             limit: 10_000,
             resetAt: resetAt,
+            quotaAvailability: availability(forValidatedPercent: remainingPercent),
             planEndsAt: planEndsAt,
             planDisplayName: planDisplayName,
             quotaLabel: label,

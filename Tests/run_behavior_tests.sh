@@ -8707,6 +8707,7 @@ let tavily = try! QuotaParsers.parseTavilyUsage(Data("""
 {"key":{"usage":150,"limit":1000},"account":{"plan_usage":500,"plan_limit":15000}}
 """.utf8))
 require(tavily.remaining == 850, "Tavily should use key limit when present")
+require(tavily.quotaAvailability == .available, "Positive Tavily quota should be available")
 require(tavily.limit == 1000, "Tavily key limit should be parsed")
 require(tavily.quotaLabel == "850 / 1000 monthly credits", "Tavily should label free quota as monthly credits")
 require(tavily.quotaText?.key == .monthlyCreditsFormat, "Tavily quota results should carry a structured localized text descriptor")
@@ -8722,6 +8723,7 @@ let tavilyAccount = try! QuotaParsers.parseTavilyUsage(Data("""
 {"key":{"usage":1000,"limit":null},"account":{"plan_usage":1000,"plan_limit":1000}}
 """.utf8))
 require(tavilyAccount.remaining == 0, "Tavily should fall back to account plan remaining")
+require(tavilyAccount.quotaAvailability == .exhausted, "Validated zero Tavily quota should be exhausted")
 require(tavilyAccount.limit == 1000, "Tavily account plan limit should be parsed")
 require(tavilyAccount.resetAt != nil, "Tavily account fallback should still expose the known monthly reset date")
 
@@ -8768,6 +8770,7 @@ let brave429Exhausted = try! QuotaParsers.parseBraveHTTPResponse(
 require(brave429Exhausted.remaining == 0 && brave429Exhausted.limit == 2000, "Brave long-window HTTP 429 should replace stale quota with observed exhaustion")
 require(brave429Exhausted.resetAt == brave429Now.addingTimeInterval(1115690), "Brave long-window HTTP 429 should use the aligned reset relative to response time")
 require(brave429Exhausted.httpStatus == 429, "Brave exhausted quota evidence should retain HTTP 429")
+require(brave429Exhausted.quotaAvailability == .exhausted, "Verified Brave long-window HTTP 429 should be exhausted")
 require(brave429Exhausted.quotaText == .localized(.monthlyRequestsFormat, "0", "2000"), "Brave exhausted quota evidence should retain a structured monthly descriptor")
 require(brave429Exhausted.diagnosticText?.key == .braveQuotaExhaustedDiagnostic, "Brave exhausted quota evidence should use a dedicated diagnostic")
 
@@ -8897,6 +8900,7 @@ require(braveUsageLimitedResponse.httpStatus == 402, "Brave HTTP 402 responses w
 require(braveUsageLimitedResponse.remaining == 0, "Brave HTTP 402 responses should update the key to an exhausted state")
 require(braveUsageLimitedResponse.limit == 1000, "Brave HTTP 402 responses should preserve the last known monthly quota limit")
 require(braveUsageLimitedResponse.quotaText?.key == .usageLimitExceeded, "Brave HTTP 402 responses should use a structured usage-limit descriptor")
+require(braveUsageLimitedResponse.quotaAvailability == .exhausted, "Brave HTTP 402 should be verified exhaustion")
 do {
     _ = try QuotaParsers.parseBraveHTTPResponse(
         statusCode: 422,
@@ -8942,12 +8946,14 @@ let exhaustedSerper = try! QuotaParsers.parseSerperAccount(Data("""
 require(exhaustedSerper.remaining == 0, "Serper negative balance should be displayed as exhausted")
 require(exhaustedSerper.limit == 0, "Serper exhausted balance should not look like an available limit")
 require(exhaustedSerper.quotaLabel == "No Serper credits available", "Serper negative balance should explain the exhausted state")
+require(exhaustedSerper.quotaAvailability == .exhausted, "Zero Serper prepaid credits should be exhausted")
 
 let exaUsage = try! QuotaParsers.parseExaUsage(Data("""
 {"api_key_id":"550e8400-e29b-41d4-a716-446655440000","api_key_name":"Production API Key","total_cost_usd":45.67,"cost_breakdown":[]}
 """.utf8))
 require(exaUsage.remaining == Int.max, "Exa usage is billing cost only and should not invent a remaining quota")
 require(exaUsage.limit == Int.max, "Exa usage is billing cost only and should not invent a quota limit")
+require(exaUsage.quotaAvailability == .unknown, "Exa usage without a provider limit should remain unknown")
 require(exaUsage.quotaLabel == "USD 45.67 used", "Exa usage should display total billed cost for the period")
 AppLanguageStore.shared.language = .simplifiedChinese
 require(exaUsage.quotaText?.render() == "已用 USD 45.67", "Structured money descriptors should render usage in the current UI language")
@@ -8968,6 +8974,7 @@ let emptyAnthropicPrepaidCredits = try! QuotaParsers.parseAnthropicPrepaidCredit
 """.utf8))
 require(emptyAnthropicPrepaidCredits.remaining == 0, "Empty Anthropic prepaid credits should be exhausted")
 require(emptyAnthropicPrepaidCredits.quotaLabel == "No Anthropic credits available", "Empty Anthropic prepaid credits should explain the exhausted balance")
+require(emptyAnthropicPrepaidCredits.quotaAvailability == .exhausted, "Zero Anthropic prepaid credits should be exhausted")
 
 let deepSeek = try! QuotaParsers.parseDeepSeekBalance(Data("""
 {"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"12.50","granted_balance":"0","topped_up_balance":"12.50"}]}
@@ -8975,6 +8982,10 @@ let deepSeek = try! QuotaParsers.parseDeepSeekBalance(Data("""
 require(deepSeek.remaining == 1250, "DeepSeek balance should be represented in cents")
 require(deepSeek.quotaLabel == "CNY 12.50 available", "DeepSeek should display money, not fake request counts")
 require(deepSeek.quotaText?.key == .moneyAvailableFormat, "DeepSeek balance should carry a structured money descriptor")
+require(deepSeek.quotaAvailability == .available, "Positive DeepSeek balance should be available")
+let unavailableDeepSeek = try! QuotaParsers.parseDeepSeekBalance(Data(#"{"is_available":false,"balance_infos":[]}"#.utf8))
+require(unavailableDeepSeek.remaining == 0, "Unavailable DeepSeek should retain numeric compatibility")
+require(unavailableDeepSeek.quotaAvailability == .unavailable, "Unavailable DeepSeek must not be classified as exhausted")
 
 let wechat = try! QuotaParsers.parseDajialaRemainMoney(Data("""
 {"code":0,"remain_money":161.8,"yesterday_money":162.02,"request_time":"2026-05-21 13:54:32"}
@@ -9004,6 +9015,7 @@ require(longCatTokenPack.quotaText?.key == .tokenQuotaFormat, "LongCat Token Pac
 require(abs((longCatTokenPack.planEndsAt?.timeIntervalSince1970 ?? 0) - longCatTokenPackExpiry.timeIntervalSince1970) < 1, "LongCat Token Pack should expose current package expiry as plan validity")
 require(longCatTokenPack.resetAt == nil, "LongCat Token Pack should not invent a reset cycle")
 require(longCatTokenPack.planDisplayName == "Token Pack", "LongCat Token Pack should expose the token-package billing mode")
+require(longCatTokenPack.quotaAvailability == .available, "Positive LongCat Token Pack should be available")
 do {
     _ = try QuotaParsers.parseLongCatTokenPackSummary(Data("""
 {"code":401,"msg":"用户未登录，请先登录","data":null}
@@ -9025,6 +9037,7 @@ require(longCatPaygo.quotaText?.key == .moneyBalanceFormat, "LongCat Pay-as-you-
 require(longCatPaygo.resetAt == nil, "LongCat Pay-as-you-go balance should not invent a reset cycle")
 require(longCatPaygo.planEndsAt == nil, "LongCat Pay-as-you-go balance should not invent an expiry because dashboard copy says balance does not expire")
 require(longCatPaygo.planDisplayName == "API Pay-as-you-go", "LongCat Pay-as-you-go should expose the API billing mode")
+require(longCatPaygo.quotaAvailability == .available, "Positive LongCat Pay-as-you-go balance should be available")
 do {
     _ = try QuotaParsers.parseLongCatPayAsYouGoSummary(Data("""
 {"code":401,"msg":"用户未登录，请先登录","data":null}
@@ -9042,6 +9055,7 @@ let longCatCombined = try! QuotaParsers.parseLongCatBillingSummary(
 require(longCatCombined.planDisplayName == "LongCat", "LongCat combined billing summary should stay under one provider plan name")
 require(longCatCombined.remaining == 1250000, "LongCat combined billing summary should use token package remaining as the key quota")
 require(longCatCombined.limit == 5000000, "LongCat combined billing summary should use token package total as the key quota")
+require(longCatCombined.quotaAvailability == .available, "Combined LongCat should use Token Pack availability when a pack exists")
 require(longCatCombined.quotaText?.kind == .quotaWindows, "LongCat combined billing summary should render multiple billing meters under one account")
 require(longCatCombined.quotaText?.quotaWindows.count == 2, "LongCat combined billing summary should include Token Pack and API pay-as-you-go rows")
 require(longCatCombined.quotaText?.quotaWindows.first?.name == "tokenPack", "LongCat combined billing summary should keep Token Pack as the first meter")
@@ -9107,6 +9121,7 @@ let querit = try! QuotaParsers.parseQueritAccount(Data("""
 """.utf8))
 require(querit.remaining == Int.max, "Querit should not invent a remaining quota when the dashboard exposes usage but no plan limit")
 require(querit.limit == Int.max, "Querit should keep quota unknown when current_plan has no limit field and coupon quota is zero")
+require(querit.quotaAvailability == .unknown, "Querit usage without a plan limit should remain unknown")
 require(querit.quotaLabel == "10 monthly requests used", "Querit should display observed monthly usage instead of a fake free quota")
 require(querit.quotaText?.key == .monthlyRequestsUsedFormat, "Querit usage-only results should carry a structured monthly-requests-used descriptor")
 require(querit.resetAt == nil, "Querit account endpoint does not expose a reset date")
@@ -9155,6 +9170,7 @@ let xfyun = try! QuotaParsers.parseXFYunCodingPlanList(Data("""
 """.utf8))
 require(xfyun.limit == 10000, "XFYun coding-plan percentage limit should be 10000 basis points")
 require(xfyun.remaining == 3963, "XFYun should use the tightest remaining coding-plan window after converting official used counts")
+require(xfyun.quotaAvailability == .available, "Positive XFYun percentage quota should be available")
 require(xfyun.quotaLabel == "5h 39.6% · week 96.1% · month 94.8%", "XFYun should display remaining percentages computed from official used counts")
 AppLanguageStore.shared.language = .simplifiedChinese
 require(xfyun.quotaText?.render() == "5 小时 39.6% · 周 96.1% · 月 94.8%", "Structured quota-window descriptors should render period labels in the current UI language")
@@ -9192,6 +9208,7 @@ let volc = try! QuotaParsers.parseVolcengineCodingPlanUsage(Data("""
 {"ResponseMetadata":{"Action":"GetCodingPlanUsage"},"Result":{"Status":"Running","QuotaUsage":[{"Level":"session","Percent":0,"ResetTimestamp":-1},{"Level":"weekly","Percent":10.814960999999998,"ResetTimestamp":1780848000},{"Level":"monthly","Percent":5.407480499999999,"ResetTimestamp":1782921599}]}}
 """.utf8))
 require(volc.remaining == 8918, "Volcengine should use the tightest remaining usage window")
+require(volc.quotaAvailability == .available, "Positive Volcengine percentage quota should be available")
 require(volc.limit == 10000, "Volcengine coding-plan percentage limit should be 10000 basis points")
 require(volc.quotaLabel == "5h 100% · week 89.2% · month 94.6%", "Volcengine should display five-hour, weekly, and monthly usage windows")
 require(volc.quotaText?.kind == .quotaWindows, "Volcengine coding plan should carry structured quota-window descriptors")
@@ -9276,6 +9293,7 @@ let opencode = try! QuotaParsers.parseOpenCodeGoUsage(Data("""
 ;0x00000129;((self.$R=self.$R||{})["server-fn:11"]=[],($R=>$R[0]={mine:!0,useBalance:!1,rollingUsage:$R[1]={status:"ok",resetInSec:16946,usagePercent:2},weeklyUsage:$R[2]={status:"ok",resetInSec:547976,usagePercent:50},monthlyUsage:$R[3]={status:"ok",resetInSec:2204389,usagePercent:75}})($R["server-fn:11"]))
 """.utf8))
 require(opencode.remaining == 2500, "OpenCode Go should use the tightest remaining usage window")
+require(opencode.quotaAvailability == .available, "Positive OpenCode Go percentage quota should be available")
 require(opencode.limit == 10000, "OpenCode Go percentage limit should be 10000 basis points")
 require(opencode.quotaLabel == "5h 98% · week 50% · month 25%", "OpenCode Go should display rolling, weekly, and monthly usage windows")
 require(opencode.resetAt != nil && opencode.resetAt! > Date(), "OpenCode Go should convert resetInSec into a future reset date")
@@ -9349,6 +9367,7 @@ let aliyunCodingPlan = try! QuotaParsers.parseAliyunCodingPlanStatus(Data("""
 {"code":"200","data":{"DataV2":{"ret":["SUCCESS::接口调用成功"],"data":{"data":{"codingPlanInstanceInfos":[{"instanceName":"Coding Plan Pro","instanceType":"pro","status":"VALID","instanceStartTime":1772064682000,"instanceEndTime":1782489600000,"remainingDays":17,"codingPlanQuotaInfo":{"per5HourUsedQuota":43,"per5HourTotalQuota":6000,"per5HourQuotaNextRefreshTime":1780980997000,"perWeekUsedQuota":165,"perWeekTotalQuota":45000,"perWeekQuotaNextRefreshTime":1781452800000,"perBillMonthUsedQuota":2913,"perBillMonthTotalQuota":90000,"perBillMonthQuotaNextRefreshTime":1782489600000}}],"userId":"redacted"},"success":true,"failed":false}},"success":true,"httpStatus":200,"api":"zeldaEasy.broadscope-bailian.codingPlan.queryCodingPlanInstanceInfoV2","errorMsg":""},"successResponse":true}
 """.utf8))
 require(aliyunCodingPlan.remaining == 9676, "Aliyun Coding Plan should use the tightest request-count window from queryCodingPlanInstanceInfoV2")
+require(aliyunCodingPlan.quotaAvailability == .available, "Positive Aliyun Coding Plan quota should be available")
 require(aliyunCodingPlan.limit == 10000, "Aliyun Coding Plan usage-window percentage limit should be 10000 basis points")
 require(aliyunCodingPlan.quotaLabel == "5h 99.3% · week 99.6% · month 96.8%", "Aliyun Coding Plan should display queryCodingPlanInstanceInfoV2 usage windows")
 let aliyunDisplayKey = APIKey(name: "ALIYUN_CODING_PLAN_COOKIE", key: "cookie", provider: .aliyunCodingPlan, quotaText: aliyunCodingPlan.quotaText, quotaLabel: aliyunCodingPlan.quotaLabel)
@@ -9384,6 +9403,7 @@ let tencentCodingPlan = try! QuotaParsers.parseTencentCloudCodingPlanDescribePkg
 {"code":0,"data":{"code":0,"cgwerrorCode":0,"data":{"Response":{"RequestId":"request-redacted","PkgList":[{"PkgName":"Lite","PkgType":"lite","Status":"Normal","StartTime":"2026-06-01 00:00:00","EndTime":"2026-07-01 00:00:00","RemainingDays":22,"UsageDetail":{"PerFiveHour":{"Used":12,"Total":1200,"UsagePercent":1,"EndTime":"2026-06-08 06:00:00"},"PerWeek":{"Used":900,"Total":9000,"UsagePercent":10,"EndTime":"2026-06-15 00:00:00"},"PerMonth":{"Used":3600,"Total":18000,"UsagePercent":20,"EndTime":"2026-07-01 00:00:00"}}}]}}},"mccode":0}
 """.utf8))
 require(tencentCodingPlan.remaining == 8000, "Tencent Cloud Coding Plan should use the tightest remaining quota window")
+require(tencentCodingPlan.quotaAvailability == .available, "Positive Tencent Cloud Coding Plan quota should be available")
 require(tencentCodingPlan.limit == 10000, "Tencent Cloud Coding Plan percentage limit should be 10000 basis points")
 require(tencentCodingPlan.quotaLabel == "5h 99% · week 90% · month 80%", "Tencent Cloud Coding Plan should display DescribePkg usage windows")
 require(tencentCodingPlan.quotaText?.kind == .quotaWindows, "Tencent Cloud Coding Plan should carry structured quota-window descriptors")
@@ -9462,6 +9482,7 @@ let claudeUsage = try! QuotaParsers.parseClaudeSubscriptionUsage(Data("""
 {"five_hour":{"utilization":24.5,"resets_at":"2026-06-09T10:00:00Z"},"seven_day":{"utilization":"70","resets_at":"2026-06-15T00:00:00Z"},"seven_day_opus":{"utilization":95,"resets_at":"2026-06-15T00:00:00Z"}}
 """.utf8))
 require(claudeUsage.remaining == 3000, "Claude subscription should use the tightest remaining percentage from 5h and weekly windows")
+require(claudeUsage.quotaAvailability == .available, "Positive Claude percentage quota should be available")
 require(claudeUsage.limit == 10000, "Claude subscription percentage limit should use basis points")
 require(claudeUsage.quotaLabel == "5h 75.5% · week 30%", "Claude subscription should display five-hour and weekly remaining percentages")
 require(claudeUsage.quotaText?.kind == .quotaWindows, "Claude subscription should carry structured quota-window descriptors")
@@ -9478,6 +9499,7 @@ let claudeUsageWithMissingFiveHourReset = try! QuotaParsers.parseClaudeSubscript
 {"five_hour":{"limit_dollars":null,"remaining_dollars":null,"resets_at":null,"used_dollars":null,"utilization":100},"seven_day":{"limit_dollars":null,"remaining_dollars":null,"resets_at":"2026-06-15T00:00:00.000000Z","used_dollars":null,"utilization":37.5},"limits":[{"group":"default","is_active":true,"kind":"rolling","percent":100,"resets_at":null,"severity":"normal"}],"spend":{"enabled":false,"percent":0}}
 """.utf8))
 require(claudeUsageWithMissingFiveHourReset.quotaLabel == "5h 0% · week 62.5%", "Claude subscription should verify successfully when the current usage endpoint omits five-hour reset timing")
+require(claudeUsageWithMissingFiveHourReset.quotaAvailability == .exhausted, "A provider-confirmed tightest zero percentage should be exhausted")
 require(claudeUsageWithMissingFiveHourReset.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.resetAt == nil, "Claude five-hour quota row should omit reset timing when the provider no longer returns it")
 require(claudeUsageWithMissingFiveHourReset.quotaText?.quotaWindows.first(where: { $0.name == "week" })?.resetAt != nil, "Claude weekly quota row should keep reset timing when present")
 
@@ -9506,6 +9528,7 @@ let codexUsage = try! QuotaParsers.parseCodexWhamUsage(Data("""
 {"plan_type":"pro","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_after_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":70,"limit_window_seconds":604800,"reset_after_seconds":233270,"reset_at":1781140147}},"additional_rate_limits":[{"limit_name":"GPT-5.3-Codex-Spark","rate_limit":{"allowed":true,"limit_reached":false,"primary_window":{"used_percent":0,"limit_window_seconds":18000,"reset_after_seconds":18000,"reset_at":1780924878},"secondary_window":{"used_percent":0,"limit_window_seconds":604800,"reset_after_seconds":604800,"reset_at":1781511678}}}],"credits":{"has_credits":false,"unlimited":false,"balance":"0"},"rate_limit_reset_credits":{"available_count":3}}
 """.utf8))
 require(codexUsage.remaining == 3000, "Codex subscription usage should use the tightest remaining quota window")
+require(codexUsage.quotaAvailability == .available, "Positive Codex weekly quota should remain available")
 require(codexUsage.limit == 10000, "Codex subscription usage should use percentage basis points")
 require(codexUsage.quotaLabel == "5h 100% · week 30%", "Codex subscription usage should display five-hour and weekly windows")
 require(codexUsage.quotaText?.kind == .quotaWindows, "Codex subscription usage should carry structured quota-window descriptors")
@@ -9604,6 +9627,7 @@ let kimiUsage = try! QuotaParsers.parseKimiSubscriptionUsage(
 """.utf8)
 )
 require(kimiUsage.remaining == 3000, "Kimi subscription should use the tightest remaining percentage across returned windows")
+require(kimiUsage.quotaAvailability == .available, "Positive Kimi percentage quota should be available")
 require(kimiUsage.limit == 10000, "Kimi subscription percentage limit should use basis points")
 require(kimiUsage.quotaLabel == "5h 75% · week 30% · month 30%", "Kimi subscription should display confirmed five-hour, weekly, and subscription-balance windows")
 require(kimiUsage.quotaText?.quotaWindows.first(where: { $0.name == "5h" })?.resetAt != nil, "Kimi five-hour quota window should preserve reset timestamp")
@@ -9631,6 +9655,7 @@ let kimiUnknownQuota = try! QuotaParsers.parseKimiSubscriptionUsage(
     usageData: nil
 )
 require(kimiUnknownQuota.quotaText?.render(language: .english) == "Usable · quota unknown", "Kimi subscription should not invent quota when membership data lacks usage windows")
+require(kimiUnknownQuota.quotaAvailability == .unknown, "Kimi subscription without exposed quota should remain unknown")
 require(kimiUnknownQuota.planEndsAt == nil, "Kimi unknown-quota fallback should not invent a plan end date")
 require(kimiUnknownQuota.planDisplayName == "Kimi Free", "Kimi subscription should preserve the membership name even when quota details are not exposed")
 
@@ -9649,6 +9674,7 @@ let tencentTokenPlan = try! QuotaParsers.parseTencentCloudTokenPlanApiKey(Data("
 """.utf8))
 require(tencentTokenPlan.remaining == 650000, "Tencent Cloud Token Plan should add exclusive and shared remaining quota")
 require(tencentTokenPlan.limit == 800000, "Tencent Cloud Token Plan should add exclusive and shared quota limits")
+require(tencentTokenPlan.quotaAvailability == .available, "Positive Tencent Cloud Token Plan quota should be available")
 require(tencentTokenPlan.quotaLabel == "650000 / 800000 tokens", "Tencent Cloud Token Plan should display token quota")
 require(tencentTokenPlan.quotaText?.key == .tokenQuotaFormat, "Tencent Cloud Token Plan should carry a structured token quota descriptor")
 
