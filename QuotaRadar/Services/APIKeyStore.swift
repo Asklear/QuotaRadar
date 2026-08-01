@@ -23,6 +23,7 @@ struct APIKeyStore {
         var resetAt: Date?
         var planEndsAt: Date?
         var planDisplayName: String?
+        var quotaAvailability: QuotaAvailabilityState?
         var codexResetCreditsRemaining: Int?
         var codexResetCreditsEarliestExpiresAt: Date?
         var lastUpdated: Date?
@@ -47,6 +48,7 @@ struct APIKeyStore {
             resetAt = key.resetAt
             planEndsAt = key.planEndsAt
             planDisplayName = key.planDisplayName
+            quotaAvailability = key.quotaAvailability
             codexResetCreditsRemaining = key.codexResetCreditsRemaining
             codexResetCreditsEarliestExpiresAt = key.codexResetCreditsEarliestExpiresAt
             lastUpdated = key.lastUpdated
@@ -97,6 +99,7 @@ struct APIKeyStore {
                 resetAt: resetAt,
                 planEndsAt: planEndsAt,
                 planDisplayName: planDisplayName,
+                quotaAvailability: quotaAvailability,
                 codexResetCreditsRemaining: codexResetCreditsRemaining,
                 codexResetCreditsEarliestExpiresAt: codexResetCreditsEarliestExpiresAt,
                 lastUpdated: lastUpdated,

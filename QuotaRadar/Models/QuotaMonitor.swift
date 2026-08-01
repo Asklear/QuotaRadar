@@ -480,6 +480,7 @@ class QuotaMonitor: ObservableObject {
         merged.resetAt = refreshed.resetAt
         merged.planEndsAt = refreshed.planEndsAt
         merged.planDisplayName = refreshed.planDisplayName
+        merged.quotaAvailability = refreshed.quotaAvailability
         merged.codexResetCreditsRemaining = refreshed.codexResetCreditsRemaining
         merged.codexResetCreditsEarliestExpiresAt = refreshed.codexResetCreditsEarliestExpiresAt
         merged.quotaLabel = refreshed.quotaLabel
@@ -519,6 +520,7 @@ class QuotaMonitor: ObservableObject {
             failed.resetAt = nil
             failed.planEndsAt = nil
             failed.planDisplayName = nil
+            failed.quotaAvailability = nil
             failed.codexResetCreditsRemaining = nil
             failed.codexResetCreditsEarliestExpiresAt = nil
             failed.lastHTTPStatus = 401
@@ -544,6 +546,7 @@ class QuotaMonitor: ObservableObject {
             failed.resetAt = nil
             failed.planEndsAt = nil
             failed.planDisplayName = nil
+            failed.quotaAvailability = nil
             failed.codexResetCreditsRemaining = nil
             failed.codexResetCreditsEarliestExpiresAt = nil
             failed.lastHTTPStatus = statusCode
@@ -654,6 +657,7 @@ class QuotaMonitor: ObservableObject {
                         key.resetAt = nil
                         key.planEndsAt = nil
                         key.planDisplayName = nil
+                        key.quotaAvailability = nil
                         key.codexResetCreditsRemaining = nil
                         key.codexResetCreditsEarliestExpiresAt = nil
                         key.quotaLabel = key.provider.localizedUnsupportedQuotaLabel()
@@ -675,6 +679,7 @@ class QuotaMonitor: ObservableObject {
                         key.resetAt = nil
                         key.planEndsAt = nil
                         key.planDisplayName = nil
+                        key.quotaAvailability = nil
                         key.codexResetCreditsRemaining = nil
                         key.codexResetCreditsEarliestExpiresAt = nil
                         key.quotaLabel = "No subscribed plan"
@@ -692,6 +697,7 @@ class QuotaMonitor: ObservableObject {
                         key.resetAt = nil
                         key.planEndsAt = nil
                         key.planDisplayName = nil
+                        key.quotaAvailability = nil
                         key.codexResetCreditsRemaining = nil
                         key.codexResetCreditsEarliestExpiresAt = nil
                         key.lastHTTPStatus = (effectiveError as? QuotaError)?.httpStatus ?? 401
@@ -716,6 +722,7 @@ class QuotaMonitor: ObservableObject {
                         key.resetAt = nil
                         key.planEndsAt = nil
                         key.planDisplayName = nil
+                        key.quotaAvailability = nil
                         key.codexResetCreditsRemaining = nil
                         key.codexResetCreditsEarliestExpiresAt = nil
                         key.lastHTTPStatus = (effectiveError as? QuotaError)?.httpStatus
@@ -916,6 +923,7 @@ class QuotaMonitor: ObservableObject {
         updated.resetAt = result.resetAt
         updated.planEndsAt = result.planEndsAt
         updated.planDisplayName = result.planDisplayName
+        updated.quotaAvailability = result.quotaAvailability
         updated.codexResetCreditsRemaining = result.codexResetCreditsRemaining
         updated.codexResetCreditsEarliestExpiresAt = result.codexResetCreditsEarliestExpiresAt
         updated.quotaLabel = result.quotaLabel
@@ -980,6 +988,7 @@ class QuotaMonitor: ObservableObject {
         credential.resetAt = nil
         credential.planEndsAt = nil
         credential.planDisplayName = nil
+        credential.quotaAvailability = nil
         credential.codexResetCreditsRemaining = nil
         credential.codexResetCreditsEarliestExpiresAt = nil
         credential.lastUpdated = nil
@@ -1056,6 +1065,7 @@ class QuotaMonitor: ObservableObject {
                 replacement.resetAt = existingKey.resetAt
                 replacement.planEndsAt = existingKey.planEndsAt
                 replacement.planDisplayName = existingKey.planDisplayName
+                replacement.quotaAvailability = existingKey.quotaAvailability
                 replacement.codexResetCreditsRemaining = existingKey.codexResetCreditsRemaining
                 replacement.codexResetCreditsEarliestExpiresAt = existingKey.codexResetCreditsEarliestExpiresAt
                 replacement.lastUpdated = existingKey.lastUpdated

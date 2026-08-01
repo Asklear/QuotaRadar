@@ -41,6 +41,9 @@ assert_no_match 'for var key in apiKeys where key\.isActive' \
 assert_match 'nonisolated static func applyingSuccessfulQuotaResult' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "Successful quota persistence should expose a pure helper for exhausted Brave regression coverage"
+if [[ "$(rg -c 'verifiedKey\.quotaAvailability = result\.quotaAvailability' QuotaRadar/Views/DashboardReauthView.swift || true)" -ne 2 ]]; then
+  fail "Generic and LongCat dashboard saves must both persist structured quota availability"
+fi
 assert_match 'DeferredRefreshResult\(key: key, outcome: \.success, countsAsFailure: false\)' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "Parsed Brave exhaustion should remain a successful observed quota sample"
@@ -7983,6 +7986,7 @@ let structuredKey = APIKey(
     remaining: 850,
     limit: 1000,
     planDisplayName: "Team Pro",
+    quotaAvailability: .available,
     consecutiveFailureCount: 2,
     quotaText: LocalizedTextDescriptor.localized(.monthlyCreditsFormat, "850", "1000"),
     quotaLabel: "850 / 1000 monthly credits"
@@ -7990,13 +7994,30 @@ let structuredKey = APIKey(
 store.save([structuredKey])
 let structuredMetadata = store.load()
 require(structuredMetadata[0].quotaText?.key == .monthlyCreditsFormat, "APIKeyStore should persist structured quota descriptors")
+require(structuredMetadata[0].quotaAvailability == .available, "APIKeyStore should persist structured quota availability")
 require(structuredMetadata[0].planDisplayName == "Team Pro", "APIKeyStore should persist refreshed concrete plan/package display names")
 require(structuredMetadata[0].consecutiveFailureCount == 2, "APIKeyStore should persist consecutive quota-check failure counts for threshold notifications")
+let availabilityDefaults = UserDefaults(suiteName: "QuotaRadarAvailabilityStateTests.\(UUID().uuidString)")!
+let availabilityStore = APIKeyStore(defaults: availabilityDefaults, secretStore: secretStore)
+let persistedAvailabilityStates: [QuotaAvailabilityState] = [.available, .exhausted, .unavailable, .unknown]
+let availabilityKeys = persistedAvailabilityStates.map { state in
+    APIKey(
+        name: "STATE_\(state.rawValue)",
+        key: "redacted-\(state.rawValue)",
+        provider: .tavily,
+        remaining: state == .available ? 1 : 0,
+        limit: 1,
+        quotaAvailability: state
+    )
+}
+availabilityStore.save(availabilityKeys)
+require(availabilityStore.load().compactMap(\.quotaAvailability) == persistedAvailabilityStates, "APIKeyStore should round-trip every structured availability state")
 let exportedMetadata = try! store.exportMetadata([structuredKey])
 let exportedText = String(data: exportedMetadata, encoding: .utf8)!
 require(exportedText.contains("\"app\":\"Quota Radar\""), "Credential metadata export should identify the app without exposing runtime secrets")
 require(exportedText.contains("\"provider\":\"Tavily\""), "Credential metadata export should include provider identity")
 require(exportedText.contains("\"planDisplayName\":\"Team Pro\""), "Credential metadata export should include non-secret plan metadata")
+require(exportedText.contains("\"quotaAvailability\":\"available\""), "Credential metadata export should include non-secret structured availability evidence")
 require(!exportedText.contains("tvly-structured"), "Credential metadata export should not include raw API keys")
 for forbiddenExportField in ["\"key\"", "cookie", "authorization", "token", "secret"] {
     require(!exportedText.localizedCaseInsensitiveContains(forbiddenExportField), "Credential metadata export should omit sensitive field names: \(forbiddenExportField)")
@@ -8049,6 +8070,7 @@ legacyDashboardNoteDefaults.set(Data(legacyDashboardNoteJSON.utf8), forKey: "api
 let legacyDashboardNoteStore = APIKeyStore(defaults: legacyDashboardNoteDefaults, secretStore: secretStore)
 let loadedLegacyDashboardNotes = legacyDashboardNoteStore.load()
 require(loadedLegacyDashboardNotes.count == 1, "APIKeyStore should load legacy dashboard authorization metadata")
+require(loadedLegacyDashboardNotes[0].quotaAvailability == nil, "Legacy metadata should decode without invented availability evidence")
 require(loadedLegacyDashboardNotes[0].note == nil, "APIKeyStore should strip generated web-login notes from legacy metadata")
 require(loadedLegacyDashboardNotes[0].displayNote == nil, "English credential rows should not show stale Chinese web-login notes")
 require(loadedLegacyDashboardNotes[0].managementDisplayName == "Quota monitoring authorization", "Legacy dashboard authorization names should render in the current English language")
@@ -8421,6 +8443,7 @@ let successfulAnySearch = APIKey(
     remaining: 644,
     limit: 1000,
     resetAt: Date(timeIntervalSince1970: 1784246400),
+    quotaAvailability: .available,
     lastUpdated: Date(timeIntervalSince1970: 1784196000),
     quotaText: .localized(.dailyRequestsUsageFormat, "356", "644", "1000"),
     quotaLabel: "356 used · 644 remaining / 1000 daily"
@@ -8431,6 +8454,7 @@ require(failedAnySearch.limit == successfulAnySearch.limit, "Transient failures 
 require(failedAnySearch.resetAt == successfulAnySearch.resetAt, "Transient failures should preserve AnySearch reset")
 require(failedAnySearch.lastUpdated == successfulAnySearch.lastUpdated, "Transient failures should preserve the last-success timestamp")
 require(failedAnySearch.quotaText == successfulAnySearch.quotaText, "Transient failures should preserve the structured daily usage descriptor")
+require(failedAnySearch.quotaAvailability == .available, "Transient failures should preserve the latest structured availability evidence")
 require(failedAnySearch.consecutiveFailureCount == successfulAnySearch.consecutiveFailureCount + 1, "Transient failures should increment the failure count")
 var rotatedAnySearch = successfulAnySearch
 rotatedAnySearch.key = #"{"accessToken":"rotated-access","refreshToken":"rotated-refresh","expiresAt":"1784197800000"}"#
@@ -8463,6 +8487,42 @@ let acceptedAnySearchRotation = QuotaMonitor.reconcileRefreshResults(
     current: [successfulAnySearch]
 )
 require(acceptedAnySearchRotation.keys.first?.key == rotatedAnySearch.key, "Accepted refresh should persist the rotated AnySearch credential")
+require(acceptedAnySearchRotation.keys.first?.quotaAvailability == .available, "Refresh reconciliation should retain structured availability evidence")
+
+let availabilityStates: [QuotaAvailabilityState] = [.available, .exhausted, .unavailable, .unknown]
+for state in availabilityStates {
+    let stateKey = APIKey(
+        name: "STATE_\(state.rawValue)",
+        key: "redacted",
+        provider: .tavily,
+        remaining: state == .available ? 1 : 0,
+        limit: 1,
+        quotaAvailability: state
+    )
+    require(stateKey.quotaAvailability == state, "APIKey should retain \(state.rawValue) availability evidence")
+}
+
+let legacyAvailabilityKey = APIKey(
+    name: "LEGACY_ZERO",
+    key: "redacted",
+    provider: .tavily,
+    remaining: 0,
+    limit: 1000
+)
+require(legacyAvailabilityKey.quotaAvailability == nil, "Legacy keys should not invent availability evidence")
+
+let exhaustedResult = QuotaResult(
+    remaining: 0,
+    limit: 1000,
+    resetAt: nil,
+    quotaAvailability: .exhausted
+)
+let appliedExhaustedResult = QuotaMonitor.applyingSuccessfulQuotaResult(
+    exhaustedResult,
+    to: legacyAvailabilityKey,
+    now: Date(timeIntervalSince1970: 1_800_000_000)
+)
+require(appliedExhaustedResult.quotaAvailability == .exhausted, "Successful refresh should apply structured availability evidence")
 var concurrentlyReauthenticatedAnySearch = successfulAnySearch
 concurrentlyReauthenticatedAnySearch.key = "newer-reauth-secret"
 let rejectedAnySearchRotation = QuotaMonitor.reconcileRefreshResults(

@@ -21,6 +21,7 @@ struct CredentialMetadataExporter {
         let resetAt: Date?
         let planEndsAt: Date?
         let planDisplayName: String?
+        let quotaAvailability: QuotaAvailabilityState?
         let codexResetCreditsRemaining: Int?
         let codexResetCreditsEarliestExpiresAt: Date?
         let lastUpdated: Date?
@@ -58,6 +59,7 @@ private extension CredentialMetadataExporter.CredentialRecord {
         resetAt = credential.resetAt
         planEndsAt = credential.planEndsAt
         planDisplayName = credential.planDisplayName
+        quotaAvailability = credential.quotaAvailability
         codexResetCreditsRemaining = credential.codexResetCreditsRemaining
         codexResetCreditsEarliestExpiresAt = credential.codexResetCreditsEarliestExpiresAt
         lastUpdated = credential.lastUpdated

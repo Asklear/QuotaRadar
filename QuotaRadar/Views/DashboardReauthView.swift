@@ -274,6 +274,7 @@ struct DashboardReauthSheet: View {
                     verifiedKey.resetAt = result.resetAt
                     verifiedKey.planEndsAt = result.planEndsAt
                     verifiedKey.planDisplayName = result.planDisplayName
+                    verifiedKey.quotaAvailability = result.quotaAvailability
                     verifiedKey.quotaLabel = result.quotaLabel
                     verifiedKey.quotaText = result.quotaText
                     verifiedKey.lastHTTPStatus = result.httpStatus
@@ -381,6 +382,7 @@ struct DashboardReauthSheet: View {
                     verifiedKey.resetAt = result.resetAt
                     verifiedKey.planEndsAt = result.planEndsAt
                     verifiedKey.planDisplayName = result.planDisplayName
+                    verifiedKey.quotaAvailability = result.quotaAvailability
                     verifiedKey.quotaLabel = result.quotaLabel
                     verifiedKey.quotaText = result.quotaText
                     verifiedKey.lastHTTPStatus = result.httpStatus

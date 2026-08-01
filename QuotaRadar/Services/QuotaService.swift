@@ -5,6 +5,7 @@ struct QuotaResult {
     let remaining: Int
     let limit: Int
     let resetAt: Date?
+    let quotaAvailability: QuotaAvailabilityState
     var planEndsAt: Date?
     var planDisplayName: String?
     var quotaLabel: String? = nil
@@ -21,6 +22,7 @@ struct QuotaResult {
         remaining: Int,
         limit: Int,
         resetAt: Date?,
+        quotaAvailability: QuotaAvailabilityState,
         planEndsAt: Date? = nil,
         planDisplayName: String? = nil,
         quotaLabel: String? = nil,
@@ -36,6 +38,7 @@ struct QuotaResult {
         self.remaining = remaining
         self.limit = limit
         self.resetAt = resetAt
+        self.quotaAvailability = quotaAvailability
         self.planEndsAt = planEndsAt
         self.planDisplayName = planDisplayName
         self.quotaLabel = quotaLabel

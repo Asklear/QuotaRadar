@@ -1710,6 +1710,13 @@ struct MenuQuotaItem: Identifiable, Equatable {
 
 // MARK: - API Key Model
 
+enum QuotaAvailabilityState: String, Codable, Equatable {
+    case available
+    case exhausted
+    case unavailable
+    case unknown
+}
+
 struct APIKey: Identifiable, Codable, Equatable {
     var id = UUID()
     var name: String
@@ -1725,6 +1732,7 @@ struct APIKey: Identifiable, Codable, Equatable {
     var resetAt: Date?
     var planEndsAt: Date?
     var planDisplayName: String?
+    var quotaAvailability: QuotaAvailabilityState? = nil
     var codexResetCreditsRemaining: Int?
     var codexResetCreditsEarliestExpiresAt: Date?
     var lastUpdated: Date?
