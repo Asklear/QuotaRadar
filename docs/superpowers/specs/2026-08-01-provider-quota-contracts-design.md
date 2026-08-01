@@ -61,7 +61,7 @@ The browser displayed `有效期至 2026-08-08`. The parser already searches for
 
 Update the AnySearch dashboard configuration so the primary console and request origin are `https://www.anysearch.com`. Continue accepting both apex and `www` hosts during capture so an existing redirect or older session does not break credential discovery, but serialize the captured tokens independently of their browser origin.
 
-Keep `search-template-auth-state` as the captured storage key because the current bundle still publishes it. Normalize the persisted Zustand envelope into the existing credential model, including access token, refresh token, expiry, and user identity metadata when present.
+Keep `search-template-auth-state` as the captured storage key because the current bundle still publishes it. Normalize the persisted Zustand envelope into the existing credential model using only `accessToken`, `refreshToken`, and millisecond `expiresAt`. User identity is not needed for quota refresh and is out of scope.
 
 Use these current requests:
 
@@ -70,21 +70,34 @@ Use these current requests:
 
 The duplicated `/api/api` is intentional: the frontend request helper owns the first `/api` base and the endpoint constant starts with `/api/user/...`. Tests must lock the final URL rather than reconstructing it informally.
 
-Parse `remaining`, `used`, and `total` directly. Preserve `tier_name` as `planDisplayName`. Map `reset_period = daily` to the next UTC day only when `next_reset_at` is absent; prefer a valid `next_reset_at` when the API supplies it. Reject missing or contradictory quota fields as schema drift instead of falling back to a local hard-coded 1,000 limit.
+Parse `remaining`, `used`, and `total` directly. Preserve `tier_name` as `planDisplayName`. Accept `reset_period` values `daily`, `monthly`, and `none`. Parse `next_reset_at` only when it is a valid ISO 8601 timestamp; if it is absent or invalid, leave `resetAt` empty. The provider's `daily` label alone does not prove a UTC boundary.
+
+Quota fields must follow these rules:
+
+- `total > 0`, `used >= 0`, and `0 <= remaining <= total`;
+- when `used <= total`, `used + remaining == total`;
+- overage is valid only when `used > total` and `remaining == 0`.
+
+Missing fields, unsupported reset periods, or contradictory values are schema drift. Do not fall back to a local hard-coded 1,000 limit.
 
 Save validation calls the real overview endpoint after an optional token refresh. If refresh rotates credentials, persist the rotated pair even when the subsequent quota request fails, while still reporting the quota failure.
 
 ### 2. SerpAPI renewal and account evidence
 
-Extend the account parser with optional `plan_renewal_date`, plan name, and status fields observed from the official response. Parse the renewal date as a UTC calendar date and store it in `resetAt`. If the field is absent or invalid, leave `resetAt` empty; do not fall back to `nextMonthStartUTC()`.
+Extend the account parser with optional `plan_renewal_date`, `plan_name`, and `status` fields observed from the official response. Parse `plan_renewal_date` as a UTC calendar date and store it in `resetAt`; map nonempty `plan_name` to `planDisplayName`. Preserve nonempty `status` as diagnostic evidence without treating an exhaustion message as an authentication failure. If the renewal field is absent or invalid, leave `resetAt` empty; do not fall back to `nextMonthStartUTC()`.
 
-Continue preferring `total_searches_left`, then `plan_searches_left`, then the derived difference. Keep extra credits in the displayed total. Preserve an exact remaining-over-total quota descriptor so a zero balance remains numerically explainable in credential details.
+Continue preferring `total_searches_left`, then `plan_searches_left`, then the derived difference. Keep extra credits in the displayed total. Preserve an exact remaining-over-total quota descriptor so a zero balance remains numerically explainable in credential details. Construct the account URL with `URLComponents` and `URLQueryItem` so reserved characters in the API key are encoded rather than interpolated into the URL.
 
 ### 3. Shared exhausted Key Quota presentation
 
-Normalize the provider-overview Key Quota column at the shared `APIKey` / `ProviderStats` presentation boundary, not in individual parsers.
+Normalize only `ProviderStats.keyQuotaDisplayText`, which owns the provider-overview Key Quota column. Do not change `APIKey.quotaDisplayText`, `APIKey.quotaPresentation`, `APIKey.diagnosticSummary`, parser labels, or credential-detail rendering.
 
-When a finite monitored credential or provider pool has no usable remaining quota and its state is verified as exhausted or usage-limit-exceeded, Key Quota displays the localized `Usage limit exceeded` message (`额度已用尽` in Simplified Chinese). This rule applies consistently to Tavily, Brave, SerpAPI, and equivalent finite-plan providers.
+The first change is explicitly scoped to Tavily, Brave, and SerpAPI. For one of those providers, Key Quota displays the localized `Usage limit exceeded` message (`额度已用尽` in Simplified Chinese) only when no active monitoring credential remains usable and at least one active monitoring credential meets either verified predicate:
+
+- finite quota exhaustion: `remaining == 0`, finite `limit > 0`, and the credential is not money/credit balance, unlimited, copy-only, unknown-quota, expired, or failed; or
+- the parser supplied the structured `usageLimitExceeded` state from an authenticated provider response.
+
+If any active monitoring credential remains usable, existing mixed-pool selection continues to show the tightest usable quota. Invalid credentials, schema failures, unknown quota, and expired authentication never become quota exhaustion merely because the provider pool has no usable key.
 
 The credential detail retains:
 
@@ -105,11 +118,12 @@ Do not broaden the generic date parser: provider-specific handling prevents a ti
 
 ## Error Handling
 
-- AnySearch 401/403 after refresh remains an expired-credential error.
-- AnySearch 404 or schema mismatch on the new endpoint is schema drift and must not silently call the retired endpoint.
+- AnySearch refresh HTTP 400/401/403 remains an expired-credential error and preserves the actual status.
+- AnySearch quota HTTP 401 is expired authentication; quota HTTP 403 preserves status 403 and remains forbidden/invalid authorization; quota HTTP 404 is schema drift with status 404. A schema-invalid HTTP 200 is schema drift with status 200. Implement an error/status carrier if necessary so `lastHTTPStatus` receives the actual response status instead of losing it through the current status-less `schemaDrift` / `invalidResponse` cases.
+- AnySearch never silently calls the retired endpoint.
 - SerpAPI invalid renewal dates leave reset unknown while valid quota fields still refresh successfully.
 - Brave HTTP 402 and verified monthly HTTP 429 both present the shared exhausted Key Quota text but retain their original HTTP status and diagnostics.
-- LongCat valid quota with an invalid expiry still updates quota, leaves expiry unknown, and records parser diagnostics only if the response contract requires expiry for the current package.
+- LongCat absent or empty `expireTime` updates quota with unknown expiry and no diagnostic. A present nonempty malformed `expireTime` updates quota, leaves expiry unknown, and attaches schema-drift diagnostic text while keeping HTTP 200. A valid numeric, ISO, or LongCat local timestamp produces `planEndsAt` without a diagnostic.
 
 ## Test Strategy
 
@@ -120,20 +134,26 @@ Use focused RED/GREEN tests before production changes.
 - capture accepts `www.anysearch.com` and the current storage key;
 - final refresh and overview URLs match the current bundle contract;
 - current overview fields parse plan, used, remaining, total, and reset;
+- daily/monthly/none reset periods are accepted without inventing a boundary; absent and invalid `next_reset_at` leave reset unknown;
+- exact-total, exhausted, and overage field combinations follow the stated invariants, while contradictory combinations fail as schema drift;
 - rotated credentials persist through a later quota failure;
-- legacy usage-summary responses do not produce false success.
+- legacy usage-summary responses do not produce false success;
+- refresh 400/401/403 and quota 401/403/404 preserve their exact status; HTTP 200 schema mismatch preserves status 200.
 
 ### SerpAPI
 
 - official renewal date becomes `resetAt`;
 - exhausted `250 / 250` produces zero remaining and an exact total;
 - extra credits remain included;
-- missing or invalid renewal date produces no invented reset.
+- missing or invalid renewal date produces no invented reset;
+- `plan_name` becomes the plan display name and `status` remains diagnostic evidence;
+- a key containing reserved URL characters is encoded through URL query items;
+- `2026-08-10` resolves to the exact expected UTC epoch.
 
 ### Shared presentation
 
-- exhausted Tavily, Brave HTTP 402, Brave verified monthly 429, and SerpAPI produce the same localized Key Quota text;
-- detail values and diagnostics remain provider-specific;
+- exhausted Tavily, Brave HTTP 402, Brave verified monthly 429, and SerpAPI produce the same localized `ProviderStats.keyQuotaDisplayText`;
+- `APIKey.quotaDisplayText`, exact detail values, Brave 402/429 `lastHTTPStatus`, and their distinct `lastDiagnosticText` remain provider-specific;
 - mixed usable/exhausted key pools still show usable quota.
 
 ### LongCat
@@ -141,7 +161,8 @@ Use focused RED/GREEN tests before production changes.
 - live timestamp fixture parses to 2026-08-08 12:07:16 Asia/Shanghai;
 - combined result preserves Token Pack expiry;
 - Pay-as-you-go remains non-expiring;
-- ISO and numeric expiry fixtures remain supported.
+- ISO and numeric expiry fixtures remain supported;
+- absent/empty expiry remains a clean unknown; a present malformed expiry preserves quota and adds schema-drift diagnostics.
 
 Run the focused behavior suite, the full behavior suite, build verification, and final dirty-tree review on the final SHA.
 
