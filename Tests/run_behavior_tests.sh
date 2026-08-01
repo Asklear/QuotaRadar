@@ -9267,6 +9267,11 @@ require(anySearchOverview.resetAt == nil, "Daily quota without next_reset_at mus
 require(anySearchOverview.quotaAvailability == .available, "Positive AnySearch quota should be available")
 require(anySearchOverview.quotaText == .localized(.dailyRequestsUsageFormat, "362", "638", "1000"), "AnySearch daily overview should preserve used, remaining, and total")
 
+let anySearchEnvelope = try! QuotaParsers.parseAnySearchBillingOverview(Data(#"{"code":0,"data":{"tier_code":"basic","tier_name":"Free Plan","remaining":497,"used":503,"total":1000,"rate_limit_unlimited":false,"reset_period":"daily","next_reset_at":"2026-08-02T00:00:00Z"},"message":"Success."}"#.utf8))
+require(anySearchEnvelope.remaining == 497 && anySearchEnvelope.limit == 1000, "AnySearch should parse the current successful billing envelope")
+require(anySearchEnvelope.planDisplayName == "Free Plan", "AnySearch current envelope should preserve the plan name")
+require(anySearchEnvelope.quotaText == .localized(.dailyRequestsUsageFormat, "503", "497", "1000"), "AnySearch current envelope should preserve daily usage")
+
 let anySearchMonthly = try! QuotaParsers.parseAnySearchBillingOverview(Data(#"{"tier_code":"pro","tier_name":"Pro","remaining":900,"used":100,"total":1000,"reset_period":"monthly","next_reset_at":"2026-08-10T00:00:00Z"}"#.utf8))
 require(anySearchMonthly.quotaText == .localized(.monthlyRequestsUsageFormat, "100", "900", "1000"), "AnySearch monthly overview must not be mislabeled as daily")
 require(anySearchMonthly.resetAt == ISO8601DateFormatter().date(from: "2026-08-10T00:00:00Z"), "AnySearch should retain a valid official next reset")

@@ -532,7 +532,22 @@ enum QuotaParsers {
             let next_reset_at: String?
         }
 
-        guard let overview = try? JSONDecoder().decode(Overview.self, from: data) else {
+        struct Envelope: Decodable {
+            let code: Int
+            let data: Overview?
+        }
+
+        let decoder = JSONDecoder()
+        let overview: Overview?
+        if let directOverview = try? decoder.decode(Overview.self, from: data) {
+            overview = directOverview
+        } else if let envelope = try? decoder.decode(Envelope.self, from: data),
+                  envelope.code == 0 {
+            overview = envelope.data
+        } else {
+            overview = nil
+        }
+        guard let overview else {
             throw QuotaError.schemaDrift
         }
         let tierName = overview.tier_name.trimmingCharacters(in: .whitespacesAndNewlines)
