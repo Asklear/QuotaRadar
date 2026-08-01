@@ -1755,6 +1755,9 @@ struct APIKey: Identifiable, Codable, Equatable {
 
     var isLow: Bool {
         guard !isUnlimitedQuota else { return false }
+        if let quotaAvailability {
+            guard quotaAvailability == .available else { return false }
+        }
         guard !isUsableWithUnknownQuota else { return false }
         guard !isUsageLimitExceeded else { return false }
         guard let remaining = remaining else { return false }
@@ -2430,6 +2433,8 @@ struct APIKey: Identifiable, Codable, Equatable {
         if isStoredAPIKeyOnlyCredential { return .unknown }
         if isCredentialExpired { return .expired }
         if isExhausted { return .exhausted }
+        if quotaAvailability == .unavailable { return .unknown }
+        if quotaAvailability == .unknown { return .usableUnknown }
         if isUsableWithUnknownQuota { return .usableUnknown }
         if isLow { return .low }
         if isBusinessInvocationCredential || isUnsupportedQuotaCheckState { return .unknown }
@@ -3000,6 +3005,7 @@ struct ProviderStats: Identifiable {
                 && !key.isCredentialExpired
                 && !key.isUsageLimitExceeded
                 && !key.isExhausted
+                && key.quotaAvailability != .unavailable
                 && key.status != .failed
         }
     }
@@ -3059,6 +3065,7 @@ struct ProviderStats: Identifiable {
                 && !key.isCredentialExpired
                 && !key.isUsageLimitExceeded
                 && !key.isExhausted
+                && key.quotaAvailability != .unavailable
                 && key.status != .failed
         }.count
     }

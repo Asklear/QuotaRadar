@@ -5522,6 +5522,12 @@ require(!mixedExhaustedUnknownTavily.keys[1].isExhausted, "Structured unknown qu
 
 let unavailableZeroTavily = APIKey(name: "TAVILY_UNAVAILABLE", key: "unavailable", provider: .tavily, remaining: 0, limit: 1000, quotaAvailability: .unavailable)
 require(!unavailableZeroTavily.isExhausted, "Structured unavailable quota must not be exhausted solely because a stale remaining value is zero")
+require(!unavailableZeroTavily.isLow, "Structured unavailable quota must not be low solely because a compatibility remaining value is zero")
+require(unavailableZeroTavily.status == .unknown, "Structured unavailable quota should retain an unavailable-neutral credential status")
+require(!unavailableZeroTavily.needsStatusBarAttention, "Structured unavailable quota should not raise low or exhausted attention")
+let unavailableTavilyStats = ProviderStats(provider: .tavily, keys: [unavailableZeroTavily])
+let unavailablePoolText = "\(L10n.credentialCount(1)) · \(L10n.format(.usableCredentialCount, 0))"
+require(unavailableTavilyStats.credentialPoolDisplayText == unavailablePoolText, "Structured unavailable quota must not count as a usable monitoring credential")
 
 let mixedStructuredPercentage = ProviderStats(provider: .codexSubscription, keys: [
     APIKey(name: "CODEX_EXHAUSTED", key: "empty", provider: .codexSubscription, remaining: 0, limit: 10000, quotaAvailability: .exhausted, quotaLabel: "5h 0% · week 0%"),
