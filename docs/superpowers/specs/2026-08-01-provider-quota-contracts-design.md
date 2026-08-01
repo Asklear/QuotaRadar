@@ -51,6 +51,7 @@ The browser displayed `有效期至 2026-08-08`. The parser already searches for
 - Authentication success means the saved credential can call the provider's real quota endpoint; a logged-in page alone is insufficient.
 - Provider reset time, plan expiry, and quota exhaustion remain separate concepts.
 - Shared UI wording must not erase provider HTTP status, raw numeric evidence, or diagnostic detail.
+- Exhaustion must come from structured provider evidence, never from a bare persisted zero.
 - A fallback must never invent a provider reset or expiry date.
 - LongCat Pay-as-you-go balance must not inherit Token Pack expiry semantics.
 - No live verification may reveal API keys, cookies, access tokens, or refresh tokens.
@@ -90,17 +91,38 @@ Continue preferring `total_searches_left`, then `plan_searches_left`, then the d
 
 ### 3. Provider-wide exhausted Key Quota presentation
 
+Add a persisted structured quota availability state shared by `QuotaResult`, `APIKey`, and `APIKeyStore`:
+
+- `available`: the provider confirmed a usable positive quota, credit, balance, or percentage window;
+- `exhausted`: the provider confirmed zero usable quota, credit, balance, or percentage, or returned an authenticated exhaustion response;
+- `unavailable`: the provider explicitly reports that quota/service access is unavailable, such as DeepSeek `is_available = false`;
+- `unknown`: the provider is usable but does not expose a remaining amount;
+- absent: legacy records have no structured evidence and retain their existing presentation until refreshed.
+
+Provider parsers must assign this state from their response contract. Shared helpers may derive `available` versus `exhausted` only inside a parser that has already validated that its numeric fields represent a real quota or balance. A generic HTTP-200-plus-zero rule is forbidden. Brave HTTP 402 and a verified long-window HTTP 429 explicitly produce `exhausted`. DeepSeek `is_available = false` explicitly produces `unavailable`, not `exhausted`.
+
+The parser audit covers every currently visible quota-monitoring shape:
+
+| Shape | Representative providers | State rule |
+| --- | --- | --- |
+| Request/count quota | Tavily, Brave, SerpAPI, AnySearch, coding plans | Valid positive remaining is `available`; validated zero is `exhausted`. |
+| Token/percentage windows | Claude, Codex, Kimi, LongCat, percentage coding plans | Any usable positive monitored window is `available`; a provider-confirmed zero across its usable monitored resource is `exhausted`. |
+| Prepaid credits | Serper, Anthropic Credits | Positive credit is `available`; validated zero credit is `exhausted`. |
+| Monetary balance | DeepSeek, Bocha, WeChat Search, LongCat Pay-as-you-go | Positive balance is `available`; validated zero balance is `exhausted`; explicit service/balance unavailability is `unavailable`. |
+| Usage without a limit | Exa, Querit, Brave without exposed monthly headers | `unknown`; never inferred as exhausted. |
+| No subscription / unsupported monitoring | Providers returning an explicit missing-plan state or copy-only/business keys | Existing no-subscription/unsupported state; no exhaustion evidence. |
+
+Persist the state through normal refresh and app restart. A failed later refresh preserves the last successful quota values and availability evidence alongside the new failure diagnostic, following the app's existing stale-value behavior.
+
 Normalize only `ProviderStats.keyQuotaDisplayText`, which owns the provider-overview Key Quota column. Do not change `APIKey.quotaDisplayText`, `APIKey.quotaPresentation`, `APIKey.diagnosticSummary`, parser labels, or credential-detail rendering.
 
-The rule applies to every provider represented by `ProviderStats`, regardless of whether its monitored resource is a request quota, token package, percentage window, prepaid credit, or monetary balance. Key Quota displays the localized `Usage limit exceeded` message (`额度已用尽` in Simplified Chinese) only when no active monitoring credential remains usable and at least one active monitoring credential meets a verified exhaustion predicate:
-
-- the parser supplied the structured `usageLimitExceeded` state from an authenticated provider response; or
-- `remaining <= 0` with a non-sentinel value and the latest provider result is a successful 2xx quota/balance response; or
-- `remaining <= 0` with a non-sentinel value and the latest provider result is an authenticated quota-exhaustion response such as HTTP 402 or a verified long-window HTTP 429.
+The rule applies to every provider represented by `ProviderStats`, regardless of whether its monitored resource is a request quota, token package, percentage window, prepaid credit, or monetary balance. Key Quota displays the localized `Usage limit exceeded` message (`额度已用尽` in Simplified Chinese) only when no active monitoring credential has structured state `available` and at least one active monitoring credential has structured state `exhausted`.
 
 This includes zero monetary balances and zero prepaid-credit balances: the Key Quota column uses the shared exhausted message while credential details keep the currency or credit amount. Percentage-window providers already project their tightest window into `remaining` / `limit`; a verified zero projection therefore uses the same rule.
 
-If any active monitoring credential remains usable, existing mixed-pool selection continues to show the tightest usable quota. Invalid credentials, schema failures, no-subscription states, unknown quota, unlimited quota, copy-only credentials, business-invocation-only keys, and expired authentication never become quota exhaustion merely because the provider pool has no usable key. Legacy records without a successful or authenticated exhaustion HTTP status keep their existing presentation until refreshed; the shared rule does not guess from a stale zero alone.
+If any active monitoring credential has structured state `available`, mixed-pool selection continues to show the tightest usable quota. For percentage-window providers, the tightest window and percentage fallback must be calculated only from active monitoring credentials whose structured state is `available`; exhausted siblings cannot force the provider overview to `0%` while another credential is usable.
+
+Invalid credentials, schema failures, no-subscription states, `unavailable`, `unknown`, unlimited quota, copy-only credentials, business-invocation-only keys, and expired authentication never become quota exhaustion merely because the provider pool has no usable key. A legacy `usageLimitExceeded` descriptor without structured state also retains its old presentation until refreshed; the shared rule does not guess from stale labels or zeros.
 
 The credential detail retains:
 
@@ -157,9 +179,12 @@ Use focused RED/GREEN tests before production changes.
 
 - table-driven cases cover all quota shapes: request count, token count, percentage window, prepaid credit, and monetary balance;
 - exhausted Tavily, Brave HTTP 402, Brave verified monthly 429, SerpAPI, LongCat Token Pack, subscription/coding-plan windows, prepaid credits, and zero monitored balances produce the same localized `ProviderStats.keyQuotaDisplayText` when their latest response verifies exhaustion;
+- parser fixtures assert `available`, `exhausted`, `unavailable`, or `unknown` evidence as appropriate and APIKeyStore round-trips it;
 - `APIKey.quotaDisplayText`, exact detail values, Brave 402/429 `lastHTTPStatus`, and their distinct `lastDiagnosticText` remain provider-specific;
 - mixed usable/exhausted key pools still show usable quota;
-- unknown, unlimited, expired, failed, no-subscription, copy-only, business-key-only, and stale zero-without-status fixtures do not become exhausted.
+- a mixed exhausted/usable percentage-provider pool derives its displayed window only from the usable credential;
+- DeepSeek `is_available = false` is `unavailable`, not exhausted;
+- unknown, unavailable, unlimited, expired, failed, no-subscription, copy-only, business-key-only, legacy usage-limit-without-state, and stale zero-without-state fixtures do not become exhausted.
 
 ### LongCat
 
