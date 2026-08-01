@@ -68,24 +68,24 @@ assert_match 'CFBundleDisplayName' \
 assert_match 'Quota Radar' \
   "QuotaRadar/Info.plist" \
   "App bundle display name should be Quota Radar"
-assert_match '<string>0\.4\.7</string>' \
+assert_match '<string>0\.4\.8</string>' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar 0.4.7 should be recorded in Info.plist"
-assert_match '<string>21</string>' \
+  "Quota Radar 0.4.8 should be recorded in Info.plist"
+assert_match '<string>22</string>' \
   "QuotaRadar/Info.plist" \
-  "Quota Radar Build 21 should be recorded in Info.plist"
-assert_match 'Current version: `v0\.4\.7`\.' \
+  "Quota Radar Build 22 should be recorded in Info.plist"
+assert_match 'Current version: `v0\.4\.8`\.' \
   "README.md" \
-  "English README should show v0.4.7 as the current version"
-assert_match '当前版本：`v0\.4\.7`。' \
+  "English README should show v0.4.8 as the current version"
+assert_match '当前版本：`v0\.4\.8`。' \
   "README.zh-Hans.md" \
-  "Simplified Chinese README should show v0.4.7 as the current version"
-assert_match '^## v0\.4\.7 Brave HTTP 429 Quota Exhaustion$' \
+  "Simplified Chinese README should show v0.4.8 as the current version"
+assert_match '^## v0\.4\.8 Provider Quota Contract Repairs$' \
   "docs/roadmap.md" \
-  "English roadmap should document the v0.4.7 Brave quota fix"
-assert_match '^## v0\.4\.7 Brave HTTP 429 额度耗尽修复$' \
+  "English roadmap should document the v0.4.8 provider quota repairs"
+assert_match '^## v0\.4\.8 服务商额度契约修复$' \
   "docs/roadmap.zh-Hans.md" \
-  "Simplified Chinese roadmap should document the v0.4.7 Brave quota fix"
+  "Simplified Chinese roadmap should document the v0.4.8 provider quota repairs"
 assert_no_match 'LSUIElement' \
   "QuotaRadar/Info.plist" \
   "QuotaRadar must appear in the macOS Dock after launch"
@@ -146,6 +146,9 @@ assert_match 'No secrets, cookies, tokens, or raw provider responses are printed
 assert_match 'LiveAcceptanceRow' \
   "scripts/live_acceptance_main.swift" \
   "Live acceptance should use a structured sanitized row model"
+assert_match 'options\.hasProviderFilters && rows\.contains\(where: \{ \$0\.status == "missing" \}\)' \
+  "scripts/live_acceptance_main.swift" \
+  "Filtered live acceptance should fail when no saved credential was actually tested"
 assert_match 'Provider.visibleCases.filter \{ \$0.supportsDashboardReauthentication \}' \
   "scripts/live_acceptance_main.swift" \
   "Live acceptance should cover every visible dashboard-login provider"
@@ -691,9 +694,9 @@ if uploaded_paths != expected_paths:
 for readme_path in ("README.md", "README.zh-Hans.md"):
     readme = Path(readme_path).read_text()
     try:
-        command = readme.split("gh release create v0.4.7", 1)[1].split("```", 1)[0]
+        command = readme.split("gh release create v0.4.8", 1)[1].split("```", 1)[0]
     except IndexError:
-        sys.exit(f"FAIL: {readme_path} should document the v0.4.7 manual release command")
+        sys.exit(f"FAIL: {readme_path} should document the v0.4.8 manual release command")
     for artifact in expected_paths:
         if artifact not in command:
             sys.exit(f"FAIL: {readme_path} manual release command is missing {artifact}")
@@ -5509,6 +5512,16 @@ let mixedStructuredTavily = ProviderStats(provider: .tavily, keys: [
     APIKey(name: "TAVILY_AVAILABLE", key: "usable", provider: .tavily, remaining: 361, limit: 1000, quotaAvailability: .available),
 ])
 require(mixedStructuredTavily.keyQuotaDisplayText == "36%", "An available credential should prevent an exhausted sibling from forcing shared exhaustion")
+
+let mixedExhaustedUnknownTavily = ProviderStats(provider: .tavily, keys: [
+    APIKey(name: "TAVILY_EXHAUSTED", key: "empty", provider: .tavily, remaining: 0, limit: 1000, quotaAvailability: .exhausted),
+    APIKey(name: "TAVILY_UNKNOWN", key: "unknown", provider: .tavily, remaining: 0, limit: 1000, quotaAvailability: .unknown),
+])
+require(mixedExhaustedUnknownTavily.keyQuotaDisplayText != L10n.t(.usageLimitExceeded), "An unknown sibling should prevent provider-wide verified exhaustion")
+require(!mixedExhaustedUnknownTavily.keys[1].isExhausted, "Structured unknown quota must not be exhausted solely because a stale remaining value is zero")
+
+let unavailableZeroTavily = APIKey(name: "TAVILY_UNAVAILABLE", key: "unavailable", provider: .tavily, remaining: 0, limit: 1000, quotaAvailability: .unavailable)
+require(!unavailableZeroTavily.isExhausted, "Structured unavailable quota must not be exhausted solely because a stale remaining value is zero")
 
 let mixedStructuredPercentage = ProviderStats(provider: .codexSubscription, keys: [
     APIKey(name: "CODEX_EXHAUSTED", key: "empty", provider: .codexSubscription, remaining: 0, limit: 10000, quotaAvailability: .exhausted, quotaLabel: "5h 0% · week 0%"),

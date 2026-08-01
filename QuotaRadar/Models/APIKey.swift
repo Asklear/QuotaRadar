@@ -1763,6 +1763,9 @@ struct APIKey: Identifiable, Codable, Equatable {
 
     var isExhausted: Bool {
         guard !isUnlimitedQuota else { return false }
+        if let quotaAvailability {
+            return quotaAvailability == .exhausted
+        }
         if isUsageLimitExceeded { return true }
         guard !isUsableWithUnknownQuota else { return false }
         guard let remaining = remaining else { return false }
@@ -3006,8 +3009,8 @@ struct ProviderStats: Identifiable {
     }
 
     private var hasVerifiedExhaustedQuota: Bool {
-        activeAvailableMonitoringKeys.isEmpty
-            && activeCredentialKeys.contains { $0.quotaAvailability == .exhausted }
+        !activeCredentialKeys.isEmpty
+            && activeCredentialKeys.allSatisfy { $0.quotaAvailability == .exhausted }
     }
 
     private var keyQuotaFiniteKeys: [APIKey] {

@@ -52,7 +52,7 @@ Live acceptance snapshot: 2026-08-01 CST.
 | Provider | Result | Sanitized Evidence |
 | --- | --- | --- |
 | Querit | Passed | Usable quota-unknown state still reflects usage-only account evidence; no limit/reset fields observed. |
-| AnySearch | Recalibrated; fixed build needs a fresh WebView login for final save proof | Embedded console showed Free Plan, 503 used and 497 / 1,000 remaining. The failed save was caused by preemptive refresh of an advisory local expiry; the access token had not been tried. The repaired flow is access-token-first and refreshes only after an actual 401. |
+| AnySearch | Passed | HTTP 200 through the saved logged-in WebView; Free Plan, 503 used and 497 / 1,000 remaining, with daily reset at 2026-08-02 00:00 UTC. After parsing the current `code/data/message` envelope, the app displayed “login authorization saved” and immediately persisted the plan and quota. |
 | SerpAPI | Passed | HTTP 200; Free Plan 0 / 250 remaining with official renewal 2026-08-10. |
 | Claude Subscription | Passed | Plan, two quota windows, reset fields, and plan-end metadata observed. |
 | Anthropic Credits | Passed | Parser fixture and provider capability are wired from the observed `prepaid/credits` shape. A sanitized replay through saved Claude web-login authorization returned HTTP 200 and parsed a balance; direct Anthropic Credits live acceptance passed with quota evidence and no reset/plan-end/window fields. |

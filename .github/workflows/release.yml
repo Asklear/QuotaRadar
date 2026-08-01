@@ -70,27 +70,23 @@ jobs:
             Quota Radar macOS build.
 
             What's new in ${{ github.ref_name }}:
-            - Updates Brave Search to persist `0 / limit` and the reset time when aligned HTTP 429 headers prove the longest request window is exhausted, while preserving short-window rate limits as transient errors.
-            - Strictly rejects malformed or misaligned Brave quota buckets instead of silently compressing them into false exhaustion evidence.
-            - Replaces AnySearch's stale unlimited state with authenticated UTC-daily usage monitoring for the 1,000-request free plan while keeping the existing copyable API key.
-            - Refreshes AnySearch's short-lived console authorization, persists rotating tokens across retry and failure paths, and preserves the last successful quota on transient errors.
-            - Repairs Codex dashboard credential recapture after rejected or stale authorization and refreshes the saved plan and quota state.
-            - Captures Aliyun login material from the protected console route.
-            - Adds bounded Volcengine CSRF rotation, exact OpenCode Go null/no-subscription parsing, and explicit Tencent Cloud unauthorized handling.
-            - Reconciles concurrent refreshes per credential so stale results cannot overwrite newer authentication state or emit stale snapshots, failure banners, or notifications.
-            - Keeps provider-specific capture and request rules isolated. Credential values remain local and are never included in diagnostics.
+            - Recalibrates AnySearch for the current `code/data/message` billing envelope and uses the still-valid access token before attempting refresh-token rotation. A live logged-in save returned HTTP 200 with Free Plan, 503 used, and 497 / 1,000 remaining.
+            - Uses SerpAPI's official renewal date instead of an inferred month boundary.
+            - Parses LongCat Token Pack expiry as China-local time while keeping pay-as-you-go balance non-expiring.
+            - Keeps Codex dynamic quota windows accurate when a fully recovered five-hour window is omitted and only the weekly window remains.
+            - Adds provider-wide structured availability and unified exhausted wording only when every active credential has verified zero remaining.
+            - Makes filtered live acceptance fail when the requested provider has no saved credential, preventing empty Release QA runs from passing.
+            - Credential values remain local and are never included in diagnostics or release artifacts.
             - This release includes the standard Swift macOS DMG with update checks and a WhiteLabel DMG without upstream GitHub updater endpoints.
 
             中文说明：
-            - Brave Search 在严格对齐的 HTTP 429 响应证明最长额度周期耗尽时，会保存 `0 / 总额度` 和重置时间；短周期限流仍作为瞬时错误处理。
-            - 严格拒绝畸形或错位的 Brave 额度桶，避免静默压缩数组后误判为额度耗尽。
-            - AnySearch 不再显示错误的无限额度，改为通过网页登录授权展示每日 UTC 1,000 次免费额度，同时保留原有可复制 API Key。
-            - 自动续期 AnySearch 短期控制台授权，在重试和失败路径中保存轮换 token，并在瞬时错误时保留最近一次成功额度。
-            - 修复 Codex 授权被拒绝或过期后的控制台凭据重新捕获，并刷新套餐和额度状态。
-            - 阿里云改从受保护控制台路由捕获完整登录信息。
-            - 增加火山引擎有界 CSRF 轮换、OpenCode Go 精确 null / 未订阅解析，以及腾讯云未授权响应分类。
-            - 并发刷新改为按凭据协调，旧结果不会覆盖新认证状态，也不会写入过期快照、失败横幅或通知。
-            - 各 provider 的捕获与请求规则保持隔离；凭据值只留在本机，也不会写入诊断。
+            - AnySearch 按最新 `code/data/message` 额度包装重新校准，并在轮换 refresh token 前先使用仍有效的 access token；登录态保存实测 HTTP 200，Free Plan 已用 503、剩余 497 / 1,000。
+            - 使用 SerpAPI 官方续期日，不再推算本地月初。
+            - 按中国本地时间解析 LongCat Token 资源包到期时间，并保持 API 按量余额无到期状态。
+            - Codex 完全恢复的 5 小时窗口被省略、仅返回周窗口时，仍保持动态窗口准确，不误判耗尽。
+            - 为所有服务商增加结构化可用状态；只有全部活跃凭据都明确验证剩余为零时，才显示统一耗尽文案。
+            - 指定服务商没有已保存凭据时，live acceptance 会失败，避免空跑 Release QA 假绿。
+            - 凭据值只保留在本机，不会进入诊断或发布产物。
             - 本次同时提供带更新检查的标准 Swift macOS DMG，以及不包含上游 GitHub 更新地址的 WhiteLabel DMG。
 
             This DMG is unsigned and not notarized because the project does not use a paid Apple Developer ID. macOS Gatekeeper may block the first launch after download. Only install it if you trust this repository and release.

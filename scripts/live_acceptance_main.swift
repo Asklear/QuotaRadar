@@ -35,7 +35,9 @@ struct QuotaRadarLiveAcceptance {
             } else {
                 printTable(rows, live: options.live)
             }
-            if options.live, rows.contains(where: { $0.status == "failed" }) {
+            if options.live,
+               rows.contains(where: { $0.status == "failed" })
+                || (options.hasProviderFilters && rows.contains(where: { $0.status == "missing" })) {
                 Foundation.exit(1)
             }
         } catch {

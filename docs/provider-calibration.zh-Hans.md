@@ -52,7 +52,7 @@ live acceptance 快照：2026-08-01 CST。
 | Provider | 结果 | 脱敏证据 |
 | --- | --- | --- |
 | Querit | 通过 | 仍是可用、额度未知状态；账号接口只观察到 usage-only evidence，未观察到 limit/reset 字段。 |
-| AnySearch | 已重新校准；修复版仍需在独立 WebView 登录后完成最终保存证明 | 内嵌控制台显示 Free Plan，已用 503、剩余 497 / 1,000。保存失败根因是应用仅依据本地到期时间提前 refresh，尚未尝试仍可用的 access token；修复后改为 access-token-first，仅在实际 401 后 refresh。 |
+| AnySearch | 通过 | 已保存登录态 WebView 实测 HTTP 200；Free Plan，已用 503、剩余 497 / 1,000，每日重置为 2026-08-02 00:00 UTC。解析最新 `code/data/message` 包装后，应用显示“登录授权已保存”，并立即持久化套餐和额度。 |
 | SerpAPI | 通过 | HTTP 200；Free Plan 剩余 0 / 250，官方续期日为 2026-08-10。 |
 | Claude Subscription | 通过 | 观察到套餐、两个额度窗口、reset 字段和套餐到期 metadata。 |
 | Anthropic Credits | 通过 | 已基于观察到的 `prepaid/credits` 形态接入 parser fixture 和 provider capability；通过保存的 Claude 网页登录授权脱敏复放返回 HTTP 200 并解析余额。直接 Anthropic Credits live acceptance 已通过，确认有 quota 证据且没有 reset / plan-end / window 字段。 |

@@ -17,6 +17,14 @@ Quota Radar's core goal is to reduce quota anxiety: users should not need to rep
 - Secrets stay local. Source code, tests, README files, and GitHub Releases must never contain real API keys or cookies.
 - Every provider needs clear diagnostics: usable, quota unknown, credential expired, connection failed, unsupported API, or quota-consuming check.
 
+## v0.4.8 Provider Quota Contract Repairs
+
+- [x] Track structured quota availability for every provider and show the shared Key Quota exhausted wording only when zero remaining is verified.
+- [x] Recalibrate AnySearch console authorization for the current `code/data/message` billing envelope, using the access token before attempting refresh-token rotation.
+- [x] Use SerpAPI's official renewal date instead of a locally inferred month boundary.
+- [x] Parse LongCat Token Pack expiry as China-local time while keeping pay-as-you-go balance non-expiring.
+- [x] Preserve Codex dynamic quota-window semantics when a fully recovered five-hour window is omitted and only the weekly window remains.
+
 ## v0.4.7 Brave HTTP 429 Quota Exhaustion
 
 - [x] Replace stale Brave remaining quota with `0 / limit` when aligned rate-limit headers prove the unique longest request window is exhausted.
