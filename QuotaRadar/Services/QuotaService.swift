@@ -55,59 +55,12 @@ struct QuotaResult {
     }
 }
 
-enum AnySearchDailyUsageRequest {
-    static let dailyLimit = 1_000
-    private static let utc = TimeZone(secondsFromGMT: 0)!
+enum AnySearchBillingOverviewRequest {
+    static let url = URL(string: "https://www.anysearch.com/api/api/user/billing/overview")!
+}
 
-    static func url(now: Date = Date()) -> URL {
-        let from = utcDayStart(for: now)
-        let fromValue = encodedQueryValue(formatter.string(from: from))
-        let toValue = encodedQueryValue(formatter.string(from: now))
-        return URL(string: "https://anysearch.com/api/api/user/usage/summary?from=\(fromValue)&to=\(toValue)")!
-    }
-
-    static func date(from value: String) -> Date? {
-        for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX", "yyyy-MM-dd'T'HH:mm:ssXXXXX"] {
-            let parser = DateFormatter()
-            parser.calendar = utcCalendar
-            parser.locale = Locale(identifier: "en_US_POSIX")
-            parser.timeZone = utc
-            parser.dateFormat = format
-            if let date = parser.date(from: value) {
-                return date
-            }
-        }
-        return nil
-    }
-
-    static func nextUTCMidnight(after dayStart: Date) -> Date? {
-        utcCalendar.date(byAdding: .day, value: 1, to: utcDayStart(for: dayStart))
-    }
-
-    static func utcDayStart(for date: Date) -> Date {
-        utcCalendar.startOfDay(for: date)
-    }
-
-    private static var utcCalendar: Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.locale = Locale(identifier: "en_US_POSIX")
-        calendar.timeZone = utc
-        return calendar
-    }
-
-    private static var formatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.calendar = utcCalendar
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = utc
-        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'"
-        return formatter
-    }
-
-    private static func encodedQueryValue(_ value: String) -> String {
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
-        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
-    }
+enum AnySearchRefreshRequest {
+    static let url = URL(string: "https://www.anysearch.com/api/ssuser/auth/refresh")!
 }
 
 struct SubscriptionLifecycleInfo {
@@ -543,54 +496,64 @@ enum QuotaParsers {
         )
     }
 
-    static func parseAnySearchDailyUsage(_ data: Data, now: Date = Date()) throws -> QuotaResult {
-        struct UsageResponse: Decodable {
-            struct UsageData: Decodable {
-                struct Period: Decodable {
-                    let from: String
-                    let to: String
-                }
-
-                let period: Period
-                let scope: String
-                let total_requests: Int
-            }
-
-            let code: Int
-            let data: UsageData?
+    static func parseAnySearchBillingOverview(_ data: Data) throws -> QuotaResult {
+        struct Overview: Decodable {
+            let tier_code: String
+            let tier_name: String
+            let remaining: Int
+            let used: Int
+            let total: Int
+            let reset_period: String
+            let next_reset_at: String?
         }
 
-        guard let response = try? JSONDecoder().decode(UsageResponse.self, from: data),
-              response.code == 0,
-              let usage = response.data,
-              usage.scope == "user",
-              usage.total_requests >= 0,
-              let periodStart = AnySearchDailyUsageRequest.date(from: usage.period.from),
-              let periodEnd = AnySearchDailyUsageRequest.date(from: usage.period.to),
-              abs(periodStart.timeIntervalSince(AnySearchDailyUsageRequest.utcDayStart(for: now))) < 0.5,
-              periodEnd >= periodStart,
-              periodEnd <= now.addingTimeInterval(1),
-              let resetAt = AnySearchDailyUsageRequest.nextUTCMidnight(after: periodStart),
-              periodEnd < resetAt else {
-            throw QuotaError.invalidResponse
+        guard let overview = try? JSONDecoder().decode(Overview.self, from: data) else {
+            throw QuotaError.schemaDrift
+        }
+        let tierName = overview.tier_name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !overview.tier_code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !tierName.isEmpty,
+              overview.total > 0,
+              overview.used >= 0,
+              overview.remaining >= 0,
+              overview.remaining <= overview.total,
+              ["daily", "monthly", "none"].contains(overview.reset_period),
+              (overview.used <= overview.total
+                ? overview.used == overview.total - overview.remaining
+                : overview.remaining == 0) else {
+            throw QuotaError.schemaDrift
         }
 
-        let limit = AnySearchDailyUsageRequest.dailyLimit
-        let remaining = max(0, limit - usage.total_requests)
-        let label = "\(usage.total_requests) used · \(remaining) remaining / \(limit) daily"
+        let resetAt = overview.next_reset_at.flatMap(parseAnySearchISODate)
+        let quotaText: LocalizedTextDescriptor
+        switch overview.reset_period {
+        case "daily":
+            quotaText = .localized(.dailyRequestsUsageFormat, String(overview.used), String(overview.remaining), String(overview.total))
+        case "monthly":
+            quotaText = .localized(.monthlyRequestsUsageFormat, String(overview.used), String(overview.remaining), String(overview.total))
+        default:
+            quotaText = .localized(.requestsUsageFormat, String(overview.used), String(overview.remaining), String(overview.total))
+        }
+
         return QuotaResult(
-            remaining: remaining,
-            limit: limit,
+            remaining: overview.remaining,
+            limit: overview.total,
             resetAt: resetAt,
-            quotaAvailability: availability(forValidatedRemaining: remaining),
-            quotaLabel: label,
-            quotaText: .localized(
-                .dailyRequestsUsageFormat,
-                String(usage.total_requests),
-                String(remaining),
-                String(limit)
-            )
+            quotaAvailability: availability(forValidatedRemaining: overview.remaining),
+            planDisplayName: tierName,
+            quotaText: quotaText
         )
+    }
+
+    private static func parseAnySearchISODate(_ value: String) -> Date? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: trimmed) {
+            return date
+        }
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter.date(from: trimmed)
     }
 
     static func parseDeepSeekBalance(_ data: Data) throws -> QuotaResult {
@@ -3186,9 +3149,11 @@ enum VolcengineCodingPlanAuthPolicy {
 enum QuotaError: Error, LocalizedError {
     case invalidResponse
     case schemaDrift
+    case schemaDriftStatus(Int)
     case networkError(Error)
     case rateLimited(resetAt: Date?)
     case unauthorized
+    case unauthorizedStatus(Int)
     case invalidAPIKey(statusCode: Int)
     case notSupported
     case noSubscription
@@ -3202,7 +3167,7 @@ enum QuotaError: Error, LocalizedError {
         switch self {
         case .invalidResponse:
             return .localized(.quotaErrorInvalidResponse)
-        case .schemaDrift:
+        case .schemaDrift, .schemaDriftStatus:
             return .localized(.quotaErrorSchemaDrift)
         case .networkError(let error):
             if let networkErrorKey = Self.knownNetworkErrorKey(error) {
@@ -3211,7 +3176,7 @@ enum QuotaError: Error, LocalizedError {
             return .localized(.quotaErrorNetworkFormat, error.localizedDescription)
         case .rateLimited:
             return .localized(.quotaErrorRateLimited)
-        case .unauthorized:
+        case .unauthorized, .unauthorizedStatus:
             return .localized(.quotaErrorInvalidAPIKey)
         case .invalidAPIKey:
             return .localized(.quotaErrorInvalidAPIKey)
@@ -3261,12 +3226,32 @@ enum QuotaError: Error, LocalizedError {
         switch self {
         case .unauthorized:
             return 401
+        case .unauthorizedStatus(let statusCode), .schemaDriftStatus(let statusCode):
+            return statusCode
         case .invalidAPIKey(let statusCode):
             return statusCode
         case .rateLimited:
             return 429
         case .invalidResponse, .schemaDrift, .networkError, .notSupported, .noSubscription, .cooldown:
             return nil
+        }
+    }
+
+    var isUnauthorized: Bool {
+        switch self {
+        case .unauthorized, .unauthorizedStatus:
+            return true
+        case .invalidResponse, .schemaDrift, .schemaDriftStatus, .networkError, .rateLimited, .invalidAPIKey, .notSupported, .noSubscription, .cooldown:
+            return false
+        }
+    }
+
+    var isSchemaDrift: Bool {
+        switch self {
+        case .schemaDrift, .schemaDriftStatus:
+            return true
+        case .invalidResponse, .networkError, .rateLimited, .unauthorized, .unauthorizedStatus, .invalidAPIKey, .notSupported, .noSubscription, .cooldown:
+            return false
         }
     }
 }
@@ -3910,13 +3895,13 @@ actor QuotaService {
         }
 
         do {
-            var result = try await requestAnySearchDailyUsage(credential)
+            var result = try await requestAnySearchBillingOverview(credential)
             result.refreshedCredential = refreshedCredential
             return result
-        } catch QuotaError.unauthorized where refreshedCredential == nil && credential.refreshToken != nil {
+        } catch let quotaError as QuotaError where quotaError.isUnauthorized && refreshedCredential == nil && credential.refreshToken != nil {
             let refresh = try await refreshAnySearchCredential(credential)
             do {
-                var result = try await requestAnySearchDailyUsage(refresh.credential)
+                var result = try await requestAnySearchBillingOverview(refresh.credential)
                 result.refreshedCredential = refresh.serializedCredential
                 return result
             } catch {
@@ -3943,7 +3928,7 @@ actor QuotaService {
             throw QuotaError.unauthorized
         }
 
-        var request = URLRequest(url: URL(string: "https://anysearch.com/api/ssuser/auth/refresh")!)
+        var request = URLRequest(url: AnySearchRefreshRequest.url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -3955,19 +3940,22 @@ actor QuotaService {
             throw QuotaError.invalidResponse
         }
         if httpResponse.statusCode == 400 || httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
-            throw QuotaError.unauthorized
+            throw QuotaError.unauthorizedStatus(httpResponse.statusCode)
         }
         guard httpResponse.statusCode == 200 else {
-            throw QuotaError.invalidResponse
+            throw QuotaError.schemaDriftStatus(httpResponse.statusCode)
         }
-        return try AnySearchDashboardCredential.refreshResult(from: data, now: refreshStartedAt)
+        do {
+            return try AnySearchDashboardCredential.refreshResult(from: data, now: refreshStartedAt)
+        } catch {
+            throw QuotaError.schemaDriftStatus(httpResponse.statusCode)
+        }
     }
 
-    private func requestAnySearchDailyUsage(
+    private func requestAnySearchBillingOverview(
         _ credential: AnySearchDashboardCredential
     ) async throws -> QuotaResult {
-        let now = Date()
-        var request = URLRequest(url: AnySearchDailyUsageRequest.url(now: now))
+        var request = URLRequest(url: AnySearchBillingOverviewRequest.url)
         request.httpMethod = "GET"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(credential.accessToken)", forHTTPHeaderField: "Authorization")
@@ -3978,18 +3966,26 @@ actor QuotaService {
         }
         switch httpResponse.statusCode {
         case 401:
-            throw QuotaError.unauthorized
+            throw QuotaError.unauthorizedStatus(401)
         case 403:
             throw QuotaError.invalidAPIKey(statusCode: 403)
+        case 404:
+            throw QuotaError.schemaDriftStatus(404)
         default:
             break
         }
         guard httpResponse.statusCode == 200 else {
-            throw QuotaError.invalidResponse
+            throw QuotaError.schemaDriftStatus(httpResponse.statusCode)
         }
 
-        return try withHTTPStatus(
-            QuotaParsers.parseAnySearchDailyUsage(data, now: now),
+        let result: QuotaResult
+        do {
+            result = try QuotaParsers.parseAnySearchBillingOverview(data)
+        } catch {
+            throw QuotaError.schemaDriftStatus(httpResponse.statusCode)
+        }
+        return withHTTPStatus(
+            result,
             from: httpResponse
         )
     }

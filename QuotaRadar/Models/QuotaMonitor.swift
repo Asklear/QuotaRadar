@@ -514,7 +514,8 @@ class QuotaMonitor: ObservableObject {
         var failed = key
         failed.key = rotationError.refreshedCredential
 
-        if case QuotaError.unauthorized = rotationError.underlying {
+        if let quotaError = rotationError.underlying as? QuotaError,
+           quotaError.isUnauthorized {
             failed.remaining = nil
             failed.limit = nil
             failed.resetAt = nil
@@ -523,7 +524,7 @@ class QuotaMonitor: ObservableObject {
             failed.quotaAvailability = nil
             failed.codexResetCreditsRemaining = nil
             failed.codexResetCreditsEarliestExpiresAt = nil
-            failed.lastHTTPStatus = 401
+            failed.lastHTTPStatus = quotaError.httpStatus ?? 401
             if failed.provider.supportsDashboardReauthentication {
                 failed.quotaLabel = L10n.t(.credentialExpired)
                 failed.quotaText = LocalizedTextDescriptor.localized(.credentialExpired)
@@ -554,6 +555,26 @@ class QuotaMonitor: ObservableObject {
             failed.quotaText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
             failed.lastDiagnosticMessage = rotationError.underlying.localizedDescription
             failed.lastDiagnosticText = LocalizedTextDescriptor.localized(.quotaErrorInvalidAPIKey)
+            failed.consecutiveFailureCount += 1
+            failed.lastUpdated = now
+            return failed
+        }
+
+        if let quotaError = rotationError.underlying as? QuotaError,
+           quotaError.isSchemaDrift {
+            failed.remaining = nil
+            failed.limit = nil
+            failed.resetAt = nil
+            failed.planEndsAt = nil
+            failed.planDisplayName = nil
+            failed.quotaAvailability = nil
+            failed.codexResetCreditsRemaining = nil
+            failed.codexResetCreditsEarliestExpiresAt = nil
+            failed.lastHTTPStatus = quotaError.httpStatus
+            failed.quotaLabel = quotaError.localizedDescription
+            failed.quotaText = LocalizedTextDescriptor.localized(.quotaErrorSchemaDrift)
+            failed.lastDiagnosticMessage = quotaError.localizedDescription
+            failed.lastDiagnosticText = LocalizedTextDescriptor.localized(.quotaErrorSchemaDrift)
             failed.consecutiveFailureCount += 1
             failed.lastUpdated = now
             return failed
@@ -691,7 +712,8 @@ class QuotaMonitor: ObservableObject {
                         key.lastUpdated = Date()
                         outcome = .noSubscription
                         countsAsFailure = false
-                    } else if case QuotaError.unauthorized = effectiveError {
+                    } else if let quotaError = effectiveError as? QuotaError,
+                              quotaError.isUnauthorized {
                         key.remaining = nil
                         key.limit = nil
                         key.resetAt = nil
@@ -733,6 +755,25 @@ class QuotaMonitor: ObservableObject {
                         key.consecutiveFailureCount += 1
                         key.lastUpdated = Date()
                         outcome = .unauthorized
+                        countsAsFailure = true
+                    } else if let quotaError = effectiveError as? QuotaError,
+                              quotaError.isSchemaDrift {
+                        key.remaining = nil
+                        key.limit = nil
+                        key.resetAt = nil
+                        key.planEndsAt = nil
+                        key.planDisplayName = nil
+                        key.quotaAvailability = nil
+                        key.codexResetCreditsRemaining = nil
+                        key.codexResetCreditsEarliestExpiresAt = nil
+                        key.lastHTTPStatus = quotaError.httpStatus
+                        key.quotaLabel = quotaError.localizedDescription
+                        key.quotaText = LocalizedTextDescriptor.localized(.quotaErrorSchemaDrift)
+                        key.lastDiagnosticMessage = quotaError.localizedDescription
+                        key.lastDiagnosticText = LocalizedTextDescriptor.localized(.quotaErrorSchemaDrift)
+                        key.consecutiveFailureCount += 1
+                        key.lastUpdated = Date()
+                        outcome = .failed
                         countsAsFailure = true
                     } else {
                         key = Self.applyingTransientFailure(error, to: key)

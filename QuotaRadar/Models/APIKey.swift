@@ -863,7 +863,7 @@ enum Provider: String, Codable, CaseIterable, Identifiable {
         case .bocha:
             return "https://open.bochaai.com/dashboard"
         case .anysearch:
-            return "https://anysearch.com/console/overview"
+            return "https://www.anysearch.com/console/overview"
         case .wxmp:
             return "https://www.dajiala.com/main/interface?actnav=1"
         case .querit:
@@ -2112,7 +2112,9 @@ struct APIKey: Identifiable, Codable, Equatable {
     }
 
     private var quotaPresentationPrimaryText: String {
-        if provider == .anysearch, quotaText?.key == .dailyRequestsUsageFormat {
+        if provider == .anysearch,
+           let quotaKey = quotaText?.key,
+           [.dailyRequestsUsageFormat, .monthlyRequestsUsageFormat, .requestsUsageFormat].contains(quotaKey) {
             return quotaDisplayText
         }
         if isUsableWithUnknownQuota {

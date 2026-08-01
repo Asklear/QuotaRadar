@@ -4269,7 +4269,7 @@ assert_match 'guard provider\.supportsQuotaQuery else' \
 assert_match 'updatedKey\.isBusinessInvocationCredential' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should rename legacy API-key business credentials to the provider cookie credential name"
-assert_match 'catch QuotaError\.unauthorized' \
+assert_match 'catch let quotaError as QuotaError where quotaError\.isUnauthorized' \
   "QuotaRadar/Views/DashboardReauthView.swift" \
   "Dashboard reauthentication should keep the login window open when captured cookies still return unauthorized"
 assert_match 'didAutoSave = false' \
@@ -4410,7 +4410,7 @@ assert_match '凭据已过期' \
 assert_match 'autoCookieSaveHint' \
   "QuotaRadar/Models/AppLanguage.swift" \
   "Dashboard reauthentication should explain that cookies will be saved automatically after login"
-assert_match 'QuotaError\.unauthorized' \
+assert_match 'quotaError\.isUnauthorized' \
   "QuotaRadar/Models/QuotaMonitor.swift" \
   "Unauthorized quota refreshes should mark dashboard credentials as expired"
 assert_match 'key\.lastDiagnosticMessage = key\.provider\.supportsDashboardReauthentication \? L10n\.t\(\.credentialExpired\) : effectiveError\.localizedDescription' \
@@ -4561,24 +4561,21 @@ assert_match 'key\.lastUpdated = Date\(\)' \
 assert_no_match 'api.anysearch.ai' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch must not use the obsolete .ai endpoint"
-assert_match 'https://anysearch\.com/api/api/user/usage/summary' \
+assert_match 'https://www\.anysearch\.com/api/api/user/billing/overview' \
   "QuotaRadar/Services/QuotaService.swift" \
-  "AnySearch should query the verified dashboard daily usage endpoint"
+  "AnySearch should query the current dashboard billing overview endpoint"
 assert_match 'request\.setValue\("Bearer .*credential\.accessToken.*forHTTPHeaderField: "Authorization"' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch dashboard usage requests should use the captured Bearer token"
-assert_match 'QuotaParsers\.parseAnySearchDailyUsage' \
+assert_match 'QuotaParsers\.parseAnySearchBillingOverview' \
   "QuotaRadar/Services/QuotaService.swift" \
-  "AnySearch refresh should parse the verified daily response"
-assert_match 'AnySearchDailyUsageRequest\.url\(now: now\)' \
+  "AnySearch refresh should parse the current billing overview response"
+assert_no_match 'AnySearchDailyUsageRequest|parseAnySearchDailyUsage|api/api/user/usage/summary' \
   "QuotaRadar/Services/QuotaService.swift" \
-  "AnySearch request and response validation should share one captured instant across UTC midnight"
-assert_match 'parseAnySearchDailyUsage\(data, now: now\)' \
+  "AnySearch must not silently retain the retired daily usage-summary contract"
+assert_match 'https://www\.anysearch\.com/api/ssuser/auth/refresh' \
   "QuotaRadar/Services/QuotaService.swift" \
-  "AnySearch response validation should use the request instant instead of a later wall-clock read"
-assert_match 'https://anysearch\.com/api/ssuser/auth/refresh' \
-  "QuotaRadar/Services/QuotaService.swift" \
-  "AnySearch should use the verified console refresh endpoint"
+  "AnySearch should use the current www console refresh endpoint"
 assert_match 'refresh_token' \
   "QuotaRadar/Services/QuotaService.swift" \
   "AnySearch refresh should send and parse the verified refresh-token contract"
@@ -5127,7 +5124,7 @@ require(Provider.kimiSubscription.dashboardURL == "https://www.kimi.com/membersh
 require(Provider.tencentCloudCodingPlan.dashboardURL == "https://console.cloud.tencent.com/tokenhub/codingplan", "Tencent Cloud Coding Plan should open the TokenHub Coding Plan page")
 require(Provider.tencentCloudTokenPlan.dashboardURL == "https://console.cloud.tencent.com/tokenhub/tokenplan", "Tencent Cloud Token Plan should open the TokenHub Token Plan page")
 require(Provider.bocha.dashboardURL == "https://open.bochaai.com/dashboard", "Bocha should expose its official dashboard jump link")
-require(Provider.anysearch.dashboardURL == "https://anysearch.com/console/overview", "AnySearch should open the current console overview")
+require(Provider.anysearch.dashboardURL == "https://www.anysearch.com/console/overview", "AnySearch should open the current www console overview")
 require(Provider.anysearch.defaultCredentialName == "ANYSEARCH_SESSION", "AnySearch quota monitoring should use a separate session record")
 require(Provider.anysearch.copyableAPIKeyCredentialName == "ANYSEARCH_API_KEY", "AnySearch invocation key should remain a separate copyable credential")
 require(Provider.anysearch.supportsCompanionAPIKeyStorage, "AnySearch should preserve a companion invocation API key")
@@ -8525,6 +8522,21 @@ let rotatedUnauthorized = QuotaMonitor.applyingRotatedCredentialFailure(
 require(rotatedUnauthorized.key == rotatedAnySearch.key, "Unauthorized usage after refresh should still preserve the rotated token")
 require(rotatedUnauthorized.remaining == nil && rotatedUnauthorized.limit == nil && rotatedUnauthorized.resetAt == nil, "Unauthorized usage after refresh should clear stale quota")
 require(rotatedUnauthorized.isCredentialExpired, "Unauthorized usage after refresh should mark dashboard authorization expired")
+let rotatedRefreshForbidden = QuotaMonitor.applyingRotatedCredentialFailure(
+    AnySearchCredentialRotationError(underlying: QuotaError.unauthorizedStatus(403), refreshedCredential: rotatedAnySearch.key),
+    to: successfulAnySearch,
+    now: Date(timeIntervalSince1970: 1784197000)
+)
+require(rotatedRefreshForbidden.lastHTTPStatus == 403, "Rotated AnySearch refresh failures should retain exact unauthorized HTTP status")
+require(rotatedRefreshForbidden.quotaAvailability == nil, "Rotated unauthorized failures should clear stale availability evidence")
+let rotatedSchemaDrift = QuotaMonitor.applyingRotatedCredentialFailure(
+    AnySearchCredentialRotationError(underlying: QuotaError.schemaDriftStatus(200), refreshedCredential: rotatedAnySearch.key),
+    to: successfulAnySearch,
+    now: Date(timeIntervalSince1970: 1784197000)
+)
+require(rotatedSchemaDrift.key == rotatedAnySearch.key, "AnySearch schema drift after refresh should retain rotated credentials")
+require(rotatedSchemaDrift.remaining == nil && rotatedSchemaDrift.quotaAvailability == nil, "AnySearch schema drift should clear stale quota and availability evidence")
+require(rotatedSchemaDrift.lastHTTPStatus == 200 && rotatedSchemaDrift.lastDiagnosticText?.key == .quotaErrorSchemaDrift, "AnySearch schema drift should retain HTTP success and recalibration diagnostics")
 let rotatedForbidden = QuotaMonitor.applyingRotatedCredentialFailure(
     AnySearchCredentialRotationError(underlying: QuotaError.invalidAPIKey(statusCode: 403), refreshedCredential: rotatedAnySearch.key),
     to: successfulAnySearch,
@@ -9179,43 +9191,48 @@ require(querit.quotaText?.key == .monthlyRequestsUsedFormat, "Querit usage-only 
 require(querit.resetAt == nil, "Querit account endpoint does not expose a reset date")
 require(querit.planEndsAt == nil, "Querit account endpoint does not expose a plan end date")
 
-let anySearchMorningNow = ISO8601DateFormatter().date(from: "2026-07-16T09:31:17Z")!
-let anySearchDaily = try! QuotaParsers.parseAnySearchDailyUsage(Data("""
-{"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-16T09:31:17Z"},"scope":"user","total_requests":356,"success_requests":356}}
-""".utf8), now: anySearchMorningNow)
-require(anySearchDaily.remaining == 644, "AnySearch should compute remaining from the verified daily limit")
-require(anySearchDaily.limit == 1000, "AnySearch should expose the official free daily limit")
-require(anySearchDaily.quotaText == .localized(.dailyRequestsUsageFormat, "356", "644", "1000"), "AnySearch should retain observed used, remaining, and limit")
-let anySearchExpectedReset = ISO8601DateFormatter().date(from: "2026-07-17T00:00:00Z")!
-require(abs((anySearchDaily.resetAt?.timeIntervalSince1970 ?? 0) - anySearchExpectedReset.timeIntervalSince1970) < 1, "AnySearch should reset at the next UTC midnight")
+let anySearchOverview = try! QuotaParsers.parseAnySearchBillingOverview(Data(#"{"tier_code":"free","tier_name":"Free Plan","remaining":638,"used":362,"total":1000,"rate_limit_unlimited":false,"reset_period":"daily","next_reset_at":null}"#.utf8))
+require(anySearchOverview.remaining == 638 && anySearchOverview.limit == 1000, "AnySearch should use official remaining and total")
+require(anySearchOverview.planDisplayName == "Free Plan", "AnySearch should preserve tier name")
+require(anySearchOverview.resetAt == nil, "Daily quota without next_reset_at must not invent a UTC reset")
+require(anySearchOverview.quotaAvailability == .available, "Positive AnySearch quota should be available")
+require(anySearchOverview.quotaText == .localized(.dailyRequestsUsageFormat, "362", "638", "1000"), "AnySearch daily overview should preserve used, remaining, and total")
 
-let anySearchEndOfDayNow = ISO8601DateFormatter().date(from: "2026-07-16T23:59:59Z")!
-let anySearchOverLimit = try! QuotaParsers.parseAnySearchDailyUsage(Data("""
-{"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-16T23:59:59Z"},"scope":"user","total_requests":1200,"success_requests":1200}}
-""".utf8), now: anySearchEndOfDayNow)
-require(anySearchOverLimit.remaining == 0, "AnySearch remaining should clamp at zero above the daily limit")
-require(anySearchOverLimit.quotaText == .localized(.dailyRequestsUsageFormat, "1200", "0", "1000"), "AnySearch should preserve exact above-limit usage evidence")
+let anySearchMonthly = try! QuotaParsers.parseAnySearchBillingOverview(Data(#"{"tier_code":"pro","tier_name":"Pro","remaining":900,"used":100,"total":1000,"reset_period":"monthly","next_reset_at":"2026-08-10T00:00:00Z"}"#.utf8))
+require(anySearchMonthly.quotaText == .localized(.monthlyRequestsUsageFormat, "100", "900", "1000"), "AnySearch monthly overview must not be mislabeled as daily")
+require(anySearchMonthly.resetAt == ISO8601DateFormatter().date(from: "2026-08-10T00:00:00Z"), "AnySearch should retain a valid official next reset")
+let anySearchNoPeriod = try! QuotaParsers.parseAnySearchBillingOverview(Data(#"{"tier_code":"custom","tier_name":"Custom","remaining":5,"used":5,"total":10,"reset_period":"none"}"#.utf8))
+require(anySearchNoPeriod.quotaText == .localized(.requestsUsageFormat, "5", "5", "10"), "AnySearch non-resetting quota should omit daily/monthly claims")
+
+let anySearchExhausted = try! QuotaParsers.parseAnySearchBillingOverview(Data(#"{"tier_code":"free","tier_name":"Free Plan","remaining":0,"used":1000,"total":1000,"reset_period":"daily"}"#.utf8))
+require(anySearchExhausted.quotaAvailability == .exhausted, "Exact AnySearch zero remaining should be exhausted")
+let anySearchOverage = try! QuotaParsers.parseAnySearchBillingOverview(Data(#"{"tier_code":"free","tier_name":"Free Plan","remaining":0,"used":1200,"total":1000,"reset_period":"daily"}"#.utf8))
+require(anySearchOverage.remaining == 0 && anySearchOverage.quotaAvailability == .exhausted, "AnySearch overage is valid only with zero remaining")
 
 for invalidAnySearchJSON in [
-    #"{"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-16T09:31:17Z"},"scope":"user"}}"#,
-    #"{"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-16T09:31:17Z"},"scope":"user","total_requests":-1}}"#,
-    #"{"code":0,"message":"ok","data":{"period":{"from":"not-a-date","to":"2026-07-16T09:31:17Z"},"scope":"user","total_requests":1}}"#,
-    #"{"code":0,"message":"ok","data":{"period":{"from":"2026-06-16T09:31:17Z","to":"2026-07-16T09:31:17Z"},"scope":"user","total_requests":16397}}"#,
-    #"{"code":0,"message":"ok","data":{"period":{"from":"2026-07-16T00:00:00Z","to":"2026-07-17T00:00:01Z"},"scope":"user","total_requests":400}}"#
+    #"{"tier_code":"free","tier_name":"Free Plan","remaining":638,"used":362,"reset_period":"daily"}"#,
+    #"{"tier_code":"free","tier_name":"Free Plan","remaining":-1,"used":1,"total":1000,"reset_period":"daily"}"#,
+    #"{"tier_code":"free","tier_name":"Free Plan","remaining":1,"used":-1,"total":1000,"reset_period":"daily"}"#,
+    #"{"tier_code":"free","tier_name":"Free Plan","remaining":0,"used":0,"total":0,"reset_period":"daily"}"#,
+    #"{"tier_code":"free","tier_name":"Free Plan","remaining":638,"used":362,"total":1000,"reset_period":"weekly"}"#,
+    #"{"tier_code":"free","tier_name":"Free Plan","remaining":600,"used":362,"total":1000,"reset_period":"daily"}"#,
+    #"{"tier_code":"free","tier_name":"Free Plan","remaining":1,"used":1200,"total":1000,"reset_period":"daily"}"#,
+    #"{"code":0,"data":{"scope":"user","total_requests":362}}"#
 ] {
     do {
-        _ = try QuotaParsers.parseAnySearchDailyUsage(Data(invalidAnySearchJSON.utf8), now: anySearchMorningNow)
-        fail("AnySearch malformed daily usage should be rejected")
-    } catch QuotaError.invalidResponse {
+        _ = try QuotaParsers.parseAnySearchBillingOverview(Data(invalidAnySearchJSON.utf8))
+        fail("AnySearch malformed billing overview should be rejected")
+    } catch QuotaError.schemaDrift {
     } catch {
-        fail("AnySearch malformed daily usage should throw invalidResponse, got \(error)")
+        fail("AnySearch malformed billing overview should throw schemaDrift, got \(error)")
     }
 }
 
-require(
-    AnySearchDailyUsageRequest.url(now: anySearchMorningNow).absoluteString == "https://anysearch.com/api/api/user/usage/summary?from=2026-07-16T00%3A00%3A00.000Z&to=2026-07-16T09%3A31%3A17.000Z",
-    "AnySearch request should use explicit percent-encoded UTC millisecond bounds"
-)
+require(AnySearchBillingOverviewRequest.url.absoluteString == "https://www.anysearch.com/api/api/user/billing/overview", "AnySearch overview URL must match the current frontend helper contract")
+require(AnySearchRefreshRequest.url.absoluteString == "https://www.anysearch.com/api/ssuser/auth/refresh", "AnySearch refresh URL must use the www origin")
+require(QuotaError.unauthorizedStatus(403).httpStatus == 403, "Status-bearing unauthorized errors should preserve exact HTTP status")
+require(QuotaError.schemaDriftStatus(200).httpStatus == 200, "Status-bearing schema drift should preserve HTTP 200")
+require(QuotaError.schemaDriftStatus(404).httpStatus == 404, "Status-bearing schema drift should preserve HTTP 404")
 
 let xfyun = try! QuotaParsers.parseXFYunCodingPlanList(Data("""
 {"code":0,"data":{"rows":[{"name":"高效版","validFrom":"2026-05-28 17:48:58","expiresAt":"2026-06-28 17:48:58","codingPlanUsageDTO":{"packageLeft":853441,"packageLimit":900000,"packageUsage":46559,"rp5hLimit":6000,"rp5hUsage":3622,"rpwLimit":450000,"rpwUsage":17454}}]},"succeed":true}

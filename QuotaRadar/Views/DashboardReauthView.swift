@@ -317,7 +317,7 @@ struct DashboardReauthSheet: View {
                         dismiss()
                     }
                 }
-            } catch QuotaError.unauthorized {
+            } catch let quotaError as QuotaError where quotaError.isUnauthorized {
                 await MainActor.run {
                     handleValidationFailure(message: L10n.t(.reauthStillUnauthorized))
                 }
@@ -411,7 +411,7 @@ struct DashboardReauthSheet: View {
                         dismiss()
                     }
                 }
-            } catch QuotaError.unauthorized {
+            } catch let quotaError as QuotaError where quotaError.isUnauthorized {
                 await MainActor.run {
                     handleValidationFailure(message: L10n.t(.reauthStillUnauthorized))
                 }

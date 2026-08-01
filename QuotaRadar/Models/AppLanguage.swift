@@ -655,6 +655,8 @@ enum L10n {
         case monthlyRequestsFormat
         case monthlyRequestsUsedFormat
         case dailyRequestsUsageFormat
+        case monthlyRequestsUsageFormat
+        case requestsUsageFormat
         case searchesLeftFormat
         case creditsLeftFormat
         case noProviderCreditsAvailableFormat
@@ -1618,6 +1620,8 @@ enum L10n {
         .monthlyRequestsFormat: "%@ / %@ monthly requests",
         .monthlyRequestsUsedFormat: "%@ monthly requests used",
         .dailyRequestsUsageFormat: "%@ used · %@ remaining / %@ daily",
+        .monthlyRequestsUsageFormat: "%@ used · %@ remaining / %@ monthly",
+        .requestsUsageFormat: "%@ used · %@ remaining / %@",
         .searchesLeftFormat: "%@ searches left",
         .creditsLeftFormat: "%@ credits left",
         .noProviderCreditsAvailableFormat: "No %@ credits available",
@@ -1961,6 +1965,8 @@ enum L10n {
         .monthlyRequestsFormat: "%@ / %@ 月度请求",
         .monthlyRequestsUsedFormat: "已用 %@ 次月度请求",
         .dailyRequestsUsageFormat: "今日已用 %@ · 剩余 %@ / 每日 %@",
+        .monthlyRequestsUsageFormat: "本月已用 %@ · 剩余 %@ / 每月 %@",
+        .requestsUsageFormat: "已用 %@ · 剩余 %@ / %@",
         .searchesLeftFormat: "剩余 %@ 次搜索",
         .creditsLeftFormat: "剩余 %@ 积分",
         .noProviderCreditsAvailableFormat: "没有可用的 %@ 积分",
@@ -2210,6 +2216,8 @@ enum L10n {
         .monthlyRequestsFormat: "%@ / %@ 月度請求",
         .monthlyRequestsUsedFormat: "已用 %@ 次月度請求",
         .dailyRequestsUsageFormat: "今日已用 %@ · 剩餘 %@ / 每日 %@",
+        .monthlyRequestsUsageFormat: "本月已用 %@ · 剩餘 %@ / 每月 %@",
+        .requestsUsageFormat: "已用 %@ · 剩餘 %@ / %@",
         .searchesLeftFormat: "剩餘 %@ 次搜尋",
         .creditsLeftFormat: "剩餘 %@ 積分",
         .tokenQuotaFormat: "%@ / %@ 個 token",
@@ -2536,6 +2544,8 @@ enum L10n {
         .monthlyRequestsFormat: "%@ / %@ 月間リクエスト",
         .monthlyRequestsUsedFormat: "%@ 件の月間リクエスト使用済み",
         .dailyRequestsUsageFormat: "本日 %@ 使用 · 残り %@ / 1日 %@",
+        .monthlyRequestsUsageFormat: "今月 %@ 使用 · 残り %@ / 月間 %@",
+        .requestsUsageFormat: "%@ 使用 · 残り %@ / %@",
         .searchesLeftFormat: "残り %@ 検索",
         .creditsLeftFormat: "残り %@ クレジット",
         .noProviderCreditsAvailableFormat: "%@ の利用可能なクレジットはありません",
@@ -2878,6 +2888,8 @@ enum L10n {
         .monthlyRequestsFormat: "%@ / %@ 월간 요청",
         .monthlyRequestsUsedFormat: "월간 요청 %@회 사용됨",
         .dailyRequestsUsageFormat: "오늘 %@회 사용 · %@회 남음 / 일일 %@회",
+        .monthlyRequestsUsageFormat: "이번 달 %@회 사용 · %@회 남음 / 월간 %@회",
+        .requestsUsageFormat: "%@회 사용 · %@회 남음 / %@회",
         .searchesLeftFormat: "%@회 검색 남음",
         .creditsLeftFormat: "%@ 크레딧 남음",
         .noProviderCreditsAvailableFormat: "사용 가능한 %@ 크레딧 없음",
