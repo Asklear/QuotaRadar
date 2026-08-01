@@ -22,7 +22,7 @@
 | Tavily | 已实测 | 2026-06-21 16:53 CST | 官方 `/usage` 当前返回 key/account 用量，多个 key 的快照独立记录。 | 月初 reset 由产品规则计算；耗尽 key 稳定显示 0，不视为 schema 异常。 | 稳定 0 额度继续作为额度状态；HTTP 或字段异常才进入可行动诊断。 |
 | Querit | 观察中 | 2026-06-23 13:06 CST | live acceptance 通过，但账号接口仍然只暴露 usage-only 字段，没有 quota limit。 | 显示可用、额度未知；不自行推算剩余额度或 reset。 | 如果后续出现 limit 字段，先补脱敏 fixture，再改变展示口径。 |
 | Kimi Subscription | 观察中 | 2026-06-23 13:06 CST | live acceptance 通过，保留套餐到期 metadata 和可用额度状态；本次保存账号未暴露 reset window。 | 只展示已确认窗口或额度未知；不自行生成月限流窗口。 | 字段漂移时提示重新校准，不直接判定凭据失效。 |
-| LongCat | 观察中 | 2026-07-08 CST | LongCat 前端 bundle 暴露了 token 资源包 summary 和 API 按量余额的 dashboard billing endpoints；未登录复放返回需要登录，说明额度/余额查询需要网页登录授权，而不是只靠业务 API key。parser fixture 已覆盖剩余 token、总 token、资源包到期、人民币余额和按量余额不过期语义。 | 一个 LongCat provider 在同一个账号下展示两类计费指标：Token 资源包剩余 token / 总 token 和资源包到期时间，以及 API 按量余额。API 按量余额不伪造 reset 或到期时间。 | 如果 dashboard 字段变化，提示需要重新校准。API key 仍然只是可复制的配套调用 key，不作为额度凭据。 |
+| LongCat | 已实测 | 2026-08-01 CST | 已保存网页登录授权调用两个 billing summary 均返回 HTTP 200。Token 资源包为 14,390,820 / 50,000,000，`expireTime = 2026-08-08 12:07:16`；API 按量余额仍独立且不过期。 | 一个 LongCat provider 展示两个计费指标。无时区的 Token 资源包到期只按 `Asia/Shanghai` 解析；按量余额不继承资源包到期。 | 非空但格式错误的到期字段保留有效额度并提示重新校准；缺失/空值保持干净的未知到期。API key 仍只用于复制。 |
 | OpenCode Go | 观察中 | 2026-06-23 13:06 CST | live acceptance 通过，保留 quota 和 reset windows；未观察到 package end 字段。 | 只展示已观察到的 rolling/weekly/monthly windows。 | 字段漂移时提示重新校准，不直接判定凭据失效。 |
 
 ## AI Search
@@ -31,11 +31,11 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Tavily | AI Search | API 密钥 | 官方 Usage API | 每月 1 日 | 否 | `GET /usage` | 免费额度按月重置，不累积。 |
 | Brave Search | AI Search | API 密钥 | 搜索响应 Header | 未公开 | 是 | `GET /res/v1/web/search` | 每次检查会产生真实搜索请求。 |
-| SerpAPI | AI Search | API 密钥 | Account API | 月度 | 否 | `GET /account.json` | 返回搜索余额。 |
+| SerpAPI | AI Search | API 密钥 | Account API | 账号返回的正式续期日 | 否 | `GET /account.json` | 使用 `plan_renewal_date`、`plan_name` 和 `status`，不再本地推算月初。 |
 | Serper | AI Search | API 密钥 | Account API | 未公开 | 否 | `GET /account` | 返回账户余额和 `rateLimit`；不暴露 reset/end 字段。 |
 | Exa | AI Search | API 密钥 | Admin API | 未公开 | 否 | Team Management usage API | 普通 search key 不能查询额度证据；Team Management 凭据只能读取账单用量证据。usage-only 原始字段只作为解析证据；主界面仍显示“可用 · 额度未知”，直到接口暴露剩余额度或套餐上限。 |
 | Bocha | AI Search | API 密钥 | 官方余额 API | 无固定周期 | 否 | Remaining fund API | 以人民币余额显示。 |
-| AnySearch | AI Search | 网页登录授权；配套 API Key 用于保存/复制 | 控制台 Usage API | 每日 UTC 00:00 | 否 | `GET /api/api/user/usage/summary?from=...&to=...`；`POST /api/ssuser/auth/refresh` | 免费套餐每日 1,000 次。API Key 本身不能主动查询用量；控制台短期 token 会通过轮换 refresh token 自动续期。 |
+| AnySearch | AI Search | 网页登录授权；配套 API Key 用于保存/复制 | 控制台 Billing Overview API | Provider `reset_period`；只使用返回的精确 reset | 否 | `GET https://www.anysearch.com/api/api/user/billing/overview`；`POST https://www.anysearch.com/api/ssuser/auth/refresh` | 在 `www` 控制台捕获 `search-template-auth-state`，解析官方 used/remaining/total、套餐和可选 `next_reset_at`；不再硬编码 1,000 或 UTC reset。refresh 业务码 `40114` 表示保存 token 已被撤销，需要重新进行控制台认证。 |
 | Querit | AI Search | 网页登录授权；可选 API Key 仅用于保存/复制 | 控制台 Account API | 未公开 | 否 | `/api/v1/user/account` | 可读取月度请求使用证据；当前账号接口未暴露套餐上限、重置时间或结束日期。`QUERIT_API_KEY` 可保存和复制，但不能查 dashboard 额度。usage-only 原始字段只作为解析证据；主界面仍显示“可用 · 额度未知”，直到接口暴露剩余额度或套餐上限。 |
 | 微信搜索 | AI Search | API 密钥 | 官方余额 API | 无固定周期 | 否 | Remaining money API | 以人民币余额显示。 |
 
@@ -79,6 +79,8 @@ LONGCAT_SESSION='{"cookie":"<longcat-cookie-header-value>","token":"<login-token
 
 有些 provider 同时支持“业务 API Key”和“额度监控授权”。这时业务 API Key 只承担管理和复制用途，不单独生成额度监控行，也不会重复生成诊断行；额度、健康状态和 HTTP 状态都来自配对的网页登录授权。这样用户可以在一个工具里管理可复制的 API Key，同时避免把 dashboard Cookie 当成 API Key 暴露出来。
 
+额度刷新会持久化结构化可用性证据：`available`、`exhausted`、`unavailable` 或 `unknown`。只有“没有任何 active 监控凭据为 available，且至少一个凭据被 provider 明确确认 exhausted”时，Provider 总览的关键额度才统一显示“额度已用尽”。旧数据里的 0、服务不可用、usage-only、认证失败和 schema drift 都不会被猜成耗尽；凭据详情仍保留数值单位、HTTP 状态、诊断、reset、续期和到期证据。
+
 主界面的 `额度监控`、`配置凭据` 和 `诊断` 只展示已经保存过凭据的 provider；隐藏扩展桩和未配置 provider 不显示空占位。多周期订阅额度在凭据行只展示一次：主行显示凭据身份、关键额度和状态，5 小时/周/月等周期细节放在展开明细里。近期消耗或余额变化只放在它描述的额度下方；展开账号行的 `上次更新` 面板只表达刷新状态，避免把数据新鲜度和额度变化混在一起。
 
 讯飞星火 Token plan、阿里云 Token plan 和腾讯云 Token plan 已确认部分控制台/API 入口，但当前缺少非空套餐或真实 key 样本；火山引擎 Token plan 尚未确认稳定用量接口。这些 Token plan 当前仍保持隐藏扩展桩：代码中保留 provider、capability、默认凭据名和后续 parser 接口，但在非空套餐额度字段和真实凭据样本确认前不会展示在 UI、不会从 `.env` 自动导入，也不会参与刷新。
@@ -109,11 +111,11 @@ Token plan 不能默认等同于 coding plan，也不能默认都是 token 数�
 | --- | --- | --- | --- | --- |
 | Tavily | 是 | 是，代码按每月 1 日计算 | 否 | `GET /usage` 返回 `key.usage`、`key.limit`、`account.plan_usage`、`account.plan_limit`；接口未返回显式 reset/end，月初重置来自官方免费额度规则。 |
 | Brave Search | 是，但会消耗一次搜索 | 是 | 否 | 搜索响应 header 返回 `x-ratelimit-limit`、`x-ratelimit-remaining`、`x-ratelimit-reset`、`x-ratelimit-policy`；未见套餐结束字段。 |
-| SerpAPI | 是 | 是，代码按下月 1 日 UTC 计算 | 否 | `GET /account.json` 返回 `searches_per_month`、`this_month_usage`、`plan_searches_left`、`total_searches_left`、`extra_credits`；接口未返回显式 reset/end。 |
+| SerpAPI | 是 | 有效的官方 `plan_renewal_date` | 否 | `GET /account.json` 返回搜索限额/剩余及可选 `plan_renewal_date`、`plan_name`、`status`；缺失或非法续期日保持 reset 未知。 |
 | Serper | 是 | 否 | 否 | `GET /account` 返回 `balance`、`rateLimit`；未见 reset/end 字段。 |
 | Exa | 可用，额度未知 | 否 | 否 | Team Management usage API 只返回账单用量证据，不暴露剩余额度或套餐上限，所以主界面显示“可用 · 额度未知”。普通 search key 不能查询额度证据，当前配置若只有 search key 会显示需要 API 密钥。 |
 | Bocha | 是 | 否 | 否 | 余额 API 返回 `data.remaining`，按人民币余额展示；未见 reset/end 字段。 |
-| AnySearch | 是 | 是，下一个 UTC 00:00 | 否 | 明确传入当日 UTC 起止时间的控制台 usage-summary 接口返回 `data.total_requests`；Quota Radar 按官方每日 1,000 次免费额度计算剩余。未带范围的请求会返回更宽时间段，因此不会使用。 |
+| AnySearch | 是 | 只使用可选 `next_reset_at` | 否 | 当前 billing overview 返回 `tier_code`、`tier_name`、`used`、`remaining`、`total`、`reset_period` 和可选 `next_reset_at`。接受 daily/monthly/none，不根据 period 标签自行推断 reset。 |
 | Querit | 可用，额度未知 | 否 | 否 | `/api/v1/user/account` 返回 `current_plan.free_usage_month`、`paid_usage_month`、`enterprise_usage_month`、`coupon_quota`、`coupon_used` 等 usage-only 字段；当前账号未见套餐上限、重置时间或结束日期字段，所以主界面显示“可用 · 额度未知”。 |
 | 微信搜索 | 是 | 否 | 否 | 余额 API 返回 `remain_money`、`request_time`，按人民币余额展示；未见 reset/end 字段。 |
 | Claude API Usage | 未接入 | 待确认 | 待确认 | 暂不展示/导入 API key；组织 usage 需要 Admin 权限模型，未和个人 Claude 订阅额度打通。 |
@@ -122,7 +124,7 @@ Token plan 不能默认等同于 coding plan，也不能默认都是 token 数�
 | Codex API Usage | 未接入 | 待确认 | 待确认 | 暂不展示/导入 OpenAI API key；平台 usage/costs 与 ChatGPT/Codex 订阅窗口不同，当前未接入刷新。 |
 | Codex Subscription | 是 | 是 | 是 | Codex Cloud 页面真实请求 `/backend-api/wham/usage`，返回 `rate_limit.primary_window` 5 小时窗口、`secondary_window` 周窗口、`additional_rate_limits[]` 模型专属窗口及 `reset_at`；该接口需要先从 `/api/auth/session` 取得 ChatGPT session access token，并用 Bearer token 调用。套餐到期来自 `/backend-api/subscriptions?account_id=...`；lifecycle 字段、`accounts/check`、RevenueCat offering IDs 和可读值会把 `chatgptprolite` / `ChatGPT Pro Lite` 映射为 `Pro 5x`，把 `chatgptpro` / `ChatGPT Pro` 映射为 `Pro 20x`。`/backend-api/wham/rate-limit-reset-credits` 返回 `available_count` 以及每次重置的 `granted_at`、`expires_at` 和兑换状态；Quota Radar 选择最早的未使用有效期展示，并忽略已使用或已过期的重置次数。当前响应未见月窗口。 |
 | Kimi | 是 | 是 | 有字段时可查 | Kimi Code 网页授权可调用 `kimi.gateway.billing.v1.BillingService/GetUsages` 读取 `FEATURE_CODING` 的 5 小时和周额度、剩余次数和 reset；`MembershipService/GetSubscription` 暴露订阅状态、balances、`next_billing_time` 或 balance `expire_time`。当前未确认独立月限流窗口；订阅余额有 `amount/amount_left` 时按月度余额展示，只有 `amountUsedRatio` 时按百分比展示，否则只显示已确认窗口或“额度未知”。官方 Kimi Code OAuth `/coding/v1/usages` 返回同类 `usage/limits` 结构，但需要独立 OAuth 凭据，暂列后续统一认证改造。 |
-| LongCat | 是 | 否 | 仅 Token 资源包到期 | `POST /api/pay/quota/metering/token-packs/summary` 返回 `currentLot.remainingToken`、`currentLot.totalToken`、`currentLot.consumedToken`、`currentLot.consumedRatio`、`currentLot.expireTime`、`currentLot.remainSeconds`、`currentLot.grantCategory` 和 `otherLots[]`。`POST /api/pay/quota/metering/api-usage/summary` 返回 `paygoBalance.primary.currency`、`paygoBalance.primary.amount`、`paygoStatus` 和充值 metadata。Quota Radar 把两者作为同一个 provider 下的两类计费指标展示。 |
+| LongCat | 是 | 否 | 仅 Token 资源包到期 | `expireTime` 支持既有 numeric/ISO 形式，也支持 LongCat 专用的 `yyyy-MM-dd HH:mm:ss`（`Asia/Shanghai`）。非空非法值保留额度并标记 schema drift；按量余额仍不过期。 |
 | DeepSeek | 是 | 否 | 否 | `/user/balance` 返回 `is_available` 和余额结构，按人民币余额展示；未见 reset/end 字段。 |
 | 讯飞星火 coding plan | 是 | 推断 | 是 | `/api/v1/gpt-finetune/coding-plan/list` 返回 `validFrom`、`expiresAt` 和 `codingPlanUsageDTO` 三周期请求次数额度；接口未返回显式 reset 字段。Quota Radar 用 `validFrom` 推断 5 小时/周窗口下一个重置边界，用 `expiresAt` 作为套餐期窗口结束/重置时间。 |
 | 讯飞星火 Token plan | 座席额度可查，待接入代码 | 待购买样本确认 | 待购买样本确认 | Token Plan 页面真实请求 `/api/v1/gpt-finetune/token-plan/seats?page=0&size=6` 和 `/api/v1/gpt-finetune/token-plan/quota`；当前账号 `seats.total=0`，`quotas[]` 返回 `seatTypeName`、`remainingCount`、`totalCount`。 |
