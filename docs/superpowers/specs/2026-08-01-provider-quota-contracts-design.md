@@ -9,7 +9,7 @@ Repair four provider contract and presentation problems without changing unrelat
 
 1. AnySearch authentication saved from the logged-in `www.anysearch.com` console must validate and immediately refresh the daily quota.
 2. SerpAPI must use the account's official renewal date instead of inventing a next-month boundary.
-3. Exhausted finite plans must use one shared Key Quota message across Tavily, Brave, SerpAPI, and other providers with the same state.
+3. Every provider with verified exhausted quota, package, credit, or monitored balance must use one shared Key Quota message.
 4. LongCat Token Pack must expose the package expiry returned by the current billing API.
 
 The change will be developed from `origin/main` in the isolated `fix/provider-quota-contracts` worktree. The dirty `qa/windows-web-auth-deferred-navigation` worktree is out of scope.
@@ -31,9 +31,9 @@ The existing app still calls the legacy usage-summary contract and constructs re
 
 The live official `account.json` response reports a Free Plan with `250 / 250` searches used, zero remaining, and `plan_renewal_date = 2026-08-10`. The current parser ignores the renewal date and sets `resetAt` to the first day of the next UTC month.
 
-### Tavily and Brave
+### Provider-wide exhaustion presentation
 
-Provider-specific parser results currently reach the shared UI with different exhausted descriptors such as `Exhausted`, `Usage limit exceeded`, numeric zero labels, and reset-appended primary text. This makes the Key Quota column inconsistent even though the business state is the same. Brave HTTP 402 and verified long-window HTTP 429 must retain their distinct HTTP and diagnostic evidence.
+Provider-specific parser results currently reach the shared UI with different exhausted descriptors such as `Exhausted`, `Usage limit exceeded`, numeric zero labels, balance/credit labels, and reset-appended primary text. This makes the Key Quota column inconsistent even though the business state is the same. Brave HTTP 402 and verified long-window HTTP 429 must retain their distinct HTTP and diagnostic evidence, and balance, credit, request-count, token-count, and percentage-window providers must retain their original detail units.
 
 ### LongCat
 
@@ -88,16 +88,19 @@ Extend the account parser with optional `plan_renewal_date`, `plan_name`, and `s
 
 Continue preferring `total_searches_left`, then `plan_searches_left`, then the derived difference. Keep extra credits in the displayed total. Preserve an exact remaining-over-total quota descriptor so a zero balance remains numerically explainable in credential details. Construct the account URL with `URLComponents` and `URLQueryItem` so reserved characters in the API key are encoded rather than interpolated into the URL.
 
-### 3. Shared exhausted Key Quota presentation
+### 3. Provider-wide exhausted Key Quota presentation
 
 Normalize only `ProviderStats.keyQuotaDisplayText`, which owns the provider-overview Key Quota column. Do not change `APIKey.quotaDisplayText`, `APIKey.quotaPresentation`, `APIKey.diagnosticSummary`, parser labels, or credential-detail rendering.
 
-The first change is explicitly scoped to Tavily, Brave, and SerpAPI. For one of those providers, Key Quota displays the localized `Usage limit exceeded` message (`额度已用尽` in Simplified Chinese) only when no active monitoring credential remains usable and at least one active monitoring credential meets either verified predicate:
+The rule applies to every provider represented by `ProviderStats`, regardless of whether its monitored resource is a request quota, token package, percentage window, prepaid credit, or monetary balance. Key Quota displays the localized `Usage limit exceeded` message (`额度已用尽` in Simplified Chinese) only when no active monitoring credential remains usable and at least one active monitoring credential meets a verified exhaustion predicate:
 
-- finite quota exhaustion: `remaining == 0`, finite `limit > 0`, and the credential is not money/credit balance, unlimited, copy-only, unknown-quota, expired, or failed; or
-- the parser supplied the structured `usageLimitExceeded` state from an authenticated provider response.
+- the parser supplied the structured `usageLimitExceeded` state from an authenticated provider response; or
+- `remaining <= 0` with a non-sentinel value and the latest provider result is a successful 2xx quota/balance response; or
+- `remaining <= 0` with a non-sentinel value and the latest provider result is an authenticated quota-exhaustion response such as HTTP 402 or a verified long-window HTTP 429.
 
-If any active monitoring credential remains usable, existing mixed-pool selection continues to show the tightest usable quota. Invalid credentials, schema failures, unknown quota, and expired authentication never become quota exhaustion merely because the provider pool has no usable key.
+This includes zero monetary balances and zero prepaid-credit balances: the Key Quota column uses the shared exhausted message while credential details keep the currency or credit amount. Percentage-window providers already project their tightest window into `remaining` / `limit`; a verified zero projection therefore uses the same rule.
+
+If any active monitoring credential remains usable, existing mixed-pool selection continues to show the tightest usable quota. Invalid credentials, schema failures, no-subscription states, unknown quota, unlimited quota, copy-only credentials, business-invocation-only keys, and expired authentication never become quota exhaustion merely because the provider pool has no usable key. Legacy records without a successful or authenticated exhaustion HTTP status keep their existing presentation until refreshed; the shared rule does not guess from a stale zero alone.
 
 The credential detail retains:
 
@@ -152,9 +155,11 @@ Use focused RED/GREEN tests before production changes.
 
 ### Shared presentation
 
-- exhausted Tavily, Brave HTTP 402, Brave verified monthly 429, and SerpAPI produce the same localized `ProviderStats.keyQuotaDisplayText`;
+- table-driven cases cover all quota shapes: request count, token count, percentage window, prepaid credit, and monetary balance;
+- exhausted Tavily, Brave HTTP 402, Brave verified monthly 429, SerpAPI, LongCat Token Pack, subscription/coding-plan windows, prepaid credits, and zero monitored balances produce the same localized `ProviderStats.keyQuotaDisplayText` when their latest response verifies exhaustion;
 - `APIKey.quotaDisplayText`, exact detail values, Brave 402/429 `lastHTTPStatus`, and their distinct `lastDiagnosticText` remain provider-specific;
-- mixed usable/exhausted key pools still show usable quota.
+- mixed usable/exhausted key pools still show usable quota;
+- unknown, unlimited, expired, failed, no-subscription, copy-only, business-key-only, and stale zero-without-status fixtures do not become exhausted.
 
 ### LongCat
 
@@ -172,7 +177,7 @@ After automated tests pass:
 
 1. Reauthenticate or reuse the current AnySearch logged-in session, save it, and verify HTTP 200 plus the current plan/used/remaining/total values immediately in local state.
 2. Refresh SerpAPI and verify zero remaining with the official 2026-08-10 renewal date rather than September 1.
-3. Verify exhausted Tavily/Brave/SerpAPI examples use the same Key Quota copy while their detailed evidence differs.
+3. Verify representative exhausted providers across request, token, percentage-window, credit, and money-balance shapes use the same Key Quota copy while their detailed evidence differs.
 4. Refresh LongCat with the current saved session and verify HTTP 200 plus `planEndsAt = 2026-08-08 12:07:16 +08:00`.
 5. Recheck Codex Subscription as a non-regression: Pro 20x remains HTTP 200, the weekly window remains available, and omission of a fully recovered five-hour window is not treated as exhaustion.
 
