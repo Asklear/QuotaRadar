@@ -9095,6 +9095,21 @@ require(abs((longCatTokenPack.planEndsAt?.timeIntervalSince1970 ?? 0) - longCatT
 require(longCatTokenPack.resetAt == nil, "LongCat Token Pack should not invent a reset cycle")
 require(longCatTokenPack.planDisplayName == "Token Pack", "LongCat Token Pack should expose the token-package billing mode")
 require(longCatTokenPack.quotaAvailability == .available, "Positive LongCat Token Pack should be available")
+let liveLongCat = try! QuotaParsers.parseLongCatTokenPackSummary(Data(#"{"code":0,"data":{"currentLot":{"remainingToken":14494119,"totalToken":50000000,"consumedToken":35505881,"expireTime":"2026-08-08 12:07:16","remainSeconds":586503,"grantCategory":"PURCHASE"},"estimate":{"exhaustedAfterDays":12},"otherLots":[]}}"#.utf8))
+var shanghaiCalendar = Calendar(identifier: .gregorian)
+shanghaiCalendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+let liveLongCatExpiryParts = shanghaiCalendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: liveLongCat.planEndsAt!)
+require(liveLongCatExpiryParts.year == 2026 && liveLongCatExpiryParts.month == 8 && liveLongCatExpiryParts.day == 8 && liveLongCatExpiryParts.hour == 12 && liveLongCatExpiryParts.minute == 7 && liveLongCatExpiryParts.second == 16, "LongCat local expiry should use Asia/Shanghai")
+
+let numericLongCatExpiry = try! QuotaParsers.parseLongCatTokenPackSummary(Data(#"{"code":0,"data":{"currentLot":{"remainingToken":1,"totalToken":2,"expireTime":1786152000}}}"#.utf8))
+require(numericLongCatExpiry.planEndsAt?.timeIntervalSince1970 == 1786152000, "LongCat numeric expiry should remain supported")
+let absentLongCatExpiry = try! QuotaParsers.parseLongCatTokenPackSummary(Data(#"{"code":0,"data":{"currentLot":{"remainingToken":1,"totalToken":2}}}"#.utf8))
+require(absentLongCatExpiry.planEndsAt == nil && absentLongCatExpiry.diagnosticText == nil, "Absent LongCat expiry should remain a clean unknown")
+let emptyLongCatExpiry = try! QuotaParsers.parseLongCatTokenPackSummary(Data(#"{"code":0,"data":{"currentLot":{"remainingToken":1,"totalToken":2,"expireTime":""}}}"#.utf8))
+require(emptyLongCatExpiry.planEndsAt == nil && emptyLongCatExpiry.diagnosticText == nil, "Empty LongCat expiry should remain a clean unknown")
+let malformedLongCatExpiry = try! QuotaParsers.parseLongCatTokenPackSummary(Data(#"{"code":0,"data":{"currentLot":{"remainingToken":1,"totalToken":2,"expireTime":"not-a-date"}}}"#.utf8))
+require(malformedLongCatExpiry.remaining == 1 && malformedLongCatExpiry.planEndsAt == nil, "Malformed LongCat expiry should preserve valid quota")
+require(malformedLongCatExpiry.diagnosticText?.key == .quotaErrorSchemaDrift, "Malformed nonempty LongCat expiry should attach schema-drift diagnostics")
 do {
     _ = try QuotaParsers.parseLongCatTokenPackSummary(Data("""
 {"code":401,"msg":"用户未登录，请先登录","data":null}
@@ -9144,6 +9159,11 @@ require(longCatCombined.quotaText?.quotaWindows.last?.name == "paygoBalance", "L
 require(longCatCombined.quotaText?.quotaWindows.last?.percentText == "¥128.50", "LongCat pay-as-you-go meter should show balance money instead of a fake percentage")
 require(longCatCombined.quotaText?.quotaWindows.last?.remainingText == "CNY 128.50 balance", "LongCat pay-as-you-go meter should preserve the raw balance label")
 require(abs((longCatCombined.planEndsAt?.timeIntervalSince1970 ?? 0) - longCatTokenPackExpiry.timeIntervalSince1970) < 1, "LongCat combined billing summary should expose Token Pack expiry as account-level package validity")
+let liveLongCatCombined = try! QuotaParsers.parseLongCatBillingSummary(
+    tokenPackData: Data(#"{"code":0,"data":{"currentLot":{"remainingToken":14494119,"totalToken":50000000,"expireTime":"2026-08-08 12:07:16"}}}"#.utf8),
+    payAsYouGoData: longCatPaygoData
+)
+require(liveLongCatCombined.planEndsAt == liveLongCat.planEndsAt, "Combined LongCat billing should retain the Token Pack local expiry")
 let longCatMixedJSONCredential = LongCatDashboardCredential("""
 {"cookie":"locale=zh; passport_uuid=passport-from-cookie","token":"token-from-json","passport_uuid":"passport-from-json"}
 """)!

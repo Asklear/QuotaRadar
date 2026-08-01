@@ -748,13 +748,13 @@ enum QuotaParsers {
 
         let safeRemaining = Int(max(0, resolvedRemaining).rounded(.down))
         let safeTotal = max(safeRemaining, Int(resolvedTotal.rounded(.down)))
-        let expiry = firstDateValue(
-            in: currentLot,
-            keys: ["expireTime", "expire_time", "expiresAt", "expires_at", "validUntil", "valid_until"]
-        ) ?? firstDateValue(
-            in: payload,
-            keys: ["expireTime", "expire_time", "expiresAt", "expires_at", "validUntil", "valid_until"]
-        )
+        let expiryKeys = ["expireTime", "expire_time", "expiresAt", "expires_at", "validUntil", "valid_until"]
+        let rawExpiry = firstPresentLongCatExpiryValue(in: [currentLot, payload], keys: expiryKeys)
+        let expiry = rawExpiry.flatMap { value in
+            dateValue(value)
+                ?? (value as? String).flatMap(parseLongCatLocalDateTime)
+        }
+        let hasMalformedExpiry = rawExpiry != nil && expiry == nil
 
         return QuotaResult(
             remaining: safeRemaining,
@@ -763,8 +763,37 @@ enum QuotaParsers {
             quotaAvailability: availability(forValidatedRemaining: safeRemaining),
             planEndsAt: expiry,
             planDisplayName: longCatTokenPackDisplayName(from: currentLot),
-            quotaLabel: "\(safeRemaining) / \(safeTotal) tokens"
+            quotaLabel: "\(safeRemaining) / \(safeTotal) tokens",
+            diagnosticMessage: hasMalformedExpiry ? QuotaError.schemaDrift.localizedDescription : nil,
+            diagnosticText: hasMalformedExpiry ? .localized(.quotaErrorSchemaDrift) : nil
         )
+    }
+
+    private static func firstPresentLongCatExpiryValue(
+        in sources: [[String: Any]],
+        keys: [String]
+    ) -> Any? {
+        for source in sources {
+            for key in keys {
+                guard let value = source[key], !(value is NSNull) else { continue }
+                if let string = value as? String,
+                   string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    continue
+                }
+                return value
+            }
+        }
+        return nil
+    }
+
+    private static func parseLongCatLocalDateTime(_ value: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "Asia/Shanghai")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        formatter.isLenient = false
+        return formatter.date(from: value.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     static func parseLongCatPayAsYouGoSummary(_ data: Data) throws -> QuotaResult {
